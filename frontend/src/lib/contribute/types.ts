@@ -24,8 +24,8 @@ import type { AsPlainString } from "@/lib/types";
  * started session under its starter by session id alone, which is safe for
  * one owner and WRONG for several, because a session id is unique per owner
  * rather than globally. If the endpoint is ever widened to answer with more
- * than one person's rows, add `owner_id` to the contract and read it in
- * `./tree.ts` (see `SINGLE_OWNER_ENDPOINT` there) in the SAME change.
+ * than one person's rows, add `parent_transcript_id` to this row and read it in
+ * `./tree.ts` (see `singleOwnerParentRow` there) in the SAME change.
  *
  * @deprecated Import VillageContributableTranscript from "@peasant-labs/schema". Alias kept for one release.
  */

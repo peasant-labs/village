@@ -49,7 +49,9 @@ func (h *Handler) ListUserPublicOrgs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, orgs)
 }
 
-// GetUserPublicProfile returns a user's public profile by username.
+// GetUserPublicProfile returns a user's public profile by username, in the
+// contract's public-person shape (kind profile: id, username, display name,
+// avatar).
 // Hidden (is_discoverable=false) users return 404 to non-owners so their
 // existence isn't confirmed via direct URL lookup.
 // GET /users/{username} (AuthOptional)
@@ -74,7 +76,9 @@ func (h *Handler) GetUserPublicProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, target)
+	// Only the public profile fields, never the account row: the row carries
+	// sign-in identity, account dates, and personal settings.
+	writeJSON(w, http.StatusOK, publicProfileOfUser(target))
 }
 
 // ListMyOrgs returns all GitHub orgs for the authenticated user (settings page).
@@ -184,10 +188,29 @@ func (h *Handler) GetOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.queries.ListOrgMembers(r.Context(), login)
+	allMembers, err := h.queries.ListOrgMembers(r.Context(), login)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch organization members")
 		return
+	}
+	// Only the members this viewer may see as a profile are listed: an
+	// organization's roster would otherwise name a person who is anonymous to
+	// the viewer. A hidden person still sees themselves. member_count stays the
+	// organization's aggregate.
+	memberIDs := make([]pgtype.UUID, 0, len(allMembers))
+	for _, row := range allMembers {
+		memberIDs = append(memberIDs, row.ID)
+	}
+	people, err := h.resolvePublicOwners(r.Context(), user, memberIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the organization's members")
+		return
+	}
+	members := make([]sqlc.ListOrgMembersRow, 0, len(allMembers))
+	for _, row := range allMembers {
+		if people.of(row.ID).IsProfile() {
+			members = append(members, row)
+		}
 	}
 
 	// Collectives linked to this org, filtered to those the caller can see.

@@ -375,6 +375,100 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   attach widened, migration 044); for every other binding it is a record and
   never a target. It is never accepted from a caller.
 
+### Showing a person to another viewer
+
+- **One statement decides profile or anonymous.** Every response that shows a
+  transcript owner, collective member or contributor, collective creator,
+  repository linker, attester, pull request author or requester, or annotation
+  author to a viewer resolves that person through `ListPublicOwnersForViewer`
+  (`queries/users.sql`), called through `resolvePublicOwners`
+  (`handler/public_owner.go`), once per response for every person on it. A
+  person is shown as their public profile (id, username, display name, avatar)
+  when they are discoverable, when the viewer is that person, or when the viewer
+  owns a collective where the person took an act that still stands: a pending
+  or approved submission (`transcript_shares.status`) or a leftover `pending`
+  join request. A plain `member` or `contributor` row does not count: Village
+  records no provenance for membership and an owner can add anyone by
+  username, so membership alone reveals nothing about a person's transcripts.
+  Invitations the person accepts are the planned replacement for owner adds
+  (a separate follow-up), after which an accepted membership may count again.
+  The roster is the exception: a collective's owners see every member and join
+  request of that collective as a profile (`collectivePeopleFor`), because they
+  added or accepted each one and need the id to manage them; other members get
+  the rule above. Everyone else receives the anonymous shape,
+  which carries no id. No handler restates this rule, and no response to another
+  viewer carries the `users` row; `GET /auth/me` returns the caller's own.
+- **Identity beside an anonymous person is withheld too.** Organization badges
+  (`owner_orgs`, a roster row's `github_orgs`) are empty for an anonymous
+  person, an attestation's `org_login` is blank beside an anonymous attester,
+  `GET /orgs/{login}` lists only the members the viewer may see as a profile
+  (its `member_count` stays the aggregate), a human annotation's
+  `annotatorName` becomes `anon` (a handle no account may hold), and the `owner=`
+  and `org=` list filters match only owners the viewer may see as a profile, so
+  a filter cannot tie anonymous rows to a person or an organization. A
+  transcript of an anonymous owner carries none of its repository identity:
+  `git_remote`, `git_branch`, `project_hash`, `project_name` and the three
+  resolved project fields are null (`withholdRepository`), and the pull
+  envelope omits `projectName`. A pull request requester is recorded as a
+  GitHub id; it is resolved to the Village account that signed in with that
+  identity, and a requester with no account is anonymous like a hidden one.
+- **Both pull envelopes withhold the same person.** The pull reads serve the
+  envelope a client asks for in the `Peasant-Pull-Contract` header
+  (`handler/pull_contract.go`): 0.3.0 carries the `VillagePublicOwner`, and
+  0.2.0, the default that released CLIs read without the header, is rendered
+  from the 0.3.0 values only through the schema module's `LegacyPull*From`
+  converters, so an anonymous person becomes an empty id beside `anon` and
+  `projectName` is dropped. Village adds no 0.2.0 blanking rule of its own,
+  and the annotation repository fields are withheld before either envelope is
+  built. Beside an anonymous owner, the pull annotations read also leaves out
+  every annotation whose target is the withheld repository, `project` and
+  `file_version` targets (`annotationTargetsWithheldRepository`): such a note
+  is about exactly what is withheld, and without its target it would fail the
+  schema's `AnnotationSummary` validation in both envelopes. Session, entry,
+  annotation and association targets are served as usual.
+- **A child session's parent is resolved at read time.** With no owner id on
+  the wire, `parent_transcript_id` is how a reader folds a child under its
+  parent: the route looks up the transcript published from
+  `parent_session_id` within the same owner (`ListTranscriptsByOwnerLocalIDs`,
+  one read per page) and keeps it only when the viewer may read it under the
+  transcript read policy (`transcriptViewAccess`); otherwise it is null.
+- **Which rows are listed.** The roster and contributor queries leave out a
+  person who is not discoverable unless the viewer owns the collective or is
+  that person: a person always sees their own row. `GET /users/{username}` and
+  the project page still answer 404 for a hidden person to anyone but
+  themselves, and now return only the public profile shape.
+- **The content route and pull annotations withhold the repository too.**
+  Neither response carries an owner, so the server decides: for an owner
+  anonymous to the viewer, `GET /transcripts/{id}/content` and
+  `GET /pull/transcripts/{id}/content` serve the session detail without
+  `project`, `workingDirectory`, `gitBranch`, `gitRemote`, any
+  `childSessions[].project`, or the harness metadata records `nativeMetadata`
+  and `retainedUnknown`, which can carry the working directory and branch
+  (`withholdContentRepository`). The pull route first reads stored content
+  through the same migrator as the web route, so a legacy blob is served as an
+  envelope; content no migrator can read is refused on both routes with 422
+  `content_unreadable_for_anonymous_owner`, which retrying cannot change.
+  Withheld pull content carries no ETag, because its bytes are no longer the
+  stored blob's,
+  and annotations leave `targetProjectHash` and `targetFilePath` absent.
+  Withheld means null or absent, never an empty string. The `project` and
+  `repo` list filters (and the grouped `project_hash`) match only owners the
+  viewer may see as a profile, through the same owner set as the person
+  filters. Attached pull requests stay visible by design: attaching a
+  transcript to a public pull request is the owner's own public act. For the
+  same reason the GitHub prompt-digest comment on that pull request names its
+  author's handle.
+- **`content_hash` is kept beside an anonymous owner.** The pull envelope and
+  transcript rows still carry it: peasant uses it for conditional pulls and
+  caching, and confirming a guessed repository from it would need the whole
+  blob, which the viewer can only read with the repository fields withheld.
+- **Grouped lists keep the owning account off the wire.** Helper grouping needs
+  the owner to keep two owners' equal local ids apart, so it travels beside the
+  rows (`GroupedScopeResult.ownerKeys`) and the helper-group id is an HMAC under
+  a per-process key, so a viewer cannot confirm an anonymous owner by hashing a
+  known account id.
+- The rule reads existing rows only; it adds no column, table or migration.
+
 ## 4. Governance event taxonomy
 
 - **`governance_event_types`** is a reference table (`id` = the event name)
@@ -831,7 +925,10 @@ authenticating. Both are custom Postgres parameters read via
 - **Transcript association disclosure is separate from content access.** A
   non-owner's detail response filters both `shares` and `enriched_shares` through
   `ListTranscriptCollectivesForViewer`, exactly the accepted association set the
-  dedicated endpoint discloses. Collective visibility and contributor
+  dedicated endpoint discloses, and the transcript list discloses the same set
+  for every row the viewer does not own, batched through
+  `ListTranscriptsCollectivesForViewer` (held equal to the single-transcript
+  query by the collectives-visibility corpus). Collective visibility and contributor
   discoverability both apply; a withheld association looks absent rather than
   producing an existence-confirming refusal. Owners retain their broader
   pending/current projections and separate attempt-history reads. Share,

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/github"
 )
@@ -67,18 +68,20 @@ type linkRepoRequest struct {
 
 // repoResponse is the wire shape for a linked repository.
 type repoResponse struct {
-	ID             pgtype.UUID        `json:"id"`
-	GroupID        pgtype.UUID        `json:"group_id"`
-	Owner          string             `json:"owner"`
-	Name           string             `json:"name"`
-	InstallationID int64              `json:"installation_id"`
-	IsPrivate      bool               `json:"is_private"`
-	LinkedBy       pgtype.UUID        `json:"linked_by"`
-	LastSyncedAt   pgtype.Timestamptz `json:"last_synced_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ID             pgtype.UUID               `json:"id"`
+	GroupID        pgtype.UUID               `json:"group_id"`
+	Owner          string                    `json:"owner"`
+	Name           string                    `json:"name"`
+	InstallationID int64                     `json:"installation_id"`
+	IsPrivate      bool                      `json:"is_private"`
+	LinkedBy       schema.VillagePublicOwner `json:"linked_by"`
+	LastSyncedAt   pgtype.Timestamptz        `json:"last_synced_at"`
+	CreatedAt      pgtype.Timestamptz        `json:"created_at"`
 }
 
-func toRepoResponse(row sqlc.CollectiveRepository) repoResponse {
+// toRepoResponse projects one linked repository; linkedBy is the person who
+// linked it as the viewer may see them (resolvePublicOwners).
+func toRepoResponse(row sqlc.CollectiveRepository, linkedBy schema.VillagePublicOwner) repoResponse {
 	return repoResponse{
 		ID:             row.ID,
 		GroupID:        row.GroupID,
@@ -86,7 +89,7 @@ func toRepoResponse(row sqlc.CollectiveRepository) repoResponse {
 		Name:           row.Name,
 		InstallationID: row.InstallationID,
 		IsPrivate:      row.IsPrivate,
-		LinkedBy:       row.LinkedBy,
+		LinkedBy:       linkedBy,
 		LastSyncedAt:   row.LastSyncedAt,
 		CreatedAt:      row.CreatedAt,
 	}
@@ -178,7 +181,12 @@ func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toRepoResponse(row))
+	linkedBy, err := h.resolvePublicOwner(r.Context(), user, row.LinkedBy)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "The repository was linked, but who linked it could not be shown; reload the collective's repositories")
+		return
+	}
+	writeJSON(w, http.StatusCreated, toRepoResponse(row, linkedBy))
 }
 
 // UnlinkRepository removes a repository link from a collective. Owner-only.
@@ -256,12 +264,21 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowed := h.allowedRepositoryInstallations(r.Context(), identity, rows)
+	linkers := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		linkers = append(linkers, row.LinkedBy)
+	}
+	people, err := h.resolvePublicOwners(r.Context(), user, linkers)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve who linked the collective's repositories")
+		return
+	}
 	out := make([]repoResponse, 0, len(rows))
 	for _, row := range rows {
 		if !allowed[row.InstallationID] {
 			continue
 		}
-		out = append(out, toRepoResponse(row))
+		out = append(out, toRepoResponse(row, people.of(row.LinkedBy)))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repositories": out})
 }

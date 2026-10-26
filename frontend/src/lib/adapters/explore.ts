@@ -23,8 +23,44 @@ import type {
   CollectiveSearchResponse,
   TagWithCount,
 } from '@/lib/types';
-import type { ExplorePayload } from '@peasant-labs/fairtrade/commons';
+import type { ExploreOwnerPayload, ExplorePayload } from '@peasant-labs/fairtrade/commons';
 import { isHarness, type Harness } from '@peasant-labs/schema';
+import { resolveAttribution } from '@/lib/format';
+import type { PublicOwner } from '@/lib/publicOwner';
+
+/**
+ * The owner payloads this adapter made for an anonymous owner. The Explore
+ * surface's owner payload has no anonymous form, so an anonymous owner is
+ * drawn as "anon" and remembered here, which is how a profile exit knows it
+ * has no profile to open. The surface hands back the payload object it was
+ * given, so membership is by identity.
+ */
+const anonymousOwners = new WeakSet<ExploreOwnerPayload>();
+
+function exploreOwner(owner: PublicOwner): ExploreOwnerPayload {
+  const { label, profile } = resolveAttribution(owner);
+  if (profile) {
+    return { githubUsername: profile.username, displayName: profile.display_name, avatarUrl: profile.avatar_url };
+  }
+  const payload: ExploreOwnerPayload = { githubUsername: label, displayName: null, avatarUrl: null };
+  anonymousOwners.add(payload);
+  return payload;
+}
+
+/**
+ * The label an anonymous owner is drawn with. No account may hold this handle
+ * (Village reserves it, case-insensitively), so a payload carrying it is
+ * never a profile, even if the surface hands back a copy of the payload
+ * rather than the object this adapter made.
+ */
+const ANONYMOUS_LABEL = "anon";
+
+/** The profile path an Explore owner opens, or `null` for an anonymous owner. */
+export function exploreProfilePath(owner: ExploreOwnerPayload): string | null {
+  if (anonymousOwners.has(owner)) return null;
+  if (owner.githubUsername.trim().toLowerCase() === ANONYMOUS_LABEL) return null;
+  return `/users/${encodeURIComponent(owner.githubUsername)}`;
+}
 
 function requireHarness(value: string, transcriptID: string): Harness {
   if (isHarness(value)) return value;
@@ -80,11 +116,7 @@ export function adaptExplore(
         // than a fairtrade fork.
         projectName: item.transcript.project_display_name,
         tags: (item.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
-        owner: {
-          githubUsername: item.owner.github_username,
-          displayName: item.owner.display_name,
-          avatarUrl: item.owner.avatar_url,
-        },
+        owner: exploreOwner(item.owner),
       })) ?? [],
       total: transcripts?.total ?? 0,
       page: transcripts?.page ?? 0,

@@ -5,11 +5,12 @@ import type { GroupTranscript } from "@/lib/types";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { installGroupRouteREST, renderGroupDetailRoute, type GroupRouteFixture } from "@/test/mountedGroupRoute";
 import { loadCollectiveReadAccountFixtures } from "@/test/collectiveReadAccountFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); clearAuthTokenCookie(); });
 for (const testCase of loadCollectiveReadAccountFixtures()) {
   it(testCase.name, async () => {
-    const row: GroupTranscript = { ...makeTranscriptFixture({ id: "private-session", title: "initial-private", visibility: "private" }), license_id: null, outcome: null, source_format: null, subagents: null, owner_username: "ada", owner_avatar_url: null, owner_is_discoverable: true, pull_requests: { count: 0, recent: [] } };
+    const row: GroupTranscript = { ...makeTranscriptFixture({ id: "private-session", title: "initial-private", visibility: "private" }), license_id: null, outcome: null, source_format: null, subagents: null, owner: profileOwner({ id: "user-ada", github_username: "ada" }), pull_requests: { count: 0, recent: [] } };
     const world: GroupRouteFixture = { groupId: "read-collective", groupName: "read collective", viewer: "ada", role: "owner", transcripts: [row] };
     installGroupRouteREST(world);
     const delegate = globalThis.fetch;

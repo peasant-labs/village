@@ -132,7 +132,9 @@ FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
-  AND (u.is_discoverable = TRUE OR $2::boolean)
+  -- Listed to the collective's owners and to the person themselves when not
+  -- discoverable; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR $2::boolean OR u.id = $3::uuid)
 GROUP BY u.id, u.github_username, u.avatar_url
 ORDER BY transcript_count DESC
 `
@@ -140,6 +142,7 @@ ORDER BY transcript_count DESC
 type ListGroupContributorsParams struct {
 	GroupID       pgtype.UUID `db:"group_id" json:"group_id"`
 	ViewerIsOwner bool        `db:"viewer_is_owner" json:"viewer_is_owner"`
+	ViewerID      pgtype.UUID `db:"viewer_id" json:"viewer_id"`
 }
 
 type ListGroupContributorsRow struct {
@@ -150,7 +153,7 @@ type ListGroupContributorsRow struct {
 }
 
 func (q *Queries) ListGroupContributors(ctx context.Context, arg ListGroupContributorsParams) ([]ListGroupContributorsRow, error) {
-	rows, err := q.db.Query(ctx, listGroupContributors, arg.GroupID, arg.ViewerIsOwner)
+	rows, err := q.db.Query(ctx, listGroupContributors, arg.GroupID, arg.ViewerIsOwner, arg.ViewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -257,13 +260,9 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
-       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-       u.github_username   AS owner_username,
-       u.avatar_url        AS owner_avatar_url,
-       u.is_discoverable   AS owner_is_discoverable
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
-JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
 ORDER BY t.published_at DESC
 LIMIT $2 OFFSET $3
@@ -349,9 +348,6 @@ type ListGroupTranscriptsRow struct {
 	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
 	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
 	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
-	OwnerUsername           string             `db:"owner_username" json:"owner_username"`
-	OwnerAvatarUrl          pgtype.Text        `db:"owner_avatar_url" json:"owner_avatar_url"`
-	OwnerIsDiscoverable     bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
 }
 
 // The pull-share query ListApprovedTranscriptShareGroups lives in the sibling
@@ -441,9 +437,6 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 			&i.RootSessionID,
 			&i.SessionPurpose,
 			&i.SessionRelationships,
-			&i.OwnerUsername,
-			&i.OwnerAvatarUrl,
-			&i.OwnerIsDiscoverable,
 		); err != nil {
 			return nil, err
 		}
@@ -585,29 +578,24 @@ const listPendingGroupShares = `-- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
        t.owner_id, t.local_id, t.parent_session_id,
        t.project_hash, t.project_name, t.git_branch as branch,
-       u.github_username as owner_username,
-       u.is_discoverable as owner_is_discoverable,
        ts.shared_at
 FROM transcript_shares ts
 JOIN transcripts t ON ts.transcript_id = t.id
-JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'pending'
 ORDER BY ts.shared_at
 `
 
 type ListPendingGroupSharesRow struct {
-	TranscriptID        pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
-	Title               pgtype.Text        `db:"title" json:"title"`
-	ModelProvider       string             `db:"model_provider" json:"model_provider"`
-	OwnerID             pgtype.UUID        `db:"owner_id" json:"owner_id"`
-	LocalID             string             `db:"local_id" json:"local_id"`
-	ParentSessionID     pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
-	ProjectHash         string             `db:"project_hash" json:"project_hash"`
-	ProjectName         pgtype.Text        `db:"project_name" json:"project_name"`
-	Branch              pgtype.Text        `db:"branch" json:"branch"`
-	OwnerUsername       string             `db:"owner_username" json:"owner_username"`
-	OwnerIsDiscoverable bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
-	SharedAt            pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+	TranscriptID    pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	Title           pgtype.Text        `db:"title" json:"title"`
+	ModelProvider   string             `db:"model_provider" json:"model_provider"`
+	OwnerID         pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID         string             `db:"local_id" json:"local_id"`
+	ParentSessionID pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	ProjectHash     string             `db:"project_hash" json:"project_hash"`
+	ProjectName     pgtype.Text        `db:"project_name" json:"project_name"`
+	Branch          pgtype.Text        `db:"branch" json:"branch"`
+	SharedAt        pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 }
 
 // The review queue's rows. Alongside each submission's identity, the row
@@ -615,6 +603,8 @@ type ListPendingGroupSharesRow struct {
 // queue grouped the same way a contributor reads the contribute tree:
 // project > branch > session. project_name is the publisher's own label for
 // the project and may be absent, so a reader falls back to project_hash.
+// The submitter is owner_id only: the handler shows them as the reviewer may
+// see them (ListPublicOwnersForViewer), never from columns read here.
 func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUID) ([]ListPendingGroupSharesRow, error) {
 	rows, err := q.db.Query(ctx, listPendingGroupShares, groupID)
 	if err != nil {
@@ -634,8 +624,6 @@ func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUI
 			&i.ProjectHash,
 			&i.ProjectName,
 			&i.Branch,
-			&i.OwnerUsername,
-			&i.OwnerIsDiscoverable,
 			&i.SharedAt,
 		); err != nil {
 			return nil, err

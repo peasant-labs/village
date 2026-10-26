@@ -12,6 +12,7 @@ import {
 } from "@/test/mountedCollectivePages";
 import type { VisibleGroup } from "@/lib/types";
 import type { PendingShare } from "@/lib/review/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loaders for `src/testdata/collective-page.yaml` (the collective page,
@@ -205,9 +206,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
         transcript_id: row.transcript_id,
         title: row.title,
         model_provider: row.provider,
-        owner_id: owner.id,
-        owner_username: owner.username,
-        owner_is_discoverable: true,
+        owner: profileOwner({ id: owner.id, github_username: owner.username }),
         local_id: `local-${row.transcript_id}`,
         parent_session_id: null,
         project_hash: "a".repeat(64),

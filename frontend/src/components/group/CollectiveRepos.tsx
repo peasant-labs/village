@@ -22,11 +22,6 @@ import TranscriptList, {
 interface CollectiveReposProps {
   /** Transcripts visible to the current viewer (recent page or full browse). */
   transcripts: GroupTranscript[];
-  /** Whether the viewer is a collective owner (sees real handles regardless of
-   *  discoverability). Who the viewer IS is not passed: the rows are drawn by
-   *  the shared transcript list, which reads the signed-in person itself, and
-   *  two answers to "who is looking" could disagree. */
-  viewerIsOwner?: boolean;
   helperGroups?: ReadonlyMap<string, HelperGroupSummary[]>;
   onRefreshOrigin?: () => void;
   /** Where these rows are listed, carried by each row's link. */
@@ -67,7 +62,6 @@ function remoteHref(remote: string | null): string | null {
  */
 export default function CollectiveRepos({
   transcripts,
-  viewerIsOwner = false,
   helperGroups,
   onRefreshOrigin,
   context,
@@ -170,6 +164,8 @@ export default function CollectiveRepos({
                     <span title="contributors">
                       {repo.contributorCount} contributor
                       {repo.contributorCount !== 1 ? "s" : ""}
+                      {repo.anonymousSessionCount > 0 &&
+                        ` and ${repo.anonymousSessionCount} anonymous session${repo.anonymousSessionCount !== 1 ? "s" : ""}`}
                     </span>
                     <span title="total tokens">
                       {formatCount(repo.totalTokens)} tok
@@ -200,7 +196,6 @@ export default function CollectiveRepos({
                     items={fold.rootItems}
                     childSessions={childSessionsByParentID(fold)}
                     facts={REPO_TRANSCRIPT_FACTS}
-                    viewerIsPrivileged={viewerIsOwner}
                     hideVisibility
                     context={context}
                     helperGroupSlot={helperGroups && onRefreshOrigin ? (item) => <ScopedOwnerHelperGroups groups={helperGroups.get(item.transcript.id)} onRefreshOrigin={onRefreshOrigin} /> : undefined}

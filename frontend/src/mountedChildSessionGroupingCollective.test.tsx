@@ -27,6 +27,8 @@ import {
   type ChildSessionRow,
   type ChildSessionSurface,
 } from "@/test/childSessionGroupingFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
 
 /**
  * Mounted evidence for a session that another session started, on the REAL
@@ -137,13 +139,23 @@ const ROW_MODEL_NAME = "sonnet-4-5";
 const EXPECTED_MODEL = "Sonnet 4.5";
 const ROW_BRANCH = "main";
 
-function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
+/** The parent the server resolves for a row, within that row's owner, over
+ *  the rows one response carries. */
+function resolvedParent(row: ChildSessionRow, rows: readonly ChildSessionRow[]): string | null {
+  return (
+    resolvedParentTranscriptIDs(
+      rows.map((r) => ({ id: r.name, ownerID: r.ownerID, localID: r.localID, parentSessionID: r.parentSessionID })),
+    ).get(row.name) ?? null
+  );
+}
+
+function groupTranscript(row: ChildSessionRow, index: number, rows: readonly ChildSessionRow[]): GroupTranscript {
   return {
     ...makeTranscriptFixture({
       id: row.name,
-      owner_id: row.ownerID,
       local_id: row.localID,
       parent_session_id: row.parentSessionID,
+      parent_transcript_id: resolvedParent(row, rows),
       title: ROW_TITLE(row),
       model_provider: ROW_PROVIDER,
       model_name: ROW_MODEL_NAME,
@@ -159,19 +171,18 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
     outcome: null,
     source_format: null,
     subagents: null,
-    owner_username: row.ownerID,
-    owner_avatar_url: null,
-    owner_is_discoverable: true,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID }),
     pull_requests: { count: 0, recent: [] },
   };
 }
 
-function myShare(row: ChildSessionRow, index: number): UserGroupShare {
+function myShare(row: ChildSessionRow, index: number, rows: readonly ChildSessionRow[]): UserGroupShare {
   return {
     id: row.name,
-    owner_id: row.ownerID,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID }),
     local_id: row.localID,
     parent_session_id: row.parentSessionID,
+    parent_transcript_id: resolvedParent(row, rows),
     title: ROW_TITLE(row),
     model_provider: ROW_PROVIDER,
     model_name: ROW_MODEL_NAME,

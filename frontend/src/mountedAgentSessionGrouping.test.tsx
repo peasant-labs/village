@@ -13,6 +13,7 @@ import {
   loadAgentSessionGroupingFixtures,
   type AgentSessionGroupingCase,
 } from "@/test/agentSessionGroupingFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted evidence for the collapsed group of agent-driven sessions.
@@ -35,7 +36,6 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
   return {
     transcript: {
       id,
-      owner_id: "owner-1",
       local_id: id,
       title: `Session ${id}`,
       description: null,
@@ -67,12 +67,7 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
       session_origin: sessionOrigin,
     } as unknown as TranscriptListItem["transcript"],
     tags: [],
-    owner: {
-      id: "owner-1",
-      github_username: PROFILE_USERNAME,
-      display_name: "Octo Cat",
-      avatar_url: null,
-    } as unknown as TranscriptListItem["owner"],
+    owner: profileOwner({ id: "owner-1", github_username: PROFILE_USERNAME, display_name: "Octo Cat" }),
   };
 }
 

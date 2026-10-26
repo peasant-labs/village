@@ -8,15 +8,18 @@ DELETE FROM attestations
 WHERE id = $1 AND attester_id = $2;
 
 -- name: ListTranscriptAttestations :many
+-- The attester is attester_id only: the handler shows them as the viewer may
+-- see them (ListPublicOwnersForViewer), never from columns read here.
 SELECT a.id, a.transcript_id, a.org_login, a.attestation_type, a.note, a.created_at,
-       u.github_username as attester_username, u.avatar_url as attester_avatar
+       a.attester_id
 FROM attestations a
-JOIN users u ON a.attester_id = u.id
 WHERE a.transcript_id = $1
 ORDER BY a.created_at DESC;
 
 -- name: ListAttestationsByTranscriptIDs :many
-SELECT a.transcript_id, a.org_login, a.attestation_type, a.created_at
+-- attester_id is read so the handler can withhold the organization of an
+-- attester who is anonymous to the viewer; it is never served.
+SELECT a.transcript_id, a.org_login, a.attestation_type, a.created_at, a.attester_id
 FROM attestations a
 WHERE a.transcript_id = ANY($1::uuid[])
 ORDER BY a.created_at DESC;

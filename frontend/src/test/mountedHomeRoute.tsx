@@ -18,6 +18,8 @@ import type {
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { DEFAULT_HOME_VIEW, HOME_COLUMNS, HOME_VIEW_STORAGE_KEY } from "@/lib/homeView";
 import type { TranscriptListItem, User } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import { withResolvedParents } from "@/test/parentTranscriptFixture";
 
 /**
  * Support for tests that mount the REAL root route (`/`), the REAL sign-in
@@ -77,7 +79,6 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
       id: t.id,
       local_id: t.localID ?? t.id,
       parent_session_id: t.parentSessionID ?? null,
-      owner_id: owner.id,
       title: t.title,
       model_provider: t.modelProvider ?? "claude-code",
       project_name: t.projectDisplayName,
@@ -88,7 +89,7 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
       visibility: t.visibility ?? ((t.sharedWith ?? []).length > 0 ? "shared" : "private"),
     }),
     tags: [],
-    owner,
+    owner: profileOwner(owner),
     // As the list serves them: only the collectives that APPROVED the row.
     shares: (t.sharedWith ?? []).map((name, i) => ({
       transcript_id: t.id,
@@ -113,7 +114,7 @@ function groupRow(c: HomeCollectiveCase) {
     id: c.id,
     name: c.name,
     description: null,
-    created_by: "user-fixture-owner",
+    creator: profileOwner({ id: "user-fixture-owner", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     acceptance_mode: "open",
@@ -282,9 +283,12 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       const matching = isOwnerScoped
         ? fixture.transcripts.filter((t) => t.title.toLowerCase().includes(q))
         : [];
-      const rows = matching
+      const listed = matching
         .slice((page - 1) * limit, page * limit)
         .map((t) => listItem(t, owner));
+      // The server resolves each row's parent within this one owner.
+      const resolved = withResolvedParents(listed.map((item) => item.transcript));
+      const rows = listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
       return json({
         transcripts: rows,
         total: matching.length,

@@ -362,6 +362,8 @@ func pullTranscriptAssociationAnnotations(t *testing.T, h *Handler, ownerID, tra
 	t.Helper()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/pull/transcripts/"+transcriptID.String()+"/annotations", nil)
 	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, &AuthUser{ID: ownerID, Username: "association-owner"}))
+	// This helper decodes the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", transcriptID.String())
 	w := httptest.NewRecorder()
 	h.GetPullTranscriptAnnotations(w, r)
@@ -751,7 +753,7 @@ func TestAssociationAnnotationIngressSameLocalIDOwnerIsolationRealPostgres(t *te
 		t.Fatal("same-local owner A transcript is absent from owner A pull list")
 	}
 	pulledA := pullTranscriptAssociationAnnotations(t, h, ownerAID, uuid.UUID(transcriptA.ID.Bytes))
-	if len(pulledA) != 1 || pulledA[0].AuthorUserID != ownerAID.String() || pulledA[0].ContentHash == nil || *pulledA[0].ContentHash != ownerAItem.ContentHash {
+	if len(pulledA) != 1 || !pulledA[0].Author.IsAccount(schema.VillageUUID(ownerAID.String())) || pulledA[0].ContentHash == nil || *pulledA[0].ContentHash != ownerAItem.ContentHash {
 		t.Fatalf("same-local pull annotations for owner A = %+v, want only owner A annotation", pulledA)
 	}
 

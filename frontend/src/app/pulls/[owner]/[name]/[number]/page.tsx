@@ -9,7 +9,7 @@ import { OnEmpty, OnPage } from "@/components/online/Page";
 import PullStateTag from "@/components/pulls/PullStateTag";
 import RetryButton from "@/components/RetryButton";
 import { isApiErrorStatus } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime, ownerHandle } from "@/lib/format";
 import { isHarness } from "@/lib/harness";
 import { loginHref } from "@/lib/signIn";
 import {
@@ -564,8 +564,7 @@ function TranscriptRow({
   const titleId = useId();
   const parts: ReactNode[] = [];
   if (detail) {
-    const handle = detail.owner?.github_username;
-    if (handle) parts.push(<span key="who">@{handle}</span>);
+    if (detail.owner) parts.push(<span key="who">{ownerHandle(detail.owner)}</span>);
     const harness = detail.transcript.model_provider;
     parts.push(
       isHarness(harness) ? (

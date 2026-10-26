@@ -3,9 +3,14 @@
 # PostgreSQL.
 #
 # The frontend folds a submitted child session under its parent by matching
-# (owner_id, local_id) - local_id alone is only unique per owner - so every
-# row here has to carry owner_id, local_id, and parent_session_id, not just
-# enough to render one line.
+# parent_transcript_id against a row's id. The server resolves that id from
+# parent_session_id within the row's owner (local_id alone is only unique per
+# owner), and sends null when the viewer may not read the parent, so no owner
+# account id has to reach the wire. Every row carries its owner as the viewer
+# may see them, local_id, parent_session_id and parent_transcript_id.
+#
+# expect_parent_transcript_of names, per child, the transcript whose id
+# parent_transcript_id must carry, or "none" for null.
 
 - name: parent_and_child_pending
   why: >
@@ -20,6 +25,8 @@
   expect_status: 200
   expect_rows: [parent, child]
   expect_parent_of: {child: parent}
+  # The parent is submitted too, so the reviewing owner may read it.
+  expect_parent_transcript_of: {child: parent}
 
 - name: lone_child_parent_absent
   why: >
@@ -35,6 +42,9 @@
   expect_status: 200
   expect_rows: [child]
   expect_parent_of: {child: parent}
+  # The parent was never offered here, so the reviewing owner may not read it
+  # and its id is withheld.
+  expect_parent_transcript_of: {child: none}
 
 - name: two_projects_carry_grouping
   why: >

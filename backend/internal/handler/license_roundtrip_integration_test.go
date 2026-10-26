@@ -94,7 +94,7 @@ func TestPull_LicenseRoundTrip_RealPostgres(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTranscriptByID(%s): %v", tc.name, err)
 		}
-		if got := h.pullTranscriptInfo(ctx, tr).License; got != tc.want {
+		if got := h.pullTranscriptInfo(ctx, tr, schema.AnonymousVillageOwner()).License; got != tc.want {
 			t.Errorf("single pull %s: License got %q, want %q", tc.name, got, tc.want)
 		}
 	}
@@ -108,7 +108,7 @@ func TestPull_LicenseRoundTrip_RealPostgres(t *testing.T) {
 	}
 	byID := make(map[uuid.UUID]schema.License, len(rows))
 	for _, r := range rows {
-		byID[uuid.UUID(r.ID.Bytes)] = pullInfoFromListRow(r).License
+		byID[uuid.UUID(r.ID.Bytes)] = pullInfoFromListRow(r, schema.AnonymousVillageOwner()).License
 	}
 	if got := byID[uuid.UUID(licensedID.Bytes)]; got != schema.LicenseCCBY {
 		t.Errorf("list pull licensed: License got %q, want %q", got, schema.LicenseCCBY)

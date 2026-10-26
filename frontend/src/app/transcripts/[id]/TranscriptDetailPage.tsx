@@ -164,12 +164,11 @@ export default function TranscriptDetailPage({
         transcriptVisibility={t.visibility}
         transcriptTitle={t.title}
         transcriptDescription={t.description}
-        transcriptOwnerId={data.owner?.id}
+        owner={data.owner}
         context={shown}
         collectiveName={collectiveName}
         projectName={projectName}
         projectHash={t.project_hash}
-        ownerUsername={data.owner?.github_username}
         detail={detail}
         relationshipNavigation={data.relationshipNavigation}
         transcriptContentHash={t.content_hash}

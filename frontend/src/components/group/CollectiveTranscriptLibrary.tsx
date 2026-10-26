@@ -13,6 +13,7 @@ import { useUnshareTranscript } from "@/lib/queries/transcripts";
 import { useGroupedCollective, useGroupedMyShares } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { collectiveTranscriptRow, resolveAttribution } from "@/lib/format";
+import { publicProfile } from "@/lib/publicOwner";
 import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows } from "@/lib/childSessions";
 import TranscriptList, { type TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import CollectiveRepos from "@/components/group/CollectiveRepos";
@@ -94,7 +95,7 @@ function MyContributionChildren({ parentShareID, startedShares, groupID, onUnsha
       </SessionGroupDisclosure>
     </div>);
 }
-/** The shared fold's four facts, read out of one of the caller's own
+/** The shared fold's three facts, read out of one of the caller's own
  *  contributions. Its row identity is the transcript id under a different
  *  name -- this response calls it `id` where the pending queue calls it
  *  `transcript_id` -- which is exactly why each list states its own reading
@@ -102,9 +103,8 @@ function MyContributionChildren({ parentShareID, startedShares, groupID, onUnsha
 function myShareIdentity(share: UserGroupShare): SessionIdentity {
     return {
         rowID: share.id,
-        ownerID: share.owner_id,
-        sessionID: share.local_id,
         parentSessionID: share.parent_session_id,
+        parentRowID: share.parent_transcript_id,
     };
 }
 /**
@@ -156,9 +156,14 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     const groupedMine = useGroupedMyShares(groupID, { limit: GROUPED_TOP_LEVEL_PAGE_SIZE }, !!user);
     const withdraw = useUnshareTranscript();
     const remove = useRemoveGroupTranscript();
-    const attribution = (row: GroupTranscript) => resolveAttribution({ id: row.owner_id, github_username: row.owner_username, is_discoverable: row.owner_is_discoverable }, user?.id, isOwner);
-    const contributors = new Map(transcripts.map((row) => { const owner = attribution(row); return [owner.anonymous ? "anonymous" : row.owner_id, owner.label]; }));
-    const visible = contributor ? transcripts.filter((row) => { const owner = attribution(row); return (owner.anonymous ? "anonymous" : row.owner_id) === contributor; }) : transcripts;
+    // Only a contributor the viewer may identify can be filtered by: an
+    // anonymous row carries no id, and one shared "anon" entry would claim
+    // that every anonymous row is one person's.
+    const contributors = new Map(transcripts.flatMap((row) => {
+        const profile = publicProfile(row.owner);
+        return profile ? [[profile.id, resolveAttribution(row.owner).label] as const] : [];
+    }));
+    const visible = contributor ? transcripts.filter((row) => publicProfile(row.owner)?.id === contributor) : transcripts;
     const folded = groupChildSessions(visible.map(collectiveTranscriptRow));
     const children = childSessionsByParentID(folded);
     // Include folded children in the represented set; their helper slots live
@@ -230,11 +235,11 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
             } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></div>}
           </div>}
           {removeError && <p role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
-          {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin} context={{ kind: "collective", id: groupID }}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
+          {view === "repos" ? <CollectiveRepos transcripts={visible} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin} context={{ kind: "collective", id: groupID }}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
                 return; changeSelection((current) => { const next = new Set(current); if (next.has(id))
                 next.delete(id);
             else
-                next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner hideVisibility bare context={{ kind: "collective", id: groupID }} helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
+                next.add(id); return next; }); } } : undefined} linkOwner hideVisibility bare context={{ kind: "collective", id: groupID }} helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
           {grouped.isError && retry(grouped)}
           {(fallback.length > 0 || grouped.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={grouped.items} representedOwnerIds={represented} onRefreshOrigin={grouped.refreshOrigin}/><ScopedGroupedContinuation remaining={grouped.remainingItems} busy={grouped.isFetchingNextPage} onLoadMore={() => void grouped.fetchNextPage()}/></div>}
         </div>

@@ -107,3 +107,11 @@ WHERE ugo.visible = true
   AND lower(ugo.org_login) = lower($1)
 GROUP BY u.id, u.github_username, u.display_name, u.avatar_url
 ORDER BY transcript_count DESC, u.github_username;
+
+-- name: ListUserIDsWithVisibleOrg :many
+-- The accounts that show one organization, for the transcript lists' org
+-- filter. The handler keeps only the accounts the viewer may see as a profile
+-- (ListPublicOwnersForViewer) before filtering, so the filter cannot tie an
+-- anonymous owner's transcripts to an organization.
+SELECT DISTINCT user_id FROM user_github_orgs
+WHERE lower(org_login) = lower(@org_login::text) AND visible = true;

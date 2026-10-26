@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -109,22 +110,20 @@ func wireTranscriptID(id pgtype.UUID) schema.TranscriptID {
 	return schema.TranscriptID(raw)
 }
 
-// pullTranscriptInfo builds the wire metadata view for one transcript. It looks
+// pullTranscriptInfo builds the wire metadata view for one transcript. It
 // reads the served-blob hash from the loaded row (NULL => empty ContentHash =>
-// client falls back to an unconditional GET), looks up the annotation count, and resolves the owner's account
-// identity via the users table (GetUserByID).
-func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript) schema.PullTranscriptInfo {
-	owner, _ := h.queries.GetUserByID(ctx, t.OwnerID)
+// client falls back to an unconditional GET), looks up the annotation count,
+// and carries the owner as the caller may see them (resolvePublicOwners).
+func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript, owner schema.VillagePublicOwner) schema.PullTranscriptInfo {
 	annCount, _ := h.queries.CountTranscriptAnnotations(ctx, t.ID)
 
 	info := schema.PullTranscriptInfo{
 		TranscriptID:    wireTranscriptID(t.ID),
 		LocalID:         t.LocalID,
-		OwnerUserID:     uuid.UUID(t.OwnerID.Bytes).String(),
-		OwnerUsername:   owner.GithubUsername,
+		Owner:           owner,
 		Title:           t.Title.String,
 		Harness:         schema.Harness(t.ModelProvider),
-		ProjectName:     t.ProjectName.String,
+		ProjectName:     pullProjectName(t.ProjectName),
 		Visibility:      mapDBVisibility(t.Visibility),
 		License:         wireLicense(t.LicenseID),
 		ContractVersion: schema.ContractVersion(t.SchemaVersion),
@@ -134,6 +133,10 @@ func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript) sch
 	}
 	if t.ContentHash.Valid {
 		info.ContentHash = t.ContentHash.String
+	}
+	if !owner.IsProfile() {
+		// The project name describes an anonymous owner's repository.
+		info.ProjectName = nil
 	}
 	return info
 }
@@ -155,6 +158,10 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
 		return
 	}
 
@@ -199,9 +206,14 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
 			return
 		}
+		owners, ownerErr := h.resolvePublicOwners(r.Context(), user, pullRowOwners(rows))
+		if ownerErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to resolve the owners of pullable transcripts")
+			return
+		}
 		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
 		for _, row := range rows {
-			infos = append(infos, pullInfoFromListRow(row))
+			infos = append(infos, pullInfoFromListRow(row, owners.of(row.OwnerID)))
 		}
 	} else {
 		rows, listErr := h.queries.ListPullableTranscriptsInCollective(r.Context(), sqlc.ListPullableTranscriptsInCollectiveParams{
@@ -222,21 +234,35 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
 			return
 		}
-		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
+		converted := make([]sqlc.ListPullableTranscriptsRow, 0, len(rows))
 		for _, row := range rows {
 			// The filtered row carries the same columns in the same order as the
 			// unfiltered one, so one projector serves both. A field drift between
 			// the two queries breaks this conversion at compile time.
-			infos = append(infos, pullInfoFromListRow(sqlc.ListPullableTranscriptsRow(row)))
+			converted = append(converted, sqlc.ListPullableTranscriptsRow(row))
+		}
+		owners, ownerErr := h.resolvePublicOwners(r.Context(), user, pullRowOwners(converted))
+		if ownerErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to resolve the owners of pullable transcripts")
+			return
+		}
+		infos = make([]schema.PullTranscriptInfo, 0, len(converted))
+		for _, row := range converted {
+			infos = append(infos, pullInfoFromListRow(row, owners.of(row.OwnerID)))
 		}
 	}
 
-	writeJSON(w, http.StatusOK, schema.PullListResponse{
+	list := schema.PullListResponse{
 		Transcripts: infos,
 		Page:        page,
 		Limit:       limit,
 		Total:       int(total),
-	})
+	}
+	if servesLegacyPull(served) {
+		writeJSON(w, http.StatusOK, schema.LegacyPullListResponseFrom(list))
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 // parseCollectiveFilter parses the optional collectives query value: a
@@ -273,19 +299,39 @@ func parseCollectiveFilter(raw string) ([]pgtype.UUID, error) {
 	return ids, nil
 }
 
+// pullProjectName is the envelope's optional project name: absent when none was
+// recorded, as the earlier omitempty string was.
+func pullProjectName(name pgtype.Text) *string {
+	if !name.Valid || name.String == "" {
+		return nil
+	}
+	value := name.String
+	return &value
+}
+
+// pullRowOwners lists the owner of every row on a pull page, for one batched
+// resolvePublicOwners read.
+func pullRowOwners(rows []sqlc.ListPullableTranscriptsRow) []pgtype.UUID {
+	ids := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.OwnerID)
+	}
+	return ids
+}
+
 // pullInfoFromListRow builds the wire metadata view from a batched
 // ListPullableTranscripts row. It mirrors pullTranscriptInfo's mapping exactly,
 // but every field is already in-hand from the single list query (no per-row
-// GetUserByID / GetTranscriptContentHash / CountTranscriptAnnotations).
-func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow) schema.PullTranscriptInfo {
+// GetTranscriptContentHash / CountTranscriptAnnotations), and the owner comes
+// from one batched resolvePublicOwners read for the page.
+func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow, owner schema.VillagePublicOwner) schema.PullTranscriptInfo {
 	info := schema.PullTranscriptInfo{
 		TranscriptID:    wireTranscriptID(row.ID),
 		LocalID:         row.LocalID,
-		OwnerUserID:     uuid.UUID(row.OwnerID.Bytes).String(),
-		OwnerUsername:   row.OwnerUsername,
+		Owner:           owner,
 		Title:           row.Title.String,
 		Harness:         schema.Harness(row.ModelProvider),
-		ProjectName:     row.ProjectName.String,
+		ProjectName:     pullProjectName(row.ProjectName),
 		Visibility:      mapDBVisibility(row.Visibility),
 		License:         wireLicense(row.LicenseID),
 		ContractVersion: schema.ContractVersion(row.SchemaVersion),
@@ -296,6 +342,10 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow) schema.PullTranscr
 	if row.ContentHash.Valid {
 		info.ContentHash = row.ContentHash.String
 	}
+	if !owner.IsProfile() {
+		// The project name describes an anonymous owner's repository.
+		info.ProjectName = nil
+	}
 	return info
 }
 
@@ -304,11 +354,25 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow) schema.PullTranscr
 // GET /api/v1/pull/transcripts/{id} (AuthRequired)
 func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, h.pullTranscriptInfo(r.Context(), t))
+	owner, err := h.resolvePublicOwner(r.Context(), user, t.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner")
+		return
+	}
+	info := h.pullTranscriptInfo(r.Context(), t, owner)
+	if servesLegacyPull(served) {
+		writeJSON(w, http.StatusOK, schema.LegacyPullTranscriptInfoFrom(info))
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 // GetPullTranscriptContent authenticates and decrypts the stored ciphertext,
@@ -326,6 +390,12 @@ func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/pull/transcripts/{id}/content (AuthRequired)
 func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	// The content body is the same under every envelope; the read still
+	// negotiates so a client below the minimum is refused and every response
+	// names the envelope served.
+	if _, ok := negotiatePullContract(w, r); !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
@@ -343,23 +413,62 @@ func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	if result.Row.ContentHash.Valid {
+	// The envelope carries no owner, so the repository identity of an owner who
+	// is anonymous to the caller is left out of it here, as on the web content
+	// route.
+	owner, err := h.resolvePublicOwner(r.Context(), user, t.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner; no content was served")
+		return
+	}
+	body := result.Plaintext
+	withheld := false
+	if !owner.IsProfile() {
+		// The stored content may predate the envelope (a bare session detail or
+		// raw JSONL), so it is read through the same migrator as the web content
+		// route first; only then can its repository fields be found.
+		payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), body)
+		if err != nil {
+			writeContentRepositoryUnreadable(w)
+			return
+		}
+		if rewrite {
+			if body, err = marshalTranscriptContentEnvelope(currentContractVersion, payload); err != nil {
+				writeContentRepositoryUnreadable(w)
+				return
+			}
+		}
+		trimmed, err := withholdContentRepository(body)
+		if err != nil {
+			writeContentRepositoryUnreadable(w)
+			return
+		}
+		withheld = !bytes.Equal(trimmed, result.Plaintext)
+		body = trimmed
+	}
+	// The ETag names the stored blob's hash. Bytes with a field withheld are
+	// not that blob, so they carry no ETag and the client compares locally.
+	if result.Row.ContentHash.Valid && !withheld {
 		w.Header().Set("ETag", fmt.Sprintf("%q", result.Identity.Hash()))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(result.Plaintext)
+	_, _ = w.Write(body)
 }
 
 // GetPullTranscriptAnnotations returns the authored annotations for a pullable
 // transcript as PullAnnotation rows: the existing AnnotationSummary plus the
-// village account identity (AuthorUserID/AuthorUsername) resolved via a users
-// join on annotations.owner_id. The author identity is what lets the client
-// foreign-mark pulled annotations and exclude its own during refresh.
+// author as the caller may see them. The caller's own rows always carry the
+// caller's profile, which is what lets the client exclude its own during
+// refresh; an anonymous author is foreign.
 // GET /api/v1/pull/transcripts/{id}/annotations (AuthRequired)
 func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
@@ -371,39 +480,63 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Resolve author identity per owner_id, caching lookups so a transcript with
-	// N annotations from M authors costs M user lookups, not N.
-	type author struct {
-		id       string
-		username string
+	// Every author as the caller may see them, in one read. A human annotator's
+	// name is the person's handle, so it follows the same answer.
+	authorIDs := make([]pgtype.UUID, 0, len(rows)+1)
+	authorIDs = append(authorIDs, t.OwnerID)
+	for _, row := range rows {
+		authorIDs = append(authorIDs, row.OwnerID)
 	}
-	authorCache := map[pgtype.UUID]author{}
-	resolveAuthor := func(ownerID pgtype.UUID) author {
-		if a, ok := authorCache[ownerID]; ok {
-			return a
-		}
-		u, _ := h.queries.GetUserByID(r.Context(), ownerID)
-		a := author{
-			id:       uuid.UUID(ownerID.Bytes).String(),
-			username: u.GithubUsername,
-		}
-		authorCache[ownerID] = a
-		return a
+	authors, err := h.resolvePublicOwners(r.Context(), user, authorIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve annotation authors")
+		return
 	}
 
+	owner := authors.of(t.OwnerID)
 	annotations := make([]schema.PullAnnotation, 0, len(rows))
 	for _, row := range rows {
-		a := resolveAuthor(row.OwnerID)
+		author := authors.of(row.OwnerID)
+		summary := annotationRowToSummary(row)
+		if annotationTargetsWithheldRepository(summary, owner) {
+			continue
+		}
+		summary.AnnotatorName = annotatorNameFor(summary, author)
+		withholdAnnotationRepository(&summary, owner)
 		annotations = append(annotations, schema.PullAnnotation{
-			AnnotationSummary: annotationRowToSummary(row),
-			AuthorUserID:      a.id,
-			AuthorUsername:    a.username,
+			AnnotationSummary: summary,
+			Author:            author,
 		})
 	}
 
 	// The generated Village API contract defines this response as a bare
 	// PullAnnotation array, unlike the web endpoint's {"annotations":[...]} wrapper.
+	// The repository fields of an anonymous owner were withheld above, before
+	// either envelope is rendered.
+	if servesLegacyPull(served) {
+		legacy := make([]schema.LegacyPullAnnotation, 0, len(annotations))
+		for _, annotation := range annotations {
+			legacy = append(legacy, schema.LegacyPullAnnotationFrom(annotation))
+		}
+		writeJSON(w, http.StatusOK, legacy)
+		return
+	}
 	writeJSON(w, http.StatusOK, annotations)
+}
+
+// annotationTargetsWithheldRepository reports whether an annotation is about
+// the repository withheld beside an owner anonymous to the caller: a project
+// target (identified by targetProjectHash) or a file-version target
+// (targetFilePath and targetContentHash). Such a note is about exactly what is
+// withheld, and with its target withheld it no longer satisfies the schema's
+// AnnotationSummary validation in either envelope, so the pull annotations
+// read leaves it out. Session, entry, annotation and association targets are
+// served as usual.
+func annotationTargetsWithheldRepository(summary schema.AnnotationSummary, owner schema.VillagePublicOwner) bool {
+	if owner.IsProfile() {
+		return false
+	}
+	return summary.TargetKind == schema.TargetProject || summary.TargetKind == schema.TargetFileVersion
 }
 
 // lookupPullable parses the {id} param, fetches the transcript, and enforces

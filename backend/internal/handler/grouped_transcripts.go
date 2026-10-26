@@ -110,10 +110,21 @@ func (h *Handler) resolveGroupedTranscripts(ctx context.Context, request Grouped
 		viewer = user.PgID()
 	}
 	tags := append([]string{}, request.Tags...)
+	filters := listFilterRequest{OwnerName: request.Owner, Org: request.Org, ProjectHash: request.ProjectHash}
+	if request.Project != "" {
+		filters.Project = "%" + request.Project + "%"
+	}
+	if request.Repository != "" {
+		filters.Repository = "%" + request.Repository + "%"
+	}
+	filter, err := h.resolveOwnerFilter(ctx, GetUser(ctx), filters)
+	if err != nil {
+		return GroupedScopeResult{}, err
+	}
 	rows, err := sqlc.New(h.pool).ListGroupedTranscriptCandidates(ctx, sqlc.ListGroupedTranscriptCandidatesParams{
 		ViewerID: viewer, SearchText: request.Query, SearchPattern: "%" + request.Query + "%", Provider: request.Provider,
-		OwnerName: request.Owner, ProjectName: request.Project, ProjectPattern: "%" + request.Project + "%", ProjectHash: request.ProjectHash,
-		Repository: request.Repository, RepositoryPattern: "%" + request.Repository + "%", Org: request.Org, Tags: tags, Origin: request.Origin,
+		FilterByOwner: filter.Active, FilterOwnerIds: filter.OwnerIDs, ProjectName: request.Project, ProjectPattern: "%" + request.Project + "%", ProjectHash: request.ProjectHash,
+		Repository: request.Repository, RepositoryPattern: "%" + request.Repository + "%", Tags: tags, Origin: request.Origin,
 	})
 	if err != nil {
 		return GroupedScopeResult{}, fmt.Errorf("handler.resolveGroupedTranscripts: selected SQL read failed; retry after checking migrated database: %w", err)
@@ -123,6 +134,18 @@ func (h *Handler) resolveGroupedTranscripts(ctx context.Context, request Grouped
 		keys = append(keys, projectIdentityKey{OwnerID: row.OwnerID, ProjectHash: row.ProjectHash})
 	}
 	projects := h.resolveProjectIdentities(ctx, keys)
+	ownerIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		ownerIDs = append(ownerIDs, row.OwnerID)
+	}
+	owners, err := h.resolvePublicOwners(ctx, GetUser(ctx), ownerIDs)
+	if err != nil {
+		return GroupedScopeResult{}, fmt.Errorf("handler.resolveGroupedTranscripts: owner profile visibility could not be read; no rows returned; retry the list: %w", err)
+	}
+	parents, err := h.resolveParentTranscriptsOf(ctx, GetUser(ctx), rows)
+	if err != nil {
+		return GroupedScopeResult{}, fmt.Errorf("handler.resolveGroupedTranscripts: parent sessions could not be resolved; no rows returned; retry the list: %w", err)
+	}
 	result := GroupedScopeResult{Rows: []schema.VillageSessionRow{}}
 	for _, row := range rows {
 		session, err := groupedSessionFromTranscript(row, projects[projectIdentityKey{OwnerID: row.OwnerID, ProjectHash: row.ProjectHash}])
@@ -135,7 +158,9 @@ func (h *Handler) resolveGroupedTranscripts(ctx context.Context, request Grouped
 				"handler.resolveGroupedTranscripts refused the grouped read: stored transcript metadata for transcript %s could not be projected into the canonical response; no transcript list or members were returned and nothing was changed; retry after the deployed contract and the stored metadata agree: %v",
 				uuidFromPg(row.ID).String(), err)}
 		}
-		result.Rows = append(result.Rows, schema.VillageSessionRow{Session: session})
+		session.ParentTranscriptID = parents.of(row.ID)
+		withholdSessionRepository(&session, owners.of(row.OwnerID))
+		result.add(schema.VillageSessionRow{Session: session, Owner: owners.of(row.OwnerID)}, row.OwnerID)
 	}
 	return result, nil
 }

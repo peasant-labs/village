@@ -3,9 +3,6 @@
 -- member replay consume this identical set. route_kind is a server-selected
 -- closed variant, not a caller-supplied SQL or authorization expression.
 SELECT sqlc.embed(t),
-       u.github_username AS owner_username,
-       u.avatar_url AS owner_avatar_url,
-       u.is_discoverable AS owner_is_discoverable,
        COALESCE(ts.status, '')::text AS share_status,
        ts.shared_at,
        EXISTS (
@@ -18,7 +15,6 @@ SELECT sqlc.embed(t),
              )
        )::boolean AS already_shared
 FROM transcripts t
-JOIN users u ON u.id = t.owner_id
 JOIN groups g ON g.id = @group_id
 LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = sqlc.narg(viewer_id)
 LEFT JOIN transcript_shares ts ON ts.transcript_id = t.id AND ts.group_id = g.id

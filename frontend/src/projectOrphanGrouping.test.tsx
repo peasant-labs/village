@@ -9,6 +9,7 @@ import {
 } from "@/test/projectOrphanGroupingFixtures";
 import { installProjectRouteREST, renderProjectRoute } from "@/test/mountedProjectRoute";
 import { linkedIDs } from "@/test/childSessionDom";
+import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
@@ -17,12 +18,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 const fixtures = loadProjectOrphanGroupingFixtures();
-const identify = (row: ProjectOrphanRow): SessionIdentity => ({
-  rowID: row.name,
-  ownerID: row.ownerID,
-  sessionID: row.localID,
-  parentSessionID: row.parentSessionID,
-});
+// The fold reads the parent the server resolved within the same owner. Each
+// case's rows are one response, so the resolution runs over that case's rows.
+function identifyIn(rows: readonly ProjectOrphanRow[]): (row: ProjectOrphanRow) => SessionIdentity {
+  const parents = resolvedParentTranscriptIDs(
+    rows.map((row) => ({ id: row.name, ownerID: row.ownerID, localID: row.localID, parentSessionID: row.parentSessionID })),
+  );
+  return (row) => ({ rowID: row.name, parentSessionID: row.parentSessionID, parentRowID: parents.get(row.name) ?? null });
+}
 
 afterEach(() => {
   cleanup();
@@ -33,7 +36,7 @@ afterEach(() => {
 describe("project ancestry classification", () => {
   for (const testCase of fixtures.cases) {
     it(testCase.name, () => {
-      const result = groupProjectSessionRows(testCase.rows, identify, (row) => row.origin === "agent");
+      const result = groupProjectSessionRows(testCase.rows, identifyIn(testCase.rows), (row) => row.origin === "agent");
       expect(result.rootItems.map((row) => row.name)).toEqual(testCase.expectedRoots);
       expect(result.groups.map((group) => ({ parent: group.parent.name, children: group.children.map((row) => row.name) }))).toEqual(testCase.expectedGroups);
       expect(result.orphanItems.map((row) => row.name)).toEqual(testCase.expectedOrphans);

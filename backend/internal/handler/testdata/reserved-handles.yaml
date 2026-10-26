@@ -1,0 +1,15 @@
+# Handles no account may hold. "anon" is what Village shows for a person who
+# is anonymous to the viewer, so an account named "anon" would be mistaken for
+# a hidden person. Every path that assigns a handle is covered:
+#   choose:    PATCH /auth/me/username with the requested handle
+#   confirm:   a GitHub login confirmed as the handle at sign-in
+#   generate:  the handle generated from a provider login at account creation
+
+- {name: choose_reserved, path: choose, input: anon, reserved: true}
+- {name: choose_reserved_upper_case, path: choose, input: ANON, reserved: true}
+- {name: choose_reserved_mixed_case, path: choose, input: " Anon ", reserved: true}
+- {name: choose_unreserved_near_miss, path: choose, input: anon-2, reserved: false}
+- {name: confirm_reserved_login, path: confirm, input: Anon, reserved: true}
+- {name: confirm_unreserved_login, path: confirm, input: anonymous, reserved: false}
+- {name: generate_from_reserved_login, path: generate, input: anon, want: anon-2}
+- {name: generate_from_unreserved_login, path: generate, input: anonymous, want: anonymous}

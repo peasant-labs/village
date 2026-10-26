@@ -1,6 +1,5 @@
 allowed_fields:
   - id
-  - owner_id
   - local_id
   - title
   - description
@@ -73,6 +72,9 @@ resolved_project_fields:
   project_name_source: override
   project_remote_label: github.com:peasant-labs/fixture
 denied_fields:
+  # The owning account never rides on the transcript projection: every
+  # envelope carries its owner beside it, resolved for the viewer.
+  - owner_id
   - blob_key
   - source_file_path
   - project_path
@@ -103,15 +105,21 @@ mounted_paths:
     resolves_project: false
 # The fields only the collective row carries. Its pull request summary starts
 # empty here; GET /groups/{id} fills it for the page it serves with one query.
+# Fields a route resolves per viewer at read time rather than projecting from
+# the row: the parent transcript id (resolveParentTranscripts).
+read_time_fields:
+  - parent_transcript_id
+# The owner is the public owner shape the handler resolved for the viewer.
 owner_fields:
-  - owner_username
-  - owner_avatar_url
-  - owner_is_discoverable
+  - owner
   - pull_requests
 owner_values:
-  owner_username: route-owner
-  owner_avatar_url: https://example.test/avatar.png
-  owner_is_discoverable: true
+  owner:
+    kind: profile
+    id: 20000000-0000-4000-8000-000000000002
+    username: route-owner
+    display_name: null
+    avatar_url: https://example.test/avatar.png
   pull_requests: {count: 0, recent: []}
 source_row:
   id: 10000000-0000-4000-8000-000000000001

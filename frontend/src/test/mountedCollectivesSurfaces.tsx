@@ -11,6 +11,7 @@ import CollectivesPage from "@/app/collectives/page";
 import DiscoverPage from "@/app/discover/page";
 import { resetNextNavigation } from "@/test/nextNavigationMock";
 import type { ContributedCollective, User, UserOrg, VisibleGroup } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mount support for the collectives list, the discover page and the
@@ -132,7 +133,7 @@ function visibleRow(row: WorldCollective): VisibleGroup {
     linked_github_org: row.org,
     display_members: true,
     transcript_deletion_policy: "user_choice",
-    created_by: "user-owner",
+    creator: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     role: row.role,
@@ -233,7 +234,7 @@ export function installSurfacesREST(world: SurfacesWorld): RecordedRequest[] {
           transcript_deletion_policy: "user_choice",
           post_prompts_check: true,
           prompts_check_mode: "informational",
-          created_by: world.viewer.id,
+          creator: profileOwner({ id: world.viewer.id, github_username: "collective-owner" }),
           created_at: "2026-01-03T00:00:00Z",
           updated_at: "2026-01-03T00:00:00Z",
         },

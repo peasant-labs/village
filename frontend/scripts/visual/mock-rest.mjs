@@ -69,6 +69,10 @@ const user = {
   provider_username: 'alice-dev',
 }
 
+/** A person as the server names them to another viewer: their public profile. */
+const profile = (id, username, display_name = null) => ({ kind: 'profile', id, username, display_name, avatar_url: null })
+const viewerProfile = profile(user.id, user.github_username, user.display_name)
+
 const groupId = process.env.MOCK_GROUP_ID || 'demo-group'
 
 // The viewer's role in the collective. Closed set: an unrecognised value is a
@@ -93,7 +97,7 @@ const groupDetail = {
     linked_github_org: 'anthropic-labs',
     display_members: true,
     transcript_deletion_policy: 'user_choice',
-    created_by: user.id,
+    creator: viewerProfile,
     created_at: '2026-06-01T12:00:00Z',
     updated_at: '2026-06-28T12:00:00Z',
     acceptance_mode: 'open',
@@ -105,28 +109,21 @@ const groupDetail = {
   },
   members: [
     {
-      id: 'member-1',
       role: viewerRole,
       joined_at: '2026-06-01T12:00:00Z',
-      github_username: 'alice-dev',
-      display_name: 'Alice Developer',
-      avatar_url: null,
+      member: profile('member-1', 'alice-dev', 'Alice Developer'),
       github_orgs: ['anthropic-labs'],
     },
     {
-      id: 'member-2',
       role: 'member',
       joined_at: '2026-06-10T12:00:00Z',
-      github_username: 'bob-ai',
-      display_name: 'Bob AI',
-      avatar_url: null,
+      member: profile('member-2', 'bob-ai', 'Bob AI'),
       github_orgs: ['anthropic-labs'],
     },
   ],
   transcripts: [
     {
       id: 'gt-1',
-      owner_id: 'member-1',
       local_id: 'sess_demo_0001',
       title: 'Port the transcript canvas into the shared package',
       description: 'Boot fixture transcript.',
@@ -144,6 +141,7 @@ const groupDetail = {
       published_at: '2026-06-17T09:21:00Z',
       updated_at: '2026-06-17T09:21:00Z',
       parent_session_id: null,
+      parent_transcript_id: null,
       ingested_at: '2026-06-17T09:22:00Z',
       source_file_path: null,
       source_format: 'json',
@@ -161,13 +159,10 @@ const groupDetail = {
       subagents: [],
       diagnostics_warnings: [],
       diagnostics_partial: false,
-      owner_username: 'alice-dev',
-      owner_avatar_url: null,
-      owner_is_discoverable: true,
+      owner: profile('member-1', 'alice-dev', 'Alice Developer'),
     },
     {
       id: 'gt-2',
-      owner_id: 'member-2',
       local_id: 'sess_demo_0002',
       title: 'Lift the manage surface into the shared package',
       description: 'Boot fixture transcript.',
@@ -185,6 +180,7 @@ const groupDetail = {
       published_at: '2026-06-18T09:20:00Z',
       updated_at: '2026-06-18T09:20:00Z',
       parent_session_id: null,
+      parent_transcript_id: null,
       ingested_at: '2026-06-18T09:21:00Z',
       source_file_path: null,
       source_format: 'json',
@@ -202,9 +198,7 @@ const groupDetail = {
       subagents: [],
       diagnostics_warnings: [],
       diagnostics_partial: false,
-      owner_username: 'bob-ai',
-      owner_avatar_url: null,
-      owner_is_discoverable: true,
+      owner: profile('member-2', 'bob-ai', 'Bob AI'),
     },
   ],
   stats: {
@@ -316,7 +310,6 @@ const shareableTranscriptListResponse = {
     {
       transcript: {
         id: 'gt-3',
-        owner_id: 'member-1',
         local_id: 'sess_demo_0003',
         title: 'Draft the contribute route shell',
         description: null,
@@ -333,6 +326,7 @@ const shareableTranscriptListResponse = {
         published_at: '2026-06-19T09:20:00Z',
         updated_at: '2026-06-19T09:20:00Z',
         parent_session_id: null,
+        parent_transcript_id: null,
         ingested_at: '2026-06-19T09:21:00Z',
         source_format: 'json',
         git_branch: 'main',
@@ -353,7 +347,7 @@ const shareableTranscriptListResponse = {
         session_origin: 'user',
       },
       tags: [],
-      owner: user,
+      owner: viewerProfile,
       shares: [],
     },
   ],
@@ -456,7 +450,7 @@ const previewTranscriptDetail = (id) => ({
     description: 'A small worked example for the visual capture.',
     project_name: 'peasant',
   },
-  owner: { id: 'owner-demo' },
+  owner: profile('owner-demo', 'owner-demo'),
   enriched_shares: [],
 })
 
@@ -701,7 +695,7 @@ if (CONTEXT_NAV) {
       project_name: 'native-provenance',
       content_hash: CONTEXT_ANCHOR_REVISION,
     },
-    owner: { id: 'owner-demo' },
+    owner: profile('owner-demo', 'owner-demo'),
     enriched_shares: [],
     relationshipNavigation: [],
   }
@@ -715,7 +709,7 @@ const detail = {
     description: 'Host-integration boot fixture.',
     project_name: 'observed-model-contract',
   },
-  owner: { id: 'owner-demo' },
+  owner: profile('owner-demo', 'owner-demo'),
   enriched_shares: [],
 }
 if (contextNavigation) detail.relationshipNavigation = contextNavigation
@@ -740,56 +734,52 @@ const pendingShares = [
     transcript_id: 'ct-main-1',
     title: 'fix the redaction rule ordering',
     model_provider: 'claude-code',
-    owner_id: 'user-pat',
+    owner: profile('user-pat', 'pat-reviewer'),
     local_id: 'sess_ct_0001',
     parent_session_id: null,
+    parent_transcript_id: null,
     project_hash: 'b'.repeat(64),
     project_name: 'peasant',
     branch: 'main',
-    owner_username: 'pat-reviewer',
-    owner_is_discoverable: true,
     shared_at: '2026-06-22T09:00:00Z',
   },
   {
     transcript_id: 'ct-main-child',
     title: 'run the redaction fixtures again',
     model_provider: 'claude-code',
-    owner_id: 'user-pat',
+    owner: profile('user-pat', 'pat-reviewer'),
     local_id: 'sess_ct_0001_child',
     parent_session_id: 'sess_ct_0001',
+    parent_transcript_id: 'ct-main-1',
     project_hash: 'b'.repeat(64),
     project_name: 'peasant',
     branch: 'main',
-    owner_username: 'pat-reviewer',
-    owner_is_discoverable: true,
     shared_at: '2026-06-22T10:00:00Z',
   },
   {
     transcript_id: 'ct-feature-1',
     title: 'draft the contribute tree page',
     model_provider: 'gemini-cli',
-    owner_id: 'user-pat',
+    owner: profile('user-pat', 'pat-reviewer'),
     local_id: 'sess_ct_0002',
     parent_session_id: null,
+    parent_transcript_id: null,
     project_hash: 'b'.repeat(64),
     project_name: 'peasant',
     branch: 'feature/contribute-tree',
-    owner_username: 'pat-reviewer',
-    owner_is_discoverable: true,
     shared_at: '2026-06-23T09:00:00Z',
   },
   {
     transcript_id: 'ct-village-1',
     title: 'widen the pending queue wire',
     model_provider: 'claude-code',
-    owner_id: 'user-sam',
+    owner: profile('user-sam', 'sam-contributor'),
     local_id: 'sess_ct_0003',
     parent_session_id: null,
+    parent_transcript_id: null,
     project_hash: 'c'.repeat(64),
     project_name: 'village',
     branch: 'main',
-    owner_username: 'sam-contributor',
-    owner_is_discoverable: true,
     shared_at: '2026-06-24T09:00:00Z',
   },
 ]
@@ -836,8 +826,7 @@ const server = createServer((req, res) => {
         attestation_type,
         note: note ?? null,
         created_at: new Date().toISOString(),
-        attester_username: user.github_username,
-        attester_avatar: user.avatar_url,
+        attester: viewerProfile,
       }
       attestations.push(created)
       send(res, 201, created)
@@ -878,8 +867,8 @@ const server = createServer((req, res) => {
         // statement can be captured naming the collective instead of everyone.
         is_private_repository: process.env.PULL_PRIVATE === '1',
         state,
-        author_user_id: user.id,
-        requested_by_github_id: null,
+        author: viewerProfile,
+        requested_by: null,
         comment_id: state === 'attached' ? 4242 : null,
         check_run_id: state === 'attached' ? 77 : null,
         created_at: '2026-06-28T12:00:00Z',

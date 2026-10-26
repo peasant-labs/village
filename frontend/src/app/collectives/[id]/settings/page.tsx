@@ -46,6 +46,8 @@ import {
   MembersSection,
   PullRequestsSection,
 } from "@/components/collective/settings/SettingsSections";
+import { ownerHandle } from "@/lib/format";
+import { publicProfile } from "@/lib/publicOwner";
 import type { GroupMember } from "@/lib/types";
 import "@/app/online-collective.css";
 
@@ -168,9 +170,11 @@ export default function GroupSettingsPage({
     updateGroup.mutateAsync({ id, body: settingPatch(key, value) });
 
   const handleRoleChange = (member: GroupMember, role: string) => {
-    const handle = `@${member.github_username}`;
+    const profile = publicProfile(member.member);
+    if (!profile) return;
+    const handle = `@${profile.username}`;
     promoteMember.mutate(
-      { groupId: id, userId: member.id, role },
+      { groupId: id, userId: profile.id, role },
       {
         onSuccess: () => setNotice({ ok: true, title: "role changed", detail: `${handle} is now a ${role}.` }),
         onError: (error) => {
@@ -325,7 +329,7 @@ export default function GroupSettingsPage({
         tone="danger"
         title={
           <>
-            remove <span className="cns-name">@{removing?.github_username}</span>?
+            remove <span className="cns-name">{ownerHandle(removing?.member)}</span>?
           </>
         }
         intro={
@@ -340,10 +344,11 @@ export default function GroupSettingsPage({
         busy={removeMember.isPending}
         onCancel={() => setRemoving(null)}
         onConfirm={() => {
-          if (!removing) return;
-          const handle = `@${removing.github_username}`;
+          const profile = publicProfile(removing?.member);
+          if (!profile) return;
+          const handle = `@${profile.username}`;
           removeMember.mutate(
-            { groupId: id, userId: removing.id },
+            { groupId: id, userId: profile.id },
             {
               onSuccess: () => {
                 setRemoving(null);

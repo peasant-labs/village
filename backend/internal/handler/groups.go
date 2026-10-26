@@ -106,8 +106,15 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		Role:    "owner",
 	})
 
-	writeJSON(w, http.StatusCreated, group)
+	response, err := collectiveWithItsCreator(r.Context(), h, user, group, groupCreatedBy)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "The collective was created, but its creator could not be shown; reload the collective")
+		return
+	}
+	writeJSON(w, http.StatusCreated, response)
 }
+
+func groupCreatedBy(g sqlc.Group) pgtype.UUID { return g.CreatedBy }
 
 func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
@@ -116,7 +123,12 @@ func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list groups")
 		return
 	}
-	writeJSON(w, http.StatusOK, groups)
+	response, err := collectivesWithCreators(r.Context(), h, user, groups, func(g sqlc.ListUserGroupsRow) pgtype.UUID { return g.CreatedBy })
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the creators of your collectives")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 // ListVisibleGroups returns every collective the caller may see, whether or not
@@ -146,7 +158,12 @@ func (h *Handler) ListVisibleGroups(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list groups")
 		return
 	}
-	writeJSON(w, http.StatusOK, groups)
+	response, err := collectivesWithCreators(r.Context(), h, user, groups, func(g sqlc.ListVisibleGroupsRow) pgtype.UUID { return g.CreatedBy })
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the creators of the visible collectives")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) ListPublicGroups(w http.ResponseWriter, r *http.Request) {
@@ -274,10 +291,11 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	canRead := canReadData(yourRole, group.DataAccess)
 
-	members, _ := h.queries.ListGroupMembers(r.Context(), sqlc.ListGroupMembersParams{
-		GroupID:       pgID,
-		ViewerIsOwner: yourRole == "owner",
-	})
+	people, err := h.collectivePeopleFor(r.Context(), user, pgID, yourRole == "owner")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Collective members could not be loaded because the roster or profile visibility lookup failed. No collective was returned; retry the request.")
+		return
+	}
 	stats, _ := h.queries.GetGroupTranscriptStats(r.Context(), pgID)
 	pullRequestCount, err := h.collectivePullRequestCountFor(r.Context(), user, pgID, canRead)
 	if err != nil {
@@ -287,10 +305,6 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	models, _ := h.queries.ListGroupModelBreakdown(r.Context(), pgID)
-	contributors, _ := h.queries.ListGroupContributors(r.Context(), sqlc.ListGroupContributorsParams{
-		GroupID:       pgID,
-		ViewerIsOwner: yourRole == "owner",
-	})
 
 	groupStats := schema.VillageCollectiveTranscriptStats{
 		TotalTranscripts: stats.TotalTranscripts, ContributorCount: stats.ContributorCount,
@@ -298,19 +312,23 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		PullRequestCount: pullRequestCount,
 	}
 
+	groupRecord, err := collectiveWithItsCreator(r.Context(), h, user, group, groupCreatedBy)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Collective metadata could not be loaded because its creator could not be resolved. No metadata was returned; retry the request.")
+		return
+	}
 	resp := map[string]any{
-		"group":        group,
-		"members":      members,
+		"group":        groupRecord,
+		"members":      people.Members,
 		"stats":        groupStats,
 		"models":       models,
-		"contributors": contributors,
+		"contributors": people.Contributors,
 		"can_read":     canRead,
 		"your_role":    yourRole,
 	}
 
 	if yourRole == "owner" {
-		pendingMembers, _ := h.queries.ListGroupPendingMembers(r.Context(), pgID)
-		resp["pending_members"] = pendingMembers
+		resp["pending_members"] = people.PendingMembers
 	}
 
 	// Only include transcripts if the caller can read data
@@ -337,9 +355,28 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "Could not read the pull requests of the collective's transcripts; retry the request")
 			return
 		}
+		ownerIDs := make([]pgtype.UUID, 0, len(transcriptRows))
+		for _, row := range transcriptRows {
+			ownerIDs = append(ownerIDs, row.OwnerID)
+		}
+		owners, err := h.resolvePublicOwners(r.Context(), user, ownerIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not read the owners of the collective's transcripts; retry the request")
+			return
+		}
+		stored := make([]sqlc.Transcript, 0, len(transcriptRows))
+		for _, row := range transcriptRows {
+			stored = append(stored, groupTranscriptStoredRow(row))
+		}
+		parents, err := h.resolveParentTranscriptsOf(r.Context(), user, stored)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not resolve the parent sessions of the collective's transcripts; retry the request")
+			return
+		}
 		transcripts := make([]groupTranscriptResponse, 0, len(transcriptRows))
 		for _, row := range transcriptRows {
-			transcript := groupTranscriptFromRow(row)
+			transcript := groupTranscriptFromRow(row, owners.of(row.OwnerID))
+			transcript.transcriptResponse = transcript.transcriptResponse.withParent(parents.of(row.ID)).withholdRepository(transcript.Owner)
 			transcript.PullRequests = summaries[row.ID]
 			transcripts = append(transcripts, transcript)
 		}
@@ -490,7 +527,12 @@ func (h *Handler) updateGroupLocked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, group)
+	response, err := collectiveWithItsCreator(r.Context(), h, GetUser(r.Context()), group, groupCreatedBy)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "The collective was updated, but its creator could not be shown; reload the collective")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
@@ -600,7 +642,79 @@ func (h *Handler) ListPendingShares(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list pending shares")
 		return
 	}
-	writeJSON(w, http.StatusOK, pending)
+	ownerIDs := make([]pgtype.UUID, 0, len(pending))
+	for _, row := range pending {
+		ownerIDs = append(ownerIDs, row.OwnerID)
+	}
+	owners, err := h.resolvePublicOwners(r.Context(), user, ownerIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the submitters of pending shares")
+		return
+	}
+	lookups := make([]parentLookup, 0, len(pending))
+	for _, row := range pending {
+		lookups = append(lookups, parentLookup{Child: row.TranscriptID, Owner: row.OwnerID, ParentSessionID: row.ParentSessionID})
+	}
+	parents, err := h.resolveParentTranscripts(r.Context(), user, lookups)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the parent sessions of pending shares")
+		return
+	}
+	response := make([]pendingShareResponse, 0, len(pending))
+	for _, row := range pending {
+		owner := owners.of(row.OwnerID)
+		entry := pendingShareResponse{
+			TranscriptID: row.TranscriptID, Title: row.Title, ModelProvider: row.ModelProvider,
+			Owner: owner, LocalID: row.LocalID, ParentSessionID: row.ParentSessionID,
+			ParentTranscriptID: parents.of(row.TranscriptID),
+			ProjectHash:        pgtype.Text{String: row.ProjectHash, Valid: true}, ProjectName: row.ProjectName, Branch: row.Branch, SharedAt: row.SharedAt,
+		}
+		if !owner.IsProfile() {
+			entry.ProjectHash, entry.ProjectName, entry.Branch = pgtype.Text{}, pgtype.Text{}, pgtype.Text{}
+		}
+		response = append(response, entry)
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+// pendingShareResponse is one flat review-queue row: the submission and its
+// submitter as the reviewing owner may see them.
+type pendingShareResponse struct {
+	TranscriptID    pgtype.UUID               `json:"transcript_id"`
+	Title           pgtype.Text               `json:"title"`
+	ModelProvider   string                    `json:"model_provider"`
+	Owner           schema.VillagePublicOwner `json:"owner"`
+	LocalID         string                    `json:"local_id"`
+	ParentSessionID pgtype.Text               `json:"parent_session_id"`
+	// ParentTranscriptID: see transcriptResponse.ParentTranscriptID.
+	ParentTranscriptID *schema.TranscriptID `json:"parent_transcript_id"`
+	// The three repository fields are null when the submitter is anonymous
+	// to the reviewer (withholdRepository).
+	ProjectHash pgtype.Text        `json:"project_hash"`
+	ProjectName pgtype.Text        `json:"project_name"`
+	Branch      pgtype.Text        `json:"branch"`
+	SharedAt    pgtype.Timestamptz `json:"shared_at"`
+}
+
+// myShareResponse is one flat row of the caller's own submissions to a
+// collective. Owner is the caller's own profile.
+type myShareResponse struct {
+	ID              pgtype.UUID               `json:"id"`
+	Title           pgtype.Text               `json:"title"`
+	ModelProvider   string                    `json:"model_provider"`
+	ModelName       pgtype.Text               `json:"model_name"`
+	Visibility      string                    `json:"visibility"`
+	PublishedAt     pgtype.Timestamptz        `json:"published_at"`
+	TurnCount       pgtype.Int4               `json:"turn_count"`
+	TokensIn        pgtype.Int8               `json:"tokens_in"`
+	TokensOut       pgtype.Int8               `json:"tokens_out"`
+	Owner           schema.VillagePublicOwner `json:"owner"`
+	LocalID         string                    `json:"local_id"`
+	ParentSessionID pgtype.Text               `json:"parent_session_id"`
+	// ParentTranscriptID: see transcriptResponse.ParentTranscriptID.
+	ParentTranscriptID *schema.TranscriptID `json:"parent_transcript_id"`
+	Status             string               `json:"status"`
+	SharedAt           pgtype.Timestamptz   `json:"shared_at"`
 }
 
 // ReviewShare approves or rejects a pending transcript share.
@@ -1047,7 +1161,32 @@ func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list your shares")
 		return
 	}
-	writeJSON(w, http.StatusOK, rows)
+	// Every row is the caller's own, so the owner is the caller as they see
+	// themselves, resolved through the same read as every other owner.
+	owner, err := h.resolvePublicOwner(r.Context(), user, user.PgID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve your profile for your shares")
+		return
+	}
+	lookups := make([]parentLookup, 0, len(rows))
+	for _, row := range rows {
+		lookups = append(lookups, parentLookup{Child: row.ID, Owner: row.OwnerID, ParentSessionID: row.ParentSessionID})
+	}
+	parents, err := h.resolveParentTranscripts(r.Context(), user, lookups)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the parent sessions of your shares")
+		return
+	}
+	response := make([]myShareResponse, 0, len(rows))
+	for _, row := range rows {
+		response = append(response, myShareResponse{
+			ID: row.ID, Title: row.Title, ModelProvider: row.ModelProvider, ModelName: row.ModelName,
+			Visibility: row.Visibility, PublishedAt: row.PublishedAt, TurnCount: row.TurnCount,
+			TokensIn: row.TokensIn, TokensOut: row.TokensOut, Owner: owner, LocalID: row.LocalID,
+			ParentSessionID: row.ParentSessionID, ParentTranscriptID: parents.of(row.ID), Status: row.Status, SharedAt: row.SharedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 // contributedCollective is the wire shape of one row of a person's own

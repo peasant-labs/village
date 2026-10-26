@@ -11,6 +11,7 @@ import GroupSettingsPage from "@/app/collectives/[id]/settings/page";
 import { resetNextNavigation } from "@/test/nextNavigationMock";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { Group, GroupMember, GroupTranscript, User, VisibleGroup } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mount support for the collective pages: the collectives list, a collective,
@@ -111,7 +112,7 @@ export function makeGroup(overrides: Partial<Group> & Pick<Group, "id" | "name">
     transcript_deletion_policy: "user_choice",
     post_prompts_check: true,
     prompts_check_mode: "informational",
-    created_by: "user-owner",
+    creator: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     role: "",
@@ -122,10 +123,7 @@ export function makeGroup(overrides: Partial<Group> & Pick<Group, "id" | "name">
 
 function groupMember(member: WorldMember): GroupMember {
   return {
-    id: member.id,
-    github_username: member.username,
-    display_name: member.name,
-    avatar_url: null,
+    member: profileOwner({ id: member.id, github_username: member.username, display_name: member.name }),
     github_orgs: [],
     joined_at: "2026-01-02T00:00:00Z",
     role: member.role,
@@ -140,10 +138,8 @@ function groupTranscript(t: WorldTranscript, world: CollectiveWorld): GroupTrans
     return { owner: match[1], name: match[2], number: Number(match[3]) };
   });
   return {
-    ...makeTranscriptFixture({ id: t.id, title: t.title, owner_id: author?.id ?? `user-${t.author}` }),
-    owner_username: t.author,
-    owner_avatar_url: null,
-    owner_is_discoverable: true,
+    ...makeTranscriptFixture({ id: t.id, title: t.title }),
+    owner: profileOwner({ id: author?.id ?? `user-${t.author}`, github_username: t.author }),
     pull_requests: { count: t.pullRequestCount, recent },
   } as GroupTranscript;
 }
@@ -157,7 +153,7 @@ function linkedRow(world: CollectiveWorld, repo: string) {
     name,
     is_private: world.available.find((r) => r.repo === repo)?.private ?? false,
     installation_id: 4242,
-    linked_by: world.viewer?.id ?? "user-owner",
+    linked_by: profileOwner({ id: world.viewer?.id ?? "user-owner", github_username: world.viewer?.username ?? "collective-owner" }),
     created_at: "2026-01-03T00:00:00Z",
     last_synced_at: null,
   };

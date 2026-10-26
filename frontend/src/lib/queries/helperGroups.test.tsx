@@ -22,13 +22,13 @@ for (const fixture of fixtures.cases) {
       if (url.searchParams.get("scope") === fixtures.nestedGroup.memberScope) {
         if (fixture.nestedStatus !== 200) return new Response(JSON.stringify({code: "group_scope_expired", error: "refresh the originating list"}), {status: fixture.nestedStatus});
         const session = {...makeTranscriptFixture(fixtures.nestedRow), input_submission_count: 0, purpose: "helper_review"};
-        return new Response(JSON.stringify({members: [{kind: "transcript", transcript: {session}}],page:1,limit:20,total:1}), {status:200});
+        return new Response(JSON.stringify({members: [{kind: "transcript", transcript: {owner: fixtures.owner, session}}],page:1,limit:20,total:1}), {status:200});
       }
       if (status !== 200) return new Response(JSON.stringify({ code: "group_scope_expired", error: "refresh the originating list; no members returned" }), { status });
       const session = { ...makeTranscriptFixture(fixtures.row), input_submission_count: 0, purpose: fixture.kind === "members" ? "helper_review" : "interaction" };
       const response = fixture.kind === "list"
-        ? { items: [{ kind: "transcript", transcript: { session } }], page: 1, limit: 20, totalItems: 1, ordinarySessionTotal: 1, helperThreadTotal: 0 }
-        : { members: [{ kind: "transcript", transcript: { session }, ...(fixture.nestedStatus ? {helperGroups: [fixtures.nestedGroup]} : {}) }], page: 1, limit: 20, total: 1 };
+        ? { items: [{ kind: "transcript", transcript: { owner: fixtures.owner, session } }], page: 1, limit: 20, totalItems: 1, ordinarySessionTotal: 1, helperThreadTotal: 0 }
+        : { members: [{ kind: "transcript", transcript: { owner: fixtures.owner, session }, ...(fixture.nestedStatus ? {helperGroups: [fixtures.nestedGroup]} : {}) }], page: 1, limit: 20, total: 1 };
       return new Response(JSON.stringify(response), { status: 200 });
     }));
     const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;

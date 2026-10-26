@@ -25,12 +25,12 @@ type collectiveResponseCase struct {
 }
 
 type collectiveResponseFixtures struct {
-	Session           string                   `yaml:"session"`
-	OwnerUsername     string                   `yaml:"owner_username"`
-	OwnerAvatar       string                   `yaml:"owner_avatar"`
-	OwnerDiscoverable bool                     `yaml:"owner_discoverable"`
-	SharedAt          time.Time                `yaml:"shared_at"`
-	Cases             []collectiveResponseCase `yaml:"cases"`
+	Session       string                   `yaml:"session"`
+	OwnerID       string                   `yaml:"owner_id"`
+	OwnerUsername string                   `yaml:"owner_username"`
+	OwnerAvatar   string                   `yaml:"owner_avatar"`
+	SharedAt      time.Time                `yaml:"shared_at"`
+	Cases         []collectiveResponseCase `yaml:"cases"`
 }
 
 func loadCollectiveResponseFixtures(t *testing.T) collectiveResponseFixtures {
@@ -77,29 +77,30 @@ func TestCollectiveGroupedResponsePreservesRowFields(t *testing.T) {
 				t.Fatal(err)
 			}
 			session.InputSubmissionCount = c.InputCount
+			owner := schema.NewVillagePublicProfile(schema.VillageUUID(f.OwnerID), f.OwnerUsername, nil, &f.OwnerAvatar)
 			var row schema.VillageSessionRow
 			var arm any
 			switch c.Route {
 			case "collective":
-				row = collectiveSessionRow(session, f.OwnerUsername, &f.OwnerAvatar, f.OwnerDiscoverable)
+				row = collectiveSessionRow(session, owner)
 				arm = row.Collective
-				if row.Collective.OwnerUsername != f.OwnerUsername || !reflect.DeepEqual(row.Collective.OwnerAvatarURL, &f.OwnerAvatar) || row.Collective.OwnerIsDiscoverable != f.OwnerDiscoverable {
+				if !reflect.DeepEqual(row.Collective.Owner, owner) || !reflect.DeepEqual(row.Owner, owner) {
 					t.Fatal("owner metadata lost")
 				}
 			case "pending":
-				row = pendingSessionRow(session, f.OwnerUsername, f.OwnerDiscoverable, f.SharedAt)
+				row = pendingSessionRow(session, owner, f.SharedAt)
 				arm = row.Pending
-				if row.Pending.OwnerUsername != f.OwnerUsername || row.Pending.OwnerIsDiscoverable != f.OwnerDiscoverable || !row.Pending.SharedAt.Equal(f.SharedAt) {
+				if !reflect.DeepEqual(row.Pending.Owner, owner) || !reflect.DeepEqual(row.Owner, owner) || !row.Pending.SharedAt.Equal(f.SharedAt) {
 					t.Fatal("pending review metadata lost")
 				}
 			case "my-shares":
-				row = myShareSessionRow(session, c.Status, f.SharedAt)
+				row = myShareSessionRow(session, owner, c.Status, f.SharedAt)
 				arm = row.MyShare
-				if row.MyShare.Status != c.Status || !row.MyShare.SharedAt.Equal(f.SharedAt) {
+				if row.MyShare.Status != c.Status || !row.MyShare.SharedAt.Equal(f.SharedAt) || !reflect.DeepEqual(row.MyShare.Owner, owner) {
 					t.Fatal("submission state lost")
 				}
 			case "contributable":
-				row = contributableSessionRow(session, c.AlreadyShared)
+				row = contributableSessionRow(session, owner, c.AlreadyShared)
 				arm = row.Contributable
 				if row.Contributable.AlreadyShared != c.AlreadyShared {
 					t.Fatal("eligibility lost")
@@ -125,6 +126,12 @@ func TestCollectiveGroupedResponsePreservesRowFields(t *testing.T) {
 					name = "GitBranch"
 				}
 				common := sv.FieldByName(name)
+				// The session's repository fields are nullable (withheld for an
+				// anonymous owner); an arm that keeps them required carries
+				// the same value.
+				if common.IsValid() && common.Kind() == reflect.Pointer && av.Field(i).Kind() != reflect.Pointer && !common.IsNil() {
+					common = common.Elem()
+				}
 				if common.IsValid() && !reflect.DeepEqual(common.Interface(), av.Field(i).Interface()) {
 					t.Errorf("route field %s differs from session", name)
 				}

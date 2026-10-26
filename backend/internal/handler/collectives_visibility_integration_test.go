@@ -528,6 +528,22 @@ func (w *collectiveWorld) assertDetailDisclosure(t *testing.T, h *Handler, viewe
 		}
 		return
 	}
+	// The list route discloses through the batched query; it must agree with the
+	// single-transcript one on every case of the corpus.
+	batched, err := h.queries.ListTranscriptsCollectivesForViewer(context.Background(), sqlc.ListTranscriptsCollectivesForViewerParams{
+		TranscriptIds: []pgtype.UUID{w.transcripts[0]}, ViewerID: viewerID(actor),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batched) != len(disclosed) {
+		t.Fatalf("the list's batched disclosure names %d collectives, the dedicated endpoint %d", len(batched), len(disclosed))
+	}
+	for _, row := range batched {
+		if !containsID(disclosed, uuid.UUID(row.GroupID.Bytes).String()) {
+			t.Fatalf("the list's batched disclosure names collective %s the dedicated endpoint withholds", uuid.UUID(row.GroupID.Bytes))
+		}
+	}
 	if len(response.Shares) != len(disclosed) || len(response.Enriched) != len(disclosed) {
 		t.Fatalf("detail associations differ from dedicated disclosed set %v: %s", disclosed, rec.Body.String())
 	}

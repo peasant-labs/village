@@ -25,7 +25,10 @@ type Querier interface {
 	UpsertUser(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
 	UpsertUserByProvider(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
-	ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
+	ListOwnersMatchingRepositoryFilter(ctx context.Context, arg sqlc.ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error)
+	ListUserIDsWithVisibleOrg(ctx context.Context, orgLogin string) ([]pgtype.UUID, error)
+	ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg sqlc.ListTranscriptsByOwnerLocalIDsParams) ([]sqlc.ListTranscriptsByOwnerLocalIDsRow, error)
+	ListPublicOwnersForViewer(ctx context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error)
 	GetUserByUsername(ctx context.Context, githubUsername string) (sqlc.User, error)
 	SetUsername(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
 	ConfirmOwnHandle(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
@@ -110,6 +113,8 @@ type Querier interface {
 	ListOwnerCollectiveContributions(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
 	ListOwnerCollectiveSubmissions(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error)
 	ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
+	ListReadableTranscriptIDs(ctx context.Context, arg sqlc.ListReadableTranscriptIDsParams) ([]pgtype.UUID, error)
+	ListTranscriptsCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptsCollectivesForViewerParams) ([]sqlc.ListTranscriptsCollectivesForViewerRow, error)
 	ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 	AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 	RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error

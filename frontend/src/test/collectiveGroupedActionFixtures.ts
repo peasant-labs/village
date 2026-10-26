@@ -9,6 +9,7 @@ import { ordinaryOwnerUUID } from "@/test/groupedHelperSurfaceFixtures";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 import type { PendingShare } from "@/lib/review/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loader for `src/testdata/collective-grouped-actions.yaml`.
@@ -420,6 +421,9 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
   };
 }
 
+/** The owner of every declared row, as the server names them to the viewer. */
+const ROW_OWNER = profileOwner({ id: "30000000-0000-4000-8000-000000000010", github_username: "member-owner" });
+
 /** The published display row for one declared member. */
 export function memberItem(label: string, title: string, surface: ActionSurface, groupKey: GroupKey): VillageSessionListItem {
   const id = memberUUID(label);
@@ -427,21 +431,26 @@ export function memberItem(label: string, title: string, surface: ActionSurface,
   const session = makeTranscriptFixture({
     id,
     local_id: localID,
-    owner_id: `30000000-0000-4000-8000-${String(GROUP_KEYS.indexOf(groupKey) + 1).padStart(12, "0")}`,
     title,
     project_hash: "a".repeat(64),
     project_name: "peasant",
     project_display_name: "peasant",
     parent_session_id: null,
+    parent_transcript_id: null,
     session_origin: "user",
   });
+  const owner = profileOwner({
+    id: `30000000-0000-4000-8000-${String(GROUP_KEYS.indexOf(groupKey) + 1).padStart(12, "0")}`,
+    github_username: "member-owner",
+  });
   if (surface === "browse") {
-    return { kind: "transcript", transcript: { session } } as VillageSessionListItem;
+    return { kind: "transcript", transcript: { owner, session } } as VillageSessionListItem;
   }
   if (surface === "contribute") {
     return {
       kind: "transcript",
       transcript: {
+        owner,
         session,
         contributable: {
           id,
@@ -464,19 +473,19 @@ export function memberItem(label: string, title: string, surface: ActionSurface,
   return {
     kind: "transcript",
     transcript: {
+      owner,
       session,
       pending: {
         transcript_id: id,
         title,
         model_provider: session.model_provider,
-        owner_id: session.owner_id,
+        owner,
         local_id: localID,
         parent_session_id: session.parent_session_id,
+        parent_transcript_id: null,
         project_hash: session.project_hash,
         project_name: session.project_name,
         branch: session.git_branch,
-        owner_username: "member-owner",
-        owner_is_discoverable: true,
         shared_at: "2026-09-01T10:00:00Z",
       },
     },
@@ -543,18 +552,16 @@ function collectiveBrowseRow(fixtures: CollectiveGroupedActionFixtures, row: Row
     ...makeTranscriptFixture({
       id: row.id,
       local_id: row.local_id,
-      owner_id: "30000000-0000-4000-8000-000000000010",
       title: row.title,
       project_hash: fixtures.projectHash,
       project_name: fixtures.projectName,
       project_display_name: fixtures.projectName,
       parent_session_id: null,
+      parent_transcript_id: null,
       visibility: "shared",
     }),
     pull_requests: { count: 0, recent: [] },
-    owner_username: "member-owner",
-    owner_avatar_url: null,
-    owner_is_discoverable: true,
+    owner: ROW_OWNER,
   };
 }
 
@@ -573,14 +580,13 @@ function pendingShareRow(
     transcript_id: row.id,
     title: row.title,
     model_provider: "claude-code",
-    owner_id: "30000000-0000-4000-8000-000000000010",
+    owner: ROW_OWNER,
     local_id: row.local_id,
     parent_session_id: null,
+    parent_transcript_id: null,
     project_hash: fixtures.projectHash,
     project_name: fixtures.projectName,
     branch: "main",
-    owner_username: "member-owner",
-    owner_is_discoverable: true,
     shared_at: "2026-09-01T10:00:00Z",
   };
 }
@@ -632,15 +638,16 @@ export function groupedOwnerItem(
   return {
     kind: "transcript",
     transcript: {
+      owner: ROW_OWNER,
       session: makeTranscriptFixture({
         id: row.id,
         local_id: row.local_id,
-        owner_id: "30000000-0000-4000-8000-000000000010",
         title: row.title,
         project_hash: fixtures.projectHash,
         project_name: fixtures.projectName,
         project_display_name: fixtures.projectName,
         parent_session_id: null,
+        parent_transcript_id: null,
       }),
     },
     helperGroups: groups.length > 0 ? [...groups] : undefined,
@@ -698,7 +705,7 @@ export function groupedDetailPage(
       id: fixtures.groupId,
       name: "grouped actions collective",
       description: null,
-      created_by: "30000000-0000-4000-8000-000000000099",
+      creator: profileOwner({ id: "30000000-0000-4000-8000-000000000099", github_username: "collective-owner" }),
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
       acceptance_mode: "curated",
@@ -784,15 +791,16 @@ function ordinaryGroupedOwner(
   return {
     kind: "transcript",
     transcript: {
+      owner: ROW_OWNER,
       session: makeTranscriptFixture({
         id: ordinaryOwnerUUID(index),
         local_id: `ses_ordinarygrouped${index}`,
-        owner_id: "30000000-0000-4000-8000-000000000010",
         title: `ordinary grouped owner ${index}`,
         project_hash: fixtures.projectHash,
         project_name: fixtures.projectName,
         project_display_name: fixtures.projectName,
         parent_session_id: null,
+        parent_transcript_id: null,
       }),
     },
   } as VillageSessionListItem;

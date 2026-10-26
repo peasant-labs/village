@@ -10,7 +10,6 @@ import { ProviderTag, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
 import { describeNameSource, resolveAttribution } from "@/lib/format";
-import { useAuth } from "@/providers/AuthProvider";
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -22,8 +21,8 @@ function formatDuration(ms: number): string {
 
 export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
   const { transcript: t, tags, owner, shares, attestations } = item;
-  const { user: viewer } = useAuth();
-  const attribution = resolveAttribution(owner, viewer?.id);
+  const attribution = resolveAttribution(owner);
+  const profile = attribution.profile;
   // The one server-resolved project identity every surface renders — never
   // a locally re-derived name.
   const projectDisplay = t.project_display_name;
@@ -44,7 +43,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
           {projectDisplay && (
             <span
               className="text-[length:var(--fs-label)] font-mono text-ink-3 truncate"
-              title={describeNameSource(t.project_name_source)}
+              title={t.project_name_source ? describeNameSource(t.project_name_source) : undefined}
             >
               {projectDisplay}
             </span>
@@ -100,9 +99,9 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
             <div className="w-5 h-5 bg-surface-hover border border-rule flex items-center justify-center text-[9px] font-bold text-ink-3">
               ?
             </div>
-          ) : owner.avatar_url ? (
+          ) : profile?.avatar_url ? (
             <Image
-              src={owner.avatar_url}
+              src={profile.avatar_url}
               alt=""
               width={20}
               height={20}
@@ -111,7 +110,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
             />
           ) : (
             <div className="w-5 h-5 bg-surface-hover border border-rule flex items-center justify-center text-[9px] font-bold text-ink-2">
-              {owner.github_username[0].toUpperCase()}
+              {attribution.label[0].toUpperCase()}
             </div>
           )}
           <span className="text-[length:var(--fs-body)] text-ink-3">{attribution.label}</span>

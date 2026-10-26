@@ -28,9 +28,6 @@ interface ChildSessionDisclosureProps {
    *  picked out exactly like any other row, so a "select everything" action
    *  cannot silently miss it. */
   selection?: TranscriptRowSelection;
-  /** Carried through so a revealed row attributes its author exactly as the row
-   *  it hangs under does. */
-  viewerIsPrivileged?: boolean;
   /** Carried through so a revealed handle leads where the parent's does. */
   linkOwner?: boolean;
   /** Carried through so a revealed row can disclose the helper groups the
@@ -67,7 +64,6 @@ export default function ChildSessionDisclosure({
   hideVisibility = false,
   facts,
   selection,
-  viewerIsPrivileged = false,
   linkOwner = false,
   helperGroupSlot,
   context,
@@ -123,7 +119,6 @@ export default function ChildSessionDisclosure({
             hideVisibility={hideVisibility}
             facts={facts}
             selection={selection}
-            viewerIsPrivileged={viewerIsPrivileged}
             linkOwner={linkOwner}
             helperGroupSlot={helperGroupSlot}
             context={context}

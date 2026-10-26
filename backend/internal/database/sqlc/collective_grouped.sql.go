@@ -13,9 +13,6 @@ import (
 
 const listCollectiveGroupedCandidates = `-- name: ListCollectiveGroupedCandidates :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider, t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count, t.blob_key, t.blob_size_bytes, t.schema_version, t.published_at, t.updated_at, t.parent_session_id, t.ingested_at, t.source_file_path, t.source_format, t.git_branch, t.git_remote, t.git_worktree, t.project_hash, t.project_path, t.project_name, t.tool_call_count, t.subagent_count, t.duration_ms, t.subagents, t.diagnostics_warnings, t.diagnostics_partial, t.tokens_in, t.tokens_out, t.title_generated, t.outcome, t.files_touched, t.lines_changed, t.retry_loops, t.retry_tokens_wasted, t.within_session_reverts, t.signal_density, t.spec_quality_score, t.exploration_ratio, t.scope_breadth, t.discovery_turns, t.m2_token_outcome_ratio, t.m3_unique_tool_count, t.m4_error_recovery_count, t.m4_consecutive_error_max, t.m5_context_utilization_pct, t.m5_peak_context_tokens, t.m5_avg_message_tokens, t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count, t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version, t.accepted_request_operation_fingerprint, t.session_origin, t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-       u.github_username AS owner_username,
-       u.avatar_url AS owner_avatar_url,
-       u.is_discoverable AS owner_is_discoverable,
        COALESCE(ts.status, '')::text AS share_status,
        ts.shared_at,
        EXISTS (
@@ -28,7 +25,6 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
              )
        )::boolean AS already_shared
 FROM transcripts t
-JOIN users u ON u.id = t.owner_id
 JOIN groups g ON g.id = $1
 LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
 LEFT JOIN transcript_shares ts ON ts.transcript_id = t.id AND ts.group_id = g.id
@@ -65,13 +61,10 @@ type ListCollectiveGroupedCandidatesParams struct {
 }
 
 type ListCollectiveGroupedCandidatesRow struct {
-	Transcript          Transcript         `db:"transcript" json:"transcript"`
-	OwnerUsername       string             `db:"owner_username" json:"owner_username"`
-	OwnerAvatarUrl      pgtype.Text        `db:"owner_avatar_url" json:"owner_avatar_url"`
-	OwnerIsDiscoverable bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
-	ShareStatus         string             `db:"share_status" json:"share_status"`
-	SharedAt            pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
-	AlreadyShared       bool               `db:"already_shared" json:"already_shared"`
+	Transcript    Transcript         `db:"transcript" json:"transcript"`
+	ShareStatus   string             `db:"share_status" json:"share_status"`
+	SharedAt      pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+	AlreadyShared bool               `db:"already_shared" json:"already_shared"`
 }
 
 // Complete candidates, never a flat transcript page. The grouped pager and
@@ -167,9 +160,6 @@ func (q *Queries) ListCollectiveGroupedCandidates(ctx context.Context, arg ListC
 			&i.Transcript.RootSessionID,
 			&i.Transcript.SessionPurpose,
 			&i.Transcript.SessionRelationships,
-			&i.OwnerUsername,
-			&i.OwnerAvatarUrl,
-			&i.OwnerIsDiscoverable,
 			&i.ShareStatus,
 			&i.SharedAt,
 			&i.AlreadyShared,

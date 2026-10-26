@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys } from "@/test/fixtureAssertions";
 import type { PendingShare } from "@/lib/review/types";
+import { anonymousOwner, profileOwner } from "@/test/publicOwnerFixture";
+import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
 
 /** Terse per-row shorthand as written in the YAML: only the fields a case
  *  cares about are set. {@link toPendingShare} fills the rest with a
@@ -17,7 +19,8 @@ export interface PendingShareSpec {
   branch?: string | null;
   owner_id?: string;
   owner_username: string;
-  owner_is_discoverable?: boolean;
+  /** The server names this publisher to the viewer as anonymous. */
+  anonymous?: boolean;
   model_provider?: string;
 }
 
@@ -31,11 +34,29 @@ const ROW_SPEC_KEYS = [
   "branch",
   "owner_id",
   "owner_username",
-  "owner_is_discoverable",
+  "anonymous",
   "model_provider",
 ];
 
-export function toPendingShare(spec: PendingShareSpec): PendingShare {
+/** The publisher's account as the server knows it, whatever the viewer sees. */
+function publisherID(spec: PendingShareSpec): string {
+  return spec.owner_id ?? `user-${spec.owner_username}`;
+}
+
+/**
+ * One queue row. `queue` is the whole response the row is served in (as
+ * `Array.map` passes it): the server resolves the row's parent within the same
+ * publisher, over that response.
+ */
+export function toPendingShare(spec: PendingShareSpec, _index?: number, queue: readonly PendingShareSpec[] = [spec]): PendingShare {
+  const parents = resolvedParentTranscriptIDs(
+    queue.map((row) => ({
+      id: row.transcript_id,
+      ownerID: publisherID(row),
+      localID: row.local_id,
+      parentSessionID: row.parent_session_id ?? null,
+    })),
+  );
   return {
     transcript_id: spec.transcript_id,
     title: spec.title ?? spec.transcript_id,
@@ -43,14 +64,15 @@ export function toPendingShare(spec: PendingShareSpec): PendingShare {
     // A queue can hold several publishers' rows, so the owner defaults to one
     // derived from the username rather than a single shared constant: two rows
     // by different publishers must never fold into each other.
-    owner_id: spec.owner_id ?? `user-${spec.owner_username}`,
+    owner: spec.anonymous
+      ? anonymousOwner
+      : profileOwner({ id: publisherID(spec), github_username: spec.owner_username }),
     local_id: spec.local_id,
     parent_session_id: spec.parent_session_id ?? null,
+    parent_transcript_id: parents.get(spec.transcript_id) ?? null,
     project_hash: spec.project_hash,
     project_name: spec.project_name ?? null,
     branch: spec.branch ?? "main",
-    owner_username: spec.owner_username,
-    owner_is_discoverable: spec.owner_is_discoverable ?? true,
     shared_at: "2026-08-20T10:00:00Z",
   };
 }

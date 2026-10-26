@@ -74,13 +74,10 @@ WHERE (
 )
 AND ($2::text = '' OR t.title ILIKE $3::text OR t.description ILIKE $3::text)
 AND ($4::text = '' OR t.model_provider = $4::text)
-AND ($5::text = '' OR t.owner_id = (SELECT id FROM users WHERE github_username = $5::text))
-AND ($6::text = '' OR t.project_name ILIKE $7::text)
-AND ($8::text = '' OR t.project_hash = $8::text)
-AND ($9::text = '' OR t.git_remote ILIKE $10::text)
-AND ($11::text = '' OR t.owner_id IN (
-    SELECT user_id FROM user_github_orgs WHERE lower(org_login) = lower($11::text) AND visible = true
-))
+AND (NOT $5::boolean OR t.owner_id = ANY($6::uuid[]))
+AND ($7::text = '' OR t.project_name ILIKE $8::text)
+AND ($9::text = '' OR t.project_hash = $9::text)
+AND ($10::text = '' OR t.git_remote ILIKE $11::text)
 AND (cardinality($12::text[]) = 0 OR EXISTS (
     SELECT 1 FROM transcript_tags tt JOIN tags tg ON tg.id = tt.tag_id
     WHERE tt.transcript_id = t.id AND tg.name = ANY($12::text[])
@@ -93,36 +90,40 @@ ORDER BY coalesce(t.session_start, t.published_at) DESC, t.id ASC
 `
 
 type ListGroupedTranscriptCandidatesParams struct {
-	ViewerID          pgtype.UUID `db:"viewer_id" json:"viewer_id"`
-	SearchText        string      `db:"search_text" json:"search_text"`
-	SearchPattern     string      `db:"search_pattern" json:"search_pattern"`
-	Provider          string      `db:"provider" json:"provider"`
-	OwnerName         string      `db:"owner_name" json:"owner_name"`
-	ProjectName       string      `db:"project_name" json:"project_name"`
-	ProjectPattern    string      `db:"project_pattern" json:"project_pattern"`
-	ProjectHash       string      `db:"project_hash" json:"project_hash"`
-	Repository        string      `db:"repository" json:"repository"`
-	RepositoryPattern string      `db:"repository_pattern" json:"repository_pattern"`
-	Org               string      `db:"org" json:"org"`
-	Tags              []string    `db:"tags" json:"tags"`
-	Origin            string      `db:"origin" json:"origin"`
+	ViewerID          pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+	SearchText        string        `db:"search_text" json:"search_text"`
+	SearchPattern     string        `db:"search_pattern" json:"search_pattern"`
+	Provider          string        `db:"provider" json:"provider"`
+	FilterByOwner     bool          `db:"filter_by_owner" json:"filter_by_owner"`
+	FilterOwnerIds    []pgtype.UUID `db:"filter_owner_ids" json:"filter_owner_ids"`
+	ProjectName       string        `db:"project_name" json:"project_name"`
+	ProjectPattern    string        `db:"project_pattern" json:"project_pattern"`
+	ProjectHash       string        `db:"project_hash" json:"project_hash"`
+	Repository        string        `db:"repository" json:"repository"`
+	RepositoryPattern string        `db:"repository_pattern" json:"repository_pattern"`
+	Tags              []string      `db:"tags" json:"tags"`
+	Origin            string        `db:"origin" json:"origin"`
 }
 
 // No pagination here: group counts and top-level pages share this exact selected
 // set. EXISTS avoids duplicating identities when tags or share memberships join.
+// The owner, org and repository filters (project name, project hash,
+// repository) also arrive as the account ids the viewer may see as a profile
+// (resolved by the handler), so none can name an anonymous owner or match a
+// repository withheld from this viewer.
 func (q *Queries) ListGroupedTranscriptCandidates(ctx context.Context, arg ListGroupedTranscriptCandidatesParams) ([]Transcript, error) {
 	rows, err := q.db.Query(ctx, listGroupedTranscriptCandidates,
 		arg.ViewerID,
 		arg.SearchText,
 		arg.SearchPattern,
 		arg.Provider,
-		arg.OwnerName,
+		arg.FilterByOwner,
+		arg.FilterOwnerIds,
 		arg.ProjectName,
 		arg.ProjectPattern,
 		arg.ProjectHash,
 		arg.Repository,
 		arg.RepositoryPattern,
-		arg.Org,
 		arg.Tags,
 		arg.Origin,
 	)

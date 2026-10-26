@@ -15,7 +15,8 @@ import {
 } from "@/test/mountedProjectRoute";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { HomeTranscriptCase } from "@/test/homePageFixtures";
-import type { TranscriptListItem, TranscriptListResponse, User } from "@/lib/types";
+import type { TranscriptListItem, TranscriptListResponse } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 import {
   loadChildSessionGroupingFixtures,
   type ChildSessionGroupingCase,
@@ -33,6 +34,7 @@ import {
   linkedIDs,
   transcriptLinkSelector,
 } from "@/test/childSessionDom";
+import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
 
 /**
  * Mounted evidence for a session that another session started.
@@ -171,13 +173,17 @@ function agentRow(id: string): ChildSessionRow {
   return { name: id, ownerID: "owner-agent", localID: id, parentSessionID: null };
 }
 
-function wireItem(row: ChildSessionRow, sessionOrigin: "user" | "agent" = "user"): TranscriptListItem {
+function wireItem(
+  row: ChildSessionRow,
+  sessionOrigin: "user" | "agent" = "user",
+  parentTranscriptID: string | null = null,
+): TranscriptListItem {
   return {
     transcript: makeTranscriptFixture({
       id: row.name,
-      owner_id: row.ownerID,
       local_id: row.localID,
       parent_session_id: row.parentSessionID,
+      parent_transcript_id: parentTranscriptID,
       title: `Session ${row.name}`,
       project_name: "commons-grouping",
       // Fixed across every wired row so Fairtrade's own hash-keyed card
@@ -188,18 +194,20 @@ function wireItem(row: ChildSessionRow, sessionOrigin: "user" | "agent" = "user"
       session_origin: sessionOrigin,
     }),
     tags: [],
-    owner: {
-      id: row.ownerID,
-      github_username: row.ownerID,
-      display_name: row.ownerID,
-      avatar_url: null,
-    } as unknown as User,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID, display_name: row.ownerID }),
   };
+}
+
+/** The parent the server resolves for each row, within that row's owner. */
+function parentsOf(testCase: ChildSessionGroupingCase): Map<string, string | null> {
+  return resolvedParentTranscriptIDs(
+    testCase.rows.map((row) => ({ id: row.name, ownerID: row.ownerID, localID: row.localID, parentSessionID: row.parentSessionID })),
+  );
 }
 
 function listResponse(testCase: ChildSessionGroupingCase): TranscriptListResponse {
   return {
-    transcripts: testCase.rows.map((row) => wireItem(row)),
+    transcripts: testCase.rows.map((row) => wireItem(row, "user", parentsOf(testCase).get(row.name) ?? null)),
     // The server's own count for the active filters. A case whose result set is
     // larger than one response reports more than it carries, which is what the
     // real paged endpoint does.

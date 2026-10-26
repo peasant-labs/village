@@ -45,3 +45,8 @@
 - {name: ListGroupedTranscriptCandidates, file: grouped_transcripts.sql, kind: read}
 
 - {name: ListAttachmentsForCollectiveGrants, file: pull_request_attachments.sql, kind: read}
+
+- {name: ListPublicOwnersForViewer, file: users.sql, kind: read}
+- {name: ListTranscriptsCollectivesForViewer, file: groups.sql, kind: read}
+- {name: ListReadableTranscriptIDs, file: transcripts.sql, kind: read}
+- {name: ListOwnersMatchingRepositoryFilter, file: transcripts.sql, kind: read}

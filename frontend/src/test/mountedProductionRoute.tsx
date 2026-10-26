@@ -7,6 +7,8 @@ import type { Harness, VillageTranscriptPullRequest } from "@peasant-labs/schema
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import type { PublicOwner } from "@/lib/publicOwner";
 
 /**
  * Shared support for tests that mount the REAL production route
@@ -28,7 +30,9 @@ export interface MountedRouteTranscriptMetadata {
     visibility: string;
     title: string | null;
     description: string | null;
-    project_name: string;
+    /** `null` serves a withheld repository: the owner is anonymous to the
+     *  viewer, so every repository field below answers null too. */
+    project_name: string | null;
     /** This transcript's current public representation revision. Callers that
      *  exercise a carried branch-point anchor supply it; others omit it. */
     content_hash?: string | null;
@@ -39,21 +43,27 @@ export interface MountedRouteTranscriptMetadata {
      *  exactly, so existing callers need no changes). A caller that DOES
      *  exercise it (e.g. the mixed-name-same-hash or breadcrumb href cases)
      *  supplies these explicitly. */
-    project_hash?: string;
-    project_display_name?: string;
-    project_name_source?: NameSource;
-    /** `""` when the project has no known git remote — the wire never sends `null` here. */
-    project_remote_label?: string;
+    project_hash?: string | null;
+    project_display_name?: string | null;
+    project_name_source?: NameSource | null;
+    /** `""` when the project has no known git remote; null when withheld. */
+    project_remote_label?: string | null;
+    git_branch?: string | null;
+    git_remote?: string | null;
     /** Who drove the session; omitted by fixtures that do not exercise it. */
     session_origin?: SessionOrigin;
   };
-  owner: {
-    id: string;
-    /** Defaults to `"fixture-owner"` when omitted — see
-     *  `project_hash` above for why callers that don't exercise the
-     *  breadcrumb href need not set this. */
-    github_username?: string;
-  };
+  /** The owner's account fields, served as their public profile, or an
+   *  anonymous owner, served as is. */
+  owner:
+    | {
+        id: string;
+        /** Defaults to `"fixture-owner"` when omitted — see
+         *  `project_hash` above for why callers that don't exercise the
+         *  breadcrumb href need not set this. */
+        github_username?: string;
+      }
+    | PublicOwner;
   enriched_shares: unknown[];
   /** The approved memberships `GET /transcripts/{id}/collectives` serves to
    *  THIS viewer. Defaults to the empty list the server sends whenever the
@@ -78,10 +88,22 @@ const DEFAULT_OWNER_USERNAME = "fixture-owner";
  *  predate the resolved-name wire fields keep passing unmodified. */
 function withProjectIdentityDefaults(
   metadata: MountedRouteTranscriptMetadata,
-): MountedRouteTranscriptMetadata {
+): Omit<MountedRouteTranscriptMetadata, "owner"> & { owner: PublicOwner } {
+  const owner = metadata.owner;
+  const withheld = metadata.transcript.project_name === null;
   return {
     ...metadata,
-    transcript: {
+    transcript: withheld
+      ? {
+          ...metadata.transcript,
+          project_hash: null,
+          project_display_name: null,
+          project_name_source: null,
+          project_remote_label: null,
+          git_branch: null,
+          git_remote: null,
+        }
+      : {
       ...metadata.transcript,
       project_hash: metadata.transcript.project_hash ?? DEFAULT_PROJECT_HASH,
       project_display_name:
@@ -89,10 +111,11 @@ function withProjectIdentityDefaults(
       project_name_source: metadata.transcript.project_name_source ?? "consented",
       project_remote_label: metadata.transcript.project_remote_label ?? "",
     },
-    owner: {
-      ...metadata.owner,
-      github_username: metadata.owner.github_username ?? DEFAULT_OWNER_USERNAME,
-    },
+    // The wire's owner: a public profile, or the anonymous owner as given.
+    owner:
+      "kind" in owner
+        ? owner
+        : profileOwner({ id: owner.id, github_username: owner.github_username ?? DEFAULT_OWNER_USERNAME }),
   };
 }
 

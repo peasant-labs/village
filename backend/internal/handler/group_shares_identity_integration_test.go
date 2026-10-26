@@ -4,10 +4,11 @@ package handler
 
 // The two /groups/{id}/pending and /groups/{id}/my-shares list routes have to
 // carry enough identity for a consuming frontend to fold a submitted child
-// session under the parent that spawned it. local_id is only unique per
-// owner (transcripts has UNIQUE (owner_id, local_id)), so the fold key is the
-// pair (owner_id, local_id), and every row needs owner_id, local_id, and
-// parent_session_id to answer it.
+// session under the parent that spawned it. local_id is only unique per owner
+// (transcripts has UNIQUE (owner_id, local_id)), so the server resolves the
+// parent within the owner and sends its transcript id as parent_transcript_id,
+// null when the viewer may not read it; the owner's account id never has to
+// reach the wire.
 //
 // Both routes are driven through the real HTTP handlers against a real
 // PostgreSQL, reusing the contributeWorld harness from
@@ -24,21 +25,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/village/backend/internal/config"
-	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
-
-// pgTextPtr converts a nullable pgtype.Text into a *string, mirroring the
-// nil/non-nil shape the frontend contract expects for an optional field.
-func pgTextPtr(v pgtype.Text) *string {
-	if !v.Valid {
-		return nil
-	}
-	s := v.String
-	return &s
-}
 
 // ---------------------------------------------------------------------------
 // Fixture shapes
@@ -58,6 +47,9 @@ type identityListCase struct {
 	ExpectStatus   int                          `yaml:"expect_status"`
 	ExpectRows     []string                     `yaml:"expect_rows"`
 	ExpectParentOf map[string]string            `yaml:"expect_parent_of"`
+	// ExpectParentTranscriptOf names, per child key, the transcript key whose
+	// id parent_transcript_id must carry, or "none" for null.
+	ExpectParentTranscriptOf map[string]string `yaml:"expect_parent_transcript_of"`
 	// Which project and branch each row must state, keyed by transcript key.
 	// Only the pending queue asserts this: it is the listing the review page
 	// groups by project > branch > session.
@@ -171,21 +163,17 @@ func TestListPendingSharesCarriesParentIdentity(t *testing.T) {
 					rec.Code, testCase.Why, rec.Body.String())
 			}
 
-			var rows []sqlc.ListPendingGroupSharesRow
+			var rows []identityWireRow
 			if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
 				t.Fatalf("decode the pending-shares listing: %v (body: %s)", err, rec.Body.String())
 			}
-			world.assertIdentityRows(t, testCase, len(rows), func(id string) (identityRow, bool) {
+			world.assertIdentityRows(t, testCase, len(rows), func(id string) (identityWireRow, bool) {
 				for _, row := range rows {
-					if uuid.UUID(row.TranscriptID.Bytes).String() == id {
-						return identityRow{
-							ownerID:         uuid.UUID(row.OwnerID.Bytes).String(),
-							localID:         row.LocalID,
-							parentSessionID: pgTextPtr(row.ParentSessionID),
-						}, true
+					if row.TranscriptID == id {
+						return row, true
 					}
 				}
-				return identityRow{}, false
+				return identityWireRow{}, false
 			})
 
 			// The grouping facts the review page reads. project_name is the
@@ -196,7 +184,7 @@ func TestListPendingSharesCarriesParentIdentity(t *testing.T) {
 				transcriptID := uuid.UUID(world.transcripts[key].Bytes).String()
 				found := false
 				for _, row := range rows {
-					if uuid.UUID(row.TranscriptID.Bytes).String() != transcriptID {
+					if row.TranscriptID != transcriptID {
 						continue
 					}
 					found = true
@@ -205,8 +193,8 @@ func TestListPendingSharesCarriesParentIdentity(t *testing.T) {
 							"project a submission came from cannot be grouped by project.", key, row.ProjectHash, wantHash, testCase.Why)
 					}
 					gotBranch := ""
-					if row.Branch.Valid {
-						gotBranch = row.Branch.String
+					if row.Branch != nil {
+						gotBranch = *row.Branch
 					}
 					if gotBranch != want.Branch {
 						t.Errorf("pending row %q names branch %q, want %q (%s)", key, gotBranch, want.Branch, testCase.Why)
@@ -251,21 +239,17 @@ func TestListMyGroupSharesCarriesParentIdentity(t *testing.T) {
 					rec.Code, testCase.Why, rec.Body.String())
 			}
 
-			var rows []sqlc.ListUserSharesInGroupRow
+			var rows []identityWireRow
 			if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
 				t.Fatalf("decode the my-shares listing: %v (body: %s)", err, rec.Body.String())
 			}
-			world.assertIdentityRows(t, testCase, len(rows), func(id string) (identityRow, bool) {
+			world.assertIdentityRows(t, testCase, len(rows), func(id string) (identityWireRow, bool) {
 				for _, row := range rows {
-					if uuid.UUID(row.ID.Bytes).String() == id {
-						return identityRow{
-							ownerID:         uuid.UUID(row.OwnerID.Bytes).String(),
-							localID:         row.LocalID,
-							parentSessionID: pgTextPtr(row.ParentSessionID),
-						}, true
+					if row.ID == id {
+						return row, true
 					}
 				}
-				return identityRow{}, false
+				return identityWireRow{}, false
 			})
 		})
 	}
@@ -275,13 +259,20 @@ func TestListMyGroupSharesCarriesParentIdentity(t *testing.T) {
 // Shared assertions
 // ---------------------------------------------------------------------------
 
-type identityRow struct {
-	ownerID         string
-	localID         string
-	parentSessionID *string
+// identityWireRow is the subset of a pending or my-shares row these cases read,
+// decoded from the response bytes rather than from a query row type.
+type identityWireRow struct {
+	ID                 string          `json:"id"`
+	TranscriptID       string          `json:"transcript_id"`
+	Owner              json.RawMessage `json:"owner"`
+	LocalID            string          `json:"local_id"`
+	ParentSessionID    *string         `json:"parent_session_id"`
+	ParentTranscriptID *string         `json:"parent_transcript_id"`
+	ProjectHash        string          `json:"project_hash"`
+	Branch             *string         `json:"branch"`
 }
 
-func (w *contributeWorld) assertIdentityRows(t *testing.T, testCase identityListCase, gotCount int, lookup func(id string) (identityRow, bool)) {
+func (w *contributeWorld) assertIdentityRows(t *testing.T, testCase identityListCase, gotCount int, lookup func(id string) (identityWireRow, bool)) {
 	t.Helper()
 	if gotCount != len(testCase.ExpectRows) {
 		t.Fatalf("the listing holds %d row(s), want %d (%s)", gotCount, len(testCase.ExpectRows), testCase.Why)
@@ -292,14 +283,21 @@ func (w *contributeWorld) assertIdentityRows(t *testing.T, testCase identityList
 		if !ok {
 			t.Fatalf("the listing omits transcript %q (%s)", key, testCase.Why)
 		}
-		wantOwner := uuid.UUID(w.member.Bytes).String()
-		if row.ownerID != wantOwner {
-			t.Errorf("transcript %q carries owner_id %q, want %q (%s). Without the true owner_id the frontend cannot "+
-				"key its (owner_id, local_id) fold, since local_id alone is only unique per owner.",
-				key, row.ownerID, wantOwner, testCase.Why)
+		// Both viewers may see the submitter: the owner of the collective they
+		// submitted to, and the submitter themselves.
+		var owner struct {
+			Kind string `json:"kind"`
+			ID   string `json:"id"`
 		}
-		if row.localID != w.localIDs[key] {
-			t.Errorf("transcript %q carries local_id %q, want %q (%s)", key, row.localID, w.localIDs[key], testCase.Why)
+		if err := json.Unmarshal(row.Owner, &owner); err != nil {
+			t.Fatalf("transcript %q carries an unreadable owner %s: %v", key, row.Owner, err)
+		}
+		wantOwner := uuid.UUID(w.member.Bytes).String()
+		if owner.Kind != "profile" || owner.ID != wantOwner {
+			t.Errorf("transcript %q carries owner %s, want the submitter's profile %q (%s)", key, row.Owner, wantOwner, testCase.Why)
+		}
+		if row.LocalID != w.localIDs[key] {
+			t.Errorf("transcript %q carries local_id %q, want %q (%s)", key, row.LocalID, w.localIDs[key], testCase.Why)
 		}
 	}
 	for childKey, parentKey := range testCase.ExpectParentOf {
@@ -309,11 +307,27 @@ func (w *contributeWorld) assertIdentityRows(t *testing.T, testCase identityList
 			t.Fatalf("the listing omits transcript %q, so its parent identity cannot be checked (%s)", childKey, testCase.Why)
 		}
 		wantParent := w.localIDs[parentKey]
-		if row.parentSessionID == nil || *row.parentSessionID != wantParent {
+		if row.ParentSessionID == nil || *row.ParentSessionID != wantParent {
 			t.Errorf("transcript %q reports parent_session_id %v, want %q (%s). Without it the frontend cannot fold "+
 				"this row under its parent - including a parent that is not itself present in this same listing - and "+
 				"would render it as an unrelated root session.",
-				childKey, row.parentSessionID, wantParent, testCase.Why)
+				childKey, row.ParentSessionID, wantParent, testCase.Why)
+		}
+	}
+	for childKey, parentKey := range testCase.ExpectParentTranscriptOf {
+		row, ok := lookup(uuid.UUID(w.transcripts[childKey].Bytes).String())
+		if !ok {
+			t.Fatalf("the listing omits transcript %q, so its parent transcript cannot be checked (%s)", childKey, testCase.Why)
+		}
+		if parentKey == "none" {
+			if row.ParentTranscriptID != nil {
+				t.Errorf("transcript %q names parent transcript %s to a viewer who may not read it (%s)", childKey, *row.ParentTranscriptID, testCase.Why)
+			}
+			continue
+		}
+		want := uuid.UUID(w.transcripts[parentKey].Bytes).String()
+		if row.ParentTranscriptID == nil || *row.ParentTranscriptID != want {
+			t.Errorf("transcript %q reports parent_transcript_id %v, want %q (%s)", childKey, row.ParentTranscriptID, want, testCase.Why)
 		}
 	}
 }

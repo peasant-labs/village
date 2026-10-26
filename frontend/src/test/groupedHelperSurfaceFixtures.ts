@@ -8,6 +8,7 @@ import {
 import { assertNamesMatch } from "@/test/fixtureAssertions";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { memberItem, memberUUID, type MemberSpec } from "@/test/groupedHelperMountFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loader for `src/testdata/grouped-helper-surfaces.yaml`.
@@ -211,10 +212,10 @@ export function groupedSurfacePage(
     Array.from({ length: testCase.firstPageOrdinary }, (_, index) => ({
       kind: "transcript" as const,
       transcript: {
+        owner: profileOwner({ id: SURFACE_OWNER_UUID, github_username: "member-owner" }),
         session: makeTranscriptFixture({
           id: ordinaryOwnerUUID(index),
           local_id: `ses_ordinary${index}`,
-          owner_id: SURFACE_OWNER_UUID,
           title: `ordinary ${index}`,
           project_hash: testCase.projectHash ?? "0".repeat(64),
           project_name: "village",

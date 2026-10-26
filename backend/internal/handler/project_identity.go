@@ -501,14 +501,21 @@ func (h *Handler) GetUserProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	parents, err := h.resolveParentTranscriptsOf(r.Context(), viewer, transcripts)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"the project's transcripts could not be listed: their parent sessions could not be resolved. Nothing was "+
+				"disclosed and nothing changed. Retry the request, and if it persists check that the database is reachable")
+		return
+	}
 	responses := make([]transcriptResponse, 0, len(transcripts))
 	for _, t := range transcripts {
-		responses = append(responses, projectPageTranscriptResponse(t, resolved))
+		responses = append(responses, projectPageTranscriptResponse(t, resolved).withParent(parents.of(t.ID)))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"project":     resolvedProjectPayload(projectHash, resolved),
-		"owner":       target,
+		"owner":       publicProfileOfUser(target),
 		"transcripts": responses,
 		"collectives": collectives,
 	})

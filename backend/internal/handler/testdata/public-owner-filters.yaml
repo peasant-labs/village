@@ -1,0 +1,25 @@
+# The transcript-list filters that select by a person or by a repository. The
+# public-owner matrix runs each one for every viewer and expects the owner's
+# transcripts to match exactly when that case's `filter` says match: a filter
+# never ties an anonymous owner's rows to a person, an organization or a
+# repository.
+#
+# query holds placeholders the test fills from its world, query-escaped:
+# {owner_name}, {org_login}, {project_hash}. views lists where the filter
+# exists: flat (GET /transcripts) and grouped (view=grouped).
+
+- name: owner
+  query: "owner={owner_name}"
+  views: [flat, grouped]
+- name: organization
+  query: "org={org_login}"
+  views: [flat, grouped]
+- name: project_name
+  query: "project=po-project"
+  views: [flat, grouped]
+- name: repository
+  query: "repo={owner_name}/po-project"
+  views: [flat, grouped]
+- name: project_hash
+  query: "project_hash={project_hash}"
+  views: [grouped]

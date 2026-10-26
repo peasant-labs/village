@@ -81,6 +81,14 @@ const baseUser = {
 // The served identity. Every other route still answers, so a capture of the
 // blank-handle surface is evidence about THAT surface and not a broken app.
 const user = BLANK_HANDLE ? { ...baseUser, github_username: '' } : baseUser
+/** The viewer as the server names them on their own rows: their profile. */
+const userProfile = () => ({
+  kind: 'profile',
+  id: GROUPED_IDS ? DEMO_OWNER_UUID : user.id,
+  username: user.github_username || 'alice-dev',
+  display_name: user.display_name,
+  avatar_url: user.avatar_url,
+})
 
 const HASH_VILLAGE = '1'.repeat(64)
 const HASH_PEASANT = '2'.repeat(64)
@@ -176,7 +184,7 @@ const groupedScopedPage = (page) => ({
   items: page === 1
     ? Array.from({ length: GROUPED_FIRST_PAGE }, (_, index) => ({
         kind: 'transcript',
-        transcript: { session: groupedOrdinaryOwner(index).transcript },
+        transcript: { owner: userProfile(), session: groupedOrdinaryOwner(index).transcript },
       }))
     : [contextContainer(LATER_GROUP)],
   page,
@@ -201,7 +209,7 @@ const groupedPayload = () => ({
   items: [
     {
       kind: 'transcript',
-      transcript: { session: toListItem(sessions[0]).transcript },
+      transcript: { owner: userProfile(), session: toListItem(sessions[0]).transcript },
       helperGroups: [HELPER_GROUP],
     },
     {
@@ -220,7 +228,6 @@ const groupedPayload = () => ({
 const toListItem = ([id, title, hash, project, publishedAt, provider, parentSessionID = null]) => ({
   transcript: {
     id: GROUPED_IDS ? uuidFor(id) : id,
-    owner_id: GROUPED_IDS ? DEMO_OWNER_UUID : user.id,
     local_id: GROUPED_IDS ? `ses_${id.replace(/[^a-zA-Z0-9]/g, '')}` : id,
     title,
     description: null,
@@ -237,6 +244,11 @@ const toListItem = ([id, title, hash, project, publishedAt, provider, parentSess
     published_at: publishedAt,
     updated_at: publishedAt,
     parent_session_id: parentSessionID,
+    // The server resolves the parent within this one owner: the served row
+    // published from that session, or null when none is served.
+    parent_transcript_id: parentSessionID != null && servedSessions.some(([rowID]) => rowID === parentSessionID)
+      ? (GROUPED_IDS ? uuidFor(parentSessionID) : parentSessionID)
+      : null,
     ingested_at: publishedAt,
     source_format: 'json',
     git_branch: 'develop',
@@ -289,7 +301,7 @@ const toListItem = ([id, title, hash, project, publishedAt, provider, parentSess
     license_id: null,
   },
   tags: [],
-  owner: user,
+  owner: userProfile(),
 })
 
 // A saved helper thread owned by the demo owner. Built from the same full
@@ -403,13 +415,13 @@ const server = createServer((req, res) => {
       })
     }
     return send(res, 200, {
-      members: [{ kind: 'transcript', transcript: { session: helperMemberSession() } }],
+      members: [{ kind: 'transcript', transcript: { owner: userProfile(), session: helperMemberSession() } }],
       page: Number(url.searchParams.get('page') || '1'),
       limit: Number(url.searchParams.get('limit') || '20'),
       total: 1,
     })
   }
-  if (/^\/users\/[^/]+$/.test(path)) return send(res, 200, user)
+  if (/^\/users\/[^/]+$/.test(path)) return send(res, 200, userProfile())
 
   // The project page the home list links to. It serves the same rows, narrowed
   // to one project hash, so a started session is under the session that started
@@ -426,7 +438,7 @@ const server = createServer((req, res) => {
         project_name_source: 'consented',
         project_remote_label: `github.com:peasant-labs/${rows[0][3]}`,
       },
-      owner: user,
+      owner: userProfile(),
       transcripts: rows.map((row) => toListItem(row).transcript),
       collectives: [],
     })

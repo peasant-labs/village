@@ -787,6 +787,71 @@ func (q *Queries) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID p
 	return items, nil
 }
 
+const listOwnersMatchingRepositoryFilter = `-- name: ListOwnersMatchingRepositoryFilter :many
+SELECT DISTINCT t.owner_id
+FROM transcripts t
+WHERE ($1::text = '' OR t.project_name ILIKE $1::text)
+  AND ($2::text = '' OR t.git_remote ILIKE $2::text)
+  AND ($3::text = '' OR t.project_hash = $3::text)
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = $4::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = $4::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = $4::uuid
+              AND gm.role = 'owner'
+        )
+      )
+`
+
+type ListOwnersMatchingRepositoryFilterParams struct {
+	ProjectPattern    string      `db:"project_pattern" json:"project_pattern"`
+	RepositoryPattern string      `db:"repository_pattern" json:"repository_pattern"`
+	ProjectHash       string      `db:"project_hash" json:"project_hash"`
+	ViewerID          pgtype.UUID `db:"viewer_id" json:"viewer_id"`
+}
+
+// The owners with at least one transcript matching the transcript lists'
+// repository filters (project name, repository, project hash), counting only
+// transcripts the viewer may read (the read policy of
+// ListReadableTranscriptIDs). The handler keeps only the owners the viewer may
+// see as a profile before filtering, so a repository filter never matches a
+// transcript whose repository is withheld from this viewer. An empty filter
+// matches every value.
+func (q *Queries) ListOwnersMatchingRepositoryFilter(ctx context.Context, arg ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listOwnersMatchingRepositoryFilter,
+		arg.ProjectPattern,
+		arg.RepositoryPattern,
+		arg.ProjectHash,
+		arg.ViewerID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var owner_id pgtype.UUID
+		if err := rows.Scan(&owner_id); err != nil {
+			return nil, err
+		}
+		items = append(items, owner_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectTranscriptsForViewer = `-- name: ListProjectTranscriptsForViewer :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider,
     t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count,
@@ -919,6 +984,112 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.RootSessionID,
 			&i.SessionPurpose,
 			&i.SessionRelationships,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReadableTranscriptIDs = `-- name: ListReadableTranscriptIDs :many
+SELECT t.id
+FROM transcripts t
+WHERE t.id = ANY($1::uuid[])
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = $2::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = $2::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = $2::uuid
+              AND gm.role = 'owner'
+        )
+      )
+`
+
+type ListReadableTranscriptIDsParams struct {
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+	ViewerID      pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+}
+
+// Which of the named transcripts a viewer may read, for a whole page at once.
+// It is the transcript read policy (handler.transcriptViewAccess) in one
+// statement: public; or the viewer owns it; or it is collective-shared with an
+// approved share to a collective where the viewer holds an accepted role
+// (owner, member, contributor); or the viewer owns a collective holding any
+// share of it (the review preview). A test holds the two equal per viewer and
+// transcript. A NULL viewer reads public transcripts only.
+func (q *Queries) ListReadableTranscriptIDs(ctx context.Context, arg ListReadableTranscriptIDsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listReadableTranscriptIDs, arg.TranscriptIds, arg.ViewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptsByOwnerLocalIDs = `-- name: ListTranscriptsByOwnerLocalIDs :many
+SELECT t.id, t.owner_id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = ANY($1::uuid[])
+  AND t.local_id = ANY($2::text[])
+`
+
+type ListTranscriptsByOwnerLocalIDsParams struct {
+	OwnerIds []pgtype.UUID `db:"owner_ids" json:"owner_ids"`
+	LocalIds []string      `db:"local_ids" json:"local_ids"`
+}
+
+type ListTranscriptsByOwnerLocalIDsRow struct {
+	ID         pgtype.UUID `db:"id" json:"id"`
+	OwnerID    pgtype.UUID `db:"owner_id" json:"owner_id"`
+	LocalID    string      `db:"local_id" json:"local_id"`
+	Visibility string      `db:"visibility" json:"visibility"`
+}
+
+// The transcripts published from named sessions, each within its own owner:
+// a session id is unique only per owner (UNIQUE (owner_id, local_id)). Read
+// lists use it to resolve a child session's parent transcript at read time,
+// and keep a parent only when the viewer may read it. Both columns are
+// matched as sets, so the caller keeps only the exact (owner, session) pairs it
+// asked for; the (owner_id, local_id) unique index serves the lookup.
+func (q *Queries) ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg ListTranscriptsByOwnerLocalIDsParams) ([]ListTranscriptsByOwnerLocalIDsRow, error) {
+	rows, err := q.db.Query(ctx, listTranscriptsByOwnerLocalIDs, arg.OwnerIds, arg.LocalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptsByOwnerLocalIDsRow{}
+	for rows.Next() {
+		var i ListTranscriptsByOwnerLocalIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}

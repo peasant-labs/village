@@ -11,9 +11,13 @@ import type { Transcript, TranscriptListItem } from "@/lib/types";
  *
  * The identity a `parent_session_id` names is `transcripts.local_id`, the id
  * the recording harness used. That column is unique per owner, not globally
- * (`UNIQUE (owner_id, local_id)` in the initial migration), so a parent is
- * matched on the owner AND the session id. Matching on the session id alone
- * would let one publisher's row capture another publisher's row.
+ * (`UNIQUE (owner_id, local_id)` in the initial migration), and the wire does
+ * not carry an owner id for an owner the viewer sees as anonymous. So the
+ * server resolves the parent itself, within the same owner, and sends its
+ * transcript id as `parent_transcript_id` (null when nothing started the
+ * session, the parent is not published, or the viewer may not read it). The
+ * fold matches on that id alone and never on a session id, so one publisher's
+ * row can never capture another publisher's row.
  *
  * NOTHING IS EVER REMOVED FROM THE LIST HERE. A row is folded only when the
  * session that started it is in the SAME response; otherwise it keeps its
@@ -49,15 +53,15 @@ export type SessionIdentity = {
    *  hand at the row it is drawing, and the key {@link childSessionsByRowID}
    *  indexes a group by. It is NOT the harness session id. */
   rowID: string;
-  /** The publisher. Session ids are unique per owner, never globally. */
-  ownerID: string;
-  /** The id the recording harness used for this session (`local_id`). */
-  sessionID: string;
   /** The harness id of the session that started this one, or absent when
    *  nothing did. A missing, null or blank value is read as "nothing started
    *  it": the wire shapes on these surfaces do not agree on how they spell an
-   *  absence, and all of them mean the same thing here. */
+   *  absence, and all of them mean the same thing here. It says only WHETHER
+   *  something started the row; which row did is {@link parentRowID}. */
   parentSessionID: string | null | undefined;
+  /** The {@link rowID} of the row that started this one, as the server
+   *  resolved it within the same owner, or null when it resolved none. */
+  parentRowID: string | null | undefined;
 };
 
 /** One visible parent row and the rows it started, in server order. */
@@ -120,12 +124,13 @@ export function childSessionGroupSelectionLabel(count: number, selectedCount: nu
   return selectedCount > 0 ? `${hidden}, ${selectedCount} selected` : hidden;
 }
 
-// A NUL separator: neither an owner id nor a session id can contain it, so
-// two different pairs can never collide on one key.
-const KEY_SEPARATOR = "\u0000";
-
-export function sessionKey(ownerID: string, sessionID: string): string {
-  return `${ownerID}${KEY_SEPARATOR}${sessionID}`;
+/** The row a row's parent was resolved to, or null when none was. A blank
+ *  string is an absence, as it is for {@link namedParent}. */
+function parentRow(identity: { parentRowID: string | null | undefined }): string | null {
+  const raw = identity.parentRowID;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -173,8 +178,7 @@ export function groupProjectSessionRows<Row>(
 ): ProjectSessionGrouping<Row> {
   const byKey = new Map<string, Row>();
   for (const row of rows) {
-    const identity = identify(row);
-    const key = sessionKey(identity.ownerID, identity.sessionID);
+    const key = identify(row).rowID;
     if (!byKey.has(key)) byKey.set(key, row);
   }
 
@@ -185,7 +189,7 @@ export function groupProjectSessionRows<Row>(
     let current = row;
     for (;;) {
       const identity = identify(current);
-      const key = sessionKey(identity.ownerID, identity.sessionID);
+      const key = identity.rowID;
       if (seen.has(key)) {
         for (const item of visited) rootByRow.set(item, null);
         return null;
@@ -205,7 +209,8 @@ export function groupProjectSessionRows<Row>(
         for (const item of visited) rootByRow.set(item, root);
         return root;
       }
-      const parent = byKey.get(sessionKey(identity.ownerID, parentID));
+      const parentRowID = parentRow(identity);
+      const parent = parentRowID === null ? undefined : byKey.get(parentRowID);
       if (parent === undefined) {
         for (const item of visited) rootByRow.set(item, null);
         return null;
@@ -262,7 +267,7 @@ export function groupProjectSessions<Row extends TranscriptCarryingRow>(
  * A row that names itself as its parent, and a ring of rows that name each
  * other, are both cycles; every row in one stays a browse row.
  *
- * `identify` reads the fold's four facts out of the caller's own row shape. It
+ * `identify` reads the fold's three facts out of the caller's own row shape. It
  * is called more than once for a row and must answer the same way each time.
  */
 export function groupSessionRows<Row>(
@@ -271,8 +276,7 @@ export function groupSessionRows<Row>(
 ): SessionGrouping<Row> {
   const byKey = new Map<string, Row>();
   for (const row of rows) {
-    const identity = identify(row);
-    const key = sessionKey(identity.ownerID, identity.sessionID);
+    const key = identify(row).rowID;
     if (!byKey.has(key)) byKey.set(key, row);
   }
 
@@ -283,7 +287,7 @@ export function groupSessionRows<Row>(
     let current = row;
     for (;;) {
       const identity = identify(current);
-      const currentKey = sessionKey(identity.ownerID, identity.sessionID);
+      const currentKey = identity.rowID;
       // A row that names itself, or a ring of rows that name each other, is a
       // cycle. Keep the row where it is rather than fold it into nothing.
       if (seen.has(currentKey)) return row;
@@ -292,7 +296,8 @@ export function groupSessionRows<Row>(
       const parentID = namedParent(identity);
       if (parentID === null) return current;
 
-      const parent = byKey.get(sessionKey(identity.ownerID, parentID));
+      const parentRowID = parentRow(identity);
+      const parent = parentRowID === null ? undefined : byKey.get(parentRowID);
       // The chain leaves this response. `current` is the highest row the fold
       // can honestly speak about, so it keeps its own browse row.
       if (parent === undefined) return current;
@@ -332,20 +337,19 @@ export function groupSessionRows<Row>(
  * they differ in what ELSE they send, so the fold names only the part it reads.
  */
 export type TranscriptCarryingRow = {
-  transcript: Pick<Transcript, "id" | "owner_id" | "local_id" | "parent_session_id" | "session_origin">;
+  transcript: Pick<Transcript, "id" | "parent_session_id" | "parent_transcript_id" | "session_origin">;
 };
 
 /**
- * The fold's four facts, read out of a row that carries a transcript. Exported
+ * The fold's three facts, read out of a row that carries a transcript. Exported
  * so a surface holding one shape and a surface holding another name the same
  * reading rather than each inventing one.
  */
 export function transcriptListItemIdentity(item: TranscriptCarryingRow): SessionIdentity {
   return {
     rowID: item.transcript.id,
-    ownerID: item.transcript.owner_id,
-    sessionID: item.transcript.local_id,
     parentSessionID: item.transcript.parent_session_id,
+    parentRowID: item.transcript.parent_transcript_id,
   };
 }
 
@@ -391,9 +395,10 @@ export function visibleTranscriptTotal<Row>(
  *
  * The key is {@link SessionIdentity.rowID}, the row's own identity in the list,
  * which is what a list already has in hand at the row it is rendering. It is
- * not the `(owner, session id)` pair the fold matches parents on: that pair
- * answers "which row does this child name", and this map answers "what hangs
- * under the row I am drawing".
+ * the same value a child's {@link SessionIdentity.parentRowID} names, but
+ * it answers a different question: the parent link answers "which row does
+ * this child name", and this map answers "what hangs under the row I am
+ * drawing".
  */
 export function childSessionsByRowID<Row>(
   grouping: SessionGrouping<Row>,

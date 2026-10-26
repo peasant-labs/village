@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 )
 
@@ -51,9 +53,24 @@ type GroupedScopeRequest struct {
 // GroupedScopeResult is the unpaged selected candidate set. Rows are concrete
 // schema.VillageSessionRow values so every registered variant preserves its
 // existing route-specific projection without a second wire model.
+//
+// The wire rows carry each owner only as the viewer may see them, so the
+// owning account a row belongs to travels beside them in ownerKeys, keyed by
+// transcript id. Grouping needs it to keep two owners' equal local ids apart;
+// it never reaches the response.
 type GroupedScopeResult struct {
-	Rows   []schema.VillageSessionRow
-	cyclic map[schema.TranscriptID]bool
+	Rows      []schema.VillageSessionRow
+	ownerKeys map[schema.TranscriptID]string
+	cyclic    map[schema.TranscriptID]bool
+}
+
+// add appends one projected row and records its owning account.
+func (r *GroupedScopeResult) add(row schema.VillageSessionRow, owner pgtype.UUID) {
+	if r.ownerKeys == nil {
+		r.ownerKeys = map[schema.TranscriptID]string{}
+	}
+	r.Rows = append(r.Rows, row)
+	r.ownerKeys[row.Session.ID] = uuid.UUID(owner.Bytes).String()
 }
 
 // GroupedScopeResolver replays one fixed route variant using current

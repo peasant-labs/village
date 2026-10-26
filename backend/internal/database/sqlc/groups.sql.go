@@ -301,7 +301,9 @@ JOIN users u ON gm.user_id = u.id
 LEFT JOIN user_github_orgs ugo ON ugo.user_id = u.id AND ugo.visible = TRUE
 WHERE gm.group_id = $1
   AND gm.role != 'pending'
-  AND (u.is_discoverable = TRUE OR $2::boolean)
+  -- A person who is not discoverable is listed to the collective's owners and
+  -- to themselves; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR $2::boolean OR u.id = $3::uuid)
 GROUP BY gm.role, gm.joined_at, u.id, u.github_username, u.display_name, u.avatar_url
 ORDER BY gm.role, u.github_username
 `
@@ -309,6 +311,7 @@ ORDER BY gm.role, u.github_username
 type ListGroupMembersParams struct {
 	GroupID       pgtype.UUID `db:"group_id" json:"group_id"`
 	ViewerIsOwner bool        `db:"viewer_is_owner" json:"viewer_is_owner"`
+	ViewerID      pgtype.UUID `db:"viewer_id" json:"viewer_id"`
 }
 
 type ListGroupMembersRow struct {
@@ -322,7 +325,7 @@ type ListGroupMembersRow struct {
 }
 
 func (q *Queries) ListGroupMembers(ctx context.Context, arg ListGroupMembersParams) ([]ListGroupMembersRow, error) {
-	rows, err := q.db.Query(ctx, listGroupMembers, arg.GroupID, arg.ViewerIsOwner)
+	rows, err := q.db.Query(ctx, listGroupMembers, arg.GroupID, arg.ViewerIsOwner, arg.ViewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -627,6 +630,62 @@ func (q *Queries) ListTranscriptCollectivesForViewer(ctx context.Context, arg Li
 			&i.LinkedGithubOrg,
 			&i.SharedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptsCollectivesForViewer = `-- name: ListTranscriptsCollectivesForViewer :many
+SELECT ts.transcript_id, g.id AS group_id
+FROM transcript_shares ts
+JOIN groups g ON g.id = ts.group_id
+JOIN transcripts t ON t.id = ts.transcript_id
+JOIN users u ON u.id = t.owner_id
+WHERE ts.transcript_id = ANY($1::uuid[])
+  AND ts.status = 'approved'
+  AND (u.is_discoverable = TRUE OR t.owner_id = $2::uuid)
+  AND (
+        g.data_access = 'public'
+        OR g.acceptance_mode = 'open'
+        OR EXISTS (
+            SELECT 1 FROM group_members gm2
+            WHERE gm2.group_id = g.id AND gm2.user_id = $2::uuid
+        )
+      )
+`
+
+type ListTranscriptsCollectivesForViewerParams struct {
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+	ViewerID      pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+}
+
+type ListTranscriptsCollectivesForViewerRow struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
+}
+
+// ListTranscriptCollectivesForViewer for a whole list page: the accepted
+// memberships of many transcripts that a viewer who does NOT own them may be
+// told about. The predicate is the single-transcript one with viewer_is_owner
+// read per row (the viewer owns the transcript); the collectives-visibility
+// corpus holds the two equal. The owner of a transcript keeps every accepted
+// association on the list, as on the detail route, so the caller asks only for
+// the transcripts it does not own.
+func (q *Queries) ListTranscriptsCollectivesForViewer(ctx context.Context, arg ListTranscriptsCollectivesForViewerParams) ([]ListTranscriptsCollectivesForViewerRow, error) {
+	rows, err := q.db.Query(ctx, listTranscriptsCollectivesForViewer, arg.TranscriptIds, arg.ViewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptsCollectivesForViewerRow{}
+	for rows.Next() {
+		var i ListTranscriptsCollectivesForViewerRow
+		if err := rows.Scan(&i.TranscriptID, &i.GroupID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

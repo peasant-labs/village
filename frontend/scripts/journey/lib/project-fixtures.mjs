@@ -33,23 +33,18 @@ export const JOURNEY_PROJECT = {
 export const JOURNEY_PROJECT_TOTAL =
   1 + JOURNEY_PROJECT.orphanTranscriptIDs.length
 
+/** The project's owner as the project route serves them: their public profile. */
 const owner = {
+  kind: 'profile',
   id: `user-${JOURNEY_PROJECT.owner}`,
-  github_id: 1,
-  github_username: JOURNEY_PROJECT.owner,
+  username: JOURNEY_PROJECT.owner,
   display_name: 'Alice Developer',
   avatar_url: null,
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
-  is_discoverable: true,
-  username_chosen: true,
-  provider_username: JOURNEY_PROJECT.owner,
 }
 
 /** One complete wire row, with only the fields this case varies stated. */
 const transcript = (overrides) => ({
   id: 'transcript-0',
-  owner_id: owner.id,
   local_id: 'local-0',
   title: 'fixture session',
   description: null,
@@ -66,6 +61,7 @@ const transcript = (overrides) => ({
   published_at: '2026-08-20T10:00:00Z',
   updated_at: '2026-08-20T10:00:00Z',
   parent_session_id: null,
+  parent_transcript_id: null,
   ingested_at: null,
   source_format: null,
   git_branch: null,

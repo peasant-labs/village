@@ -13,6 +13,7 @@ import {
   type PaginationData,
   type PaginationExpect,
 } from "@/test/sessionListPaginationFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted `/` session-pagination evidence.
@@ -48,7 +49,6 @@ function wireItem(id: string): TranscriptListItem {
   return {
     transcript: {
       id,
-      owner_id: "owner-1",
       local_id: id,
       title: `Session ${id}`,
       description: null,
@@ -69,7 +69,7 @@ function wireItem(id: string): TranscriptListItem {
       license_id: null,
     } as unknown as TranscriptListItem["transcript"],
     tags: [],
-    owner: { github_username: "octocat", display_name: "Octo Cat", avatar_url: null } as unknown as TranscriptListItem["owner"],
+    owner: profileOwner({ id: "owner-1", github_username: "octocat", display_name: "Octo Cat" }),
   };
 }
 

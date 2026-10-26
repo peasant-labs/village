@@ -268,6 +268,8 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/pull/transcripts/"+tid.String(), nil)
 	r = r.WithContext(withUserID(r.Context(), owner))
+	// This test reads the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", tid.String())
 	w := httptest.NewRecorder()
 
@@ -285,8 +287,9 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	if info.Visibility != schema.VisibilityGroup {
 		t.Errorf("visibility: got %q, want %q (DB 'shared' must map to group)", info.Visibility, schema.VisibilityGroup)
 	}
-	if info.OwnerUsername != "owner-handle" {
-		t.Errorf("ownerUsername: got %q, want %q", info.OwnerUsername, "owner-handle")
+	// The caller pulling their own transcript always sees their own profile.
+	if !info.Owner.IsAccount(schema.VillageUUID(owner.String())) || info.Owner.Username != "owner-handle" {
+		t.Errorf("owner: got %+v, want the caller's own profile owner-handle", info.Owner)
 	}
 	if info.ContentHash != "deadbeef" {
 		t.Errorf("contentHash: got %q, want %q", info.ContentHash, "deadbeef")
@@ -295,8 +298,8 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	if info.Harness != schema.HarnessClaudeCode {
 		t.Errorf("harness: got %q, want %q", info.Harness, schema.HarnessClaudeCode)
 	}
-	if info.ProjectName != "acme/widget" {
-		t.Errorf("projectName: got %q, want %q", info.ProjectName, "acme/widget")
+	if info.ProjectName == nil || *info.ProjectName != "acme/widget" {
+		t.Errorf("projectName: got %v, want %q", info.ProjectName, "acme/widget")
 	}
 	if info.ContractVersion != schema.ContractVersion("0.1.0") {
 		t.Errorf("contractVersion: got %q, want %q", info.ContractVersion, "0.1.0")
@@ -370,8 +373,8 @@ func TestPull_List_OwnerScoped(t *testing.T) {
 				t.Errorf("list scoped to wrong user")
 			}
 			return []sqlc.ListPullableTranscriptsRow{
-				{ID: pgUUIDFrom(t1), OwnerID: pgUUIDFrom(owner), OwnerUsername: "owner-handle", Visibility: "private"},
-				{ID: pgUUIDFrom(t2), OwnerID: pgUUIDFrom(owner), OwnerUsername: "owner-handle", Visibility: "private"},
+				{ID: pgUUIDFrom(t1), OwnerID: pgUUIDFrom(owner), Visibility: "private"},
+				{ID: pgUUIDFrom(t2), OwnerID: pgUUIDFrom(owner), Visibility: "private"},
 			}, nil
 		},
 		countPullableTranscripts: func(_ context.Context, _ pgtype.UUID) (int64, error) {
@@ -603,9 +606,9 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 		getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) {
 			switch uuid.UUID(id.Bytes) {
 			case authorA:
-				return sqlc.User{ID: id, GithubUsername: "author-a"}, nil
+				return sqlc.User{ID: id, GithubUsername: "author-a", IsDiscoverable: true}, nil
 			case authorB:
-				return sqlc.User{ID: id, GithubUsername: "author-b"}, nil
+				return sqlc.User{ID: id, GithubUsername: "author-b", IsDiscoverable: false}, nil
 			default:
 				return sqlc.User{}, errors.New("unknown user")
 			}
@@ -615,6 +618,8 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/pull/transcripts/"+tid.String()+"/annotations", nil)
 	r = r.WithContext(withUserID(r.Context(), owner))
+	// This test reads the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", tid.String())
 	w := httptest.NewRecorder()
 
@@ -638,18 +643,22 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 	if len(anns) != 3 {
 		t.Fatalf("annotations: got %d, want 3", len(anns))
 	}
-	// Author identity resolved via the users join (per owner_id).
-	wantAuthor := map[string]string{
-		authorA.String(): "author-a",
-		authorB.String(): "author-b",
-	}
+	// Each author as the caller may see them: the discoverable author's profile,
+	// and the hidden author as anonymous with the anonymous annotator label.
 	for i, a := range anns {
-		if a.AuthorUsername != wantAuthor[a.AuthorUserID] {
-			t.Errorf("ann[%d]: authorUserId=%s got username %q, want %q", i, a.AuthorUserID, a.AuthorUsername, wantAuthor[a.AuthorUserID])
+		switch a.Value {
+		case "success", "high":
+			if !a.Author.IsAccount(schema.VillageUUID(authorA.String())) || a.Author.Username != "author-a" {
+				t.Errorf("ann[%d]: author = %+v, want author-a's profile", i, a.Author)
+			}
+		case "fail":
+			if a.Author.Kind != schema.VillagePublicOwnerAnonymous || a.AnnotatorName != anonymousAnnotatorName {
+				t.Errorf("ann[%d]: author = %+v annotator %q, want anonymous", i, a.Author, a.AnnotatorName)
+			}
 		}
-		if a.AuthorUserID == "" {
-			t.Errorf("ann[%d]: authorUserId empty", i)
-		}
+	}
+	if strings.Contains(w.Body.String(), "author-b") || strings.Contains(w.Body.String(), authorB.String()) {
+		t.Errorf("response names the hidden author: %s", w.Body.String())
 	}
 }
 
@@ -706,10 +715,23 @@ func TestPull_SchemaVersion_AdvertisesPullWindow(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.PullContractVersion != "0.2.0" {
-		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, "0.2.0")
+	// Released CLIs read pullContractVersion as the envelope they will get
+	// without the header, so the default stays the 0.2.0 envelope; the max is
+	// the public owner envelope a client may ask for.
+	if resp.PullContractVersion != schema.LegacyPullContractVersion {
+		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, schema.LegacyPullContractVersion)
 	}
-	if resp.MinPullContractVersion != "0.1.0" {
-		t.Errorf("minPullContractVersion: got %q, want %q", resp.MinPullContractVersion, "0.1.0")
+	if resp.MinPullContractVersion != schema.LegacyPullContractVersion {
+		t.Errorf("minPullContractVersion: got %q, want %q", resp.MinPullContractVersion, schema.LegacyPullContractVersion)
+	}
+	if resp.MaxPullContractVersion != schema.PublicOwnerPullContractVersion {
+		t.Errorf("pullContractMaxVersion: got %q, want %q", resp.MaxPullContractVersion, schema.PublicOwnerPullContractVersion)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode raw: %v", err)
+	}
+	if raw["pullContractMaxVersion"] != "0.3.0" || raw["pullContractVersion"] != "0.2.0" {
+		t.Errorf("wire advertisement: got default %v max %v, want 0.2.0 and 0.3.0", raw["pullContractVersion"], raw["pullContractMaxVersion"])
 	}
 }

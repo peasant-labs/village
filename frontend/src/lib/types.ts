@@ -1,3 +1,4 @@
+import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -45,7 +46,8 @@ export interface ProjectCollectiveRollupEntry {
  */
 export interface UserProjectPageResponse {
   project: ResolvedProject;
-  owner: User;
+  /** The project's owner, named by the URL, so always a public profile. */
+  owner: PublicProfile;
   transcripts: Transcript[];
   collectives: ProjectCollectiveRollupEntry[];
 }
@@ -123,7 +125,6 @@ export function assertNameSourceExhaustive(source: never): never {
 
 export interface Transcript {
   id: string;
-  owner_id: string;
   local_id: string;
   title: string | null;
   description: string | null;
@@ -140,10 +141,20 @@ export interface Transcript {
   published_at: string;
   updated_at: string;
   parent_session_id: string | null;
+  /** The transcript the server resolved `parent_session_id` to within the same
+   *  owner, or null when it resolved none. */
+  parent_transcript_id: string | null;
   ingested_at: string | null;
   source_format: string | null;
   git_branch: string | null;
   git_remote: string | null;
+  /*
+   * The repository fields below (and `git_branch`, `git_remote`) are WITHHELD
+   * -- null -- when the owner is anonymous to this viewer: a repository can
+   * name its owner, and a project hash links one person's transcripts. A
+   * surface renders no project at all for such a row, never a placeholder
+   * built from an empty value.
+   */
   /**
    * A project's identity, not its name. Required at the database trust
    * boundary: `transcripts.project_hash` carries a `NOT NULL` constraint
@@ -159,28 +170,28 @@ export interface Transcript {
    * comment. A frontend value that is empty despite the type is therefore a
    * genuine contract violation, not a state to silently paper over —
    * `groupByProject` in `@/lib/format` treats it as such rather than
-   * crashing the page.
+   * crashing the page. Null only when withheld for an anonymous owner.
    */
-  project_hash: string;
+  project_hash: string | null;
   project_name: string | null;
   /**
    * The one resolved project display name every surface must render
    * (village project-identity resolver, `override > consented > remote >
    * privacy`). Never empty — the resolver always synthesises a privacy-safe
    * fallback when no other tier applies. Prefer this over `project_name`,
-   * which stays a raw, unresolved wire column.
+   * which stays a raw, unresolved wire column. Null only when withheld.
    */
-  project_display_name: string;
+  project_display_name: string | null;
   /** Which resolution tier produced {@link project_display_name}. */
-  project_name_source: NameSource;
+  project_name_source: NameSource | null;
   /**
    * `host:owner/repo` when a git remote is known, else `""`. A Go `string` on
    * the wire (`project_identity.go`'s `resolvedProject.RemoteLabel` and
    * `transcript_response.go`'s `transcriptResponse.ProjectRemoteLabel`), so
    * an unknown remote arrives as the empty string, never `null` — the two are
-   * different absences and only the empty string is one this field can carry.
+   * different absences. Null means withheld for an anonymous owner.
    */
-  project_remote_label: string;
+  project_remote_label: string | null;
   tool_call_count: number | null;
   subagent_count: number | null;
   duration_ms: number | null;
@@ -244,7 +255,7 @@ export interface TagWithCount extends Tag {
  * carry such fields; adopting the brand and the parsers in the contribute and
  * review flows is separate work.
  */
-export type AsPlainString<T, K extends keyof T> = Omit<T, K> & { [P in K]: string };
+export type AsPlainString<T, K extends keyof T> = Omit<T, K> & { [P in K]: string | Extract<T[P], null | undefined> };
 export type AsJSONNumber<T, K extends keyof T> = Omit<T, K> & { [P in K]: number };
 
 /**
@@ -384,8 +395,8 @@ export interface Attestation {
   attestation_type: "used_in_training" | "referenced" | "evaluated" | "deployed";
   note: string | null;
   created_at: string;
-  attester_username: string;
-  attester_avatar: string | null;
+  /** Who attested, as the server resolved them for this viewer. */
+  attester: PublicOwner;
 }
 
 interface AttestationSummary {
@@ -396,39 +407,20 @@ interface AttestationSummary {
 }
 
 /**
- * What a list needs to know about the person a row belongs to.
- *
- * Narrower than the account record on purpose. Three endpoints answer with a
- * transcript and its author, and they do not agree on how much of that author
- * they send: the transcripts list sends a whole account, a collective's browse
- * page sends a handle, an avatar and a discoverability flag. Naming only the
- * four facts a ROW draws is what lets both be listed by this one component
- * without either inventing an account it was never sent.
- */
-export interface TranscriptRowOwner {
-  id: string;
-  github_username: string;
-  avatar_url: string | null;
-  /** Absent is not the same as false: a response that does not carry the flag
-   *  has not said this person opted out, and {@link resolveAttribution} treats
-   *  only an explicit `false` as an opt-out. */
-  is_discoverable?: boolean;
-}
-
-/**
  * One row of a transcript list: a transcript, whose it is, and where it is
  * shared. Every list in this app is a list of these.
  */
 export interface TranscriptRow {
   transcript: Transcript;
-  owner: TranscriptRowOwner;
+  /** The owner as the server resolved them for this viewer. */
+  owner: PublicOwner;
   shares?: { group_name: string }[];
 }
 
 export interface TranscriptListItem {
   transcript: Transcript;
   tags: Tag[];
-  owner: User;
+  owner: PublicOwner;
   shares?: EnrichedTranscriptShare[];
   attestations?: AttestationSummary[];
   /** The pull requests this row is attached to that the caller may read: how
@@ -454,7 +446,8 @@ export interface TranscriptDetailResponse {
   tags: Tag[];
   shares: TranscriptShare[];
   enriched_shares: EnrichedTranscriptShare[];
-  owner: User;
+  /** The owner as the server resolved them for this viewer. */
+  owner: PublicOwner;
   attestations?: Attestation[];
   /**
    * The viewer's authorized current-target navigation for the child's stored

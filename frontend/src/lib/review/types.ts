@@ -15,8 +15,9 @@ import type { AsPlainString } from "@/lib/types";
 /**
  * One row of `GET /collectives/{id}/pending`: a submission awaiting a decision.
  * A queue can hold rows from several publishers, and `local_id` is unique per
- * owner rather than globally, so matching a started session to its starter
- * needs `owner_id` and `local_id` together.
+ * owner rather than globally, so a started session is matched to its starter
+ * by `parent_transcript_id`, the parent the server resolved within the same
+ * publisher.
  *
  * @deprecated Import VillagePendingShare from "@peasant-labs/schema". Alias kept for one release.
  */

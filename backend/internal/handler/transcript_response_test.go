@@ -5,9 +5,11 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"github.com/peasant-labs/schema"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,6 +33,9 @@ type transcriptResponseContract struct {
 	SourceRow             map[string]any                `yaml:"source_row"`
 	ResolvedProjectFields map[string]string             `yaml:"resolved_project_fields"`
 	ConditionalValidators []conditionalValidatorFixture `yaml:"conditional_validators"`
+	// ReadTimeFields are resolved per viewer at read time by the route, not
+	// projected from the row; a bare composition serves them null.
+	ReadTimeFields []string `yaml:"read_time_fields"`
 }
 
 type mountedPathFixture struct {
@@ -112,8 +117,8 @@ func loadTranscriptResponseContract(t *testing.T) transcriptResponseContract {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		t.Fatalf("transcript response contract must contain exactly one YAML document; got %v", err)
 	}
-	if len(fixture.AllowedFields) != 62 || len(fixture.DeniedFields) != 4 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 4 || len(fixture.ConditionalValidators) != 4 {
-		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 62/4/5/4/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))
+	if len(fixture.AllowedFields) != 61 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 {
+		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 61/5/5/2/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))
 	}
 	return fixture
 }
@@ -161,7 +166,15 @@ func TestTranscriptResponseContractExact(t *testing.T) {
 				if err := json.Unmarshal(groupJSON, &groupRow); err != nil {
 					t.Fatalf("decode public-group fixture into production query row: %v", err)
 				}
-				responseValue = groupTranscriptFromRow(groupRow)
+				ownerJSON, err := json.Marshal(fixture.OwnerValues["owner"])
+				if err != nil {
+					t.Fatalf("marshal public-group owner fixture: %v", err)
+				}
+				var owner schema.VillagePublicOwner
+				if err := json.Unmarshal(ownerJSON, &owner); err != nil {
+					t.Fatalf("decode public-group owner fixture: %v", err)
+				}
+				responseValue = groupTranscriptFromRow(groupRow, owner)
 			default:
 				t.Fatalf("unknown mounted response fixture path %q; add its production composition explicitly", mountedPath.Name)
 			}
@@ -180,7 +193,7 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 	if err := json.Unmarshal(payload, &response); err != nil {
 		t.Fatalf("decode %s production response composition: %v", mountedPath.Name, err)
 	}
-	wantCount := len(want) + len(requiredResolvedProjectFields)
+	wantCount := len(want) + len(requiredResolvedProjectFields) + len(fixture.ReadTimeFields)
 	if mountedPath.Shape == "flat_group" {
 		wantCount += len(fixture.OwnerFields)
 	}
@@ -245,12 +258,24 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 		if err != nil {
 			t.Fatalf("marshal owner source value for %s: %v", field, err)
 		}
-		if !bytes.Equal(got, wantJSON) {
+		var gotValue, wantValue any
+		if err := json.Unmarshal(got, &gotValue); err != nil {
+			t.Fatalf("decode %s owner field %q: %v", mountedPath.Name, field, err)
+		}
+		if err := json.Unmarshal(wantJSON, &wantValue); err != nil {
+			t.Fatalf("decode owner fixture value for %s: %v", field, err)
+		}
+		if !reflect.DeepEqual(gotValue, wantValue) {
 			t.Errorf("%s owner field %q = %s; want %s", mountedPath.Name, field, got, wantJSON)
 		}
 	}
+	for _, field := range fixture.ReadTimeFields {
+		if got, ok := response[field]; !ok || string(got) != "null" {
+			t.Errorf("%s read-time field %q = %s, want present and null in a bare composition", mountedPath.Name, field, got)
+		}
+	}
 	for field := range response {
-		if !want[field] && !containsString(fixture.OwnerFields, field) && !containsString(requiredResolvedProjectFields, field) {
+		if !want[field] && !containsString(fixture.OwnerFields, field) && !containsString(requiredResolvedProjectFields, field) && !containsString(fixture.ReadTimeFields, field) {
 			t.Errorf("%s response exposed unexpected field %q", mountedPath.Name, field)
 		}
 	}

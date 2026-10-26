@@ -46,8 +46,8 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	response := schema.VillageGroupedCollectiveDetailResponse{
 		Group: schema.VillageCollectiveDetailRecord{
 			ID: schema.VillageUUID(uuid.UUID(group.ID.Bytes).String()), Name: group.Name,
-			Description: pgTextPointer(group.Description), CreatedBy: schema.VillageUUID(uuid.UUID(group.CreatedBy.Bytes).String()),
-			CreatedAt: group.CreatedAt.Time, UpdatedAt: group.UpdatedAt.Time,
+			Description: pgTextPointer(group.Description),
+			CreatedAt:   group.CreatedAt.Time, UpdatedAt: group.UpdatedAt.Time,
 			AcceptanceMode: schema.VillageCollectiveAcceptanceMode(group.AcceptanceMode),
 			DataAccess:     schema.VillageCollectiveDataAccess(group.DataAccess), LinkedGithubOrg: pgTextPointer(group.LinkedGithubOrg),
 			DisplayMembers: group.DisplayMembers, TranscriptDeletionPolicy: schema.VillageTranscriptDeletionPolicy(group.TranscriptDeletionPolicy),
@@ -67,18 +67,18 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 		return response, collectiveGroupedFailure(500, "collectiveGroupedDetail", "collective metadata could not be read", "retry the collective page; a failed read is not an empty roster or dataset")
 	}
 	ctx := r.Context()
-	members, err := h.queries.ListGroupMembers(ctx, sqlc.ListGroupMembersParams{GroupID: group.ID, ViewerIsOwner: role == "owner"})
+	creator, err := h.resolvePublicOwner(ctx, GetUser(ctx), group.CreatedBy)
 	if err != nil {
 		return failure()
 	}
-	for _, row := range members {
-		orgs := append([]string{}, row.GithubOrgs...)
-		response.Members = append(response.Members, schema.VillageCollectiveMember{
-			Role: schema.VillageCollectiveRole(row.Role), JoinedAt: row.JoinedAt.Time,
-			ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
-			DisplayName: pgTextPointer(row.DisplayName), AvatarURL: pgTextPointer(row.AvatarUrl), GithubOrgs: orgs,
-		})
+	response.Group.Creator = creator
+	people, err := h.collectivePeopleFor(ctx, GetUser(ctx), group.ID, role == "owner")
+	if err != nil {
+		return failure()
 	}
+	response.Members = people.Members
+	response.Contributors = people.Contributors
+	response.PendingMembers = people.PendingMembers
 	stats, err := h.queries.GetGroupTranscriptStats(ctx, group.ID)
 	if err != nil {
 		return failure()
@@ -96,30 +96,6 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	}
 	for _, row := range models {
 		response.Models = append(response.Models, schema.VillageCollectiveModelBreakdown{ModelProvider: row.ModelProvider, TranscriptCount: row.TranscriptCount})
-	}
-	contributors, err := h.queries.ListGroupContributors(ctx, sqlc.ListGroupContributorsParams{GroupID: group.ID, ViewerIsOwner: role == "owner"})
-	if err != nil {
-		return failure()
-	}
-	for _, row := range contributors {
-		response.Contributors = append(response.Contributors, schema.VillageCollectiveContributor{
-			ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
-			AvatarURL: pgTextPointer(row.AvatarUrl), TranscriptCount: row.TranscriptCount,
-		})
-	}
-	if role == "owner" {
-		pending, err := h.queries.ListGroupPendingMembers(ctx, group.ID)
-		if err != nil {
-			return failure()
-		}
-		response.PendingMembers = []schema.VillageCollectiveMember{}
-		for _, row := range pending {
-			response.PendingMembers = append(response.PendingMembers, schema.VillageCollectiveMember{
-				Role: schema.VillageCollectiveRole(row.Role), JoinedAt: row.JoinedAt.Time,
-				ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
-				DisplayName: pgTextPointer(row.DisplayName), AvatarURL: pgTextPointer(row.AvatarUrl), GithubOrgs: append([]string{}, row.GithubOrgs...),
-			})
-		}
 	}
 	return response, response.Validate()
 }

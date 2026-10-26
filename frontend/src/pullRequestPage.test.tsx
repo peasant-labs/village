@@ -16,6 +16,7 @@ import {
   renderSignedOutPullRequestRoute,
   type PullRequestFixture,
 } from "@/test/mountedAttachmentSurfaces";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 installAttachmentSurfacesTeardown();
 
@@ -41,8 +42,8 @@ function fixtureFor(row: PullRequestPageCase): PullRequestFixture {
       head_sha: "0123456789abcdef0123456789abcdef01234567",
       is_private_repository: row.is_private_repository,
       state: row.state,
-      author_user_id: "11111111-1111-1111-1111-111111111111",
-      requested_by_github_id: null,
+      author: profileOwner({ id: "11111111-1111-4111-8111-111111111111", github_username: "pr-author" }),
+      requested_by: null,
       comment_id: null,
       check_run_id: null,
       created_at: "2026-01-01T00:00:00Z",

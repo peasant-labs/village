@@ -11,15 +11,18 @@ import (
 // Its pull request summary starts empty and is filled for the rows of the page
 // being served, with one query for the whole page
 // (fillCollectivePullRequestSummaries).
-func collectiveSessionRow(s schema.VillageTranscript, username string, avatar *string, discoverable bool) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, Collective: &schema.VillageCollectiveTranscript{
-		ID: s.ID, OwnerID: s.OwnerID, LocalID: s.LocalID,
+//
+// owner is the transcript's owner as the viewer may see them
+// (resolvePublicOwners); the row and its arm carry the same value.
+func collectiveSessionRow(s schema.VillageTranscript, owner schema.VillagePublicOwner) schema.VillageSessionRow {
+	return schema.VillageSessionRow{Session: s, Owner: owner, Collective: &schema.VillageCollectiveTranscript{
+		ID: s.ID, LocalID: s.LocalID,
 		Title: s.Title, Description: s.Description, Visibility: s.Visibility,
 		ModelProvider: s.ModelProvider, ModelName: s.ModelName, HarnessVersion: s.HarnessVersion,
 		SessionStart: s.SessionStart, SessionEnd: s.SessionEnd, TurnCount: s.TurnCount,
 		TokenCount: s.TokenCount, BlobSizeBytes: s.BlobSizeBytes, SchemaVersion: s.SchemaVersion,
 		PublishedAt: s.PublishedAt, UpdatedAt: s.UpdatedAt, ParentSessionID: s.ParentSessionID,
-		IngestedAt: s.IngestedAt, SourceFormat: s.SourceFormat, GitBranch: s.GitBranch,
+		ParentTranscriptID: s.ParentTranscriptID, IngestedAt: s.IngestedAt, SourceFormat: s.SourceFormat, GitBranch: s.GitBranch,
 		GitRemote: s.GitRemote, ProjectHash: s.ProjectHash, ProjectName: s.ProjectName,
 		ProjectDisplayName: s.ProjectDisplayName, ProjectNameSource: s.ProjectNameSource,
 		ProjectRemoteLabel: s.ProjectRemoteLabel, ToolCallCount: s.ToolCallCount,
@@ -41,38 +44,49 @@ func collectiveSessionRow(s schema.VillageTranscript, username string, avatar *s
 		ComputeVersion: s.ComputeVersion, ContentHash: s.ContentHash, LicenseID: s.LicenseID,
 		SessionOrigin: s.SessionOrigin, InputSubmissionCount: s.InputSubmissionCount,
 		RootSessionID: s.RootSessionID, Purpose: s.Purpose, Relationships: s.Relationships,
-		OwnerUsername: username, OwnerAvatarURL: avatar, OwnerIsDiscoverable: discoverable,
+		Owner:        owner,
 		PullRequests: emptyPullRequestsSummary(),
 	}}
 }
 
-func pendingSessionRow(s schema.VillageTranscript, username string, discoverable bool, sharedAt time.Time) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, Pending: &schema.VillagePendingShare{
+func pendingSessionRow(s schema.VillageTranscript, owner schema.VillagePublicOwner, sharedAt time.Time) schema.VillageSessionRow {
+	return schema.VillageSessionRow{Session: s, Owner: owner, Pending: &schema.VillagePendingShare{
 		TranscriptID: s.ID, Title: s.Title, ModelProvider: s.ModelProvider,
-		OwnerID: s.OwnerID, LocalID: s.LocalID, ParentSessionID: s.ParentSessionID,
+		Owner: owner, LocalID: s.LocalID, ParentSessionID: s.ParentSessionID, ParentTranscriptID: s.ParentTranscriptID,
 		ProjectHash: s.ProjectHash, ProjectName: s.ProjectName, Branch: s.GitBranch,
-		OwnerUsername: username, OwnerIsDiscoverable: discoverable, SharedAt: sharedAt,
+		SharedAt:             sharedAt,
 		InputSubmissionCount: s.InputSubmissionCount, RootSessionID: s.RootSessionID,
 		Purpose: s.Purpose, Relationships: s.Relationships,
 	}}
 }
 
-func myShareSessionRow(s schema.VillageTranscript, status schema.VillageShareStatus, sharedAt time.Time) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, MyShare: &schema.VillageUserCollectiveShare{
+func myShareSessionRow(s schema.VillageTranscript, owner schema.VillagePublicOwner, status schema.VillageShareStatus, sharedAt time.Time) schema.VillageSessionRow {
+	return schema.VillageSessionRow{Session: s, Owner: owner, MyShare: &schema.VillageUserCollectiveShare{
 		ID: s.ID, Title: s.Title, ModelProvider: s.ModelProvider, ModelName: s.ModelName,
 		Visibility: s.Visibility, PublishedAt: s.PublishedAt, TurnCount: s.TurnCount,
-		TokensIn: s.TokensIn, TokensOut: s.TokensOut, OwnerID: s.OwnerID, LocalID: s.LocalID,
-		ParentSessionID: s.ParentSessionID, Status: status, SharedAt: sharedAt,
+		TokensIn: s.TokensIn, TokensOut: s.TokensOut, Owner: owner, LocalID: s.LocalID,
+		ParentSessionID: s.ParentSessionID, ParentTranscriptID: s.ParentTranscriptID, Status: status, SharedAt: sharedAt,
 		InputSubmissionCount: s.InputSubmissionCount, RootSessionID: s.RootSessionID,
 		Purpose: s.Purpose, Relationships: s.Relationships,
 	}}
 }
 
-func contributableSessionRow(s schema.VillageTranscript, alreadyShared bool) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, Contributable: &schema.VillageContributableTranscript{
+// derefOr reads a repository field of the caller's own contributable row. The
+// caller always sees their own profile, so these are never withheld there;
+// the contract's row validation refuses a mismatch should one ever be null.
+func derefOr[T any](value *T) T {
+	var zero T
+	if value == nil {
+		return zero
+	}
+	return *value
+}
+
+func contributableSessionRow(s schema.VillageTranscript, owner schema.VillagePublicOwner, alreadyShared bool) schema.VillageSessionRow {
+	return schema.VillageSessionRow{Session: s, Owner: owner, Contributable: &schema.VillageContributableTranscript{
 		ID: s.ID, LocalID: s.LocalID, Title: s.Title, Visibility: s.Visibility,
-		ProjectHash: s.ProjectHash, ProjectDisplayName: s.ProjectDisplayName,
-		ProjectNameSource: s.ProjectNameSource, GitBranch: s.GitBranch,
+		ProjectHash: derefOr(s.ProjectHash), ProjectDisplayName: derefOr(s.ProjectDisplayName),
+		ProjectNameSource: derefOr(s.ProjectNameSource), GitBranch: s.GitBranch,
 		ParentSessionID: s.ParentSessionID, SessionOrigin: s.SessionOrigin,
 		ModelProvider: s.ModelProvider, PublishedAt: s.PublishedAt, AlreadyShared: alreadyShared,
 		InputSubmissionCount: s.InputSubmissionCount, RootSessionID: s.RootSessionID,

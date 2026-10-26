@@ -34,9 +34,9 @@ export default function JoinConsentDialog({
             handle is hidden across the commons.
           </p>
           <p>
-            joining reveals your profile to the collective&apos;s{" "}
-            <span className="cns-em">owners</span>. they need it to review your membership and
-            contributions. other members still see you as anon.
+            joining shows your profile to the collective&apos;s{" "}
+            <span className="cns-em">owners</span> in its member list. submitting a transcript
+            there shows them it&apos;s yours. other members still see you as anon.
           </p>
         </>
       }
@@ -51,7 +51,7 @@ export default function JoinConsentDialog({
               visible
             </>
           ),
-          scope: "to owners only, to review membership",
+          scope: "to owners only, in the member list and on what you submit",
         },
         {
           icon: Users,

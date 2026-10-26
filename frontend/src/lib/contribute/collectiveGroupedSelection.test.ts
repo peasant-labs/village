@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import type { VillageSessionListItem } from "@peasant-labs/schema";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { groupedContributionBatches, groupedReviewSelection, mergeContributionBatches } from "./groupedSelection";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * The collective grouped selection contract, driven by
@@ -74,11 +75,12 @@ const byName = new Map(fixture.rows.map((row) => [row.name, row]));
 requireNames(fixture.merge_cases.map((value) => value.name), REQUIRED_MERGE, "merge case");
 requireNames(fixture.review_cases.map((value) => value.name), REQUIRED_REVIEW, "review case");
 
+const OWNER = profileOwner({ id: "30000000-0000-4000-8000-000000000020", github_username: "member-owner" });
+
 function helperItem(row: RowSpec, kind: ReviewKind): VillageSessionListItem {
   const session = makeTranscriptFixture({
     id: row.id,
     local_id: `ses_${row.name.toLowerCase()}`,
-    owner_id: "30000000-0000-4000-8000-000000000020",
     title: row.name,
     project_hash: row.project,
     project_display_name: row.project,
@@ -87,6 +89,7 @@ function helperItem(row: RowSpec, kind: ReviewKind): VillageSessionListItem {
     return {
       kind: "transcript",
       transcript: {
+        owner: OWNER,
         session,
         contributable: {
           id: row.id,
@@ -109,19 +112,18 @@ function helperItem(row: RowSpec, kind: ReviewKind): VillageSessionListItem {
   return {
     kind: "transcript",
     transcript: {
+      owner: OWNER,
       session,
       pending: {
         transcript_id: row.id,
         title: row.name,
         model_provider: session.model_provider,
-        owner_id: session.owner_id,
+        owner: OWNER,
         local_id: session.local_id,
         parent_session_id: null,
         project_hash: session.project_hash,
         project_name: session.project_name,
         branch: session.git_branch,
-        owner_username: "member-owner",
-        owner_is_discoverable: true,
         shared_at: "2026-09-01T10:00:00Z",
       },
     },

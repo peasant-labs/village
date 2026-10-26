@@ -11,6 +11,8 @@ import type {
   ShareEvent,
   User,
 } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import { withResolvedParents } from "@/test/parentTranscriptFixture";
 
 /**
  * Support for tests that mount the REAL profile route
@@ -175,20 +177,22 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
           localID: id,
           parentSessionID: null,
         }));
-      const rows = specs.map(({ id, projectHash, localID, parentSessionID }) => ({
+      const listed = specs.map(({ id, projectHash, localID, parentSessionID }) => ({
         transcript: makeTranscriptFixture({
           id,
           local_id: localID,
           parent_session_id: parentSessionID,
-          owner_id: `user-${fixture.profileUsername}`,
           title: id,
           project_hash: projectHash,
           project_name: "village",
           project_display_name: "village",
         }),
         tags: [],
-        owner: userFixture(fixture.profileUsername),
+        owner: profileOwner(userFixture(fixture.profileUsername)),
       }));
+      // The server resolves each row's parent within this one owner.
+      const resolved = withResolvedParents(listed.map((item) => item.transcript));
+      const rows = listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
       return json({
         transcripts: rows,
         total: rows.length,
@@ -202,7 +206,8 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       // not a user, so the catch-all below would hand back the wrong shape.
       if (/\/orgs$/.test(path)) return json(fixture.publicOrgs ?? []);
       if (fixture.profileStatus != null) return json({ error: "not found" }, fixture.profileStatus);
-      return json(userFixture(fixture.profileUsername));
+      // The public profile only, as the server sends it to any viewer.
+      return json(profileOwner(userFixture(fixture.profileUsername)));
     }
     throw new Error(`mounted profile route fixture received an unexpected request to ${url}`);
   });

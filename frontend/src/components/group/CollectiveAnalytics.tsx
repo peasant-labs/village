@@ -5,6 +5,7 @@ import {
   ProjectOverview,
   type AnalyticsOverviewPayload,
 } from "@peasant-labs/fairtrade/analytics";
+import { publicProfile } from "@/lib/publicOwner";
 import type { GroupTranscript } from "@/lib/types";
 
 interface CollectiveAnalyticsProps {
@@ -46,7 +47,10 @@ export default function CollectiveAnalytics({
           // session_start is the truest session time; fall back to publish time.
           startTime: t.session_start ?? t.published_at,
           projectKey: t.project_name ?? "transcript",
-          contributorId: t.owner_id,
+          // An anonymous owner carries no id. The dashboard skips an empty
+          // id, so such a session counts toward every total but toward no
+          // contributor, rather than merging every anonymous row into one.
+          contributorId: publicProfile(t.owner)?.id ?? "",
           durationMins,
           totalTokens,
           turnCount: t.turn_count ?? 0,

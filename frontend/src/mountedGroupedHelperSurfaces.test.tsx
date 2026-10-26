@@ -23,6 +23,7 @@ import {
   type ExploreSurfaceCase,
 } from "@/test/groupedHelperSurfaceFixtures";
 import type { TranscriptListItem, User, UserProjectPageResponse } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted evidence for the grouped-helper surfaces, driven by
@@ -126,14 +127,13 @@ function flatRow(testCase: ContinuationCase, index: number): TranscriptListItem 
     transcript: makeTranscriptFixture({
       id: ordinaryOwnerUUID(index),
       local_id: `ses_flat_${index}`,
-      owner_id: `user-${testCase.owner}`,
       title: `flat session ${index}`,
       project_hash: testCase.projectHash ?? "0".repeat(64),
       project_name: "village",
       project_display_name: "village",
     }),
     tags: [],
-    owner: userFixture(testCase.owner),
+    owner: profileOwner(userFixture(testCase.owner)),
   };
 }
 
@@ -145,7 +145,7 @@ function projectPayload(testCase: ContinuationCase): UserProjectPageResponse {
       project_name_source: "consented",
       project_remote_label: "github.com:peasant-labs/village",
     },
-    owner: userFixture(testCase.owner),
+    owner: profileOwner(userFixture(testCase.owner)),
     transcripts: Array.from({ length: testCase.flatTranscripts }, (_, index) =>
       flatRow(testCase, index).transcript,
     ),

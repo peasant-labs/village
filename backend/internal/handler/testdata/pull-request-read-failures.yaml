@@ -28,7 +28,9 @@ world:
 
 cases:
   - {name: the-list-refuses-a-failed-tags-read, surface: list, viewer: member, fails: ListTagsByTranscriptIDs, error: "tags of the listed transcripts could not be read"}
-  - {name: the-list-refuses-a-failed-owners-read, surface: list, viewer: member, fails: ListUsersByIDs, error: "owners of the listed transcripts could not be read"}
+  # The list is filtered by owner, and the owner filter is the first read that
+  # resolves people for this viewer, so that is where the failure refuses.
+  - {name: the-list-refuses-a-failed-owners-read, surface: list, viewer: member, fails: ListPublicOwnersForViewer, error: "owner or organization filter could not be resolved"}
   - {name: the-list-refuses-failed-summaries, surface: list, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "pull requests of the listed transcripts could not be read"}
   - {name: the-collective-refuses-a-failed-count, surface: collective, viewer: member, fails: ListAttachedPullRequestCandidatesByGroup, error: "Could not read the collective's pull requests"}
   - {name: the-collective-refuses-failed-summaries, surface: collective, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "Could not read the pull requests of the collective's transcripts"}

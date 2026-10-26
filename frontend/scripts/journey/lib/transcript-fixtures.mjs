@@ -74,7 +74,6 @@ function metadata() {
   return {
     transcript: {
       id: OWNED_TRANSCRIPT.id,
-      owner_id: OWNED_TRANSCRIPT.ownerId,
       local_id: 'sess_owned_0001',
       visibility: readers.length || pending.length ? 'shared' : 'private',
       title: OWNED_TRANSCRIPT.title,
@@ -96,7 +95,7 @@ function metadata() {
       status: 'approved',
       shared_at: '2026-09-01T00:00:00Z',
     })),
-    owner: { id: OWNED_TRANSCRIPT.ownerId, github_username: OWNED_TRANSCRIPT.ownerUsername },
+    owner: { kind: 'profile', id: OWNED_TRANSCRIPT.ownerId, username: OWNED_TRANSCRIPT.ownerUsername, display_name: null, avatar_url: null },
     attestations: [],
   }
 }

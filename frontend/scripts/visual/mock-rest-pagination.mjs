@@ -25,7 +25,7 @@ const TOTAL_ROWS = Math.max(1, Number(process.env.PAGINATION_TOTAL_ROWS || '60')
 const HARNESSES = ['claude-code', 'gemini-cli', 'codex', 'opencode', 'cursor', 'strike']
 const MODEL_NAMES = ['Claude Opus 4.5', 'Gemini 2.5 Pro', 'Codex', 'OpenCode', 'Cursor', 'Strike']
 
-const owner = { github_username: 'octo-cat', display_name: 'Octo Cat', avatar_url: null }
+const owner = { kind: 'profile', id: 'owner-octo-cat', username: 'octo-cat', display_name: 'Octo Cat', avatar_url: null }
 
 const user = {
   id: 'user-pagination',
@@ -57,7 +57,6 @@ const rows = Array.from({ length: TOTAL_ROWS }, (_, index) => {
   return {
     transcript: {
       id,
-      owner_id: 'owner-octo-cat',
       local_id: id,
       title: `Page ${pageOfRow} · Session ${seq}`,
       description: `pagination fixture row ${seq}`,
@@ -75,6 +74,7 @@ const rows = Array.from({ length: TOTAL_ROWS }, (_, index) => {
       published_at: stamp,
       updated_at: stamp,
       parent_session_id: null,
+      parent_transcript_id: null,
       ingested_at: stamp,
       source_file_path: null,
       source_format: 'json',

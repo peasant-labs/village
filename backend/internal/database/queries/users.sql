@@ -6,11 +6,6 @@
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
--- name: ListUsersByIDs :many
--- Several users in one statement, for list surfaces that would otherwise read
--- GetUserByID once per row.
-SELECT * FROM users WHERE id = ANY(@ids::uuid[]);
-
 -- name: GetUserByUsername :one
 -- Canonical handle lookup. github_username is globally unique (case-insensitive),
 -- so this resolves to exactly one user.
@@ -99,3 +94,55 @@ SET preview_before_attach     = COALESCE(sqlc.narg(preview_before_attach), previ
     updated_at                = now()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: ListPublicOwnersForViewer :many
+-- The people one response shows, each with whether this viewer may see their
+-- public profile. It is the single statement behind every owner, member,
+-- contributor, and annotation author Village sends to a viewer, and it is
+-- batched: a page names every person on it once, never one read per row.
+--
+-- A profile is visible when ANY of these holds; otherwise the person is shown
+-- as anonymous:
+--   - the person is discoverable (users.is_discoverable);
+--   - the viewer IS the person;
+--   - the viewer owns a collective (group_members.role = 'owner') where the
+--     person took an act of their own: a pending or approved submission of
+--     one of their transcripts (transcript_shares.status, the current-state
+--     row the review queue and the collective library read), or a leftover
+--     'pending' join-request row. A plain member or contributor row does NOT
+--     count: Village records no provenance for membership, and an owner can
+--     add anyone by username, so membership alone must reveal nothing about a
+--     person's transcripts. Collective owners still see their own roster in
+--     full (handler collectivePeopleFor). Invitations the person accepts are
+--     the planned replacement for owner adds, after which an accepted
+--     membership may count again.
+-- A NULL viewer (signed out) sees discoverable people only.
+SELECT u.id, u.github_username, u.display_name, u.avatar_url,
+       (
+         u.is_discoverable
+         OR COALESCE(u.id = sqlc.narg(viewer_id)::uuid, FALSE)
+         OR EXISTS (
+             SELECT 1
+             FROM group_members viewer_role
+             WHERE viewer_role.user_id = sqlc.narg(viewer_id)::uuid
+               AND viewer_role.role = 'owner'
+               AND (
+                     EXISTS (
+                         SELECT 1 FROM group_members person_role
+                         WHERE person_role.group_id = viewer_role.group_id
+                           AND person_role.user_id = u.id
+                           AND person_role.role = 'pending'
+                     )
+                     OR EXISTS (
+                         SELECT 1
+                         FROM transcript_shares ts
+                         JOIN transcripts t ON t.id = ts.transcript_id
+                         WHERE ts.group_id = viewer_role.group_id
+                           AND t.owner_id = u.id
+                           AND ts.status IN ('pending', 'approved')
+                     )
+                   )
+         )
+       )::boolean AS profile_visible
+FROM users u
+WHERE u.id = ANY(@person_ids::uuid[]);

@@ -3,10 +3,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
@@ -31,6 +34,9 @@ import (
 func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, viewer *AuthUser) (schema.VillagePullRequestAttachmentResponse, error) {
 	mapped, err := mapVillageAttachment(attachment, repo.isPrivate)
 	if err != nil {
+		return schema.VillagePullRequestAttachmentResponse{}, err
+	}
+	if err := h.resolveAttachmentPeople(ctx, attachment, viewer, &mapped); err != nil {
 		return schema.VillagePullRequestAttachmentResponse{}, err
 	}
 	detail := h.pullRequestDetail(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number))
@@ -107,7 +113,41 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 	}, nil
 }
 
-// mapVillageAttachment maps a stored attachment to the wire type. It fails
+// resolveAttachmentPeople fills the attachment's author and requester as the
+// viewer may see them. The requester is recorded as a GitHub account id; it is
+// resolved to the Village account that signed in with that GitHub identity,
+// and a requester with no Village account is anonymous exactly like a hidden
+// one, so the response never reveals whether a GitHub user has an account.
+func (h *Handler) resolveAttachmentPeople(ctx context.Context, attachment sqlc.PullRequestAttachment, viewer *AuthUser, mapped *schema.VillagePullRequestAttachment) error {
+	people := []pgtype.UUID{attachment.AuthorID}
+	var requester pgtype.UUID
+	if attachment.RequesterGithubID.Valid {
+		account, err := h.queries.GetUserByProviderIdentity(ctx, sqlc.GetUserByProviderIdentityParams{
+			Provider: "github", ProviderUserID: strconv.FormatInt(attachment.RequesterGithubID.Int64, 10),
+		})
+		switch {
+		case err == nil:
+			requester = account.ID
+			people = append(people, requester)
+		case !errors.Is(err, pgx.ErrNoRows):
+			return fmt.Errorf("could not read the attachment's requester: %w", err)
+		}
+	}
+	owners, err := h.resolvePublicOwners(ctx, viewer, people)
+	if err != nil {
+		return fmt.Errorf("could not resolve the attachment's author and requester: %w", err)
+	}
+	mapped.Author = owners.of(attachment.AuthorID)
+	if attachment.RequesterGithubID.Valid {
+		requestedBy := owners.of(requester)
+		mapped.RequestedBy = &requestedBy
+	}
+	return nil
+}
+
+// mapVillageAttachment maps a stored attachment to the wire type. The author
+// starts anonymous and the requester absent; resolveAttachmentPeople fills
+// them for the viewer. It fails
 // closed on a state outside the menu rather than serving a value no reader can
 // interpret. Title and HeadRef are left null: Village stores neither, and the
 // caller that can ask GitHub fills them in.
@@ -116,7 +156,6 @@ func mapVillageAttachment(attachment sqlc.PullRequestAttachment, isPrivate bool)
 		return schema.VillagePullRequestAttachment{}, fmt.Errorf("the attachment's stored state %q is not one of the lifecycle menu: %w", attachment.State, err)
 	}
 
-	author := schema.VillageUUID(uuidFromPg(attachment.AuthorID).String())
 	mapped := schema.VillagePullRequestAttachment{
 		ID:                  schema.VillageUUID(uuidFromPg(attachment.ID).String()),
 		Owner:               attachment.RepoOwner,
@@ -125,13 +164,9 @@ func mapVillageAttachment(attachment sqlc.PullRequestAttachment, isPrivate bool)
 		HeadSHA:             attachment.HeadSha,
 		IsPrivateRepository: isPrivate,
 		State:               schema.VillagePullRequestAttachmentState(attachment.State),
-		AuthorUserID:        &author,
+		Author:              schema.AnonymousVillageOwner(),
 		CreatedAt:           attachment.CreatedAt.Time,
 		UpdatedAt:           attachment.UpdatedAt.Time,
-	}
-	if attachment.RequesterGithubID.Valid {
-		value := attachment.RequesterGithubID.Int64
-		mapped.RequestedByGithubID = &value
 	}
 	if attachment.CommentID.Valid {
 		value := attachment.CommentID.Int64

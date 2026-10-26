@@ -4,6 +4,7 @@ import {
   type NameSource,
   type TranscriptRow,
 } from "@/lib/types";
+import { publicProfile, type PublicOwner, type PublicProfile } from "@/lib/publicOwner";
 
 /**
  * Format a model identifier into a human-readable name.
@@ -141,8 +142,8 @@ export interface ProjectGroupingResult<T> {
 export function groupByProject<
   T extends {
     transcript: {
-      project_hash: string;
-      project_display_name: string;
+      project_hash: string | null;
+      project_display_name: string | null;
       published_at: string;
     };
   }
@@ -151,18 +152,17 @@ export function groupByProject<
   const malformed: T[] = [];
 
   for (const item of items) {
-    // Runtime data is not guaranteed by the TypeScript type: `project_hash`
-    // is typed `string` because the wire contract guarantees it, but a
-    // malformed or empty value can still arrive over the network if that
-    // guarantee is ever violated server-side. Checked defensively, never
-    // thrown — see this function's doc comment.
+    // A null hash is withheld (an anonymous owner, never on a person's own
+    // library); an empty one is a contract violation. Neither is a project,
+    // so both are reported apart rather than thrown -- see this function's
+    // doc comment.
     const hash = item.transcript.project_hash;
     if (!hash) {
       malformed.push(item);
       continue;
     }
     if (!groups.has(hash)) {
-      groups.set(hash, { displayName: item.transcript.project_display_name, items: [] });
+      groups.set(hash, { displayName: item.transcript.project_display_name ?? hash, items: [] });
     }
     groups.get(hash)!.items.push(item);
   }
@@ -230,8 +230,12 @@ export interface RepoGroup<T> {
   unattributed: boolean;
   transcripts: T[];
   transcriptCount: number;
-  /** Distinct contributor count (by owner id). */
+  /** Distinct contributors the viewer may identify (by profile id). */
   contributorCount: number;
+  /** Sessions whose owner is anonymous to the viewer. They carry no id, so
+   *  they are counted as sessions: how many people they belong to is unknown,
+   *  and merging them into one contributor would claim one person. */
+  anonymousSessionCount: number;
   totalTokens: number;
 }
 
@@ -261,14 +265,14 @@ export function transcriptTokens(t: {
  */
 export function groupByRepo<
   T extends {
-    owner_id: string;
+    owner: PublicOwner;
     git_remote: string | null;
     project_name: string | null;
     // The remote-derived label ("host:owner/repo"), NOT the resolved
     // project identity — see the label-selection comment below for why
     // this axis must not read project_display_name. "" (never null) when
     // no remote is known — see the field's doc comment in @/lib/types.
-    project_remote_label: string;
+    project_remote_label: string | null;
     published_at: string;
     token_count: number | null;
     tokens_in: number | null;
@@ -298,7 +302,13 @@ export function groupByRepo<
           new Date(a.published_at).getTime()
       );
 
-      const contributors = new Set(groupItems.map((i) => i.owner_id));
+      const contributors = new Set(
+        groupItems.flatMap((i) => {
+          const profile = publicProfile(i.owner);
+          return profile ? [profile.id] : [];
+        }),
+      );
+      const anonymousSessionCount = groupItems.filter((i) => publicProfile(i.owner) === null).length;
       const totalTokens = groupItems.reduce(
         (sum, i) => sum + transcriptTokens(i),
         0
@@ -335,6 +345,7 @@ export function groupByRepo<
         transcripts: groupItems,
         transcriptCount: groupItems.length,
         contributorCount: contributors.size,
+        anonymousSessionCount,
         totalTokens,
       };
     }
@@ -349,46 +360,42 @@ export function groupByRepo<
 }
 
 /**
- * One collective-browse transcript as a transcript list reads it.
- *
- * The `/collectives/{id}/transcripts` response carries the author flattened onto the
- * transcript (`owner_username`, `owner_avatar_url`, `owner_is_discoverable`)
- * rather than as a nested account, because a collective's browse page needs a
- * handle and an avatar and nothing else about that person. This lifts those
- * three fields back into the shape every transcript list draws, so the
- * collective's rows are the SAME rows as everywhere else and no account is
- * invented to make them fit.
+ * The heading for a project the server withheld (the owner is anonymous to
+ * the viewer), where a heading needs text. Anywhere a project is optional, a
+ * withheld one is simply not shown.
+ */
+export const HIDDEN_PROJECT_LABEL = "hidden project";
+
+/**
+ * One collective-browse transcript as a transcript list reads it: the
+ * transcript and the owner the server resolved for this viewer.
  */
 export function collectiveTranscriptRow(t: GroupTranscript): TranscriptRow {
-  return {
-    transcript: t,
-    owner: {
-      id: t.owner_id,
-      github_username: t.owner_username,
-      avatar_url: t.owner_avatar_url,
-      is_discoverable: t.owner_is_discoverable,
-    },
-  };
+  return { transcript: t, owner: t.owner };
 }
 
 /**
- * Resolves how a transcript author should be attributed in lists.
- * Returns `{ anonymous: true }` when the author has opted out of being
- * discoverable AND the viewer is not the author themselves; in that case
- * UI should render "anon" with no link or avatar lookup. Otherwise the
- * caller is responsible for rendering the handle/avatar as usual.
+ * How a transcript author is attributed: their username, or "anon".
+ *
+ * The server has already decided what this viewer may see, so this only
+ * renders it. An anonymous owner, an owner of a kind this app does not know,
+ * and a missing owner all read as "anon", with no profile to link or draw.
  */
-export function resolveAttribution(
-  owner: { id: string; github_username: string; is_discoverable?: boolean },
-  viewerId: string | undefined,
-  viewerIsPrivileged = false,
-): { anonymous: boolean; label: string } {
-  const anonymous =
-    owner.is_discoverable === false && owner.id !== viewerId && !viewerIsPrivileged;
-  return {
-    anonymous,
-    label: anonymous ? "anon" : owner.github_username,
-  };
+export function resolveAttribution(owner: PublicOwner | null | undefined): {
+  anonymous: boolean;
+  label: string;
+  profile: PublicProfile | null;
+} {
+  const profile = publicProfile(owner);
+  return profile
+    ? { anonymous: false, label: profile.username, profile }
+    : { anonymous: true, label: "anon", profile: null };
+}
+
+/** An owner as a handle: `@username`, or a bare "anon" that names nobody. */
+export function ownerHandle(owner: PublicOwner | null | undefined): string {
+  const attribution = resolveAttribution(owner);
+  return attribution.anonymous ? attribution.label : `@${attribution.label}`;
 }
 
 /**

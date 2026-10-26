@@ -117,6 +117,8 @@ func postManualAnnotationAs(t *testing.T, h *Handler, viewer uuid.UUID, transcri
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+transcriptID.String()+"/annotations", bytes.NewReader(raw))
 	r.Header.Set("Content-Type", "application/json")
 	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, &AuthUser{ID: viewer, Username: "manual-viewer"}))
+	// This helper decodes the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", transcriptID.String())
 	w := httptest.NewRecorder()
 	h.CreateTranscriptAnnotation(w, r)
@@ -349,7 +351,7 @@ func requireExactManualTarget(t *testing.T, ctx context.Context, h *Handler, vie
 		t.Fatalf("mounted pull count for %s = %d, want 1", label, info.AnnotationCount)
 	}
 	pulled := pullTranscriptAssociationAnnotations(t, h, viewerID, transcriptID)
-	if len(pulled) != 1 || pulled[0].ContentHash == nil || *pulled[0].ContentHash != wantHash || pulled[0].AuthorUserID != viewerID.String() {
+	if len(pulled) != 1 || pulled[0].ContentHash == nil || *pulled[0].ContentHash != wantHash || !pulled[0].Author.IsAccount(schema.VillageUUID(viewerID.String())) {
 		t.Fatalf("mounted pull annotation refetch for %s = %+v, want only viewer label", label, pulled)
 	}
 }

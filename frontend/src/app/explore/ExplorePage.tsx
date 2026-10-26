@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useSearchCollectives } from "@/lib/queries/groups";
 import { usePopularTags } from "@/lib/queries/tags";
-import { adaptExplore } from "@/lib/adapters/explore";
+import { adaptExplore, exploreProfilePath } from "@/lib/adapters/explore";
 import {
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
@@ -84,7 +84,7 @@ export default function ExplorePage() {
   // and on the project page.
   //
   // The fold is done on the client because the response already carries every
-  // field it needs (`parent_session_id`, `owner_id`, `local_id`), with no second
+  // field it needs (`parent_session_id`, the owner, `local_id`), with no second
   // request and no change to the list contract. It only ever folds a row whose
   // parent is in this same response; a row whose parent is absent keeps its
   // ordinary browse row, so nothing is ever lost from browsing (see
@@ -281,10 +281,14 @@ export default function ExplorePage() {
             data={payload}
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
-            profileHref={(owner) => `/users/${owner.githubUsername}`}
+            profileHref={(owner) => exploreProfilePath(owner) ?? "/explore"}
             collectiveHref={(collective) => `/collectives/${collective.id}`}
             onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
-            onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
+            onOpenProfile={(owner) => {
+              // An anonymous owner has no profile to open.
+              const path = exploreProfilePath(owner);
+              if (path) router.push(path);
+            }}
             onOpenCollective={(collective) => router.push(`/collectives/${collective.id}`)}
           />
           {/* Agent-driven sessions are excluded from the rows above by the

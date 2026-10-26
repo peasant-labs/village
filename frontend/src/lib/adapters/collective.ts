@@ -16,7 +16,8 @@ import {
   type VillageUpdateGroupRequest,
 } from "@peasant-labs/schema";
 import type { CollectiveDetailView, CollectivesView } from "@peasant-labs/fairtrade/commons";
-import { resolveAttribution } from "@/lib/format";
+import { ownerHandle } from "@/lib/format";
+import { publicProfile } from "@/lib/publicOwner";
 import { formatCount } from "@/lib/ft-ui";
 import type {
   Group,
@@ -293,21 +294,15 @@ export function pullRequestCells(transcripts: readonly GroupTranscript[]): PullR
 export function collectiveTranscriptRow(
   t: GroupTranscript,
   cells: PullRequestCells,
-  viewer: { id: string | undefined; isOwner: boolean },
   now: Date,
 ): CollectiveTranscriptRow {
-  const attribution = resolveAttribution(
-    { id: t.owner_id, github_username: t.owner_username, is_discoverable: t.owner_is_discoverable },
-    viewer.id,
-    viewer.isOwner,
-  );
   const prs = cells.byTranscript.get(t.id);
   return {
     id: t.id,
     title: t.title || "untitled",
     harness: t.model_provider,
     turns: t.turn_count ?? undefined,
-    author: attribution.anonymous ? "anon" : `@${attribution.label}`,
+    author: ownerHandle(t.owner),
     pullRequests: prs?.labels ?? [],
     repo: prs?.repo ?? null,
     when: relativeWhen(t.published_at, now),
@@ -520,16 +515,17 @@ export const MEMBER_LEAVES_CHOICES: PolicyChoice[] = [
 /** A member as the settings list shows it: `@handle`, their name, their role. */
 export function settingsMember(member: GroupMember): { handle: string; name?: string; role: string } {
   return {
-    handle: `@${member.github_username}`,
-    name: member.display_name ?? undefined,
+    handle: ownerHandle(member.member),
+    name: publicProfile(member.member)?.display_name ?? undefined,
     role: member.role,
   };
 }
 
-/** The member a settings row names, found by the `@handle` the row shows. */
+/** The member a settings row names, found by the `@handle` the row shows. An
+ *  anonymous member has no handle, so no handle finds one. */
 export function memberByHandle(members: readonly GroupMember[], handle: string): GroupMember | undefined {
   const login = handle.replace(/^@/, "").toLowerCase();
-  return members.find((member) => member.github_username.toLowerCase() === login);
+  return members.find((member) => publicProfile(member.member)?.username.toLowerCase() === login);
 }
 
 /** The group fields the settings view reads, from the group the server returned. */

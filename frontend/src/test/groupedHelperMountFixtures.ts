@@ -4,6 +4,7 @@ import { parse } from "yaml";
 import { zHelperGroupSummary, type HelperGroupSummary } from "@peasant-labs/schema";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { assertNamesMatch } from "@/test/fixtureAssertions";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loader for `src/testdata/grouped-helper-mounts.yaml`.
@@ -371,10 +372,10 @@ export function memberItem(spec: MemberSpec) {
   return {
     kind: "transcript" as const,
     transcript: {
+      owner: profileOwner({ id: MEMBER_OWNER_ID, github_username: "member-owner" }),
       session: makeTranscriptFixture({
         id: memberUUID(spec.id),
         local_id: memberLocalID(spec.id),
-        owner_id: MEMBER_OWNER_ID,
         title: spec.title,
         turn_count: spec.turnCount,
         ...(spec.inputSubmissionCount === null

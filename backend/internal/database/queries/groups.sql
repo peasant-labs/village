@@ -114,7 +114,9 @@ JOIN users u ON gm.user_id = u.id
 LEFT JOIN user_github_orgs ugo ON ugo.user_id = u.id AND ugo.visible = TRUE
 WHERE gm.group_id = $1
   AND gm.role != 'pending'
-  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean)
+  -- A person who is not discoverable is listed to the collective's owners and
+  -- to themselves; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean OR u.id = sqlc.narg(viewer_id)::uuid)
 GROUP BY gm.role, gm.joined_at, u.id, u.github_username, u.display_name, u.avatar_url
 ORDER BY gm.role, u.github_username;
 
@@ -304,3 +306,28 @@ WHERE ts.transcript_id = $1
         )
       )
 ORDER BY g.name, g.id;
+
+-- name: ListTranscriptsCollectivesForViewer :many
+-- ListTranscriptCollectivesForViewer for a whole list page: the accepted
+-- memberships of many transcripts that a viewer who does NOT own them may be
+-- told about. The predicate is the single-transcript one with viewer_is_owner
+-- read per row (the viewer owns the transcript); the collectives-visibility
+-- corpus holds the two equal. The owner of a transcript keeps every accepted
+-- association on the list, as on the detail route, so the caller asks only for
+-- the transcripts it does not own.
+SELECT ts.transcript_id, g.id AS group_id
+FROM transcript_shares ts
+JOIN groups g ON g.id = ts.group_id
+JOIN transcripts t ON t.id = ts.transcript_id
+JOIN users u ON u.id = t.owner_id
+WHERE ts.transcript_id = ANY(@transcript_ids::uuid[])
+  AND ts.status = 'approved'
+  AND (u.is_discoverable = TRUE OR t.owner_id = sqlc.narg(viewer_id)::uuid)
+  AND (
+        g.data_access = 'public'
+        OR g.acceptance_mode = 'open'
+        OR EXISTS (
+            SELECT 1 FROM group_members gm2
+            WHERE gm2.group_id = g.id AND gm2.user_id = sqlc.narg(viewer_id)::uuid
+        )
+      );

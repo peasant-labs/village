@@ -1,0 +1,145 @@
+# How every route that shows a transcript owner, collective member or
+# contributor, or annotation author shows that person to each kind of viewer.
+#
+# One world per case: an owner (discoverable or not) with a public transcript
+# accepted into a public curated collective, a collective-shared transcript
+# accepted there too, a public transcript still awaiting review, and a human
+# annotation the owner made on both accepted transcripts. The collective has an
+# owner (collective_owner) and a plain member besides the transcript owner.
+#
+# Viewers: anonymous (signed out), other (signed in, no relation), member (a
+# plain member of the same collective), owner (the transcript owner),
+# collective_owner (owns the collective the owner belongs to and submitted to),
+# and relation_owner, who owns a collective of their own related to the owner
+# as the case's relation says:
+#   force_add                 relation_owner added the owner by username; the
+#                             owner did nothing.
+#   join_request              the owner has a leftover pending join request.
+#   rejected_share            the owner is a member and submitted, and the
+#                             submission was rejected.
+#   left_with_approved_share  the owner's submission was approved, then the
+#                             owner left the collective.
+#   deleted_collective        the owner submitted, then the collective was
+#                             deleted.
+# Only an act the owner took and that still stands (a pending or approved
+# submission, or a pending join request) reveals the owner's transcripts to a
+# collective owner. Membership alone does not: Village records no provenance
+# for it, and an owner can add anyone by username. Invitations the person
+# accepts are the planned replacement for owner adds.
+#
+# expect:
+#   owner:        how transcript surfaces show the owner (profile | anonymous):
+#                 detail, list, grouped list, collective library, review queue,
+#                 pull envelope.
+#   roster:       whether the collective roster and contributor list show the
+#                 owner (profile) or leave them out (absent). A person who is
+#                 not discoverable is listed only to the collective's owners
+#                 and to themselves.
+#   profile_page: GET /users/{username} and the project page (profile |
+#                 not_found). These keep their existing rule: only a
+#                 discoverable person, or the person themselves.
+#   annotator:    a human annotation's annotator name (name | anon).
+#   filter:       whether ?owner=, ?org=, ?project= and ?repo= on the
+#                 transcript lists match the owner's transcripts (match | empty).
+#   pull:         whether the viewer can pull the collective-shared transcript.
+#   review:       whether the viewer reads the review queue.
+#   my_shares:    whether the viewer reads their own submissions.
+#   relation_roster: how relation_owner's own collective roster shows the
+#                 owner (profile | absent), or none when it has no collective.
+#                 A collective's owners see every member and join request as a
+#                 profile, so they can manage them.
+
+- name: discoverable_owner_to_anonymous_viewer
+  why: a discoverable owner is shown to everyone, signed in or not
+  owner_discoverable: true
+  viewer: anonymous
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: false, review: false, my_shares: false}
+
+- name: discoverable_owner_to_other_viewer
+  why: a discoverable owner is shown to an unrelated signed-in viewer
+  owner_discoverable: true
+  viewer: other
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: false, review: false, my_shares: false}
+
+- name: discoverable_owner_to_member_viewer
+  why: a discoverable owner is shown to a member, who may also pull the shared transcript
+  owner_discoverable: true
+  viewer: member
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: true, review: false, my_shares: false}
+
+- name: discoverable_owner_to_themselves
+  why: the owner always sees their own profile
+  owner_discoverable: true
+  viewer: owner
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: true, review: false, my_shares: true}
+
+- name: discoverable_owner_to_collective_owner
+  why: a collective owner sees a discoverable submitter like anyone else
+  owner_discoverable: true
+  viewer: collective_owner
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: true, review: true, my_shares: false}
+
+- name: hidden_owner_to_anonymous_viewer
+  why: a hidden owner is anonymous to a signed-out viewer on every route, the public transcript included
+  owner_discoverable: false
+  viewer: anonymous
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false}
+
+- name: hidden_owner_to_other_viewer
+  why: a hidden owner is anonymous to an unrelated signed-in viewer, and the owner filter cannot name them
+  owner_discoverable: false
+  viewer: other
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false}
+
+- name: hidden_owner_to_member_viewer
+  why: joining reveals a profile to the collective's owners only; other members still see anonymous, the pull envelope included
+  owner_discoverable: false
+  viewer: member
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: true, review: false, my_shares: false}
+
+- name: hidden_owner_to_themselves
+  why: a hidden owner still sees their own profile everywhere they appear, the collective roster and contributor list included
+  owner_discoverable: false
+  viewer: owner
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: true, review: false, my_shares: true}
+
+- name: hidden_owner_to_collective_owner
+  why: the owner of a collective the hidden owner joined and submitted to sees their profile, as the join dialog promises
+  owner_discoverable: false
+  viewer: collective_owner
+  expect: {owner: profile, roster: profile, profile_page: not_found, annotator: name, filter: match, pull: true, review: true, my_shares: false}
+
+- name: hidden_owner_force_added_by_unrelated_owner
+  why: adding a person by username reveals them in that owner's roster but nothing about their transcripts
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: force_add
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: profile}
+
+- name: hidden_owner_with_pending_join_request
+  why: a join request the person made reveals their profile to that collective's owners
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: join_request
+  expect: {owner: profile, roster: absent, profile_page: not_found, annotator: name, filter: match, pull: false, review: false, my_shares: false, relation_roster: profile}
+
+- name: hidden_owner_with_rejected_share
+  why: a rejected submission no longer stands, and the membership alone reveals nothing
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: rejected_share
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: profile}
+
+- name: hidden_owner_left_with_approved_share
+  why: an approved submission still stands after the person leaves, so its collective's owners still see whose it is
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: left_with_approved_share
+  expect: {owner: profile, roster: absent, profile_page: not_found, annotator: name, filter: match, pull: false, review: false, my_shares: false, relation_roster: absent}
+
+- name: hidden_owner_submitted_to_deleted_collective
+  why: a deleted collective's former owner keeps no relation to the person
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: deleted_collective
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: none}

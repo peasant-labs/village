@@ -21,6 +21,8 @@ import {
   whoCanReadChoices,
   type CollectiveSettingKey,
 } from "@/lib/adapters/collective";
+import { ownerHandle } from "@/lib/format";
+import { publicProfile } from "@/lib/publicOwner";
 import type { Group, GroupMember } from "@/lib/types";
 import type { CollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
 import ChoiceCards from "./ChoiceCards";
@@ -144,18 +146,20 @@ export function MembersSection({
       </form>
 
       <ul className="on-mem-list" aria-label="members">
-        {members.map((member) => {
-          const at = `@${member.github_username}`;
+        {members.map((member, index) => {
+          const profile = publicProfile(member.member);
+          const at = ownerHandle(member.member);
           return (
-            <li key={member.id} className="on-mem">
+            <li key={profile?.id ?? `anonymous-${index}`} className="on-mem">
               <span aria-hidden="true">
-                <Avatar name={member.display_name || member.github_username} size="sm" src={member.avatar_url ?? undefined} />
+                <Avatar name={profile?.display_name || (profile?.username ?? at)} size="sm" src={profile?.avatar_url ?? undefined} />
               </span>
               <span className="on-handle">
                 <span className="on-mem-login">{at}</span>
-                {member.display_name && <span className="on-mem-name">{member.display_name}</span>}
+                {profile?.display_name && <span className="on-mem-name">{profile.display_name}</span>}
               </span>
-              {member.role === "owner" ? (
+              {/* A member the server did not name carries no id to act on. */}
+              {member.role === "owner" || !profile ? (
                 <span className="on-chrome">owner</span>
               ) : (
                 <span className="select-wrap">
@@ -170,7 +174,7 @@ export function MembersSection({
                   </select>
                 </span>
               )}
-              {member.role === "owner" ? (
+              {member.role === "owner" || !profile ? (
                 <span />
               ) : (
                 <button

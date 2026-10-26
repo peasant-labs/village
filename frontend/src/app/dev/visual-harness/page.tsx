@@ -35,8 +35,8 @@ type Theme = "dark" | "light";
  * `transcriptChrome` builders instead of a hand-copied second rule.
  */
 const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared package";
-/** Stands in for the owner's `github_username` and the transcript's
- *  `project_hash` — mirrors `ownerUsername`/`projectHash` in
+/** Stands in for the owner's profile and the transcript's
+ *  `project_hash` — mirrors `owner`/`projectHash` in
  *  `SessionDetailV2`, fed into `buildProjectHref` below so the harness
  *  captures a real breadcrumb href rather than a label-only crumb. */
 const SAMPLE_OWNER_USERNAME = "demo-owner";
@@ -106,7 +106,10 @@ export default function VisualHarnessPage() {
   const handleLabelSave = async (label: TurnLabel): Promise<TurnLabel> => label;
 
   const project = sampleSession.project ?? "transcript";
-  const projectHref = buildProjectHref(SAMPLE_OWNER_USERNAME, SAMPLE_PROJECT_HASH);
+  const projectHref = buildProjectHref(
+    { kind: "profile", id: "00000000-0000-4000-8000-000000000001", username: SAMPLE_OWNER_USERNAME, display_name: null, avatar_url: null },
+    SAMPLE_PROJECT_HASH,
+  );
 
   return (
     <div

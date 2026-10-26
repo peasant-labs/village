@@ -29,6 +29,7 @@ import {
   type LowercaseChromeCase,
 } from "@/test/lowercaseChromeFixtures";
 import type { GroupTranscript, UserGroupShare } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 // Mounts each surface the lowercase pass covers, through its real component or
 // route, and reads what a person sees or hears there as chrome. See
@@ -150,7 +151,6 @@ function groupTranscript(): GroupTranscript {
     pull_requests: { count: 0, recent: [] },
     ...makeTranscriptFixture({
       id: TRANSCRIPT_ID,
-      owner_id: `user-${content.viewer}`,
       title: content.transcript,
       project_name: "village",
       project_display_name: "village",
@@ -161,18 +161,17 @@ function groupTranscript(): GroupTranscript {
     outcome: null,
     source_format: null,
     subagents: null,
-    owner_username: content.viewer,
-    owner_avatar_url: null,
-    owner_is_discoverable: true,
+    owner: profileOwner({ id: `user-${content.viewer}`, github_username: content.viewer }),
   };
 }
 
 function myShare(id: string, status: "approved" | "pending"): UserGroupShare {
   return {
     id,
-    owner_id: `user-${content.viewer}`,
+    owner: profileOwner({ id: `user-${content.viewer}`, github_username: content.viewer }),
     local_id: `local-${id}`,
     parent_session_id: null,
+    parent_transcript_id: null,
     title: content.transcript,
     model_provider: HARNESS,
     model_name: "claude-fable-5",
@@ -262,7 +261,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
                   owner,
                   name,
                   is_private: true,
-                  linked_by: "user-owner",
+                  linked_by: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
                   created_at: WHEN,
                   last_synced_at: WHEN,
                 },
@@ -346,14 +345,13 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
                 transcript_id: "transcript-pending",
                 title: content.transcript,
                 model_provider: HARNESS,
-                owner_id: "user-bob",
+                owner: profileOwner({ id: "user-bob", github_username: "bob" }),
                 local_id: "local-pending",
                 parent_session_id: null,
+                parent_transcript_id: null,
                 project_hash: "village-project",
                 project_name: "village",
                 branch: "main",
-                owner_username: "bob",
-                owner_is_discoverable: true,
                 shared_at: WHEN,
               },
             ]
@@ -440,7 +438,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
                       linked_github_org: null,
                       display_members: true,
                       transcript_deletion_policy: "user_choice",
-                      created_by: "user-owner",
+                      creator: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
                       created_at: WHEN,
                       updated_at: WHEN,
                       acceptance_mode: "open",

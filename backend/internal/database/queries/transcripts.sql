@@ -388,3 +388,77 @@ SELECT COUNT(*)::int AS total_transcripts,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts
 WHERE owner_id = $1;
+
+-- name: ListTranscriptsByOwnerLocalIDs :many
+-- The transcripts published from named sessions, each within its own owner:
+-- a session id is unique only per owner (UNIQUE (owner_id, local_id)). Read
+-- lists use it to resolve a child session's parent transcript at read time,
+-- and keep a parent only when the viewer may read it. Both columns are
+-- matched as sets, so the caller keeps only the exact (owner, session) pairs it
+-- asked for; the (owner_id, local_id) unique index serves the lookup.
+SELECT t.id, t.owner_id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = ANY(@owner_ids::uuid[])
+  AND t.local_id = ANY(@local_ids::text[]);
+
+-- name: ListOwnersMatchingRepositoryFilter :many
+-- The owners with at least one transcript matching the transcript lists'
+-- repository filters (project name, repository, project hash), counting only
+-- transcripts the viewer may read (the read policy of
+-- ListReadableTranscriptIDs). The handler keeps only the owners the viewer may
+-- see as a profile before filtering, so a repository filter never matches a
+-- transcript whose repository is withheld from this viewer. An empty filter
+-- matches every value.
+SELECT DISTINCT t.owner_id
+FROM transcripts t
+WHERE (@project_pattern::text = '' OR t.project_name ILIKE @project_pattern::text)
+  AND (@repository_pattern::text = '' OR t.git_remote ILIKE @repository_pattern::text)
+  AND (@project_hash::text = '' OR t.project_hash = @project_hash::text)
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = sqlc.narg(viewer_id)::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role = 'owner'
+        )
+      );
+
+-- name: ListReadableTranscriptIDs :many
+-- Which of the named transcripts a viewer may read, for a whole page at once.
+-- It is the transcript read policy (handler.transcriptViewAccess) in one
+-- statement: public; or the viewer owns it; or it is collective-shared with an
+-- approved share to a collective where the viewer holds an accepted role
+-- (owner, member, contributor); or the viewer owns a collective holding any
+-- share of it (the review preview). A test holds the two equal per viewer and
+-- transcript. A NULL viewer reads public transcripts only.
+SELECT t.id
+FROM transcripts t
+WHERE t.id = ANY(@transcript_ids::uuid[])
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = sqlc.narg(viewer_id)::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role = 'owner'
+        )
+      );

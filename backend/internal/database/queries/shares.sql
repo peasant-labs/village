@@ -60,13 +60,9 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
-       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-       u.github_username   AS owner_username,
-       u.avatar_url        AS owner_avatar_url,
-       u.is_discoverable   AS owner_is_discoverable
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
-JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
 ORDER BY t.published_at DESC
 LIMIT $2 OFFSET $3;
@@ -116,15 +112,14 @@ WHERE ts.transcript_id = ANY($1::uuid[]) AND ts.status = 'approved';
 -- queue grouped the same way a contributor reads the contribute tree:
 -- project > branch > session. project_name is the publisher's own label for
 -- the project and may be absent, so a reader falls back to project_hash.
+-- The submitter is owner_id only: the handler shows them as the reviewer may
+-- see them (ListPublicOwnersForViewer), never from columns read here.
 SELECT ts.transcript_id, t.title, t.model_provider,
        t.owner_id, t.local_id, t.parent_session_id,
        t.project_hash, t.project_name, t.git_branch as branch,
-       u.github_username as owner_username,
-       u.is_discoverable as owner_is_discoverable,
        ts.shared_at
 FROM transcript_shares ts
 JOIN transcripts t ON ts.transcript_id = t.id
-JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'pending'
 ORDER BY ts.shared_at;
 
@@ -241,7 +236,9 @@ FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
-  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean)
+  -- Listed to the collective's owners and to the person themselves when not
+  -- discoverable; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean OR u.id = sqlc.narg(viewer_id)::uuid)
 GROUP BY u.id, u.github_username, u.avatar_url
 ORDER BY transcript_count DESC;
 

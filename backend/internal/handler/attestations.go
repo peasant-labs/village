@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -83,7 +86,56 @@ func (h *Handler) CreateAttestation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, attestation)
+	response, err := h.attestationsForViewer(r.Context(), user, []sqlc.ListTranscriptAttestationsRow{{
+		ID: attestation.ID, TranscriptID: attestation.TranscriptID, OrgLogin: attestation.OrgLogin,
+		AttestationType: attestation.AttestationType, Note: attestation.Note, CreatedAt: attestation.CreatedAt,
+		AttesterID: attestation.AttesterID,
+	}})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "The attestation was recorded, but its attester could not be shown; reload the transcript")
+		return
+	}
+	writeJSON(w, http.StatusCreated, response[0])
+}
+
+// attestationResponse is one attestation with its attester as the viewer may
+// see them. An owner who attests their own transcript is otherwise named
+// beside their anonymous owner field.
+type attestationResponse struct {
+	ID              pgtype.UUID               `json:"id"`
+	TranscriptID    pgtype.UUID               `json:"transcript_id"`
+	OrgLogin        string                    `json:"org_login"`
+	AttestationType string                    `json:"attestation_type"`
+	Note            pgtype.Text               `json:"note"`
+	CreatedAt       pgtype.Timestamptz        `json:"created_at"`
+	Attester        schema.VillagePublicOwner `json:"attester"`
+}
+
+// attestationsForViewer resolves every attester on a transcript in one read.
+func (h *Handler) attestationsForViewer(ctx context.Context, viewer *AuthUser, rows []sqlc.ListTranscriptAttestationsRow) ([]attestationResponse, error) {
+	ids := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.AttesterID)
+	}
+	attesters, err := h.resolvePublicOwners(ctx, viewer, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]attestationResponse, 0, len(rows))
+	for _, row := range rows {
+		attester := attesters.of(row.AttesterID)
+		// The organization is one the attester belongs to, so it is blank
+		// beside an anonymous attester.
+		orgLogin := row.OrgLogin
+		if !attester.IsProfile() {
+			orgLogin = ""
+		}
+		out = append(out, attestationResponse{
+			ID: row.ID, TranscriptID: row.TranscriptID, OrgLogin: orgLogin, AttestationType: row.AttestationType,
+			Note: row.Note, CreatedAt: row.CreatedAt, Attester: attester,
+		})
+	}
+	return out, nil
 }
 
 // DeleteAttestation removes an attestation (only the attester can delete their own).
@@ -129,9 +181,14 @@ func (h *Handler) ListTranscriptAttestations(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	attestations, err := h.queries.ListTranscriptAttestations(r.Context(), toPgUUID(id))
+	rows, err := h.queries.ListTranscriptAttestations(r.Context(), toPgUUID(id))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch attestations")
+		return
+	}
+	attestations, err := h.attestationsForViewer(r.Context(), user, rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the attesters")
 		return
 	}
 

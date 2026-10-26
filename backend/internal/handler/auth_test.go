@@ -43,6 +43,7 @@ type mockQuerier struct {
 	upsertUser                   func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
 	upsertUserByProvider         func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	getUserByID                  func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
+	listPublicOwnersForViewer    func(ctx context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error)
 	getUserByProviderIdentity    func(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
 	getUserByUsername            func(ctx context.Context, githubUsername string) (sqlc.User, error)
 	getUserVisibleOrgsByUsername func(ctx context.Context, githubUsername string) ([]sqlc.GetUserVisibleOrgsByUsernameRow, error)
@@ -1579,11 +1580,68 @@ func (m *mockQuerier) GetOwnerTranscriptTotals(ctx context.Context, ownerID pgty
 	panic("GetOwnerTranscriptTotals: not stubbed")
 }
 
-func (m *mockQuerier) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error) {
-	if m.listUsersByIDs != nil {
-		return m.listUsersByIDs(ctx, ids)
+func (m *mockQuerier) ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg sqlc.ListTranscriptsByOwnerLocalIDsParams) ([]sqlc.ListTranscriptsByOwnerLocalIDsRow, error) {
+	return []sqlc.ListTranscriptsByOwnerLocalIDsRow{}, nil
+}
+
+func (m *mockQuerier) ListReadableTranscriptIDs(ctx context.Context, arg sqlc.ListReadableTranscriptIDsParams) ([]pgtype.UUID, error) {
+	return []pgtype.UUID{}, nil
+}
+
+func (m *mockQuerier) ListTranscriptsCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptsCollectivesForViewerParams) ([]sqlc.ListTranscriptsCollectivesForViewerRow, error) {
+	return []sqlc.ListTranscriptsCollectivesForViewerRow{}, nil
+}
+
+func (m *mockQuerier) ListOwnersMatchingRepositoryFilter(ctx context.Context, arg sqlc.ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error) {
+	return []pgtype.UUID{}, nil
+}
+
+func (m *mockQuerier) ListUserIDsWithVisibleOrg(ctx context.Context, orgLogin string) ([]pgtype.UUID, error) {
+	return []pgtype.UUID{}, nil
+}
+
+// ListPublicOwnersForViewer answers from the user stubs a test already set:
+// a stubbed person is visible when discoverable or when they are the viewer.
+// The collective-owner arm of the rule is SQL and is proven by integration
+// tests against PostgreSQL, not by this mock.
+func (m *mockQuerier) ListPublicOwnersForViewer(ctx context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error) {
+	if m.listPublicOwnersForViewer != nil {
+		return m.listPublicOwnersForViewer(ctx, arg)
 	}
-	return []sqlc.User{}, nil
+	var users []sqlc.User
+	switch {
+	case m.listUsersByIDs != nil:
+		found, err := m.listUsersByIDs(ctx, arg.PersonIds)
+		if err != nil {
+			return nil, err
+		}
+		users = found
+	case m.getUserByID != nil:
+		for _, id := range arg.PersonIds {
+			user, err := m.getUserByID(ctx, id)
+			if err != nil {
+				continue
+			}
+			users = append(users, user)
+		}
+	}
+	if users == nil && arg.ViewerID.Valid {
+		// With no user stubs, the viewer's own account still exists, as it
+		// does for any signed-in caller, and the viewer always sees it.
+		for _, id := range arg.PersonIds {
+			if id == arg.ViewerID {
+				users = append(users, sqlc.User{ID: id, GithubUsername: "mock-viewer"})
+			}
+		}
+	}
+	rows := []sqlc.ListPublicOwnersForViewerRow{}
+	for _, user := range users {
+		rows = append(rows, sqlc.ListPublicOwnersForViewerRow{
+			ID: user.ID, GithubUsername: user.GithubUsername, DisplayName: user.DisplayName, AvatarUrl: user.AvatarUrl,
+			ProfileVisible: user.IsDiscoverable || (arg.ViewerID.Valid && user.ID == arg.ViewerID),
+		})
+	}
+	return rows, nil
 }
 
 func (m *mockQuerier) ListTagsByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error) {

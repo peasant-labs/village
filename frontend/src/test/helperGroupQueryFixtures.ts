@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import { zHelperGroupSummary } from "@peasant-labs/schema";
 import type { Transcript } from "@/lib/types";
+import type { PublicOwner } from "@/lib/publicOwner";
 
 interface HelperQueryCase {
   name: string;
@@ -38,5 +39,6 @@ export function loadHelperGroupQueryFixtures() {
   for (const name of ["nested-independent-scope", "nested-expiry-keeps-parent"]) {
     if (!names.has(name)) throw new Error(`required nested query fixture missing: ${name}`);
   }
-  return { group, nestedGroup, row: root.row as Partial<Transcript>, nestedRow: root.nestedRow as Partial<Transcript>, cases };
+  if (!root.owner || typeof root.owner !== "object") throw new Error("helper query fixture lacks the rows' owner");
+  return { group, nestedGroup, owner: root.owner as PublicOwner, row: root.row as Partial<Transcript>, nestedRow: root.nestedRow as Partial<Transcript>, cases };
 }

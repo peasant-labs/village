@@ -148,7 +148,7 @@ export default function GroupDetailPage({
 
   const readable = shown > PAGE_SIZE && longer.data ? longer.data : (data.transcripts ?? []);
   const cells = pullRequestCells(readable);
-  const rows = readable.map((t) => collectiveTranscriptRow(t, cells, { id: user?.id, isOwner }, now));
+  const rows = readable.map((t) => collectiveTranscriptRow(t, cells, now));
   const total = stats?.total_transcripts ?? rows.length;
 
   const policy: PolicyInput = {
@@ -298,7 +298,7 @@ export default function GroupDetailPage({
           id: def.id,
           label: def.label,
           count: pending.data?.length,
-          panel: <CollectiveWaiting collectiveId={id} pending={pending} viewerId={user?.id} />,
+          panel: <CollectiveWaiting collectiveId={id} pending={pending} />,
         };
       case "members":
         return {

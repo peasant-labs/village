@@ -54,7 +54,8 @@ func TestGroupedSessionFromTranscriptProjectsStoredDiagnosticEntries(t *testing.
 		!strings.Contains(warning.Message, "24 control message rows") || warning.Remediation != "No action is required" {
 		t.Fatalf("a stored diagnostic entry was altered during grouped projection; got %+v", warning)
 	}
-	if err := (schema.VillageSessionRow{Session: session}).Validate(); err != nil {
+	owner := schema.NewVillagePublicProfile("17dab359-74c3-4181-a19d-6cf094cc8700", "photocraft-owner", nil, nil)
+	if err := (schema.VillageSessionRow{Session: session, Owner: owner}).Validate(); err != nil {
 		t.Fatalf("the projected session must satisfy the canonical row shape: %v", err)
 	}
 }
