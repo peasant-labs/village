@@ -2,8 +2,9 @@
  *
  * Reaches `/settings` the way a person does, from the account menu, and checks
  * the page's rows: the handle, the discoverable switch, the automatic pull
- * request row, the account peasant signs in with, where peasant is signed in,
- * and the danger zone, and that the section list beside them leads to each. Then it opens the page
+ * request row, the email section (no address yet, so the form to add one),
+ * the account peasant signs in with, where peasant is signed in, and the
+ * danger zone, and that the section list beside them leads to each. Then it opens the page
  * for a person whose peasant is signed in nowhere, and tries a handle somebody
  * else holds. Each test records its still frame, the accessible tree and an axe
  * report.
@@ -50,6 +51,9 @@ test.describe('account settings', () => {
     const autoLink = page.getByRole('switch', { name: 'link my transcripts to my pull requests automatically' })
     await expect(autoLink).toBeEnabled()
     await expect(autoLink).toHaveAttribute('aria-checked', 'false')
+    // No notification address yet: the email section offers to add one.
+    await expect(page.getByTestId('settings-email-form')).toContainText('email address')
+    await expect(page.getByTestId('settings-email-address')).toHaveCount(0)
     await expect(page.getByTestId('settings-sign-in-account')).toContainText('alice-dev')
     // Two working sign-ins; the revoked one is not counted.
     await expect(page.getByTestId('settings-peasant')).toContainText('peasant on 2 computers')
@@ -58,7 +62,7 @@ test.describe('account settings', () => {
 
     // The section list leads to each section by its anchor.
     const sections = page.getByRole('navigation', { name: 'settings sections' })
-    await expect(sections.getByRole('link')).toHaveText(['profile', 'organizations', 'pull requests', 'connections', 'danger zone'])
+    await expect(sections.getByRole('link')).toHaveText(['profile', 'organizations', 'pull requests', 'email', 'connections', 'danger zone'])
     await sections.getByRole('link', { name: 'danger zone' }).click()
     await expect(page).toHaveURL(/\/settings#danger-zone$/)
     await expect(page.getByTestId('settings-danger')).toBeInViewport()
