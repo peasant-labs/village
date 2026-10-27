@@ -63,12 +63,15 @@ describe("mounted transcript route: pull request list", () => {
         enriched_shares: [],
         pull_requests: c.pullRequests,
       };
-      const fetchMock = installRESTFixture(transcriptID, metadata, detail, "transcript-pull-requests", undefined, (url) =>
+      // A signed-in reader, whose rows open the pull request's page (signed
+      // out they are plain text: `signed-out-transcript.yaml`).
+      const reader = { id: "fixture-reader", github_username: "fixture-reader", orgs: [] };
+      const fetchMock = installRESTFixture(transcriptID, metadata, detail, "transcript-pull-requests", reader, (url) =>
         c.status !== 200 && url.endsWith(`/transcripts/${transcriptID}/pulls`)
           ? new Response(JSON.stringify({ error: "read failed" }), { status: c.status })
           : undefined,
       );
-      await renderProductionRoute(transcriptID);
+      await renderProductionRoute(transcriptID, "", { signedIn: true });
       await waitFor(() => expect(document.querySelector(".txn-title")).not.toBeNull());
       await waitFor(() =>
         expect(fetchMock.mock.calls.some((call) => String(call[0]).endsWith(`/transcripts/${transcriptID}/pulls`))).toBe(true),

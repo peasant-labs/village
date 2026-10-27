@@ -30,7 +30,7 @@ func collectiveAliasRoutes(t *testing.T) []collectiveAliasRoute {
 	required := map[string]bool{
 		"public-collectives": false, "search-collectives-query": false, "create-collective-body": false, "membership-list": false, "visible-list": false,
 		"collective-detail-id": false, "update-collective-body": false, "delete-collective-owner-refusal": false, "join-existing-membership": false,
-		"add-member-body": false, "member-role-user-id-body": false, "remove-member-owner-refusal": false, "contributable-flat": false,
+		"invite-body": false, "invitations-list": false, "member-role-user-id-body": false, "remove-member-owner-refusal": false, "contributable-flat": false,
 		"batch-share-body": false, "pending-query": false, "my-shares-query": false, "batch-review-body": false, "single-review-transcript-id-body": false,
 		"remove-transcript-owner-refusal": false, "repository-list": false, "link-repository-config-refusal": false,
 		"available-repositories-query": false, "unlink-repository-parameters": false, "repository-commits-query": false,

@@ -67,7 +67,8 @@ export function buildProjectHref(
 }
 
 export interface TranscriptBreadcrumbInput {
-  /** Signed-out readers have no home link: the root is their sign-in page. */
+  /** A signed-out reader gets the same trail with no links: every place it
+   *  names (home, collectives, pull requests, the project page) needs a session. */
   isLoggedIn?: boolean;
   /** The one server-resolved project display name (`Transcript.project_display_name`)
    *  — never a locally re-derived name. `null` when the server withheld it
@@ -109,6 +110,16 @@ export function buildTranscriptBreadcrumb({
   context,
   collectiveName,
 }: TranscriptBreadcrumbInput): TranscriptBreadcrumbCrumb[] {
+  const trail = placeTrail({ project, projectHref, context, collectiveName });
+  return isLoggedIn ? trail : trail.map(({ label }) => ({ label }));
+}
+
+function placeTrail({
+  project,
+  projectHref,
+  context,
+  collectiveName,
+}: TranscriptBreadcrumbInput): TranscriptBreadcrumbCrumb[] {
   if (context?.kind === "collective") {
     return [
       { label: "collectives", href: "/collectives" },
@@ -123,7 +134,7 @@ export function buildTranscriptBreadcrumb({
     ];
   }
   return [
-    { label: HOME_SECTION.label, ...(isLoggedIn ? { href: HOME_SECTION.href } : {}) },
+    { label: HOME_SECTION.label, href: HOME_SECTION.href },
     ...(project == null ? [] : [{ label: project, ...(projectHref ? { href: projectHref } : {}) }]),
   ];
 }

@@ -12,20 +12,32 @@
 # collective_owner (owns the collective the owner belongs to and submitted to),
 # and relation_owner, who owns a collective of their own related to the owner
 # as the case's relation says:
-#   force_add                 relation_owner added the owner by username; the
+#   force_add                 relation_owner added the owner by username before
+#                             invitations existed (a legacy membership); the
 #                             owner did nothing.
 #   join_request              the owner has a leftover pending join request.
+#   self_join                 the owner joined relation_owner's open collective
+#                             themselves.
+#   invitation_pending        relation_owner invited the owner, who has not
+#                             answered.
+#   invitation_accepted       relation_owner invited the owner, who accepted.
+#   invitation_declined       relation_owner invited the owner, who declined.
+#   invitation_revoked        relation_owner invited the owner, then revoked it.
+#   legacy_accepts_invitation the owner was a legacy member, then accepted an
+#                             invitation, which records their consent.
 #   rejected_share            the owner is a member and submitted, and the
 #                             submission was rejected.
 #   left_with_approved_share  the owner's submission was approved, then the
 #                             owner left the collective.
 #   deleted_collective        the owner submitted, then the collective was
 #                             deleted.
-# Only an act the owner took and that still stands (a pending or approved
-# submission, or a pending join request) reveals the owner's transcripts to a
-# collective owner. Membership alone does not: Village records no provenance
-# for it, and an owner can add anyone by username. Invitations the person
-# accepts are the planned replacement for owner adds.
+# Only an act the owner took and that still stands reveals the owner's
+# transcripts to a collective owner: a membership they consented to (they
+# joined themselves or accepted an invitation), a pending or approved
+# submission, or a pending join request. A legacy membership does not: it
+# predates provenance, and an owner could add anyone by username then. An
+# invitation the owner has not accepted reveals nothing, and neither does a
+# declined or revoked one.
 #
 # expect:
 #   owner:        how transcript surfaces show the owner (profile | anonymous):
@@ -110,7 +122,7 @@
   expect: {owner: profile, roster: profile, profile_page: not_found, annotator: name, filter: match, pull: true, review: true, my_shares: false}
 
 - name: hidden_owner_force_added_by_unrelated_owner
-  why: adding a person by username reveals them in that owner's roster but nothing about their transcripts
+  why: a legacy membership an owner created by username reveals the person in that owner's roster but nothing about their transcripts
   owner_discoverable: false
   viewer: relation_owner
   relation: force_add
@@ -143,3 +155,45 @@
   viewer: relation_owner
   relation: deleted_collective
   expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: none}
+
+- name: hidden_owner_who_joined_themselves
+  why: joining a collective is the person's own act, so that collective's owners see their profile
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: self_join
+  expect: {owner: profile, roster: absent, profile_page: not_found, annotator: name, filter: match, pull: false, review: false, my_shares: false, relation_roster: profile}
+
+- name: hidden_owner_invited_not_accepted
+  why: an invitation the person has not answered reveals nothing about them to the inviting owner
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: invitation_pending
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: absent}
+
+- name: hidden_owner_accepted_invitation
+  why: accepting an invitation is consent, so that collective's owners see the person's profile
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: invitation_accepted
+  expect: {owner: profile, roster: absent, profile_page: not_found, annotator: name, filter: match, pull: false, review: false, my_shares: false, relation_roster: profile}
+
+- name: hidden_owner_declined_invitation
+  why: declining reveals nothing; the owner cannot tell it from no answer
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: invitation_declined
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: absent}
+
+- name: hidden_owner_invitation_revoked
+  why: a revoked invitation leaves nothing behind
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: invitation_revoked
+  expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: false, review: false, my_shares: false, relation_roster: absent}
+
+- name: hidden_legacy_member_accepted_invitation
+  why: a legacy member who accepts an invitation has consented, and their membership records it
+  owner_discoverable: false
+  viewer: relation_owner
+  relation: legacy_accepts_invitation
+  expect: {owner: profile, roster: absent, profile_page: not_found, annotator: name, filter: match, pull: false, review: false, my_shares: false, relation_roster: profile}

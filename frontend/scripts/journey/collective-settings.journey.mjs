@@ -82,9 +82,9 @@ test.describe('collective settings', () => {
     await page.goto(`${SETTINGS}?section=members`)
     await expect(page.getByRole('combobox', { name: 'role for @bob-ai' })).toHaveValue('member')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('members')
-    // An invite in an earlier journey adds to the member list the mock's reset starts from, so the list holds whoever is there.
+    // The member list holds whoever the mock's reset starts from; an invitation never adds to it.
     await expect(page.getByRole('list', { name: 'members' })).toContainText('@bob-ai')
-    await expect(page.getByLabel('invite by github username')).toBeVisible()
+    await expect(page.getByLabel('invite by username')).toBeVisible()
   })
 
   test('keeps its section bar on a phone', async ({ page, theme }) => {
@@ -171,7 +171,7 @@ test.describe('collective settings', () => {
     await page.goto(`${SETTINGS}?section=members`)
     await expectTheme(page, theme)
     await page.getByRole('button', { name: 'find a github user to invite' }).click()
-    const dialog = page.getByRole('dialog', { name: 'invite a github user' })
+    const dialog = page.getByRole('dialog', { name: 'invite by username' })
     await dialog.getByRole('combobox', { name: 'github username' }).fill(entry.query)
     const choice = dialog.getByRole('menuitem', { name: entry.handle })
     await expect(choice).toBeVisible()
@@ -187,12 +187,13 @@ test.describe('collective settings', () => {
     await still(page, testInfo, 'settings-github-user-search')
     await axe(page, testInfo)
     await choice.click()
-    const invited = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/members'))
+    const invited = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/invitations'))
     await dialog.getByRole('button', { name: 'invite', exact: true }).click()
     expect((await invited).request().postDataJSON()).toEqual({ username: entry.handle })
     await expect(dialog).not.toBeVisible()
-    await expect(page.getByTestId('collective-notice')).toContainText(`@${entry.handle} can now publish here.`)
-    await expect(page.getByRole('list', { name: 'members' })).toContainText(`@${entry.handle}`)
+    await expect(page.getByTestId('collective-notice')).toContainText(`if @${entry.handle} has a village account they'll see it. we don't say whether they do.`)
+    // The invited person is listed under the roster as the handle typed, not added to it.
+    await expect(page.getByRole('region', { name: 'invited' })).toContainText(`@${entry.handle.toLowerCase()}`)
   })
 
   test('deletes the collective only after the owner says they understand', async ({ page, theme }, testInfo) => {

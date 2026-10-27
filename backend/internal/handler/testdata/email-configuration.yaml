@@ -1,0 +1,10 @@
+# Email is on only when all three variables are set and the signing key is at
+# least 32 characters. Every other combination leaves it off, so setting an
+# address answers 501 and nothing is ever sent.
+- {name: nothing_set_is_off, api_key: '', from: '', signing_key: '', enabled: false}
+- {name: key_missing_is_off, api_key: '', from: 'village <v@example.test>', signing_key: 0123456789abcdef0123456789abcdef, enabled: false}
+- {name: sender_missing_is_off, api_key: re_key, from: '', signing_key: 0123456789abcdef0123456789abcdef, enabled: false}
+- {name: signing_key_missing_is_off, api_key: re_key, from: 'village <v@example.test>', signing_key: '', enabled: false}
+- {name: short_signing_key_is_off, api_key: re_key, from: 'village <v@example.test>', signing_key: too-short, enabled: false}
+- {name: blank_values_are_off, api_key: '   ', from: '   ', signing_key: '   ', enabled: false}
+- {name: all_three_set_is_on, api_key: re_key, from: 'village <v@example.test>', signing_key: 0123456789abcdef0123456789abcdef, enabled: true}

@@ -49,7 +49,7 @@ func TestCollectiveAliasMountedPostgresParity(t *testing.T) {
 	if _, err := pool.Exec(ctx, "INSERT INTO groups(id,name,created_by,acceptance_mode,data_access) VALUES($1,'alias-fixture',$2,'open','public')", group, owner); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, "INSERT INTO group_members(group_id,user_id,role) VALUES($1,$2,'owner')", group, owner); err != nil {
+	if _, err := pool.Exec(ctx, "INSERT INTO group_members(group_id,user_id,role, origin) VALUES ($1, $2, 'owner', 'legacy')", group, owner); err != nil {
 		t.Fatal(err)
 	}
 	const secret = "disposable-alias-jwt-secret"

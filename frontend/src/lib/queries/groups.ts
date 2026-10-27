@@ -43,10 +43,11 @@ export function useCollectiveReadBinding() {
  * row is a membership and carries a role. For the browse surface, which shows
  * every collective a person may see, use {@link useVisibleGroups}.
  */
-export function useGroups() {
+export function useGroups(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["groups"],
     queryFn: () => api<Group[]>("/collectives"),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -190,20 +191,6 @@ export function usePromoteMember() {
       api(`/collectives/${groupId}/members/${userId}/role`, {
         method: "PATCH",
         body: JSON.stringify({ role }),
-      }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-    },
-  });
-}
-
-export function useAddGroupMember() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ groupId, username }: { groupId: string; username: string }) =>
-      api(`/collectives/${groupId}/members`, {
-        method: "POST",
-        body: JSON.stringify({ username }),
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.groupId] });

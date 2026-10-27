@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -106,6 +107,13 @@ type Handler struct {
 	// posting work fills it in; a test injects a recording dispatcher to prove
 	// which event reached which method.
 	githubDispatcher github.Dispatcher
+
+	// mail is Village's email, nil when the deployment configures none; then
+	// setting an address answers 501 and invitations exist in the app only.
+	// A test injects one with a fake sender (newMailServiceWith).
+	mail *mailService
+	// notices tracks invitation emails still being sent after their response.
+	notices sync.WaitGroup
 }
 
 func (h *Handler) scanTranscriptContent(content []byte) []string {
@@ -176,6 +184,9 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 	if h.gh != nil && cfg.GitHubAppWebhookSecret != "" {
 		log.Println("GitHub webhook receiver configured; POST /api/v1/integrations/github/webhook is enabled")
 	}
+
+	// Email is optional too. Without it invitations still work in the app.
+	h.mail = newMailService(cfg)
 
 	return h
 }

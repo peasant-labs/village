@@ -167,7 +167,7 @@ func newProjectPageWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 			t.Fatalf("create the collective: %v", err)
 		}
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')
+			INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')
 		`, w.collective, w.owner); err != nil {
 			t.Fatalf("add the collective owner: %v", err)
 		}

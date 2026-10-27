@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import YAML from "yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShareCardData } from "@peasant-labs/fairtrade/share";
+import type { Transcript } from "@/lib/types";
 
 // The cache needs Next's incremental cache, which only exists inside a running
 // server. This stand-in keeps the contract that matters here: a result is
@@ -320,6 +321,23 @@ describe("loadShareCard", () => {
     const b = await loadShareCard("t1", { fetch: missing.fetchFn });
     expect(a).toStrictEqual(b);
     expect(a).toBeNull();
+  });
+
+  it("uses the caller's metadata read in place of its own", async () => {
+    const { fetchFn, calls } = makeFetch([
+      { meta: { kind: "response", status: 500 }, content: { kind: "response", status: 200 }, expect: "card-figures" },
+    ]);
+    const readTranscript = vi.fn(async () => ({
+      id: "t1",
+      title: CONTENT_TITLE,
+      visibility: "public",
+      updated_at: "2026-07-16T08:02:00Z",
+    }) as unknown as Transcript);
+    const card = await loadShareCard("t1", { fetch: fetchFn, readTranscript });
+    expect(readTranscript).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(label(card)).toBe("card-figures");
+    // Only the content was read; the metadata read was the caller's.
+    expect(calls.map((c) => c.url)).toEqual(["http://backend:8080/api/v1/transcripts/t1/content"]);
   });
 
   it("never throws when fetch itself throws synchronously", async () => {

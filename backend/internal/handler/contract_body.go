@@ -119,7 +119,7 @@ func (op ContractOperation) String() string { return op.Method + " " + op.Path }
 var (
 	opCreateGroup           = ContractOperation{Method: "POST", Path: "/api/v1/groups"}
 	opUpdateGroup           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}"}
-	opAddGroupMember        = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/members"}
+	opCreateGroupInvitation = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/invitations"}
 	opUpdateGroupMemberRole = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/members/{userID}/role"}
 	opLinkGroupRepository   = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/repositories"}
 	opBatchShareProject     = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/shares"}
@@ -127,6 +127,9 @@ var (
 	opReviewShare           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares/{transcriptID}"}
 	opShareTranscript       = ContractOperation{Method: "POST", Path: "/api/v1/transcripts/{id}/share"}
 	opUpdateUserSettings    = ContractOperation{Method: "PATCH", Path: "/api/v1/users/me/settings"}
+
+	opSetNotificationEmail    = ContractOperation{Method: "PUT", Path: "/api/v1/users/me/email"}
+	opVerifyNotificationEmail = ContractOperation{Method: "POST", Path: "/api/v1/users/me/email/verify"}
 )
 
 // ContractEnforcedOperations lists every operation whose request body the
@@ -137,7 +140,7 @@ func ContractEnforcedOperations() []ContractOperation {
 	operations := []ContractOperation{
 		opCreateGroup,
 		opUpdateGroup,
-		opAddGroupMember,
+		opCreateGroupInvitation,
 		opUpdateGroupMemberRole,
 		opLinkGroupRepository,
 		opBatchShareProject,
@@ -145,6 +148,8 @@ func ContractEnforcedOperations() []ContractOperation {
 		opReviewShare,
 		opShareTranscript,
 		opUpdateUserSettings,
+		opSetNotificationEmail,
+		opVerifyNotificationEmail,
 	}
 	for _, op := range operations {
 		if strings.HasPrefix(op.Path, "/api/v1/groups") {

@@ -5,7 +5,18 @@ import { unstable_cache } from "next/cache";
 
 import { shownTranscriptTitle } from "@/components/session-detail/v2/transcriptChrome";
 
+import type { Transcript } from "@/lib/types";
+
 import { readPublicContent, readPublicTranscript, type LoadDeps } from "./loadPublicTranscript";
+
+export interface ShareCardDeps extends Pick<LoadDeps, "fetch"> {
+  /**
+   * The anonymous metadata read to use in place of the loader's own. The
+   * transcript page passes the read it already makes for the same request, so
+   * a page load asks the API once. It must be as uncached as the loader's own.
+   */
+  readTranscript?: (id: string) => Promise<Transcript | null>;
+}
 
 /** One deadline for a caller's whole lookup (metadata, content and mapping), so a slow API never stalls a crawler. */
 export const SHARE_CARD_DEADLINE_MS = 3000;
@@ -59,7 +70,7 @@ class CardUnavailable extends Error {}
  * uncached metadata read, so a renamed transcript unfurls with its new title
  * at once even when `updated_at` did not change.
  */
-export async function loadShareCard(id: string, deps: Pick<LoadDeps, "fetch"> = {}): Promise<ShareCardData | null> {
+export async function loadShareCard(id: string, deps: ShareCardDeps = {}): Promise<ShareCardData | null> {
   // URL resolution reads "." and ".." as path steps even when encoded, so the
   // read would reach another API route. No transcript has such an id.
   if (id === "." || id === "..") return null;
@@ -80,8 +91,8 @@ export async function loadShareCard(id: string, deps: Pick<LoadDeps, "fetch"> = 
   }
 }
 
-async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null> {
-  const transcript = await readPublicTranscript(id, deps);
+async function lookup(id: string, deps: LoadDeps & ShareCardDeps): Promise<ShareCardData | null> {
+  const transcript = deps.readTranscript ? await deps.readTranscript(id) : await readPublicTranscript(id, deps);
   if (!transcript) return null;
   const updatedAt: unknown = transcript.updated_at;
   if (typeof updatedAt !== "string" || updatedAt === "") return null;

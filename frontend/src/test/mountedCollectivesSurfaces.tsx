@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
-import type { VillageCollectiveSearchResult } from "@peasant-labs/schema";
+import type { VillageCollectiveInvitation, VillageCollectiveSearchResult } from "@peasant-labs/schema";
 import { AuthProvider } from "@/providers/AuthProvider";
 import CollectivesPage from "@/app/collectives/page";
 import DiscoverPage from "@/app/discover/page";
@@ -59,6 +59,8 @@ export interface SurfacesWorld {
   refusals: WorldRefusal[];
   /** The id the server gives a collective it creates. */
   createdId: string;
+  /** The caller's own pending invitations (`GET /users/me/invitations`). */
+  invitations: VillageCollectiveInvitation[];
 }
 
 export interface RecordedRequest {
@@ -103,6 +105,7 @@ export function worldFrom(base: Partial<SurfacesWorld>, overrides: Partial<Surfa
     orgs: [],
     refusals: [],
     createdId: "c0000000-0000-4000-8000-0000000000aa",
+    invitations: [],
     ...base,
     ...overrides,
   };
@@ -241,8 +244,32 @@ export function installSurfacesREST(world: SurfacesWorld): RecordedRequest[] {
         201,
       );
     }
-    const members = path.match(/^\/collectives\/([^/]+)\/members$/);
-    if (members && method === "POST") return json({ status: "added" });
+    if (path === "/users/me/invitations" && method === "GET") return json({ invitations: world.invitations });
+    const invite = path.match(/^\/collectives\/([^/]+)\/invitations$/);
+    if (invite && method === "POST") return json({ status: "invited" }, 202);
+    const answer = path.match(/^\/users\/me\/invitations\/([^/]+)\/(accept|decline)$/);
+    if (answer && method === "POST") {
+      const found = world.invitations.find((row) => row.id === answer[1]);
+      if (!found) return json({ error: "no pending invitation with this id" }, 404);
+      world.invitations = world.invitations.filter((row) => row.id !== answer[1]);
+      if (answer[2] === "decline") return json({ status: "declined" });
+      // The server's answer after an accept: the collective now lists the
+      // caller as a member.
+      const existing = byId.get(found.collective.id);
+      if (existing) existing.role = "member";
+      else {
+        const joined: WorldCollective = {
+          id: found.collective.id,
+          name: found.collective.name,
+          role: "member",
+          mode: found.collective.acceptance_mode,
+          org: null,
+        };
+        world.visible.push(joined);
+        byId.set(joined.id, joined);
+      }
+      return json({ status: "joined", role: "member" });
+    }
     const join = path.match(/^\/collectives\/([^/]+)\/join$/);
     if (join && method === "POST") {
       const row = byId.get(join[1]);

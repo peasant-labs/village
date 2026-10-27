@@ -6,11 +6,12 @@
 # `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
 # because its name goes missing from the declared set.
 
-# Which surface each (path, viewer) pair must land on. The app keeps no
-# signed-out view: anybody without a session is sent to the marketing site's
-# log-in popup (the frame says where it is taking them and leaves), `/login`
-# included. A signed-in visitor gets the page: home at `/`, discovery at
-# `/explore`, which left the root and the nav and keeps its own address.
+# Which surface each (path, viewer) pair must land on. The app's one signed-out
+# view is a public transcript (`signed-out-transcript.yaml`); on these routes
+# anybody without a session is sent to the marketing site's log-in popup (the
+# frame says where it is taking them and leaves), `/login` included. A
+# signed-in visitor gets the page: home at `/`, discovery at `/explore`, which
+# left the root and the nav and keeps its own address.
 routeCases:
   - name: signed-out-visitor-at-the-root-leaves-for-the-marketing-site
     path: "/"
@@ -161,8 +162,9 @@ navCases:
     expectActiveLabel: null
     expectBackHref: null
   - name: a-signed-out-transcript-reader-gets-no-sidebar
-    # A shared link's reader who is not signed in is sent to sign in first,
-    # with no sidebar of sections drawn on the way.
+    # The reader of a transcript its server did not mark public, who is not
+    # signed in, is sent to sign in first, with no sidebar of sections drawn
+    # on the way. (A public one is `signed-out-transcript.yaml`'s.)
     isLoggedIn: false
     pathname: "/transcripts/abc123"
     expectNav: none

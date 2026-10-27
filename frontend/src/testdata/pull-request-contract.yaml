@@ -52,6 +52,8 @@ examples:
     value:
       preview_before_attach: false
       auto_attach_pull_requests: false
+      notification_email: { address: alice@example.test, verified: true }
+      email_invitations: true
   - name: update user settings request
     parser: zVillageUpdateUserSettingsRequest
     value:

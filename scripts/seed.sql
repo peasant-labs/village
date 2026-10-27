@@ -64,18 +64,20 @@ INSERT INTO groups (id, name, description, created_by, acceptance_mode) VALUES
     ('d0000000-0000-0000-0000-000000000003', 'Curated Showcase', 'Owner-approved transcripts only', 'a0000000-0000-0000-0000-000000000001', 'curated')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO group_members (group_id, user_id, role) VALUES
+-- Each collective's creator is its 'creator' owner; every other seeded
+-- membership is 'legacy', as if it predated membership provenance.
+INSERT INTO group_members (group_id, user_id, role, origin) VALUES
     -- AI Research Team (open)
-    ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'owner'),
-    ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member'),
+    ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'owner', 'creator'),
+    ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'member', 'legacy'),
     -- Verified Contributors (verified_only)
-    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 'owner'),
-    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'member'),
-    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 'member'),
+    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 'owner', 'creator'),
+    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'member', 'legacy'),
+    ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 'member', 'legacy'),
     -- Curated Showcase (curated)
-    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'owner'),
-    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', 'member'),
-    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'member')
+    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'owner', 'creator'),
+    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', 'member', 'legacy'),
+    ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'member', 'legacy')
 ON CONFLICT DO NOTHING;
 
 -- Contributions to collectives, in their various states.

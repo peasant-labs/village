@@ -65,7 +65,21 @@ export interface MountedSettingsOrgs {
   write?: "ok" | "failed";
 }
 
-export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean; signedOut?: boolean }, orgs: MountedSettingsOrgs = { items: [] }): MountedSettingsBackend {
+/**
+ * The caller's notification email as the server holds it. `sending` is how
+ * setting an address answers: `ok`, `off` (this Village sends no email, 501)
+ * or `limited` (too many verification emails, 429). `code` is the one
+ * verification code the server accepts.
+ */
+export interface MountedSettingsEmail {
+  address: string | null;
+  verified: boolean;
+  invitations: boolean;
+  sending: "ok" | "off" | "limited";
+  code: string;
+}
+
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean; signedOut?: boolean }, orgs: MountedSettingsOrgs = { items: [] }, email: MountedSettingsEmail = { address: null, verified: false, invitations: true, sending: "ok", code: "" }): MountedSettingsBackend {
   const writes: string[] = [];
   let accountID = "user-alice";
   let handle = SETTINGS_VIEWER;
@@ -73,6 +87,12 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
   const revoked = new Set(c.keys.filter((key) => key.revoked).map((key) => key.id));
   let revocations = 0;
   let automatic = prompt?.initial ?? false;
+  const settingsAnswer = () => ({
+    auto_attach_pull_requests: automatic,
+    preview_before_attach: false,
+    notification_email: email.address === null ? null : { address: email.address, verified: email.verified },
+    email_invitations: email.invitations,
+  });
   let orgReads = 0;
   let releaseProfile = () => {};
   const pendingProfile = controls?.deferProfile ? new Promise<void>((resolve) => { releaseProfile = resolve; }) : null;
@@ -133,12 +153,33 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
       if (method === "GET" && path === "/users/me/settings") {
         backend.promptReads += 1;
         if (prompt?.read === "failed" && backend.promptReads === 1) return json({ error: "the settings service is unavailable" }, 500);
-        return json({ auto_attach_pull_requests: automatic, preview_before_attach: false });
+        return json(settingsAnswer());
       }
       if (method === "PATCH" && path === "/users/me/settings") {
         if (prompt?.write === "failed") return json({ error: "the settings service is unavailable" }, 500);
-        automatic = JSON.parse(String(init?.body)).auto_attach_pull_requests;
-        return json({ auto_attach_pull_requests: automatic, preview_before_attach: false });
+        const sent = JSON.parse(String(init?.body)) as { auto_attach_pull_requests?: boolean; email_invitations?: boolean };
+        if (sent.auto_attach_pull_requests !== undefined) automatic = sent.auto_attach_pull_requests;
+        if (sent.email_invitations !== undefined) email.invitations = sent.email_invitations;
+        return json(settingsAnswer());
+      }
+      if (method === "PUT" && path === "/users/me/email") {
+        if (email.sending === "off") return json({ error: "this village sends no email" }, 501);
+        if (email.sending === "limited") return json({ error: "too many verification emails" }, 429);
+        email.address = JSON.parse(String(init?.body)).address;
+        email.verified = false;
+        return json(settingsAnswer());
+      }
+      if (method === "POST" && path === "/users/me/email/verify") {
+        if (email.address === null || JSON.parse(String(init?.body)).token !== email.code) {
+          return json({ error: "the verification token is not valid" }, 400);
+        }
+        email.verified = true;
+        return json(settingsAnswer());
+      }
+      if (method === "DELETE" && path === "/users/me/email") {
+        email.address = null;
+        email.verified = false;
+        return json(settingsAnswer());
       }
       if (method === "GET" && path === "/auth/api-keys") {
         return json(

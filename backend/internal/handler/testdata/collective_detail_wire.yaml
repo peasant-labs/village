@@ -13,11 +13,11 @@ seed_sql: |
   VALUES ('52000000-0000-4000-8000-000000000001', 'Actual Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory');
   INSERT INTO groups(id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode)
   VALUES ('52000000-0000-4000-8000-000000000002', 'Override Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-03T10:00:00Z', '2026-09-04T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory', false, 'required');
-  INSERT INTO group_members(group_id, user_id, role, joined_at)
-  VALUES ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-01T10:01:00Z'),
-         ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z'),
-         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-03T10:01:00Z'),
-         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-03T10:02:00Z');
+  INSERT INTO group_members(group_id, user_id, role, joined_at, origin)
+  VALUES ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-01T10:01:00Z', 'creator'),
+         ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z', 'legacy'),
+         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-03T10:01:00Z', 'creator'),
+         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-03T10:02:00Z', 'legacy');
 # Both route variants serve the same collective body and replace only the
 # transcript collection, so each case declares the stored pull-request check
 # settings that its own raw body carries. A route that invents a default or

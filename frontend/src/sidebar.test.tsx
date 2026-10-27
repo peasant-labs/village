@@ -10,6 +10,8 @@ import { loadHomePageFixtures, type HomeCollectiveCase } from "@/test/homePageFi
 import { pushedRoutes, resetNextNavigation } from "@/test/nextNavigationMock";
 import { DOCS_URL } from "@/lib/appLinks";
 import { leaveForSignIn } from "@/lib/marketing";
+import { isTranscriptPage } from "@/lib/signIn";
+import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 
 // Mounts the REAL app chrome (`AppFrame`: fairtrade's sidebar for somebody
 // signed in, the public bar for anybody else) inside the real `AuthProvider`,
@@ -31,6 +33,12 @@ const ACME: HomeCollectiveCase = { id: "c011ec71-0000-4000-8000-000000000001", n
 
 const SECTIONS_NAV = "peasant sections";
 
+/** A transcript page whose server did not mark it public, as it declares itself to the frame. */
+function TranscriptNotMarkedPublic() {
+  useDeclareSignedOutReadable(false);
+  return null;
+}
+
 async function chromeSettled(expectNav: "sections" | "public" | "none"): Promise<void> {
   // Signed in, the account trigger means the session has answered and the
   // sidebar has drawn; on the privacy notice, the public bar's way in; anywhere
@@ -50,7 +58,8 @@ describe("mounted sidebar: which entries are offered, and which one is current",
         transcripts: [],
         collectives: c.isLoggedIn ? [ACME] : [],
       });
-      await renderHeaderAt(c.pathname);
+      const path = c.pathname.split("?")[0];
+      await renderHeaderAt(c.pathname, isTranscriptPage(path) ? <TranscriptNotMarkedPublic /> : null);
       await chromeSettled(c.expectNav);
 
       if (c.expectNav !== "sections") {

@@ -1,0 +1,24 @@
+# The creator of a collective stays a member and an owner for the
+# collective's whole life. Neither the role route nor the remove route
+# changes the creator's membership, whoever asks; deleting the collective or
+# the creator's account still removes it through the database cascade.
+#
+# action: role (PATCH .../members/{userID}/role to member) | remove (DELETE
+#         .../members/{userID}) | delete_collective (DELETE /groups/{id}) |
+#         delete_account (DELETE /auth/me by the actor).
+# actor:  who asks: creator | co_owner (an owner by a legacy membership).
+# target: whose membership the route names: creator | co_owner | member.
+#         Ignored by delete_collective and delete_account.
+# want:
+#   status: the HTTP status.
+#   target: the target's membership afterwards: owner | member | gone.
+#   creator: the creator's membership afterwards: owner | gone.
+- {name: co_owner_cannot_demote_the_creator, action: role, actor: co_owner, target: creator, want: {status: 400, target: owner, creator: owner}}
+- {name: creator_cannot_demote_themselves, action: role, actor: creator, target: creator, want: {status: 400, target: owner, creator: owner}}
+- {name: creator_may_change_a_co_owners_role, action: role, actor: creator, target: co_owner, want: {status: 200, target: member, creator: owner}}
+- {name: co_owner_cannot_remove_the_creator, action: remove, actor: co_owner, target: creator, want: {status: 400, target: owner, creator: owner}}
+- {name: creator_cannot_leave, action: remove, actor: creator, target: creator, want: {status: 400, target: owner, creator: owner}}
+- {name: owner_removes_a_member, action: remove, actor: co_owner, target: member, want: {status: 200, target: gone, creator: owner}}
+- {name: creator_removes_a_co_owner, action: remove, actor: creator, target: co_owner, want: {status: 200, target: gone, creator: owner}}
+- {name: deleting_the_collective_removes_the_creator, action: delete_collective, actor: creator, target: creator, want: {status: 200, target: gone, creator: gone}}
+- {name: deleting_the_creators_account_removes_the_creator, action: delete_account, actor: creator, target: creator, want: {status: 200, target: gone, creator: gone}}

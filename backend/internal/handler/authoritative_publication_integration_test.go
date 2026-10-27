@@ -538,7 +538,7 @@ func assertMutationHandlersWaitForSessionLock(t *testing.T, ctx context.Context,
 			t.Error(err)
 		}
 	}()
-	if err := h.queries.AddGroupMember(ctx, sqlc.AddGroupMemberParams{GroupID: group.ID, UserID: user.PgID(), Role: "owner"}); err != nil {
+	if err := h.queries.AddGroupCreator(ctx, sqlc.AddGroupCreatorParams{GroupID: group.ID, UserID: user.PgID()}); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := pool.Acquire(ctx)

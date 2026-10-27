@@ -167,6 +167,7 @@ describe("the settings page's frame", () => {
       "profile",
       "organizations",
       "pull requests",
+      "email",
       "connections",
       "danger zone",
     ]);

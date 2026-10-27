@@ -195,3 +195,17 @@
 .on-select {
   appearance: auto;
 }
+
+/* the person's open invitations, above the collectives they belong to */
+.on-invitations {
+  margin-bottom: var(--sp-6);
+}
+.on-invitations .on-tbl table {
+  min-width: 34rem;
+}
+.on-invitation-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}

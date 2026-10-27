@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { useVisibleGroups } from "@/lib/queries/groups";
@@ -11,6 +11,7 @@ import { whoCanPublishShort } from "@/lib/collectivePolicyCopy";
 import { loginHref } from "@/lib/signIn";
 import { CollectiveSwatch, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import NewCollectiveDialog from "@/components/collectives/NewCollectiveDialog";
+import InvitationsBlock from "@/components/collectives/InvitationsBlock";
 import "../online-collectives.css";
 
 
@@ -22,7 +23,7 @@ import "../online-collectives.css";
  * `GET /collectives`). The rows without a role, collectives the person may see
  * but has not joined, are listed on `/discover`, which reads the same answer,
  * so the two pages split one list and nothing a person could reach before is
- * lost between them.
+ * lost between them. The person's open invitations sit above the list.
  */
 export default function CollectivesPage() {
   const { isLoading: authLoading, isLoggedIn, user } = useAuth();
@@ -81,6 +82,12 @@ export default function CollectivesPage() {
           ) : undefined
         }
       />
+
+      {user ? (
+        <Suspense fallback={null}>
+          <InvitationsBlock discoverable={user.is_discoverable} />
+        </Suspense>
+      ) : null}
 
       {loading ? (
         <ul className="on-skel-list" aria-busy="true" aria-label="loading your collectives">

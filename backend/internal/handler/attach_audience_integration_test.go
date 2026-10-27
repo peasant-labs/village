@@ -167,7 +167,7 @@ func newAttachAudienceWorld(t *testing.T, c attachAudienceCase, githubBase int64
 		reader:   &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "audience-reader"},
 	}
 	w.groupID = attachmentLinkCollective(t, ctx, pool, owner, "acme", w.repoName, c.Repository == "private", "informational")
-	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, w.groupID, member); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'member', 'legacy')`, w.groupID, member); err != nil {
 		t.Fatalf("add the collective member: %v", err)
 	}
 	// On a private repository GitHub admits the reader; on a public one anybody

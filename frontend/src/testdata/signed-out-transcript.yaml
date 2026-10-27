@@ -1,0 +1,191 @@
+# Case corpus for `src/signedOutTranscript.test.tsx`: a transcript page read
+# by somebody who is not signed in. The server decides who it serves
+# (`sign-in-route.yaml`'s transcriptPageCases); these cases are the browser's
+# half, and cover what the app frame and the page draw.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/signedOutTranscriptFixtures.ts`.
+
+# The real app frame (`AppFrame`) at `pathname`, inside the real
+# `AuthProvider`, around a stand-in page. `declares` is what that page tells
+# the frame: `public` (the server marked it open to a signed-out reader),
+# `not-public`, or `nothing` (the page has not said yet). `expectChrome` is
+# the chrome drawn: `public` (the public bar with its "sign in" link),
+# `sections` (the signed-in sidebar), or `leaving` (the frame's "taking you to
+# log in" note, and the visitor sent to the marketing site's log-in popup).
+# `cookie` is the session cookie the browser holds: `none`, `stale` (the
+# session read answers 401), or `stale-uncleared` (stale, and scoped so the
+# app cannot clear it). `expectReload` says the frame dropped the stale cookie
+# and loaded the page again for the server to decide, instead of leaving.
+frameCases:
+  - name: a-public-transcript-stays-open-signed-out
+    why: the server read it as public, so the frame lets a signed-out reader stay, in the public bar.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: none
+    declares: public
+    expectChrome: public
+    expectReload: false
+  - name: a-transcript-not-marked-public-is-left-for-sign-in
+    why: >-
+      a page the server did not mark public reaches a signed-out browser only
+      with a stale session cookie or without fetch metadata; the frame sends it
+      to sign in as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: none
+    declares: not-public
+    expectChrome: leaving
+    expectReload: false
+  - name: a-transcript-page-that-has-not-said-is-waited-for
+    why: >-
+      the frame waits for the page's word rather than leave before the page
+      has mounted to give it.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: none
+    declares: nothing
+    expectChrome: public
+    expectReload: false
+  - name: a-public-mark-opens-no-other-page
+    why: only a transcript page decides for itself; anywhere else a declaration is not listened to.
+    pathname: /collectives/abc
+    signedIn: false
+    cookie: none
+    declares: public
+    expectChrome: leaving
+    expectReload: false
+  - name: a-public-mark-opens-no-deeper-transcript-path
+    why: only the transcript page itself (one segment) decides for itself.
+    pathname: /transcripts/7f1d2c3b/anything-else
+    signedIn: false
+    cookie: none
+    declares: public
+    expectChrome: leaving
+    expectReload: false
+  - name: a-signed-in-reader-of-a-public-transcript-is-unchanged
+    why: a signed-in person gets the sidebar on a public transcript, as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: true
+    cookie: none
+    declares: public
+    expectChrome: sections
+    expectReload: false
+  - name: a-signed-in-reader-of-another-transcript-is-unchanged
+    why: a signed-in person gets the sidebar whatever the page declares.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: true
+    cookie: none
+    declares: not-public
+    expectChrome: sections
+    expectReload: false
+  - name: a-stale-cookie-on-a-transcript-reloads-without-it
+    why: >-
+      the server served the page to a stale cookie without reading the
+      transcript; dropped, the page is loaded again and the server decides as
+      for anybody signed out, so a public transcript opens.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale
+    declares: not-public
+    expectChrome: leaving
+    expectReload: true
+  - name: a-cookie-that-will-not-clear-leaves-for-sign-in
+    why: a reload that would carry the same stale cookie could repeat forever, so the frame leaves as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale-uncleared
+    declares: not-public
+    expectChrome: leaving
+    expectReload: false
+  - name: a-stale-cookie-elsewhere-leaves-for-sign-in
+    why: only a transcript page decides for a signed-out visitor; anywhere else a stale cookie is sent to sign in.
+    pathname: /collectives/abc
+    signedIn: false
+    cookie: stale
+    declares: nothing
+    expectChrome: leaving
+    expectReload: false
+  - name: a-stale-cookie-on-a-public-transcript-stays
+    why: a page the server marked open keeps a visitor whose cookie turned out stale.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale
+    declares: public
+    expectChrome: public
+    expectReload: false
+
+# The real transcript page inside the real frame, opened signed out at
+# `/transcripts/{id}{search}`. `openSignedOut` is what the server told the
+# page; `pullRequests` are the pull requests the API serves this anonymous
+# reader (only ones on public repositories). `owner` is how the server names
+# the transcript's owner to this reader: `profile` (alice, with the project
+# `village`) or `anonymous` (an owner hidden from other readers: the server
+# withholds the project and the repository fields too).
+#
+# A page the server marked open (`expectLeaving: false`) is read in the public
+# bar. Its trail is `expectCrumbs`, each crumb `label -> href` or the bare
+# label for one with no link; signed out, none links. Every such case also
+# asserts that the page asks for nobody's collectives, links to no page that
+# needs a session (pull request rows included), and offers no owner or member
+# action. An anonymous owner's page also names no project and carries no
+# repository text. A page the server did not mark open is swapped for the frame's
+# "taking you to log in" note, and the visitor is sent to sign in once.
+pageCases:
+  - name: opened-with-no-place
+    why: a shared link names no place; the trail is home and the project, as text.
+    openSignedOut: true
+    owner: profile
+    search: ""
+    pullRequests: []
+    expectLeaving: false
+    expectCrumbs: ["home", "village"]
+  - name: opened-from-a-collective
+    why: a link copied inside a collective keeps its place; signed out it names it without linking it.
+    openSignedOut: true
+    owner: profile
+    search: "?in=collective:c-guild"
+    pullRequests: []
+    expectLeaving: false
+    expectCrumbs: ["collectives", "Infra Guild"]
+  - name: opened-from-a-pull-request
+    why: a link copied from a pull request keeps its place; signed out it names it without linking it.
+    openSignedOut: true
+    owner: profile
+    search: "?in=pull:acme/widgets/7"
+    pullRequests: []
+    expectLeaving: false
+    expectCrumbs: ["pull requests", "acme/widgets#7"]
+  - name: bound-to-a-pull-request-on-a-public-repository
+    why: >-
+      the API serves an anonymous reader the pull requests on public
+      repositories; signed out, each row names its pull request without
+      linking to the page that needs a session.
+    openSignedOut: true
+    owner: profile
+    search: ""
+    pullRequests:
+      - { owner: acme, name: widgets, number: 7, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
+    expectLeaving: false
+    expectCrumbs: ["home", "village"]
+  - name: not-marked-open-is-left-for-sign-in
+    why: >-
+      the real page passes on the server's answer: a transcript it did not
+      mark open is never drawn for a signed-out visitor, who is sent to sign in.
+    openSignedOut: false
+    owner: profile
+    search: ""
+    pullRequests: []
+    expectLeaving: true
+    expectCrumbs: []
+  - name: an-anonymous-owner-stays-anonymous-signed-out
+    why: >-
+      a signed-out reader is the most restricted reader, so an owner the server
+      hides from other readers is hidden here too: the trail names no project
+      and nothing links to a person or names the repository.
+    openSignedOut: true
+    owner: anonymous
+    search: ""
+    pullRequests: []
+    expectLeaving: false
+    expectCrumbs: ["home"]

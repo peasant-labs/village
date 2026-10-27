@@ -106,16 +106,18 @@ RETURNING *;
 --   - the person is discoverable (users.is_discoverable);
 --   - the viewer IS the person;
 --   - the viewer owns a collective (group_members.role = 'owner') where the
---     person took an act of their own: a pending or approved submission of
---     one of their transcripts (transcript_shares.status, the current-state
---     row the review queue and the collective library read), or a leftover
---     'pending' join-request row. A plain member or contributor row does NOT
---     count: Village records no provenance for membership, and an owner can
---     add anyone by username, so membership alone must reveal nothing about a
---     person's transcripts. Collective owners still see their own roster in
---     full (handler collectivePeopleFor). Invitations the person accepts are
---     the planned replacement for owner adds, after which an accepted
---     membership may count again.
+--     person took an act of their own: a membership they consented to
+--     (group_members.origin creator, self_join or invitation: they created
+--     the collective, joined it themselves, or accepted an invitation), a
+--     pending or approved submission of one of their transcripts
+--     (transcript_shares.status, the current-state row the review queue and
+--     the collective library read), or a leftover 'pending' join-request row.
+--     The origins are a positive list, so an origin added later reveals
+--     nothing until it is listed here. A 'legacy' membership never counts: it
+--     predates provenance, and an owner could add anyone by username then, so
+--     it must reveal nothing about a person's transcripts. An invitation the
+--     person has not accepted is never read here. Collective owners still see
+--     their own roster in full (handler collectivePeopleFor).
 -- A NULL viewer (signed out) sees discoverable people only.
 SELECT u.id, u.github_username, u.display_name, u.avatar_url,
        (
@@ -131,7 +133,10 @@ SELECT u.id, u.github_username, u.display_name, u.avatar_url,
                          SELECT 1 FROM group_members person_role
                          WHERE person_role.group_id = viewer_role.group_id
                            AND person_role.user_id = u.id
-                           AND person_role.role = 'pending'
+                           AND (
+                                 person_role.origin IN ('creator', 'self_join', 'invitation')
+                                 OR person_role.role = 'pending'
+                               )
                      )
                      OR EXISTS (
                          SELECT 1

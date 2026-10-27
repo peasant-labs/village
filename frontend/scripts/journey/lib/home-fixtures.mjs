@@ -331,7 +331,7 @@ export async function handleHomeRequest(req, res, scenario) {
     return true
   }
   if (req.method === 'GET' && path === '/users/me/settings') {
-    send(res, 200, { auto_attach_pull_requests: false, preview_before_attach: false })
+    send(res, 200, { auto_attach_pull_requests: false, preview_before_attach: false, notification_email: null, email_invitations: true })
     return true
   }
   if (req.method === 'GET' && path === '/auth/api-keys') {

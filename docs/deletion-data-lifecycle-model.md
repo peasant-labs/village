@@ -204,3 +204,22 @@ actor UUIDs so a zero value can never silently impersonate the system.
 |---|---|---|
 | `app.actor_id` | WHO performs this transaction's transcript mutations (required - the audit triggers are fail-closed) | `inTxAs` / `inTxAsSystem`; `scripts/seed.sql` (session-scoped: autocommit psql makes `SET LOCAL` a no-op); sanctioned ops via `SET LOCAL` |
 | `app.audit_maintenance` | Deliberate, statement-log-visible escape that permits UPDATE/DELETE on the append-only audit table within one transaction | test teardown (`purgeAuditRows`); operator runbooks, with a recorded reason |
+
+## 8. Contact data and invitations on account deletion (migration 047)
+
+- **The notification address is erased with the account.**
+  `user_notification_emails` cascades from `users`, and Village keeps the
+  address nowhere else: not in an invitation, a log, or an email record.
+  Removing the address (`DELETE /users/me/email`) clears it and its
+  verification state in place; only the person's `email_invitations` choice
+  remains. The email provider holds its own delivery logs under its own
+  retention.
+- **Invitations survive their people as inert rows, then expire.** Deleting
+  the invitee sets `collective_invitations.invitee_id` to NULL; the row keeps
+  only the handle the owner typed and expires within 30 days, so the owner's
+  list does not reveal the deletion. Deleting the inviting owner sets
+  `invited_by` to NULL. Deleting the collective deletes its invitations.
+- **Daily limit counts go with the account.** `user_daily_quotas` cascades
+  from `users`, and counts older than a day are deleted by the next count.
+- **No history of a person's answers is kept.** Accepting and revoking delete
+  the invitation; a decline is kept only until the invitation expires.
