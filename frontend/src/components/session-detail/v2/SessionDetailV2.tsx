@@ -456,6 +456,12 @@ export function SessionDetailV2({
           }
           showTail={false}
           showOutcome={false}
+          // The transcript reads as a ledger: a role-led head per turn, one
+          // grouped work panel over its tool calls, and compact system rows.
+          presentation="ledger"
+          // The footer's shortcut hint and position counter stay available,
+          // as they were on the classic surface.
+          footer={{ hints: true, progress: true }}
           pullRequests={
             !isPreview && (pullRequestsQuery.isError || (pullRequestsQuery.data?.length ?? 0) > 0) ? (
               <TranscriptPullRequests
@@ -553,6 +559,10 @@ export function SessionDetailV2({
           // stays the demo's).
           renderTurnActions={(turn) => (
             <span className="inline-flex items-center gap-1.5">
+              {/* The ledger head carries the role, number, time and link, so the
+                  observed model moves into the host's own per-turn slot; the
+                  composite still draws the model-change line above the turn. */}
+              {turn.effectiveModel && <span className="txn-turnmodel mono">{turn.effectiveModel}</span>}
               {(savedLabelsByEntry.get(turn.index) ?? []).map((label) => (
                 <span key={label.id || `${label.typeId}:${label.value}`} className="chip">
                   {label.value}
