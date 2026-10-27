@@ -54,6 +54,11 @@ describe("mounted production transcript route with published Pi presentation", (
     await renderProductionRoute(transcriptID);
     await waitFor(() => expect(document.querySelectorAll(".txn-turnwrap")).toHaveLength(detail.turns.length));
 
+    // The ledger opens a turn's work from its summary line; the rows live inside.
+    const workToggle = document.querySelector<HTMLElement>(".txn-work-toggle");
+    if (workToggle) fireEvent.click(workToggle);
+    await waitFor(() => expect(document.querySelector(".txn-tc-head")).not.toBeNull());
+
     const tool = document.querySelector<HTMLElement>(".txn-tc-head");
     expect(tool?.textContent).toContain("Extension.Tools");
     expect(tool?.textContent).toContain("inspect");
