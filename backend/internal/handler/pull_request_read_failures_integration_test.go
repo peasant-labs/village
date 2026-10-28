@@ -71,7 +71,9 @@ func (q failingReadQuerier) ListPublicOwnersForViewer(ctx context.Context, arg s
 
 func (q failingReadQuerier) ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error) {
 	if q.fails == "ListPullRequestCandidatesByTranscripts" {
-		*q.called = true
+		if q.called != nil {
+			*q.called = true
+		}
 		return nil, errInjectedRead
 	}
 	return q.Querier.ListPullRequestCandidatesByTranscripts(ctx, arg)
