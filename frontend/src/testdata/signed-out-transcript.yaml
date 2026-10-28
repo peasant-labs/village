@@ -139,7 +139,7 @@ pageCases:
     search: ""
     pullRequests: []
     expectLeaving: false
-    expectCrumbs: ["home", "village"]
+    expectCrumbs: ["home", "village", "Fix flaky ingest test"]
   - name: opened-from-a-collective
     why: a link copied inside a collective keeps its place; signed out it names it without linking it.
     openSignedOut: true
@@ -147,7 +147,7 @@ pageCases:
     search: "?in=collective:c-guild"
     pullRequests: []
     expectLeaving: false
-    expectCrumbs: ["collectives", "Infra Guild"]
+    expectCrumbs: ["collectives", "Infra Guild", "Fix flaky ingest test"]
   - name: opened-from-a-pull-request
     why: a link copied from a pull request keeps its place; signed out it names it without linking it.
     openSignedOut: true
@@ -155,7 +155,7 @@ pageCases:
     search: "?in=pull:acme/widgets/7"
     pullRequests: []
     expectLeaving: false
-    expectCrumbs: ["pull requests", "acme/widgets#7"]
+    expectCrumbs: ["pull requests", "acme/widgets#7", "Fix flaky ingest test"]
   - name: bound-to-a-pull-request-on-a-public-repository
     why: >-
       the API serves an anonymous reader the pull requests on public
@@ -167,7 +167,7 @@ pageCases:
     pullRequests:
       - { owner: acme, name: widgets, number: 7, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
     expectLeaving: false
-    expectCrumbs: ["home", "village"]
+    expectCrumbs: ["home", "village", "Fix flaky ingest test"]
   - name: not-marked-open-is-left-for-sign-in
     why: >-
       the real page passes on the server's answer: a transcript it did not
@@ -188,4 +188,4 @@ pageCases:
     search: ""
     pullRequests: []
     expectLeaving: false
-    expectCrumbs: ["home"]
+    expectCrumbs: ["home", "Fix flaky ingest test"]

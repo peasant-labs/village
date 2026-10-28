@@ -1,0 +1,4 @@
+cases:
+  - {name: accepted-copy-calls-success, reject: false, notifies: true}
+  - {name: rejected-copy-does-not-call-success, reject: true, notifies: false}
+url: https://example.test/transcripts/synthetic

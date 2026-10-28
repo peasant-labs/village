@@ -1,0 +1,21 @@
+contexts:
+  - {name: home-control, search: '?in=home', expected: home}
+  - {name: direct-collective, search: '?in=collective:11111111-1111-4111-8111-111111111111', expected: collective}
+  - {name: inferred-collective, search: '', expected: collective}
+  - {name: collective-with-pending-notice, search: '?notice=1&in=collective:11111111-1111-4111-8111-111111111111', expected: collective}
+mobile_cases:
+  - {name: home-short, search: '?length=short&in=home', last_turn: 0}
+  - {name: home-long, search: '?in=home', last_turn: 99}
+  - {name: collective-short, search: '?length=short&in=collective:11111111-1111-4111-8111-111111111111', last_turn: 0}
+  - {name: collective-long-pending, search: '?notice=1&in=collective:11111111-1111-4111-8111-111111111111', last_turn: 99, pending: true}
+  - {name: home-clipboard-denied, search: '?length=short&in=home', last_turn: 0, copy_rejected: true}
+turn_count: 100
+pending_group: {id: 22222222-2222-4222-8222-222222222222, name: Acme Company, role: owner, acceptance_mode: open, member_count: 87}
+source:
+  owner: example
+  repo: widgets
+  number: 42
+  url: https://github.com/example/widgets/pull/42
+  source: {turnIndex: 42, toolCallIndex: 1, toolCallId: source-call}
+command: gh pr create --fill
+result: https://github.com/example/widgets/pull/42

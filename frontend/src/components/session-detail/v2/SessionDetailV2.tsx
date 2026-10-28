@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
@@ -9,6 +9,9 @@ import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
 // apps all render the SAME composite.
 import {
   TranscriptViewer,
+  UnverifiedPullRequests,
+  ToastProvider,
+  useToast,
   adaptTranscript,
   computeAnalytics,
   annotateTranscript,
@@ -16,7 +19,7 @@ import {
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
-import type { SessionRelationshipNavigation } from '@peasant-labs/schema';
+import type { SessionRelationshipNavigation, UnverifiedPullRequestSource } from '@peasant-labs/schema';
 import {
   readTranscriptReadState,
   writeTranscriptReadState,
@@ -99,6 +102,8 @@ interface SessionDetailV2Props {
    *  value, the same authority the server used to emit the anchor. */
   transcriptContentHash?: string | null;
   error?: string | null;
+  beforeHeader?: ReactNode;
+  presentation?: 'ledger' | 'classic';
   /** `"full"` (default) is the standalone `/transcripts/{id}` route: every
    *  owner/viewer action, the trajectory graph, and the header action row.
    *  `"preview"` is the contribute page's read-only preview column: turns +
@@ -118,7 +123,11 @@ interface SessionDetailV2Props {
  * trajectory-graph engine is fairtrade's own `/graph` entry, mounted through
  * `graphSlot`.
  */
-export function SessionDetailV2({
+export function SessionDetailV2(props: SessionDetailV2Props) {
+  return <ToastProvider placement="top-right"><SessionDetailV2Content {...props} /></ToastProvider>;
+}
+
+function SessionDetailV2Content({
   sessionId,
   transcriptId,
   transcriptVisibility,
@@ -133,8 +142,11 @@ export function SessionDetailV2({
   relationshipNavigation,
   transcriptContentHash,
   error,
+  beforeHeader,
+  presentation,
   variant = "full",
 }: SessionDetailV2Props) {
+  const toast = useToast();
   void sessionId; // retained in the prop contract for callers / deep links
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -146,6 +158,7 @@ export function SessionDetailV2({
   // below seed from it, so Back after following a source link restores the
   // child's query, selection, disclosure, and scroll.
   const [restoredReadState] = useState(() => readTranscriptReadState(transcriptId));
+  const [sourcePosition, setSourcePosition] = useState<(UnverifiedPullRequestSource & { requestKey: number }) | null>(null);
 
   // A source link may have carried the child's verified branch-point anchor
   // here (see `relationshipAnchor`). Capture the mount query once — it is a
@@ -385,9 +398,11 @@ export function SessionDetailV2({
     // Bounded host: the composite's .txn-app is height:100%, so a bounded
     // column is what lets its stream scroll internally — which is what
     // reveals the sticky scrubber timeline and anchors the keybind hint.
-    <div className="flex flex-col h-[calc(100dvh-var(--app-header-height))]">
-      {/* A fetch error after data loaded: the transcript on screen is the
-          last good snapshot — say so instead of pretending it is live. */}
+    <div className={isPreview ? 'flex flex-col h-[calc(100dvh-var(--app-header-height))]' : 'flex flex-col h-full min-h-0'}>
+      <div className="flex-1 min-h-0" ref={streamContainerRef}>
+        <TranscriptViewer
+          beforeHeader={<>
+      {beforeHeader}
       {error != null && (
         <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-danger shrink-0">
           connection error; showing the last loaded transcript.
@@ -416,11 +431,11 @@ export function SessionDetailV2({
           )}
         </div>
       )}
-      <div className="flex-1 min-h-0" ref={streamContainerRef}>
-        <TranscriptViewer
+          </>}
           // The standalone route is the whole page, so its title is the page's
           // h1; the contribute page's preview column sits under that page's own.
           headingLevel={isPreview ? 2 : 1}
+          presentation={presentation}
           viewModel={vm!}
           theme={theme}
           // The header row is the host's own, as in the fairtrade in-use demo:
@@ -430,12 +445,13 @@ export function SessionDetailV2({
           // which used to sit in this row as chips) and `edit title`; every
           // reader can download the markdown. The preview column shows none
           // of it.
-          headerActions={
+          utilityActions={
             isPreview ? undefined : (
               <span className="inline-flex items-center gap-2">
                 {transcriptId && (
                   <TranscriptHeaderActions
                     url={transcriptUrl}
+                    onCopied={() => toast.ok('transcript link copied.', { title: 'copied' })}
                     owner={
                       isOwner
                         ? {
@@ -456,20 +472,20 @@ export function SessionDetailV2({
           }
           showTail={false}
           showOutcome={false}
-          // The transcript reads as a ledger: a role-led head per turn, the turn's
-          // work as its own row after the prose, and compact system rows.
-          presentation="ledger"
           // The footer's shortcut hint and position counter stay available.
           footer={{ hints: true, progress: true }}
           pullRequests={
-            !isPreview && (pullRequestsQuery.isError || (pullRequestsQuery.data?.length ?? 0) > 0) ? (
-              <TranscriptPullRequests
-                pullRequests={pullRequestsQuery.data ?? []}
+            !isPreview && (pullRequestsQuery.isError || (pullRequestsQuery.data?.pull_requests?.length ?? 0) > 0 || (pullRequestsQuery.data?.unverified_pull_requests?.length ?? 0) > 0) ? (
+              <>
+              <UnverifiedPullRequests pullRequests={pullRequestsQuery.data?.unverified_pull_requests ?? []} onSourceSelect={(source) => setSourcePosition((previous) => ({ ...source, requestKey: (previous?.requestKey ?? 0) + 1 }))} />
+              {(pullRequestsQuery.isError || (pullRequestsQuery.data?.pull_requests?.length ?? 0) > 0) && <TranscriptPullRequests
+                pullRequests={pullRequestsQuery.data?.pull_requests ?? []}
                 failed={pullRequestsQuery.isError}
                 onRetry={() => void pullRequestsQuery.refetch()}
                 // A pull request's page needs a session.
                 linked={!!user}
-              />
+              />}
+              </>
             ) : undefined
           }
           // The composite tail is hidden. Header menus own downloads and
@@ -500,7 +516,7 @@ export function SessionDetailV2({
           // above — so an untitled transcript shows the short VILLAGE
           // transcript id instead of repeating "Untitled transcript" three
           // words wide in a breadcrumb.
-          breadcrumb={buildTranscriptBreadcrumb({
+          breadcrumbContext={buildTranscriptBreadcrumb({
             project,
             projectHref,
             isLoggedIn: !!user,
@@ -511,7 +527,9 @@ export function SessionDetailV2({
           // A verified branch point opens the target there (one-time position);
           // without one the existing `?turn=N` / saved-position behavior runs.
           initialPosition={
-            anchorTurn != null
+            sourcePosition != null
+              ? { kind: 'tool-call', ...sourcePosition, requestKey: String(sourcePosition.requestKey) }
+              : anchorTurn != null
               ? { kind: 'turn', turnIndex: anchorTurn, requestKey: carriedAnchor?.sourceEntryRef }
               : undefined
           }
@@ -567,7 +585,7 @@ export function SessionDetailV2({
                   {label.value}
                 </span>
               ))}
-              {canLabel && transcriptId && (
+              {presentation === 'classic' && canLabel && transcriptId && (
                 <TurnLabelPopover
                   entryIndex={turn.index}
                   onSave={(label) => handleLabelSave(label)}

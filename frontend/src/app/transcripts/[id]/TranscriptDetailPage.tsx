@@ -148,9 +148,6 @@ export default function TranscriptDetailPage({
   // The v2 viewer brings its own hero, tabs, canvas and rails — it IS the page.
   return (
     <>
-      {pendingReviews.length > 0 && (
-        <PendingApprovalBar transcriptId={t.id} reviews={pendingReviews} />
-      )}
       <SessionDetailV2
         key={t.id}
         sessionId={t.local_id || id}
@@ -167,6 +164,7 @@ export default function TranscriptDetailPage({
         relationshipNavigation={data.relationshipNavigation}
         transcriptContentHash={t.content_hash}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
+        beforeHeader={pendingReviews.length > 0 ? <PendingApprovalBar transcriptId={t.id} reviews={pendingReviews} /> : undefined}
       />
     </>
   );

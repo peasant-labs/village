@@ -39,7 +39,7 @@ export default function PendingApprovalBar({
   if (pending.length === 0 && Object.keys(resolved).length === 0) return null;
 
   return (
-    <div className="sticky top-0 z-50 border-b border-warning/40 bg-warning-soft">
+    <div className="border-b border-warning/40 bg-warning-soft">
       <div className="max-w-[1600px] mx-auto px-6 py-2.5 flex flex-col gap-2">
         {pending.map((r) => (
           <div key={r.groupId} className="flex items-center justify-between gap-3">

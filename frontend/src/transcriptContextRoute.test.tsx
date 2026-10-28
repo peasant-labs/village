@@ -98,9 +98,8 @@ describe("mounted transcript route: the trail names where it was opened from", (
   for (const c of fx.routeCases) {
     it(c.name, async () => {
       await mount(c);
-      await waitFor(() => expect(crumbs()).toEqual(c.expectCrumbs));
-      // The title shows once, in the hero, and never in the trail.
-      expect(document.querySelector('nav[aria-label="breadcrumb"]')?.textContent).not.toContain(TITLE);
+      await waitFor(() => expect(crumbs()).toEqual([...c.expectCrumbs, TITLE]));
+      expect(document.querySelector('nav[aria-label="breadcrumb"]')?.textContent).toContain(TITLE);
 
       const expected = c.expectReplace?.replace("{transcriptId}", TRANSCRIPT_ID);
       if (expected) {
