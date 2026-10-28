@@ -158,6 +158,10 @@ const server = createServer(async (req, res) => {
     return send(res, 401, { error: 'not signed in' })
   }
 
+  // This scenario owns the transcript owner's membership list as well as the
+  // transcript routes. Resolve it before the generic home membership fixture.
+  if (scenario === 'transcript-owner' && handleOwnedTranscriptRequest(req, res, { ownerGroups: true })) return
+
   // The signed-in person's own home and settings reads, including the
   // owner-scoped list, which answers its own `empty` scenario.
   if (await handleHomeRequest(req, res, scenario)) return
@@ -171,7 +175,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && path === `/transcripts/${OWNED_TRANSCRIPT.id}/content`) {
     return proxyToTranscript(req, res, OWNED_TRANSCRIPT.contentPath)
   }
-  if (handleOwnedTranscriptRequest(req, res, { ownerGroups: scenario === 'transcript-owner' })) return
+  if (handleOwnedTranscriptRequest(req, res, { ownerGroups: false })) return
 
   // Creating a collective, joining one and adding people (the new-collective
   // dialog and /discover) answer before the collective reads.
