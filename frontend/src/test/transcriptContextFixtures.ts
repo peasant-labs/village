@@ -86,6 +86,7 @@ const requiredBreadcrumbCaseNames = [
 ] as const;
 
 const requiredRouteCaseNames = [
+  "opened-from-home-with-a-collective-share-stays-home",
   "opened-from-their-collective-names-it",
   "opened-from-a-collective-they-are-not-in-names-it-from-the-share",
   "opened-from-a-pull-request-names-it",

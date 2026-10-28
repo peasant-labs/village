@@ -41,12 +41,7 @@ const TRANSCRIPT = process.env.VILLAGE_TRANSCRIPT || 'demo'
 const URL = process.env.VILLAGE_REAL_URL || `${ORIGIN}/transcripts/${encodeURIComponent(TRANSCRIPT)}`
 const THEME = process.env.VILLAGE_THEME || 'dark'
 const CAPTURE_DIR = process.env.VILLAGE_CAPTURE_DIR || '/tmp/village-observed-model'
-const EXPECTED_MODELS = [
-  'anthropic/claude-fable-5',
-  'anthropic/claude-fable-5',
-  'anthropic/claude-opus-4-8',
-  'anthropic/claude-opus-4-8',
-]
+const EXPECTED_START_MODEL = 'anthropic/claude-fable-5'
 const EXPECTED_MARKERS = [
   'model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8',
 ]
@@ -153,7 +148,6 @@ for (const s of SURFACES) {
     const modelNodes = [...document.querySelectorAll('.txn-turnmodel')]
     const markerNodes = [...document.querySelectorAll('.txn-modelchange')]
     const body = document.querySelector('.txn-body')
-    const model = modelNodes[0]
     const marker = markerNodes[0]
     const nav = document.querySelector('body > div header') || document.querySelector('header.fixed')
     return {
@@ -163,7 +157,7 @@ for (const s of SURFACES) {
       markers: markerNodes.map((node) => node.textContent?.trim() ?? ''),
       turnCount: document.querySelectorAll('.txn-turnwrap').length,
       bodyFont: body ? getComputedStyle(body).fontFamily : null,
-      modelFont: model ? getComputedStyle(model).fontFamily : null,
+      metadata: document.querySelector('.txn-meta')?.textContent ?? '',
       markerDisplay: marker ? getComputedStyle(marker).display : null,
       persistentHeaderMounted: nav != null,
     }
@@ -172,8 +166,8 @@ for (const s of SURFACES) {
   if (contractProbe.documentTheme !== THEME || contractProbe.viewerTheme !== THEME) {
     probeFailures.push(`theme mismatch: html=${contractProbe.documentTheme}, viewer=${contractProbe.viewerTheme}, requested=${THEME}`)
   }
-  if (JSON.stringify(contractProbe.models) !== JSON.stringify(EXPECTED_MODELS)) {
-    probeFailures.push(`effective-model sequence ${JSON.stringify(contractProbe.models)} != ${JSON.stringify(EXPECTED_MODELS)}`)
+  if (contractProbe.models.length || !contractProbe.metadata.includes(EXPECTED_START_MODEL)) {
+    probeFailures.push(`starting model missing or per-turn models rendered: metadata=${JSON.stringify(contractProbe.metadata)} per-turn=${JSON.stringify(contractProbe.models)}`)
   }
   if (JSON.stringify(contractProbe.markers) !== JSON.stringify(EXPECTED_MARKERS)) {
     probeFailures.push(`transition markers ${JSON.stringify(contractProbe.markers)} != ${JSON.stringify(EXPECTED_MARKERS)}`)
@@ -181,12 +175,8 @@ for (const s of SURFACES) {
   if (contractProbe.turnCount !== 5) probeFailures.push(`mounted turn count ${contractProbe.turnCount} != 5`)
   if (!contractProbe.persistentHeaderMounted) probeFailures.push('Village persistent product header is absent from the mounted shell')
   const normalizedBodyFont = contractProbe.bodyFont?.toLowerCase().replace(/[^a-z]/g, '') ?? ''
-  const normalizedModelFont = contractProbe.modelFont?.toLowerCase().replace(/[^a-z]/g, '') ?? ''
   if (!normalizedBodyFont.includes('atkinsonhyperlegible')) {
     probeFailures.push(`transcript body font ${JSON.stringify(contractProbe.bodyFont)} does not use Atkinson Hyperlegible`)
-  }
-  if (!normalizedModelFont.includes('atkinsonhyperlegiblemono')) {
-    probeFailures.push(`model chrome font ${JSON.stringify(contractProbe.modelFont)} does not use Atkinson Hyperlegible Mono`)
   }
   if (contractProbe.markerDisplay === 'none' || contractProbe.markerDisplay == null) {
     probeFailures.push(`transition marker display is ${JSON.stringify(contractProbe.markerDisplay)}`)
@@ -195,7 +185,7 @@ for (const s of SURFACES) {
     console.error(
       `ERROR [boot-village.mjs] mounted observed-model contract FAILED for "${s.id}".\n` +
       `  What failed: ${probeFailures.join('; ')}.\n` +
-      `  Why: the released Schema/Fairtrade composition did not render the strict A, omission, B, omission fixture as A, A, B, B with one marker in the requested theme.\n` +
+      `  Why: the released Schema/Fairtrade composition did not render the starting model and one transition marker without per-turn model labels in the requested theme.\n` +
       `  Where: ${s.url}, production REST → React Query → SessionDetailV2 → adaptTranscript → TranscriptViewer path.\n` +
       `  Means: Village would show incorrect or unproven model attribution to transcript readers.\n` +
       `  Fix: verify the exact installed package versions, preserve absent observedModel fields in mock-rest.mjs, rebuild the standalone app, and retry both themes.`,

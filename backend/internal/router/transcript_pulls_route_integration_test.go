@@ -15,10 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/redact"
-	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
+	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
 // TestTranscriptPullRequestsRouteReadsTheSession drives the production router
@@ -95,19 +95,44 @@ func TestTranscriptPullRequestsRouteReadsTheSession(t *testing.T) {
 		}
 	})
 	localID := "route-pulls-" + transcript.String()
+	content, err := os.ReadFile("../handler/testdata/contract/current/valid/content.json")
+	if err != nil {
+		t.Fatalf("read existing transcript fixture: %v", err)
+	}
+	objects, err := storage.NewS3ObjectStore(&config.Config{S3Endpoint: os.Getenv("TEST_S3_ENDPOINT"), S3Bucket: os.Getenv("TEST_S3_BUCKET"), S3AccessKey: os.Getenv("TEST_S3_ACCESS_KEY"), S3SecretKey: os.Getenv("TEST_S3_SECRET_KEY"), S3UsePathStyle: true})
+	if err != nil {
+		t.Fatalf("construct test object store: %v", err)
+	}
+	ring, err := config.ParseTranscriptKeyring("1", `{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}`)
+	if err != nil {
+		t.Fatalf("construct test keyring: %v", err)
+	}
+	blobs, err := storage.NewEncryptedTranscriptStore(objects, ring)
+	if err != nil {
+		t.Fatalf("construct encrypted store: %v", err)
+	}
+	descriptor, identity, err := blobs.Write(ctx, transcript, content)
+	if err != nil {
+		t.Fatalf("write encrypted transcript fixture: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := blobs.Delete(context.Background(), descriptor); err != nil {
+			t.Errorf("delete encrypted transcript fixture: %v", err)
+		}
+	})
 	asSystem(`
 		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes,
 		                         schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version, project_hash)
-		VALUES ($1, $2, $3, 'route pulls', 'private', 'claude-code', 'model', $4, 1, '0.1.0', $5, $6, 'aes-256-gcm-random-nonce-v1', 1, $7)
-	`, transcript, owner, localID, "blob/"+localID, schema.ComputeTranscriptHash([]byte(localID)),
-		[]byte("fixture-wrapped-data-key"), strings.Repeat("7", 64))
+		VALUES ($1, $2, $3, 'route pulls', 'private', 'claude-code', 'model', $4, $5, '0.1.0', $6, $7, $8, $9, $10)
+	`, transcript, owner, localID, string(descriptor.ObjectKey()), identity.PlaintextSize(), string(identity.Hash()),
+		descriptor.WrappedDEK(), string(descriptor.Algorithm()), descriptor.KeyVersion(), strings.Repeat("7", 64))
 
 	titles, err := redact.NewTitlePipeline()
 	if err != nil {
 		t.Fatalf("construct the title pipeline: %v", err)
 	}
 	cfg := &config.Config{JWTSecret: "transcript-pulls-route", FrontendURL: "https://app.example.com"}
-	routes := New(cfg, pool, nil, titles)
+	routes := New(cfg, pool, blobs, titles)
 	token, err := auth.CreateToken(cfg.JWTSecret, owner, login)
 	if err != nil {
 		t.Fatalf("mint the owner's session: %v", err)
@@ -121,7 +146,7 @@ func TestTranscriptPullRequestsRouteReadsTheSession(t *testing.T) {
 		routes.ServeHTTP(rec, req)
 		return rec
 	}
-	if owned := get(transcript, token); owned.Code != http.StatusOK || strings.TrimSpace(owned.Body.String()) != `{"pull_requests":[]}` {
+	if owned := get(transcript, token); owned.Code != http.StatusOK || strings.TrimSpace(owned.Body.String()) != `{"pull_requests":[],"unverified_pull_requests":[]}` {
 		t.Fatalf("the owner's read of their private transcript's pull requests = %d %s, want 200 with an empty list", owned.Code, owned.Body.String())
 	}
 	anonymous := get(transcript, "")

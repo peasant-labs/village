@@ -38,7 +38,7 @@ vi.mock("@peasant-labs/fairtrade/ui", async () => {
     ...actual,
     TranscriptViewer: (props: Record<string, unknown>) => {
       h.viewerProps.current = props;
-      return <div data-testid="transcript-viewer" />;
+      return <div data-testid="transcript-viewer">{props.beforeHeader as React.ReactNode}</div>;
     },
   };
 });

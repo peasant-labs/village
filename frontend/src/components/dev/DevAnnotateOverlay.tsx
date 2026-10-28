@@ -242,7 +242,7 @@ export function DevAnnotateOverlay() {
           aria-label="Add UI feedback"
           style={{
             position: "fixed",
-            bottom: 16,
+            top: "calc(50% - 22px)",
             right: 16,
             width: 44,
             height: 44,

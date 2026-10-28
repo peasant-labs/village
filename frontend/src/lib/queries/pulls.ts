@@ -3,7 +3,6 @@ import type {
   VillagePromptRequest,
   VillagePromptRequestsResponse,
   VillagePullRequestAttachmentResponse,
-  VillageTranscriptPullRequest,
   VillageTranscriptPullRequestsResponse,
   VillageUserSettings,
 } from "@peasant-labs/schema";
@@ -73,11 +72,10 @@ export function transcriptPullRequestsKey(transcriptId: string) {
 export function useTranscriptPullRequests(transcriptId: string, enabled = true) {
   return useQuery({
     queryKey: transcriptPullRequestsKey(transcriptId),
-    queryFn: async (): Promise<VillageTranscriptPullRequest[]> => {
-      const res = await api<VillageTranscriptPullRequestsResponse>(
+    queryFn: (): Promise<VillageTranscriptPullRequestsResponse> => {
+      return api<VillageTranscriptPullRequestsResponse>(
         `/transcripts/${encodeURIComponent(transcriptId)}/pulls`,
       );
-      return res.pull_requests ?? [];
     },
     enabled: enabled && !!transcriptId,
   });

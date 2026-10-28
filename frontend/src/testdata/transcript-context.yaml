@@ -131,6 +131,13 @@ breadcrumbCases:
 # address in place (`expectReplace`, or null when the address is left as it
 # is). `myCollectives` are the person's own; `shares` the transcript's.
 routeCases:
+  - name: opened-from-home-with-a-collective-share-stays-home
+    signedIn: true
+    search: "?in=home"
+    myCollectives: [{ id: c-acme, name: Acme Platform }]
+    shares: [{ group_id: c-acme, group_name: Acme Platform, status: approved }]
+    expectCrumbs: ["home -> /", "village -> /users/fixture-owner/projects/0000000000000000000000000000000000000000000000000000000000000000"]
+    expectReplace: null
   - name: opened-from-their-collective-names-it
     signedIn: true
     search: "?in=collective:c-acme"

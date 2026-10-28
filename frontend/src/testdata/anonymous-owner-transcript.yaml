@@ -19,12 +19,12 @@ cases:
     owner: {kind: profile, id: 11111111-1111-4111-8111-111111111111, username: alice-dev, display_name: null, avatar_url: null}
     project: village
     contentProject: village
-    expectedCrumbs: [home, village]
+    expectedCrumbs: [home, village, a public session]
     expectedUserLinks: ["/users/alice-dev/projects/0000000000000000000000000000000000000000000000000000000000000000"]
 
   - name: anonymous-owner-shows-no-project-and-no-link
     owner: {kind: anonymous}
     project: null
     contentProject: null
-    expectedCrumbs: [home]
+    expectedCrumbs: [home, a public session]
     expectedUserLinks: []

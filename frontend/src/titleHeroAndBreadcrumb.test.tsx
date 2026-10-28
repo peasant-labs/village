@@ -123,7 +123,7 @@ describe("mounted production transcript route: routable breadcrumb", () => {
     it(c.name, async () => {
       // Signed in, so the trail's crumbs are links (signed out they are plain
       // text: `transcript-context.yaml`'s signed-out cases).
-      const { transcriptID } = await renderCase(c, { signedIn: true });
+      await renderCase(c, { signedIn: true });
 
       // Every href must resolve to a real village route, and specifically
       // none may start with the removed, always-404ing /projects prefix
@@ -137,18 +137,14 @@ describe("mounted production transcript route: routable breadcrumb", () => {
       }
 
       // These fixtures open the transcript with no context, in no
-      // collective: the trail is home, then the project.
+      // collective: the trail is home, project, then the current title.
       const crumbs = [...nav!.querySelectorAll(".link, .cur")].map((crumb) => crumb.textContent);
-      expect(crumbs).toEqual(["home", c.expectedProjectCrumbLabel]);
-      // The project is the trail's last crumb and a real exit to its page.
+      expect(crumbs).toEqual(["home", c.expectedProjectCrumbLabel, c.expectedHeroTitle]);
+      // The project remains a real exit to its page.
       const crumbAnchors = [...nav!.querySelectorAll("a")];
       expect(crumbAnchors.map((a) => a.getAttribute("href"))).toEqual(["/", expectedProjectHref]);
       expect(crumbAnchors[1]?.textContent).toBe(c.expectedProjectCrumbLabel);
 
-      // The title shows once, in the hero, and never in the trail.
-      const title = c.storedTitle?.trim();
-      if (title) expect(nav!.textContent).not.toContain(title);
-      expect(nav!.textContent).not.toContain(transcriptID.slice(0, 8));
     });
   }
 });

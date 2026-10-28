@@ -21,6 +21,8 @@ export function accessNamesLine(names: string[] | undefined): string | null {
 interface TranscriptHeaderActionsProps {
   /** The transcript's own link, which the copy button copies. */
   url: string;
+  /** Invoked only after the clipboard accepts the link. */
+  onCopied?: () => void;
   /** The owner's rows. Absent for everyone else, who gets only the download. */
   owner?: {
     /** Names of the collectives that can read it now; undefined while loading. */
@@ -45,7 +47,7 @@ interface TranscriptHeaderActionsProps {
  * keeps its case, so the names sit in the caption inside a span that keeps
  * their case, not in the `manage access` row where they would be lowercased.
  */
-export default function TranscriptHeaderActions({ url, owner, onDownloadMarkdown, onDownloadJSON, onDownloadJSONL }: TranscriptHeaderActionsProps) {
+export default function TranscriptHeaderActions({ url, onCopied, owner, onDownloadMarkdown, onDownloadJSON, onDownloadJSONL }: TranscriptHeaderActionsProps) {
   const items: MenuItems = [
     ...(owner
       ? [
@@ -68,7 +70,7 @@ export default function TranscriptHeaderActions({ url, owner, onDownloadMarkdown
 
   return (
     <span className="cmg-transcript-actions" data-testid="transcript-header-actions">
-      <CopyIconButton value={url} label="copy link" />
+      <CopyIconButton value={url} label="copy link" onCopied={onCopied} />
       <Menu icon={MoreHorizontal} ariaLabel="more" size="sm" align="end" items={items} caption={caption} />
     </span>
   );

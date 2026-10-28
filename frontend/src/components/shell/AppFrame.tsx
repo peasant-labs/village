@@ -109,13 +109,26 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return (
       <AppSidebarLayout
         className="on-shell"
+        viewport={pageDecides}
+        mainAs={pageDecides ? "main" : undefined}
+        mainId={pageDecides ? "main" : undefined}
         sidebar={
           <Suspense>
             <OnlineSidebar user={isLoggedIn ? user : null} />
           </Suspense>
         }
       >
-        <main id="main">{page}</main>
+        {pageDecides ? page : <main id="main">{page}</main>}
+      </AppSidebarLayout>
+    );
+  }
+
+  if (pageDecides) {
+    return (
+      <AppSidebarLayout sidebar={null} viewport mainAs="main" mainId="main" topBar={
+        <Suspense><PublicTopBar offerSignIn={!isLoading && !isLoggedIn} /></Suspense>
+      }>
+        {page}
       </AppSidebarLayout>
     );
   }

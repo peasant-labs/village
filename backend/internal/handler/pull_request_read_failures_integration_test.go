@@ -42,7 +42,8 @@ var requiredPullRequestReadFailureCases = []string{
 // every other read runs against the database.
 type failingReadQuerier struct {
 	Querier
-	fails string
+	fails  string
+	called *bool
 }
 
 var errInjectedRead = errors.New("injected read failure")
@@ -70,6 +71,9 @@ func (q failingReadQuerier) ListPublicOwnersForViewer(ctx context.Context, arg s
 
 func (q failingReadQuerier) ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error) {
 	if q.fails == "ListPullRequestCandidatesByTranscripts" {
+		if q.called != nil {
+			*q.called = true
+		}
 		return nil, errInjectedRead
 	}
 	return q.Querier.ListPullRequestCandidatesByTranscripts(ctx, arg)
@@ -136,6 +140,15 @@ func TestPullRequestReadsRefuseAFailedRead_RealPostgres(t *testing.T) {
 	for _, c := range fixture.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			h := world.handler(t, pool)
+			if c.Surface == "transcript_pulls" {
+				row, err := h.queries.GetTranscriptByID(t.Context(), world.transcripts["session"])
+				if err != nil {
+					t.Fatal(err)
+				}
+				blobs := newFakeBlobStore()
+				blobs.put(row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
+				h.blobs = blobs
+			}
 			if c.Surface == "available" {
 				installation := &fakeGitHub{
 					installationsBody:     fmt.Sprintf(`[{"id":99,"account":{"login":"acme","id":%d,"type":"User"}}]`, world.githubIDs[c.Viewer]),
@@ -144,7 +157,8 @@ func TestPullRequestReadsRefuseAFailedRead_RealPostgres(t *testing.T) {
 				newFakeGitHub(t, installation)
 				h.gh = newRepoHandler(t, h.queries, installation).gh
 			}
-			h.queries = failingReadQuerier{Querier: h.queries, fails: c.Fails}
+			called := false
+			h.queries = failingReadQuerier{Querier: h.queries, fails: c.Fails, called: &called}
 			target := map[string]string{
 				"list":               "/api/v1/transcripts?limit=100&owner=" + world.logins["author"],
 				"collective":         "/api/v1/groups/" + groupID,
@@ -157,6 +171,9 @@ func TestPullRequestReadsRefuseAFailedRead_RealPostgres(t *testing.T) {
 				t.Fatalf("case names unknown surface %q", c.Surface)
 			}
 			rec := world.get(t, h, prWorldRouter(h), c.Viewer, target)
+			if c.Fails == "ListPullRequestCandidatesByTranscripts" && !called {
+				t.Fatal("candidate failure was never reached")
+			}
 			if rec.Code != http.StatusInternalServerError {
 				t.Fatalf("with %s failing, %s answered %d (%s), want 500", c.Fails, target, rec.Code, rec.Body.String())
 			}

@@ -80,9 +80,8 @@ describe("mounted production transcript route observed-model compatibility", () 
 
       await waitFor(() => expect(document.querySelectorAll(".txn-turnwrap")).toHaveLength(fixture.turns.length));
       const renderedTurns = [...document.querySelectorAll<HTMLElement>(".txn-turnwrap")];
-      expect(renderedTurns.map((turn) => turn.querySelector(".txn-turnmodel")?.textContent)).toEqual(
-        fixture.turns.map(({ expectedEffectiveModel }) => expectedEffectiveModel),
-      );
+      expect(document.querySelector(".txn-meta")?.textContent).toContain(fixture.sessionModel);
+      expect(document.querySelectorAll(".txn-turnmodel")).toHaveLength(0);
       // The transition as a reader hears it: the arrow is drawn for the eye and
       // spoken as "to".
       expect(renderedTurns.map((turn) => spokenText(turn.querySelector(".txn-modelchange")))).toEqual(
