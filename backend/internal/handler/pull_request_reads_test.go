@@ -82,6 +82,9 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 			author := uuid.New()
 			viewer := uuid.New()
 			transcriptID := uuid.New()
+			blobKey := "transcripts/" + transcriptID.String() + ".bin"
+			blobs := newFakeBlobStore()
+			blobs.put(blobKey, currentEnvelopeJSON(t, "claude-code"))
 			fake := newPullReadsGitHub(t)
 			fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
 			fake.setReader("4242", "reading-octocat", "acme/app", map[string]string{"reader": "read", "stranger": "none"}[c.Viewer])
@@ -96,7 +99,7 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 			}
 			q := &mockQuerier{
 				getTranscriptByID: func(_ context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
-					return sqlc.Transcript{ID: id, OwnerID: toPgUUID(author), Visibility: dbVisibilityPublic}, nil
+					return sqlc.Transcript{ID: id, OwnerID: toPgUUID(author), Visibility: dbVisibilityPublic, BlobKey: blobKey, WrappedDataKey: []byte("test-wrapped-key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1}, nil
 				},
 				getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) {
 					return sqlc.User{ID: id, Provider: githubProvider, ProviderUserID: "4242"}, nil
@@ -118,8 +121,12 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 					}}, nil
 				},
 			}
-			h := newTestHandler(q, nil)
+			h := newTestHandler(q, blobs)
 			h.gh = fake.client(t)
+			row, _ := q.GetTranscriptByID(context.Background(), toPgUUID(transcriptID))
+			if _, err := h.readEncryptedTranscript(context.Background(), row, "", func(sqlc.Transcript) bool { return true }); err != nil {
+				t.Fatalf("read fixture transcript: %v", err)
+			}
 
 			r := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts/"+transcriptID.String()+"/pulls", nil)
 			r = withChiURLParam(r, "id", transcriptID.String())

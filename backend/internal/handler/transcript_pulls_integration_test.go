@@ -99,6 +99,15 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 			_, asksBefore := world.github.counts()
 
 			h := world.handler(t, pool)
+			blobs := newFakeBlobStore()
+			for _, id := range world.transcripts {
+				row, err := h.queries.GetTranscriptByID(t.Context(), id)
+				if err != nil {
+					t.Fatalf("load transcript descriptor: %v", err)
+				}
+				blobs.put(row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
+			}
+			h.blobs = blobs
 			transcriptID, ok := world.transcripts[c.Transcript]
 			if !ok {
 				t.Fatalf("case names unknown transcript %q", c.Transcript)

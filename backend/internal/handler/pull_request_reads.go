@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/schema/commandpr"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/promptattach"
@@ -294,6 +295,47 @@ func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// The evidence is derived only from the already-readable encrypted generation.
+	// This read never installs a migrated generation or creates an attachment.
+	read, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
+		return h.canViewTranscript(r.Context(), user, fresh)
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
+		return
+	}
+	payload, _, err := defaultContentMigrator.Migrate(r.Context(), read.Plaintext)
+	if err != nil || payload == nil {
+		writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
+		return
+	}
+	if validateObservedModelValues(payload) != nil || validateThinkingLevelValues(payload) != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
+		return
+	}
+	owner, err := h.resolvePublicOwner(r.Context(), user, read.Row.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
+		return
+	}
+	if !owner.IsProfile() {
+		encoded, encodeErr := marshalTranscriptContentEnvelope(currentContractVersion, payload)
+		if encodeErr == nil {
+			encoded, encodeErr = withholdContentRepository(encoded)
+		}
+		if encodeErr == nil {
+			payload, _, encodeErr = defaultContentMigrator.Migrate(r.Context(), encoded)
+		}
+		if encodeErr != nil || payload == nil {
+			writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
+			return
+		}
+	}
+	unverified := commandpr.DetectSession(*payload)
+	if unverified == nil {
+		unverified = []schema.UnverifiedPullRequest{}
+	}
+
 	rows, err := h.queries.ListPullRequestCandidatesByTranscripts(r.Context(), sqlc.ListPullRequestCandidatesByTranscriptsParams{
 		ViewerID:      viewerPgID(user),
 		TranscriptIds: []pgtype.UUID{transcript.ID},
@@ -306,7 +348,7 @@ func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Requ
 	readable := readablePullRequests(viewerPgID(user), candidatesFromTranscriptRows(rows))
 	details := h.pullRequestDetailsFor(r.Context(), readable)
 
-	response := schema.VillageTranscriptPullRequestsResponse{PullRequests: make([]schema.VillageTranscriptPullRequest, 0, len(readable))}
+	response := schema.VillageTranscriptPullRequestsResponse{PullRequests: make([]schema.VillageTranscriptPullRequest, 0, len(readable)), UnverifiedPullRequests: &unverified}
 	for i, c := range readable {
 		response.PullRequests = append(response.PullRequests, schema.VillageTranscriptPullRequest{
 			Owner: c.owner, Name: c.name, Number: c.number,

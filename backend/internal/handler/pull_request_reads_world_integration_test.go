@@ -370,7 +370,7 @@ func insertPRWorldTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Po
 		                         git_remote, turn_count, duration_ms, tokens_in, tokens_out, session_origin)
 		VALUES ($1, $2, $3, $4, $5, 'claude-code', 'model', $6, 1, '0.1.0', $7, $8, 'aes-256-gcm-random-nonce-v1', 1, $9,
 		        $10, $11, $12, $13, $14, 'user')
-	`, id, owner, localID, "t-"+tr.Name, tr.Visibility, "blob/"+localID, schema.ComputeTranscriptHash([]byte(localID)),
+	`, id, owner, localID, "t-"+tr.Name, tr.Visibility, "transcripts/"+uuid.UUID(id.Bytes).String()+".bin", schema.ComputeTranscriptHash([]byte(localID)),
 		[]byte("fixture-wrapped-data-key"), fixtureProjectHash(localID), nullableText(tr.Remote), tr.Turns, tr.DurationMs, tr.TokensIn, tr.TokensOut); err != nil {
 		t.Fatalf("insert transcript %s: %v", tr.Name, err)
 	}

@@ -1,0 +1,11 @@
+content:
+  current: &current >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"schemaVersion":"0.1.0","id":"synthetic-session","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":2,"turnCount":1,"turns":[{"index":42,"role":"assistant","content":"published redacted example","timestamp":"2026-01-01T00:00:01Z","depth":0,"toolCalls":[{"id":"first","name":"Bash","arguments":"{\"command\":\"echo harmless\"}","result":"done"},{"id":"source-call","name":"Bash","arguments":"{\"command\":\"gh pr create --fill\"}","result":"https://github.com/example/widgets/pull/42"}]}]}}
+  legacy: &legacy >-
+    {"id":"legacy-session","provider":"claude","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":1,"turnCount":1,"turns":[{"index":42,"role":"assistant","content":"legacy redacted example","timestamp":"2026-01-01T00:00:01Z","depth":0,"toolCalls":[{"id":"legacy-call","name":"Bash","arguments":"{\"command\":\"gh pr create --fill\"}","result":"https://github.com/example/widgets/pull/42"}]}]}
+cases:
+  - {name: denied-before-blob-read, visibility: private, content: *current, status: 404, reads: 0, evidence: false}
+  - {name: anonymous-published-evidence-and-attachment, visibility: public, content: *current, status: 200, reads: 1, evidence: true, call_index: 1, call_id: source-call}
+  - {name: legacy-normalized-without-write, visibility: public, content: *legacy, status: 200, reads: 1, evidence: true, call_index: 0, call_id: legacy-call}
+  - {name: corrupt-content-is-retryable, visibility: public, content: '{broken SECRET-MARKER', status: 500, reads: 1, evidence: false}
+  - {name: blob-failure-is-retryable, visibility: public, content: *current, status: 500, reads: 1, evidence: false, fail_read: true}
