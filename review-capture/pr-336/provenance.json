@@ -1,0 +1,9 @@
+{
+  "kind": "retrospective record from worker capture and Playwright results; not generated at capture time",
+  "source_commit": "43cc9f191479287a6328a7b38943666379a1d6a9",
+  "subsequent_commit": "c55f6f4a2ef0d6985808fcbe61239e5616881692 changes only backend/internal/router/transcript_pulls_route_integration_test.go",
+  "build": "NEXT_PUBLIC_API_URL=http://localhost:15561/api/v1 pnpm build; served with pnpm start --port 15560",
+  "package": "published @peasant-labs/fairtrade 0.0.49; lock integrity sha512-kLIxQrUThwTWQwYlSA1VUmmjSwaSDGbvoGfrgOFyMyAvwfWZsx6g6jLkzmDAO10sDdjOujjB3/xE9m4LeHvPDg==",
+  "proof": "Playwright transcript journey, 8 passed, mock API; bundle checked for 15561 and transcript link copied.; desktop and mobile dark/light captures inspected",
+  "limitations": "Screenshots are from 43cc9f19, not rebuilt from subsequent test-only commit; mock backend, not live production data. Mobile success toast temporarily overlaps upper header."
+}
