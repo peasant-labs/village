@@ -1,0 +1,2715 @@
+{
+  "source": "1fff06081bed9bf180af3679aa3aabd2d292df34",
+  "base": "5a571c7219ba0ca1c6cae9c193c4bad22c2ac680",
+  "buildID": "BOJ0UxzcOAyIHfle7A1Rr",
+  "lockHash": "b51e8aa8b51822dadb58424e9c93004a8f52a5f9c706a60330e4a4ef353c2c3b",
+  "fixtureHash": "0bf4c336ab8ad2879e02dd0aa94bb867ba6f788b234cfd8fe4a2517e96948005",
+  "fixture": "frontend/src/app/dev/visual-harness/sample-session.ts served as REST response at the production /transcripts/demo route, not the dev fixture page",
+  "release": {
+    "version": "0.0.48",
+    "latest": "0.0.48",
+    "mergeSha": "5a2f9f37257b494318f83cd6093b15ef584d2297",
+    "reviewedSha": "29670f1f3c79010b3d2b57d9fe31413c80fc287c",
+    "treeEqual": true,
+    "tag": "fairtrade-v0.0.48",
+    "publishRun": {
+      "conclusion": "success",
+      "headSha": "5a2f9f37257b494318f83cd6093b15ef584d2297",
+      "status": "completed",
+      "url": "https://github.com/peasant-labs/fairtrade-design-system/actions/runs/40606551830"
+    },
+    "tarball": "https://registry.npmjs.org/@peasant-labs/fairtrade/-/fairtrade-0.0.48.tgz",
+    "integrity": "sha512-z3NjuhSETH89pTBwe7RrFAPTdFT0vz5bXefdSQt9f8yaAhJMj/RWD9s1oro93sm2Xy1b6bW4A7tsYw0GLvfMzg==",
+    "shasum": "69f0660ff239097fa784efa76f084282b4e3d0b5",
+    "bytes": 522520,
+    "packedRepositoryMatchesSource": true,
+    "registryGitHeadMatchesMerge": true,
+    "attestations": {
+      "url": "https://registry.npmjs.org/-/npm/v1/attestations/@peasant-labs%2ffairtrade@0.0.48",
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    },
+    "verifiedAt": "2026-10-28T00:09:52.362023+00:00",
+    "verificationNote": "Initial local verification assumed npm-normalized repository URL was also literal packed metadata; corrected to compare packed repository exactly with canonical source and registry normalized repository separately. No package/source defect or change.",
+    "slsaSubjectDigestMatchesTarball": true,
+    "slsaSourceContainsMergeSha": true,
+    "slsaVerificationLimit": "Verified statement subject/source and trusted-publishing workflow success; no independent Sigstore signature verifier was run."
+  },
+  "assets": [
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-CS6ELrNR.css",
+      "sha256": "9569a899655f6337777f38843420b5fb1e1918366a216f49bc5f430e2d42ab22"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-Bud8vKb0.js",
+      "sha256": "263461775d9f8ea2953dfd0ccb30cf495045740a1cd26abc3ea84ea893e06d79"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b5507667d38843e0.css",
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22b190c8ef9685df.css",
+      "sha256": "bc2ff603949c2f69dd2036c0b95812cc62dda320fd447ad20f293382f07e3420"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9a169fa1f93d10db.css",
+      "sha256": "a1a5b29ed73cba958e2ba5ccf93e117529fcafcf29b83265dc79c4b062a6f188"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/28f3f0623e472e27.css",
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/86b1b00e4811c53c.css",
+      "sha256": "7e496bf72710075593ac151b0ee1765a47d3b3a22d8ac92cdd25239214764e17"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0d845ef4ce63fddc.js",
+      "sha256": "e9d7698dfbc00ae1eea3f53bc17495e168d6d0622f0f2e8720b49d9d3a9bec0a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b3e300bb17a8bb24.js",
+      "sha256": "36381e6316160d642a325af2362df8ae3b07e747b8a873a6d8a81eac29130316"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/5d463ff435e505a3.js",
+      "sha256": "621f0fe9fd83576f3fee4a4d52492d87338cdba68d9e926487b0e628eacaf170"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/turbopack-cef6da7b7d83fcde.js",
+      "sha256": "af80fafb8f8c556e065c7e9e182cd3bac0cf25db50743c03f21e11869f17438c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/1654832919289361.js",
+      "sha256": "fd74096cb42251801699567e07df2dd392a506928ccf76374f8b8d88efbcdf1b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/bd4678d807fb958e.js",
+      "sha256": "918026cc094dfb942bab3d9bed541845c036b01b12369a441b0219000928350c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/75d93d1321966fc7.js",
+      "sha256": "ad89d9dc37a8fab33d4bf4ee0761134d9d72f8db57a3b37b14816aff4b13f31e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/619359ef9032bd48.js",
+      "sha256": "326df5ba1a4b644d40acee4412e12f32b5f0b9c94a06fa7855f091e5baf262ab"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c987d68a19f9e1b7.js",
+      "sha256": "474ace91a8479366a663d55e847d54d8f171f851ef74477052b5b42247a3ee0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/36a9486bf7f1ac17.js",
+      "sha256": "f048f73c6905542ea72c02f43ff1d466ade98c88b50c83369ee8568250c6afca"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a610e081df2a4b6f.js",
+      "sha256": "67b4372d2fe1244fc8e7bafa043547d8bf89b1aed17b1b58275b1c8bb24e0092"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c20d0e29ea441b24.js",
+      "sha256": "f621cdb909f92f268e68f1556033b0c6a6e34fa21dff7a3ed1aeca150e639200"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8c22b02a923bb155.js",
+      "sha256": "1602d826d5e05638e57d1aca224d37d3e2db0d83e5ad6626b51ab815fa367f0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8871ef26acc8834f.js",
+      "sha256": "837eeed177e1fb0d6d37246267f2880b53a2c25a1cc361fb0b366ed962fc92b7"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f9b4727cf19ec7aa.js",
+      "sha256": "c177455af209e597067487961c0187da7dfd4de0d447b116b1facf11b5c0eeaf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d706f06fddf1b78b.js",
+      "sha256": "37459c9f6890b687fe8e1a5fa4a6e197170a1121f9d7a0367e523065f2812e4a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7c5471ba43877f6c.js",
+      "sha256": "fc0b85503d37ad1c8cbf0a3a8aa5fbad34e123fd4e0aa7647ac2be52f8553817"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/6348ccd2bf179de0.js",
+      "sha256": "c488e8cd000e4f68afc1903dc693365c977f7e0fedaa6e843d50e88d7dbfb416"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22e3041a9f820645.js",
+      "sha256": "98b3a49bc41d2b5647370f85347aba57e06da11e1642ea2e8704de4081c19d3b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7f2a7ad02d54de96.js",
+      "sha256": "ccd14f2866a47becafadcf2a2d31ff20ff0a7d26b3c4be789aec9d43f6608078"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d9eb14900ed0dd80.css",
+      "sha256": "86680fed263dc7a065127fa66bad2d00e713a5177c4b8d5f804762a70d899d12"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f90eb65846c52177.css",
+      "sha256": "1323b333e58ea17dff00ee8f8bc1f514a09e9dc01b24fa870425c2986baf5a94"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/fe222a187d99e6b2.css",
+      "sha256": "1c2e6e1fac0d67b2d18fcf7496f08343db71693c078ce90f18f3154ab3c58070"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8a548b0f9a45baff.js",
+      "sha256": "3430af0caeeec4572f4c29deb6dc3096f0cc918258854eb68c45ecd1085e8194"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0b20dfe1192cff95.js",
+      "sha256": "983342fe9419cf0f20f7fc8dead4319a97bb35b47119d2cd7fbe1c1987485052"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9f0feca6cfdbe7c3.js",
+      "sha256": "e39db2b3be320de825135418732668152194eac477a51673a7e0ba99f7e09344"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/65d06d9c1631f2de.js",
+      "sha256": "390b909a7f233f83e497bbcda79114eb0c6a616e36437cad4318eaf325f52186"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b4cb4ab6dc80b331.js",
+      "sha256": "580035dad8e3fcc56c0f14c083c1e4ae16d38dffc862c560c391d426db69dc13"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a6092e44a92c1865.js",
+      "sha256": "76a7248733e1f1533dcc99f9289841d61ccc29c539ee43a1cb91f39d486bb023"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c776ae327949c363.js",
+      "sha256": "fec3028d3022db40d4de6a5ac8211eeb6915b53f6abac3b8430372e11dc78ed3"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-CS6ELrNR.css",
+      "sha256": "9569a899655f6337777f38843420b5fb1e1918366a216f49bc5f430e2d42ab22"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-Bud8vKb0.js",
+      "sha256": "263461775d9f8ea2953dfd0ccb30cf495045740a1cd26abc3ea84ea893e06d79"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b5507667d38843e0.css",
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22b190c8ef9685df.css",
+      "sha256": "bc2ff603949c2f69dd2036c0b95812cc62dda320fd447ad20f293382f07e3420"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/28f3f0623e472e27.css",
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9a169fa1f93d10db.css",
+      "sha256": "a1a5b29ed73cba958e2ba5ccf93e117529fcafcf29b83265dc79c4b062a6f188"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/86b1b00e4811c53c.css",
+      "sha256": "7e496bf72710075593ac151b0ee1765a47d3b3a22d8ac92cdd25239214764e17"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0d845ef4ce63fddc.js",
+      "sha256": "e9d7698dfbc00ae1eea3f53bc17495e168d6d0622f0f2e8720b49d9d3a9bec0a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b3e300bb17a8bb24.js",
+      "sha256": "36381e6316160d642a325af2362df8ae3b07e747b8a873a6d8a81eac29130316"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/bd4678d807fb958e.js",
+      "sha256": "918026cc094dfb942bab3d9bed541845c036b01b12369a441b0219000928350c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/turbopack-cef6da7b7d83fcde.js",
+      "sha256": "af80fafb8f8c556e065c7e9e182cd3bac0cf25db50743c03f21e11869f17438c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/5d463ff435e505a3.js",
+      "sha256": "621f0fe9fd83576f3fee4a4d52492d87338cdba68d9e926487b0e628eacaf170"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/1654832919289361.js",
+      "sha256": "fd74096cb42251801699567e07df2dd392a506928ccf76374f8b8d88efbcdf1b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/36a9486bf7f1ac17.js",
+      "sha256": "f048f73c6905542ea72c02f43ff1d466ade98c88b50c83369ee8568250c6afca"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/75d93d1321966fc7.js",
+      "sha256": "ad89d9dc37a8fab33d4bf4ee0761134d9d72f8db57a3b37b14816aff4b13f31e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c987d68a19f9e1b7.js",
+      "sha256": "474ace91a8479366a663d55e847d54d8f171f851ef74477052b5b42247a3ee0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/619359ef9032bd48.js",
+      "sha256": "326df5ba1a4b644d40acee4412e12f32b5f0b9c94a06fa7855f091e5baf262ab"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a610e081df2a4b6f.js",
+      "sha256": "67b4372d2fe1244fc8e7bafa043547d8bf89b1aed17b1b58275b1c8bb24e0092"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c20d0e29ea441b24.js",
+      "sha256": "f621cdb909f92f268e68f1556033b0c6a6e34fa21dff7a3ed1aeca150e639200"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8871ef26acc8834f.js",
+      "sha256": "837eeed177e1fb0d6d37246267f2880b53a2c25a1cc361fb0b366ed962fc92b7"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8c22b02a923bb155.js",
+      "sha256": "1602d826d5e05638e57d1aca224d37d3e2db0d83e5ad6626b51ab815fa367f0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f9b4727cf19ec7aa.js",
+      "sha256": "c177455af209e597067487961c0187da7dfd4de0d447b116b1facf11b5c0eeaf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d706f06fddf1b78b.js",
+      "sha256": "37459c9f6890b687fe8e1a5fa4a6e197170a1121f9d7a0367e523065f2812e4a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7c5471ba43877f6c.js",
+      "sha256": "fc0b85503d37ad1c8cbf0a3a8aa5fbad34e123fd4e0aa7647ac2be52f8553817"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/6348ccd2bf179de0.js",
+      "sha256": "c488e8cd000e4f68afc1903dc693365c977f7e0fedaa6e843d50e88d7dbfb416"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22e3041a9f820645.js",
+      "sha256": "98b3a49bc41d2b5647370f85347aba57e06da11e1642ea2e8704de4081c19d3b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7f2a7ad02d54de96.js",
+      "sha256": "ccd14f2866a47becafadcf2a2d31ff20ff0a7d26b3c4be789aec9d43f6608078"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d9eb14900ed0dd80.css",
+      "sha256": "86680fed263dc7a065127fa66bad2d00e713a5177c4b8d5f804762a70d899d12"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f90eb65846c52177.css",
+      "sha256": "1323b333e58ea17dff00ee8f8bc1f514a09e9dc01b24fa870425c2986baf5a94"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/fe222a187d99e6b2.css",
+      "sha256": "1c2e6e1fac0d67b2d18fcf7496f08343db71693c078ce90f18f3154ab3c58070"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9f0feca6cfdbe7c3.js",
+      "sha256": "e39db2b3be320de825135418732668152194eac477a51673a7e0ba99f7e09344"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0b20dfe1192cff95.js",
+      "sha256": "983342fe9419cf0f20f7fc8dead4319a97bb35b47119d2cd7fbe1c1987485052"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/65d06d9c1631f2de.js",
+      "sha256": "390b909a7f233f83e497bbcda79114eb0c6a616e36437cad4318eaf325f52186"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8a548b0f9a45baff.js",
+      "sha256": "3430af0caeeec4572f4c29deb6dc3096f0cc918258854eb68c45ecd1085e8194"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b4cb4ab6dc80b331.js",
+      "sha256": "580035dad8e3fcc56c0f14c083c1e4ae16d38dffc862c560c391d426db69dc13"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a6092e44a92c1865.js",
+      "sha256": "76a7248733e1f1533dcc99f9289841d61ccc29c539ee43a1cb91f39d486bb023"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c776ae327949c363.js",
+      "sha256": "fec3028d3022db40d4de6a5ac8211eeb6915b53f6abac3b8430372e11dc78ed3"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-CS6ELrNR.css",
+      "sha256": "9569a899655f6337777f38843420b5fb1e1918366a216f49bc5f430e2d42ab22"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-Bud8vKb0.js",
+      "sha256": "263461775d9f8ea2953dfd0ccb30cf495045740a1cd26abc3ea84ea893e06d79"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b5507667d38843e0.css",
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22b190c8ef9685df.css",
+      "sha256": "bc2ff603949c2f69dd2036c0b95812cc62dda320fd447ad20f293382f07e3420"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/28f3f0623e472e27.css",
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9a169fa1f93d10db.css",
+      "sha256": "a1a5b29ed73cba958e2ba5ccf93e117529fcafcf29b83265dc79c4b062a6f188"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/86b1b00e4811c53c.css",
+      "sha256": "7e496bf72710075593ac151b0ee1765a47d3b3a22d8ac92cdd25239214764e17"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0d845ef4ce63fddc.js",
+      "sha256": "e9d7698dfbc00ae1eea3f53bc17495e168d6d0622f0f2e8720b49d9d3a9bec0a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b3e300bb17a8bb24.js",
+      "sha256": "36381e6316160d642a325af2362df8ae3b07e747b8a873a6d8a81eac29130316"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/5d463ff435e505a3.js",
+      "sha256": "621f0fe9fd83576f3fee4a4d52492d87338cdba68d9e926487b0e628eacaf170"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/turbopack-cef6da7b7d83fcde.js",
+      "sha256": "af80fafb8f8c556e065c7e9e182cd3bac0cf25db50743c03f21e11869f17438c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/1654832919289361.js",
+      "sha256": "fd74096cb42251801699567e07df2dd392a506928ccf76374f8b8d88efbcdf1b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/bd4678d807fb958e.js",
+      "sha256": "918026cc094dfb942bab3d9bed541845c036b01b12369a441b0219000928350c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/75d93d1321966fc7.js",
+      "sha256": "ad89d9dc37a8fab33d4bf4ee0761134d9d72f8db57a3b37b14816aff4b13f31e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/36a9486bf7f1ac17.js",
+      "sha256": "f048f73c6905542ea72c02f43ff1d466ade98c88b50c83369ee8568250c6afca"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c987d68a19f9e1b7.js",
+      "sha256": "474ace91a8479366a663d55e847d54d8f171f851ef74477052b5b42247a3ee0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/619359ef9032bd48.js",
+      "sha256": "326df5ba1a4b644d40acee4412e12f32b5f0b9c94a06fa7855f091e5baf262ab"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a610e081df2a4b6f.js",
+      "sha256": "67b4372d2fe1244fc8e7bafa043547d8bf89b1aed17b1b58275b1c8bb24e0092"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8871ef26acc8834f.js",
+      "sha256": "837eeed177e1fb0d6d37246267f2880b53a2c25a1cc361fb0b366ed962fc92b7"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c20d0e29ea441b24.js",
+      "sha256": "f621cdb909f92f268e68f1556033b0c6a6e34fa21dff7a3ed1aeca150e639200"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8c22b02a923bb155.js",
+      "sha256": "1602d826d5e05638e57d1aca224d37d3e2db0d83e5ad6626b51ab815fa367f0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f9b4727cf19ec7aa.js",
+      "sha256": "c177455af209e597067487961c0187da7dfd4de0d447b116b1facf11b5c0eeaf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d706f06fddf1b78b.js",
+      "sha256": "37459c9f6890b687fe8e1a5fa4a6e197170a1121f9d7a0367e523065f2812e4a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7c5471ba43877f6c.js",
+      "sha256": "fc0b85503d37ad1c8cbf0a3a8aa5fbad34e123fd4e0aa7647ac2be52f8553817"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/6348ccd2bf179de0.js",
+      "sha256": "c488e8cd000e4f68afc1903dc693365c977f7e0fedaa6e843d50e88d7dbfb416"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22e3041a9f820645.js",
+      "sha256": "98b3a49bc41d2b5647370f85347aba57e06da11e1642ea2e8704de4081c19d3b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7f2a7ad02d54de96.js",
+      "sha256": "ccd14f2866a47becafadcf2a2d31ff20ff0a7d26b3c4be789aec9d43f6608078"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d9eb14900ed0dd80.css",
+      "sha256": "86680fed263dc7a065127fa66bad2d00e713a5177c4b8d5f804762a70d899d12"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f90eb65846c52177.css",
+      "sha256": "1323b333e58ea17dff00ee8f8bc1f514a09e9dc01b24fa870425c2986baf5a94"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/fe222a187d99e6b2.css",
+      "sha256": "1c2e6e1fac0d67b2d18fcf7496f08343db71693c078ce90f18f3154ab3c58070"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9f0feca6cfdbe7c3.js",
+      "sha256": "e39db2b3be320de825135418732668152194eac477a51673a7e0ba99f7e09344"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0b20dfe1192cff95.js",
+      "sha256": "983342fe9419cf0f20f7fc8dead4319a97bb35b47119d2cd7fbe1c1987485052"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/65d06d9c1631f2de.js",
+      "sha256": "390b909a7f233f83e497bbcda79114eb0c6a616e36437cad4318eaf325f52186"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8a548b0f9a45baff.js",
+      "sha256": "3430af0caeeec4572f4c29deb6dc3096f0cc918258854eb68c45ecd1085e8194"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b4cb4ab6dc80b331.js",
+      "sha256": "580035dad8e3fcc56c0f14c083c1e4ae16d38dffc862c560c391d426db69dc13"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a6092e44a92c1865.js",
+      "sha256": "76a7248733e1f1533dcc99f9289841d61ccc29c539ee43a1cb91f39d486bb023"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c776ae327949c363.js",
+      "sha256": "fec3028d3022db40d4de6a5ac8211eeb6915b53f6abac3b8430372e11dc78ed3"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-CS6ELrNR.css",
+      "sha256": "9569a899655f6337777f38843420b5fb1e1918366a216f49bc5f430e2d42ab22"
+    },
+    {
+      "target": "fairtrade",
+      "url": "http://127.0.0.1:15359/assets/index-Bud8vKb0.js",
+      "sha256": "263461775d9f8ea2953dfd0ccb30cf495045740a1cd26abc3ea84ea893e06d79"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b5507667d38843e0.css",
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22b190c8ef9685df.css",
+      "sha256": "bc2ff603949c2f69dd2036c0b95812cc62dda320fd447ad20f293382f07e3420"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/28f3f0623e472e27.css",
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/86b1b00e4811c53c.css",
+      "sha256": "7e496bf72710075593ac151b0ee1765a47d3b3a22d8ac92cdd25239214764e17"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9a169fa1f93d10db.css",
+      "sha256": "a1a5b29ed73cba958e2ba5ccf93e117529fcafcf29b83265dc79c4b062a6f188"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0d845ef4ce63fddc.js",
+      "sha256": "e9d7698dfbc00ae1eea3f53bc17495e168d6d0622f0f2e8720b49d9d3a9bec0a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b3e300bb17a8bb24.js",
+      "sha256": "36381e6316160d642a325af2362df8ae3b07e747b8a873a6d8a81eac29130316"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/bd4678d807fb958e.js",
+      "sha256": "918026cc094dfb942bab3d9bed541845c036b01b12369a441b0219000928350c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/5d463ff435e505a3.js",
+      "sha256": "621f0fe9fd83576f3fee4a4d52492d87338cdba68d9e926487b0e628eacaf170"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/turbopack-cef6da7b7d83fcde.js",
+      "sha256": "af80fafb8f8c556e065c7e9e182cd3bac0cf25db50743c03f21e11869f17438c"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/1654832919289361.js",
+      "sha256": "fd74096cb42251801699567e07df2dd392a506928ccf76374f8b8d88efbcdf1b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/75d93d1321966fc7.js",
+      "sha256": "ad89d9dc37a8fab33d4bf4ee0761134d9d72f8db57a3b37b14816aff4b13f31e"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/36a9486bf7f1ac17.js",
+      "sha256": "f048f73c6905542ea72c02f43ff1d466ade98c88b50c83369ee8568250c6afca"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8871ef26acc8834f.js",
+      "sha256": "837eeed177e1fb0d6d37246267f2880b53a2c25a1cc361fb0b366ed962fc92b7"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a610e081df2a4b6f.js",
+      "sha256": "67b4372d2fe1244fc8e7bafa043547d8bf89b1aed17b1b58275b1c8bb24e0092"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c987d68a19f9e1b7.js",
+      "sha256": "474ace91a8479366a663d55e847d54d8f171f851ef74477052b5b42247a3ee0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/619359ef9032bd48.js",
+      "sha256": "326df5ba1a4b644d40acee4412e12f32b5f0b9c94a06fa7855f091e5baf262ab"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8c22b02a923bb155.js",
+      "sha256": "1602d826d5e05638e57d1aca224d37d3e2db0d83e5ad6626b51ab815fa367f0b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c20d0e29ea441b24.js",
+      "sha256": "f621cdb909f92f268e68f1556033b0c6a6e34fa21dff7a3ed1aeca150e639200"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d706f06fddf1b78b.js",
+      "sha256": "37459c9f6890b687fe8e1a5fa4a6e197170a1121f9d7a0367e523065f2812e4a"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f9b4727cf19ec7aa.js",
+      "sha256": "c177455af209e597067487961c0187da7dfd4de0d447b116b1facf11b5c0eeaf"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7c5471ba43877f6c.js",
+      "sha256": "fc0b85503d37ad1c8cbf0a3a8aa5fbad34e123fd4e0aa7647ac2be52f8553817"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/6348ccd2bf179de0.js",
+      "sha256": "c488e8cd000e4f68afc1903dc693365c977f7e0fedaa6e843d50e88d7dbfb416"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/22e3041a9f820645.js",
+      "sha256": "98b3a49bc41d2b5647370f85347aba57e06da11e1642ea2e8704de4081c19d3b"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7f2a7ad02d54de96.js",
+      "sha256": "ccd14f2866a47becafadcf2a2d31ff20ff0a7d26b3c4be789aec9d43f6608078"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/d9eb14900ed0dd80.css",
+      "sha256": "86680fed263dc7a065127fa66bad2d00e713a5177c4b8d5f804762a70d899d12"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/fe222a187d99e6b2.css",
+      "sha256": "1c2e6e1fac0d67b2d18fcf7496f08343db71693c078ce90f18f3154ab3c58070"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/f90eb65846c52177.css",
+      "sha256": "1323b333e58ea17dff00ee8f8bc1f514a09e9dc01b24fa870425c2986baf5a94"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/9f0feca6cfdbe7c3.js",
+      "sha256": "e39db2b3be320de825135418732668152194eac477a51673a7e0ba99f7e09344"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/0b20dfe1192cff95.js",
+      "sha256": "983342fe9419cf0f20f7fc8dead4319a97bb35b47119d2cd7fbe1c1987485052"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/65d06d9c1631f2de.js",
+      "sha256": "390b909a7f233f83e497bbcda79114eb0c6a616e36437cad4318eaf325f52186"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/8a548b0f9a45baff.js",
+      "sha256": "3430af0caeeec4572f4c29deb6dc3096f0cc918258854eb68c45ecd1085e8194"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/b4cb4ab6dc80b331.js",
+      "sha256": "580035dad8e3fcc56c0f14c083c1e4ae16d38dffc862c560c391d426db69dc13"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/a6092e44a92c1865.js",
+      "sha256": "76a7248733e1f1533dcc99f9289841d61ccc29c539ee43a1cb91f39d486bb023"
+    },
+    {
+      "target": "village",
+      "url": "http://127.0.0.1:13332/_next/static/chunks/c776ae327949c363.js",
+      "sha256": "fec3028d3022db40d4de6a5ac8211eeb6915b53f6abac3b8430372e11dc78ed3"
+    }
+  ],
+  "captures": [
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-dark-desktop-reading.png",
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "state": "reading",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=dark#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-dark-desktop-thinking.png",
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "state": "thinking",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=dark#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 360,
+        "y": 485.703125,
+        "width": 687,
+        "height": 90
+      },
+      "sha256": "92f3a11ed377e2f07fb889e8da45902764b4fed68e53730e85b61bbdf5be65db",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-dark-desktop-reading.png",
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "state": "reading",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-dark-desktop-thinking.png",
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "state": "thinking",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 576,
+        "y": 391.59375,
+        "width": 503,
+        "height": 114
+      },
+      "sha256": "fe833b7544c2c13fc7ac4725fe13d5897d63c3298e2721b43bfb9e3cdf69c52a",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-dark-phone-reading.png",
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "phone",
+      "state": "reading",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=dark#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-dark-phone-thinking.png",
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "phone",
+      "state": "thinking",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=dark#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 56,
+        "y": 352.390625,
+        "width": 278,
+        "height": 210
+      },
+      "sha256": "a0388e8164d54fb28bf4f3a97edb29e715754a249755155e623849f2a83297cb",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-dark-phone-reading.png",
+      "target": "village",
+      "theme": "dark",
+      "device": "phone",
+      "state": "reading",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-dark-phone-thinking.png",
+      "target": "village",
+      "theme": "dark",
+      "device": "phone",
+      "state": "thinking",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 44,
+        "y": 361.59375,
+        "width": 302,
+        "height": 210
+      },
+      "sha256": "1d1be5a880099d3a2fbc117b6ed882c1ecaab2f3520d191f8dbe1fd215b53b1e",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-light-desktop-reading.png",
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "state": "reading",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=light#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-light-desktop-thinking.png",
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "state": "thinking",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=light#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 360,
+        "y": 485.703125,
+        "width": 687,
+        "height": 90
+      },
+      "sha256": "fc6c6bd5f1a180291e9a657b6085d962ed96619404977b1da866b2fdeafa395b",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-light-desktop-reading.png",
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "state": "reading",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-light-desktop-thinking.png",
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "state": "thinking",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0.2s",
+          "transitionTimingFunction": "cubic-bezier(0.77, 0, 0.175, 1)",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 576,
+        "y": 391.59375,
+        "width": 503,
+        "height": 114
+      },
+      "sha256": "2ebc19d83ef3ce3b802492ccf18a773ecb1fff9f240d574bbeb23650613390e8",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-light-phone-reading.png",
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "phone",
+      "state": "reading",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=light#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/fairtrade-light-phone-thinking.png",
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "phone",
+      "state": "thinking",
+      "url": "http://127.0.0.1:15359/?app=transcript&transcript=ledger&fb=off&theme=light#inuse",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "\"Atkinson Hyperlegible Mono\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 56,
+        "y": 352.390625,
+        "width": 278,
+        "height": 210
+      },
+      "sha256": "ec02fe39f677b7e50b29ac27f63a95752c7f8644ba30fdc34e6c978d95b5c0eb",
+      "replacedOutOfViewCapture": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-light-phone-reading.png",
+      "target": "village",
+      "theme": "light",
+      "device": "phone",
+      "state": "reading",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": null,
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true
+    },
+    {
+      "path": "/tmp/opencode/txn-ledger/village-adoption/captures/village-light-phone-thinking.png",
+      "target": "village",
+      "theme": "light",
+      "device": "phone",
+      "state": "thinking",
+      "url": "http://127.0.0.1:13332/transcripts/demo?in=home",
+      "metrics": {
+        ".txn-md-prose": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-modelactions-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "8px",
+          "paddingRight": "0px",
+          "paddingBottom": "8px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-tc-head": {
+          "fontFamily": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace",
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "4px",
+          "paddingRight": "0px",
+          "paddingBottom": "4px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-thinking-box": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "1px",
+          "paddingTop": "8px",
+          "paddingRight": "12px",
+          "paddingBottom": "8px",
+          "paddingLeft": "12px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-rail-left-body": null,
+        ".txn-body-grid": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "auto"
+        },
+        ".txn-reader-handle": {
+          "fontFamily": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "borderRadius": "0px",
+          "borderBottomWidth": "0px",
+          "paddingTop": "0px",
+          "paddingRight": "0px",
+          "paddingBottom": "0px",
+          "paddingLeft": "0px",
+          "transitionDuration": "0s",
+          "transitionTimingFunction": "ease",
+          "fontVariantNumeric": "normal",
+          "touchAction": "none"
+        }
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "normalMotion": true,
+      "visibleThinkBox": true,
+      "outputRect": {
+        "x": 44,
+        "y": 361.59375,
+        "width": 302,
+        "height": 210
+      },
+      "sha256": "331d19776ebf94c83c60540796966457addd6fd9645e87399e5da907f920d87a",
+      "replacedOutOfViewCapture": true
+    }
+  ],
+  "interactions": [
+    {
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "compact toggles action lists independently; Bash output opens",
+      "output": "Bash\npnpm -r typecheck\n4.1s\nexit 2\nworkspace-wide typescript check\ninput\n$\npnpm -r typecheck\nstdout\n4.1s\nexit 2\npackages/browser typecheck$ tsc -p tsconfig.json --noEmit\nsrc/lib/tasks.ts(48,9): error TS2532: Object is possibly 'undefined'.\n   46 |   const groups = groupByTask(turns)\n   47 |   const first = groups[0]\n>  48 |   return first.turns[0].index\n      |          ^^^^^\nELIFECYCLE  Command failed with exit code 2."
+    },
+    {
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "reading width keyboard adjusts without snapping",
+      "chosen": "703",
+      "restored": "743"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "filters/zen reopen and keyboard overshoot reverses",
+      "end": "8",
+      "reverse": "7"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "compact toggles action lists independently; Bash output opens",
+      "output": "Bash\npnpm -r typecheck\n4.1s\nexit 2\nworkspace-wide typescript check\ninput\n$\npnpm -r typecheck\nstdout\n4.1s\nexit 2\npackages/browser typecheck$ tsc -p tsconfig.json --noEmit\nsrc/lib/tasks.ts(48,9): error TS2532: Object is possibly 'undefined'.\n   46 |   const groups = groupByTask(turns)\n   47 |   const first = groups[0]\n>  48 |   return first.turns[0].index\n      |          ^^^^^\nELIFECYCLE  Command failed with exit code 2."
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "reading width keyboard adjusts without snapping",
+      "chosen": "559",
+      "restored": "559"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "filters/zen reopen and keyboard overshoot reverses",
+      "end": "8",
+      "reverse": "7"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "mounted host markdown download",
+      "filename": "verify-sticky-model-attribution-on-the-mounted-village-trans-demo.md"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "dark",
+      "device": "phone",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "phone",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "phone",
+      "check": "mounted host markdown download",
+      "filename": "verify-sticky-model-attribution-on-the-mounted-village-trans-demo.md"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "check": "compact toggles action lists independently; Bash output opens",
+      "output": "Bash\npnpm -r typecheck\n4.1s\nexit 2\nworkspace-wide typescript check\ninput\n$\npnpm -r typecheck\nstdout\n4.1s\nexit 2\npackages/browser typecheck$ tsc -p tsconfig.json --noEmit\nsrc/lib/tasks.ts(48,9): error TS2532: Object is possibly 'undefined'.\n   46 |   const groups = groupByTask(turns)\n   47 |   const first = groups[0]\n>  48 |   return first.turns[0].index\n      |          ^^^^^\nELIFECYCLE  Command failed with exit code 2."
+    },
+    {
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "check": "reading width keyboard adjusts without snapping",
+      "chosen": "703",
+      "restored": "743"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "desktop",
+      "check": "filters/zen reopen and keyboard overshoot reverses",
+      "end": "8",
+      "reverse": "7"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "compact toggles action lists independently; Bash output opens",
+      "output": "Bash\npnpm -r typecheck\n4.1s\nexit 2\nworkspace-wide typescript check\ninput\n$\npnpm -r typecheck\nstdout\n4.1s\nexit 2\npackages/browser typecheck$ tsc -p tsconfig.json --noEmit\nsrc/lib/tasks.ts(48,9): error TS2532: Object is possibly 'undefined'.\n   46 |   const groups = groupByTask(turns)\n   47 |   const first = groups[0]\n>  48 |   return first.turns[0].index\n      |          ^^^^^\nELIFECYCLE  Command failed with exit code 2."
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "reading width keyboard adjusts without snapping",
+      "chosen": "559",
+      "restored": "559"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "filters/zen reopen and keyboard overshoot reverses",
+      "end": "8",
+      "reverse": "7"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "mounted host markdown download",
+      "filename": "verify-sticky-model-attribution-on-the-mounted-village-trans-demo.md"
+    },
+    {
+      "target": "fairtrade",
+      "theme": "light",
+      "device": "phone",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "phone",
+      "check": "open Think child survives parent collapse/reopen"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "phone",
+      "check": "mounted host markdown download",
+      "filename": "verify-sticky-model-attribution-on-the-mounted-village-trans-demo.md"
+    },
+    {
+      "target": "village",
+      "theme": "dark",
+      "device": "desktop",
+      "check": "available-width arbitrary pointer drag and keyboard adjustment; top-limit burst reverses; search reveal, every alternate tab and real graph slot",
+      "before": 1071,
+      "after": 925,
+      "keyed": 885,
+      "start": "0",
+      "reverse": "1"
+    },
+    {
+      "target": "village",
+      "theme": "light",
+      "device": "desktop",
+      "check": "available-width arbitrary pointer drag and keyboard adjustment; top-limit burst reverses; search reveal, every alternate tab and real graph slot",
+      "before": 1071,
+      "after": 925,
+      "keyed": 885,
+      "start": "0",
+      "reverse": "1"
+    }
+  ],
+  "errors": [],
+  "currentReleaseMarkers": [
+    {
+      "url": "http://127.0.0.1:13332/_next/static/chunks/7f2a7ad02d54de96.js",
+      "markers": [
+        "txn-rail-title",
+        "txn-sticky-disclosure",
+        "txn-modelactions",
+        "txn-thinking-box"
+      ],
+      "sha256": "ccd14f2866a47becafadcf2a2d31ff20ff0a7d26b3c4be789aec9d43f6608078"
+    }
+  ],
+  "referenceTree": {
+    "reviewedCommit": "29670f1f3c79010b3d2b57d9fe31413c80fc287c",
+    "reviewedTree": "1d6bab0b0d53e2f7db7fdd4525995d92b920c508",
+    "releaseCommit": "5a2f9f37257b494318f83cd6093b15ef584d2297",
+    "releaseTree": "1d6bab0b0d53e2f7db7fdd4525995d92b920c508",
+    "equal": true
+  },
+  "inspection": {
+    "all16ImagesInspected": true,
+    "thinkingOutputsConfirmedInViewport": true,
+    "deviceEvidence": "Chromium emulated390x844 phone viewport; mouse and keyboard interaction. No physical device or synthesized multi-touch claim.",
+    "appSampleDifference": "Existing app fixture has older prose/phase/count metadata and Village adds its own stored title, observed-model text, labels and persistent sidebar. Demo has updated prose/table. Styling and shared interaction contracts compared; no zero-pixel or identical-data parity claimed."
+  },
+  "styleComparisons": [
+    {
+      "theme": "dark",
+      "device": "desktop",
+      "state": "reading",
+      "matchingProperties": 55,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "dark",
+      "device": "desktop",
+      "state": "thinking",
+      "matchingProperties": 66,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "dark",
+      "device": "phone",
+      "state": "reading",
+      "matchingProperties": 55,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "dark",
+      "device": "phone",
+      "state": "thinking",
+      "matchingProperties": 66,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "light",
+      "device": "desktop",
+      "state": "reading",
+      "matchingProperties": 55,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "light",
+      "device": "desktop",
+      "state": "thinking",
+      "matchingProperties": 66,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "light",
+      "device": "phone",
+      "state": "reading",
+      "matchingProperties": 55,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    },
+    {
+      "theme": "light",
+      "device": "phone",
+      "state": "thinking",
+      "matchingProperties": 66,
+      "fontNormalization": "Next local Atkinson family aliases correspond to canonical Atkinson Hyperlegible / Mono; reported separately, not byte-equal."
+    }
+  ]
+}
