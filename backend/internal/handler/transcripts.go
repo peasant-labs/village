@@ -236,12 +236,16 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req schema.PublishRequest
+	// publishMetadata is the validated authoritative request as Village stores
+	// it beside the content, client included; a legacy publish stores none.
+	var publishMetadata []byte
 	if authoritative {
 		projected, err := json.Marshal(authoritativeReq)
 		if err != nil || json.Unmarshal(projected, &req) != nil {
 			writeError(w, http.StatusInternalServerError, "Village validated the authoritative metadata but could not map it to persistence; retry after upgrading Village")
 			return
 		}
+		publishMetadata = projected
 		// The authoritative successor field is parentSessionId, while the legacy
 		// compatibility projection intentionally retains parentUuid. Materialize
 		// the authoritative value explicitly instead of conflating the two wires.
@@ -382,11 +386,15 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var appliedAssociations []schema.PublishedAssociation
 	var isUpdate bool
 	var candidate storage.BlobDescriptor
+	var candidateMetadata *storage.MetadataObject
 	var candidateID pgtype.UUID
 	var candidateWritten bool
 	var superseded storage.BlobDescriptor
+	var supersededMetadata *storage.MetadataObject
 	var hasSuperseded bool
 	var deleteSuperseded bool
+	// replayed is an exact fingerprint replay: nothing was written.
+	var replayed bool
 	// A republish narrows a non-private transcript to private before replacing
 	// its content (the private-before-write rule), and puts the visibility it
 	// found back afterwards: in the receipt's own transaction when the
@@ -477,6 +485,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			if currentErr != nil {
 				return currentErr
 			}
+			supersededMetadata, currentErr = metadataObjectFromTranscript(current)
+			if currentErr != nil {
+				return currentErr
+			}
 			hasSuperseded = true
 			if authoritative && current.AcceptedRequestOperationFingerprint.Valid && current.AcceptedRequestOperationFingerprint.String == fingerprint.String() {
 				appliedAssociations, currentErr = readPublishedAssociations(r.Context(), lockedQueries, transcriptID)
@@ -484,6 +496,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 					return currentErr
 				}
 				transcript = current
+				replayed = true
 				return nil
 			}
 			if current.Visibility != dbVisibilityPrivate {
@@ -509,16 +522,22 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		descriptor, identity, err := h.blobs.Write(r.Context(), uuid.UUID(transcriptID.Bytes), content)
+		descriptor, identity, metadataObject, err := h.blobs.WriteGeneration(r.Context(), uuid.UUID(transcriptID.Bytes), content, publishMetadata)
 		if err != nil {
-			// Nothing was staged, so this failure is definite: the narrowing is
-			// the only thing that committed, and it is undone.
+			// Nothing is referenced, so this failure is definite: the narrowing
+			// is the only thing that committed, and it is undone. A body the
+			// failed metadata upload could not remove is reported by its key.
+			cleanupOperation := cleanupCreateCandidate
+			if isUpdate {
+				cleanupOperation = cleanupRepublishCandidate
+			}
+			emitUncommittedWriteReconciliation(cleanupOperation, transcriptID, err)
 			audienceLeftPrivate = !h.restoreRepublishAudience(r.Context(), conn, ownerPgID, transcriptID, narrowedFrom)
 			writeError(w, http.StatusInternalServerError, "Encrypted transcript write failed before database persistence; no transcript content was committed; verify key custody and object storage, then retry"+republishAudienceNote(narrowedFrom, audienceLeftPrivate))
 			responseWritten = true
 			return nil
 		}
-		candidate, candidateID, candidateWritten = descriptor, transcriptID, true
+		candidate, candidateMetadata, candidateID, candidateWritten = descriptor, metadataObject, transcriptID, true
 		blobKey := string(descriptor.ObjectKey())
 
 		blobSize := int64(len(content))
@@ -646,6 +665,9 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				if err := insertPublishedAssociationBindings(replaceCtx, q, ownerPgID, transcript.ID, newAssociations); err != nil {
 					return err
 				}
+				if err := setPublishMetadataObject(replaceCtx, q, transcript.ID, candidateMetadata); err != nil {
+					return err
+				}
 				if authoritative {
 					return finalizeAuthoritativePublish(replaceCtx, q, transcript.ID, servedHash, fingerprint, req.Git.Commits, &appliedAssociations)
 				}
@@ -743,6 +765,9 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				if err := insertPublishedAssociationBindings(r.Context(), q, ownerPgID, transcript.ID, newAssociations); err != nil {
 					return err
 				}
+				if err := setPublishMetadataObject(r.Context(), q, transcript.ID, candidateMetadata); err != nil {
+					return err
+				}
 				if authoritative {
 					return finalizeAuthoritativePublish(r.Context(), q, transcript.ID, servedHash, fingerprint, req.Git.Commits, &appliedAssociations)
 				}
@@ -766,12 +791,13 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			if isUpdate {
 				cleanupOperation = cleanupRepublishCandidate
 			}
-			if cleanupErr := h.deleteBlobForCleanup(r.Context(), cleanupOperation, candidateID, candidate, persistence.Completion); cleanupErr != nil {
+			if cleanupErr := h.deleteGenerationForCleanup(r.Context(), cleanupOperation, candidateID, candidate, candidateMetadata, persistence.Completion); cleanupErr != nil {
 				err = &stagedObjectCleanupError{key: string(candidate.ObjectKey()), saveErr: persistence.Err, cleanupErr: cleanupErr}
 			}
 			candidateWritten = false
 		} else if decision.Reconcile && candidateWritten {
 			emitBlobReconciliation(operation, candidateID, candidate, persistence.Completion)
+			emitMetadataReconciliation(operation, candidateID, candidateMetadata, persistence.Completion)
 			candidateWritten = false
 		}
 		deleteSuperseded = decision.DeleteSuperseded
@@ -806,6 +832,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if candidateWritten {
 			emitBlobReconciliation("publish", candidateID, candidate, TransactionCommitAmbiguous)
+			emitMetadataReconciliation("publish", candidateID, candidateMetadata, TransactionCommitAmbiguous)
 		}
 		writeError(w, http.StatusInternalServerError, publishSaveErrorMessage(err, authoritative)+republishAudienceNote(narrowedFrom, audienceLeftPrivate))
 		return
@@ -814,7 +841,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hasSuperseded && deleteSuperseded {
-		_ = h.deleteBlobForCleanup(r.Context(), cleanupRepublishSuperseded, transcript.ID, superseded, TransactionCommitted)
+		_ = h.deleteGenerationForCleanup(r.Context(), cleanupRepublishSuperseded, transcript.ID, superseded, supersededMetadata, TransactionCommitted)
+	}
+	if !replayed {
+		h.nudgeIntegrity()
 	}
 
 	// The transcript is stored, so it can complete a waiting request or refresh
@@ -1545,11 +1575,20 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The metadata object as the pre-read saw it; only an ambiguous commit uses
+	// it, to name what reconciliation must find. A known commit deletes the
+	// object the delete itself returned.
+	readMetadata, err := metadataObjectFromTranscript(transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if h.blobs == nil {
 		writeError(w, http.StatusServiceUnavailable, "Encrypted transcript deletion is unavailable because the blob store was not composed in handler.DeleteTranscript before row removal; no database state changed; configure key custody and object storage, then restart and retry")
 		return
 	}
 	var affected []sqlc.PullRequestAttachment
+	var deleted sqlc.DeleteTranscriptReturningDescriptorRow
 	result := h.inEncryptedTx(r.Context(), user.PgID(), func(q Querier) error {
 		var err error
 		affected, err = q.ListAttachmentsContainingTranscript(r.Context(), sqlc.ListAttachmentsContainingTranscriptParams{OwnerID: user.PgID(), TranscriptID: id.String()})
@@ -1576,13 +1615,15 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		_, deleteErr := q.DeleteTranscriptReturningDescriptor(r.Context(), pgID)
+		var deleteErr error
+		deleted, deleteErr = q.DeleteTranscriptReturningDescriptor(r.Context(), pgID)
 		return deleteErr
 	})
 	decision := cleanupDecision("delete", result.Completion, result.Err == nil)
 	if !decision.DeleteTarget {
 		if decision.Reconcile {
 			emitBlobReconciliation("delete", transcript.ID, descriptor, result.Completion)
+			emitMetadataReconciliation("delete", transcript.ID, readMetadata, result.Completion)
 		}
 		writeError(w, http.StatusInternalServerError, "Failed to delete transcript")
 		return
@@ -1596,7 +1637,14 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 			log.Printf("pull request attachment refresh after transcript deletion failed: %v", err)
 		}
 	}
-	if err := h.deleteBlobForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, descriptor, result.Completion); err != nil {
+	// The committed delete returned the row's metadata columns. The CHECK
+	// constraints keep them complete; should they ever fail to map, the
+	// pre-read of the same row names the same object.
+	deletedMetadata, metadataErr := metadataObjectFromColumns(deleted.PublishMetadataKey, deleted.PublishMetadataHash, deleted.PublishMetadataSize)
+	if metadataErr != nil {
+		deletedMetadata = readMetadata
+	}
+	if err := h.deleteGenerationForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, descriptor, deletedMetadata, result.Completion); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

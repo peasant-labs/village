@@ -1,0 +1,195 @@
+# The encrypted publish-metadata object through publish, republish,
+# migrate-on-read rewrite and delete, against real PostgreSQL and RustFS.
+#
+# Every case drives one transcript (one owner, one local session id) through
+# its steps with the production handlers:
+#   action: publish_authoritative | publish_legacy | read_content | rewrite |
+#     delete. rewrite calls the rewrite the content route calls, with the
+#     canonical fixture bytes and the shape sniffed from the stored generation;
+#     it exists because raw JSONL without a harness is served by the route but
+#     cannot be encoded canonically, so the route never rewrites it.
+#   content: the transcript_file bytes of a publish
+#   content_fixture: legacy_bare_payload, a provider-keyed bare payload the
+#     content route rewrites, instead of content
+#   client: "name version" put in the authoritative request's client field
+#   want_status: the handler's HTTP status
+#   want_writes: how many generations the step asked the store to write
+#   want_new_generation: the content object key changed in this step
+#
+# want_metadata_step is the index of the publish step whose authoritative
+# request, as json.Marshal renders it, must be the stored metadata object;
+# leave it out when the row must carry no metadata object. After the last step
+# the current content and metadata objects must exist in RustFS and every
+# earlier one must be gone.
+#
+# want_rewrite names the rewrite record the case must leave: the hash the
+# rewrite replaced is that of the generation current after replaced_step.
+#
+# fault: metadata_upload_and_cleanup makes the metadata upload and every
+# deletion fail, so the uploaded body is an orphan the handler must report.
+
+- name: authoritative_publish_stores_metadata
+  why: an authoritative publish keeps its validated metadata as a second object of the same generation
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence stores metadata"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 0
+
+- name: client_is_inside_the_stored_metadata
+  why: the client is kept only inside the stored metadata object
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence client inside"}]'
+      client: peasant 1.4.0
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 0
+
+- name: legacy_publish_stores_none
+  why: a legacy publish has no validated authoritative metadata to keep
+  steps:
+    - action: publish_legacy
+      content: '[{"role":"user","content":"evidence legacy none"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+
+- name: client_only_republish_is_a_replay
+  why: the client is outside the canonical operation, so a republish that changes only the client is a replay that keeps the first metadata
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence client replay"}]'
+      client: peasant 1.4.0
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence client replay"}]'
+      client: peasant 1.5.0
+      want_status: 200
+      want_writes: 0
+      want_new_generation: false
+  want_metadata_step: 0
+
+- name: republish_replaces_metadata_and_deletes_the_old_object
+  why: a committed republish installs a new metadata object and deletes the superseded one with the superseded body
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence first"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence second"}]'
+      want_status: 200
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 1
+
+- name: legacy_republish_clears_metadata
+  why: a legacy republish stores no metadata, so the columns clear and the old object is deleted with the old body
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence before legacy"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: publish_legacy
+      content: '[{"role":"user","content":"evidence after legacy"}]'
+      want_status: 200
+      want_writes: 1
+      want_new_generation: true
+
+- name: fingerprint_replay_writes_nothing
+  why: an exact replay returns the stored receipt without writing any object
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence exact replay"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence exact replay"}]'
+      want_status: 200
+      want_writes: 0
+      want_new_generation: false
+  want_metadata_step: 0
+
+- name: delete_removes_both_objects
+  why: a committed row-first delete permits deleting the body and the metadata object
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence delete"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: delete
+      want_status: 200
+      want_writes: 0
+  want_deleted: true
+
+- name: rewrite_reencrypts_metadata_under_the_new_key
+  why: a rewrite makes a fresh data key, so the metadata is written again beside the new body and the old object is deleted
+  steps:
+    - action: publish_authoritative
+      content_fixture: legacy_bare_payload
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: read_content
+      want_status: 200
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 0
+  want_rewrite:
+    replaced_step: 0
+    legacy: false
+
+- name: rewrite_records_the_replaced_hash
+  why: the rewrite record names the hash it replaced and the one it installed; a bare payload is not legacy JSONL
+  steps:
+    - action: publish_authoritative
+      content_fixture: legacy_bare_payload
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: read_content
+      want_status: 200
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 0
+  want_rewrite:
+    replaced_step: 0
+    legacy: false
+
+- name: rewrite_of_raw_jsonl_is_legacy
+  why: content that was raw JSONL before Village rewrote it is recorded as legacy
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence raw jsonl"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: rewrite
+      want_status: 200
+      want_writes: 1
+      want_new_generation: true
+  want_metadata_step: 0
+  want_rewrite:
+    replaced_step: 0
+    legacy: true
+
+- name: orphaned_body_on_metadata_failure_emits_reconciliation
+  why: when the metadata upload fails and the body cannot be deleted, the orphaned body key reaches reconciliation evidence and nothing is committed
+  fault: metadata_upload_and_cleanup
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence orphaned body"}]'
+      want_status: 500
+      want_writes: 1
+      want_new_generation: false
+  want_deleted: true

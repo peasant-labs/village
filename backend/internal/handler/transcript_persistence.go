@@ -205,6 +205,16 @@ func metadataObjectParams(m *storage.MetadataObject) (pgtype.Text, pgtype.Text, 
 	return pgtype.Text{String: string(m.Key()), Valid: true}, pgtype.Text{String: string(m.Identity().Hash()), Valid: true}, pgtype.Int8{Int64: m.Identity().PlaintextSize(), Valid: true}
 }
 
+// setPublishMetadataObject records the generation's metadata object, or its
+// absence, inside the transaction that installs the generation.
+func setPublishMetadataObject(ctx context.Context, q Querier, transcriptID pgtype.UUID, m *storage.MetadataObject) error {
+	key, hash, size := metadataObjectParams(m)
+	if err := q.SetTranscriptPublishMetadataObject(ctx, sqlc.SetTranscriptPublishMetadataObjectParams{ID: transcriptID, PublishMetadataKey: key, PublishMetadataHash: hash, PublishMetadataSize: size}); err != nil {
+		return fmt.Errorf("record publish metadata object: %w", err)
+	}
+	return nil
+}
+
 // contentHashHeader names the generation the content route served: its value
 // is the bare lowercase hex content hash of that generation.
 const contentHashHeader = "Village-Content-Hash"

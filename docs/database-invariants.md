@@ -304,6 +304,15 @@ boundary are documented in
   `installed_content_hash` is content Village produced, never bytes a
   publisher supplied. A replaced generation whose identity is pending names no
   hash, so its rewrite records nothing.
+  **Publish sets the object in the row's own transaction.** An authoritative
+  publish or republish writes the metadata object with the body and sets the
+  three columns in the transaction that creates or updates the row; a legacy
+  publish sets all three NULL. An exact fingerprint replay writes nothing and
+  keeps the stored object, and since the client is outside the fingerprint, a
+  republish that changes only the client is such a replay. Every cleanup
+  decision that deletes or retains a body generation (candidate, superseded,
+  or delete target) applies to its metadata object too, so a republish that
+  switches to legacy deletes the old metadata object with the old body.
 
 ## 2. Licensing data model
 
