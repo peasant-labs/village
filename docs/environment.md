@@ -67,5 +67,6 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 | GitHub App pair incomplete | Repository-linking endpoints return `501`. |
 | `GITHUB_APP_WEBHOOK_SECRET` empty | The webhook route returns `501`; valid deliveries cannot be verified. |
 | Any `EMAIL_*` variable empty, or `EMAIL_LINK_SIGNING_KEY` under 32 characters | Email is off: setting an address returns `501`, unsubscribe links return `400`, and invitations stay in the app. |
+| Integrity-check attempts reached the cap (for example after a long storage outage) | Those candidates stay `failed` for that content and checker version. To retry them, delete their `transcript_integrity_attempts` rows; no other state needs changing. |
 | `SCRY_URL` or `SCRY_SHARED_SECRET` unset, `SCRY_URL` not an http or https URL, or the secret under 32 characters | Integrity checks are off, with one startup log line naming the variables at fault. The server starts and serves normally. |
 | The integrity-check service refuses the shared secret | No transcript is checked until the two secrets match; a warning is logged once and no check attempt is used up. |
