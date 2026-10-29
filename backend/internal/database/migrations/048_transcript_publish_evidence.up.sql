@@ -17,8 +17,11 @@ ALTER TABLE transcripts
     ADD CONSTRAINT transcripts_publish_metadata_hash_shape CHECK (publish_metadata_hash ~ '^[0-9a-f]{64}$'),
     ADD CONSTRAINT transcripts_publish_metadata_size_nonnegative CHECK (publish_metadata_size >= 0);
 
--- The writer fence now also covers the metadata object, so a writer that does
--- not know about it cannot move it.
+-- The writer fence now also covers the metadata object: the trigger refuses a
+-- write to these columns unless the transaction carries the writer marker.
+-- An older binary that sets the marker can still move the body without
+-- touching the metadata, so older instances must be drained before this
+-- migration takes traffic.
 DROP TRIGGER trg_transcript_writer_version ON transcripts;
 CREATE TRIGGER trg_transcript_writer_version
 BEFORE INSERT OR DELETE OR UPDATE OF blob_key, wrapped_data_key, encryption_algorithm, key_version, content_hash, blob_size_bytes, publish_metadata_key, publish_metadata_hash, publish_metadata_size

@@ -279,7 +279,11 @@ boundary are documented in
   is recreated to fire on `UPDATE OF` these three columns as well as the
   six it already watched, so a write to any of the nine needs
   `app.transcript_writer_version=1`. The down migration recreates it with the
-  original six. `transcript_content_rewrites` keeps one row per replacement of
+  original six. The fence checks only the marker, which older binaries also
+  set, so it cannot stop them: an older instance's republish, rewrite or
+  delete during a rolling deploy leaves the metadata stale or orphaned, or
+  writes no tombstone, until the next republish. Drain older instances before
+  048 takes traffic. `transcript_content_rewrites` keeps one row per replacement of
   stored content by village's own rewrite, keyed `(transcript_id,
   installed_content_hash)` and deleted with the transcript. It records only the
   raw fact `replaced_was_legacy` (the replaced content was legacy JSONL), which
