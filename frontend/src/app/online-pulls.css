@@ -35,15 +35,56 @@
 .on-pr-title {
   text-transform: none;
 }
-.on-prcard h1.on-pr-title {
+.on-pr-detail {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.on-pr-detail-head {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.on-pr-detail .on-pr-title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: var(--fs-xl);
-  line-height: 1.2;
+  line-height: var(--lh-tight);
+  color: var(--ink-strong);
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.on-pr-titlebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+  min-width: 0;
+}
+.on-pr-titlebar > h1 { flex: 1 1 20rem; }
+.on-pr-source { flex: none; }
+.on-pr-source svg {
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+.on-pr-detail .on-prcard-meta { margin: 0; }
+.on-pr-detail-transcripts {
+  min-width: 0;
+  border-top: var(--bd);
+}
+.on-pr-band + .on-pr-detail-transcripts { border-top: 0; }
+.on-pr-detail-actions {
+  padding-block-start: var(--sp-3);
+  border-top: var(--bd);
 }
 @media (max-width: 767px) {
-  .on-prcard h1.on-pr-title {
+  .on-pr-detail .on-pr-title {
     font-size: var(--fs-lg);
   }
+  .on-pr-detail .on-prcard-repo .on-prcard-chips { margin-inline-start: 0; }
 }
 
 .on-pr-num,
@@ -77,9 +118,8 @@
 .on-pr-band {
   display: grid;
   gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-5);
-  border-top: 1px solid var(--rule);
-  background: var(--surface-2);
+  padding-block: var(--sp-3);
+  border-block: var(--bd);
   color: var(--ink-2);
   line-height: var(--lh-body);
 }
@@ -111,8 +151,32 @@
 }
 .on-pr-rowmain {
   display: grid;
-  gap: 2px;
+  gap: var(--sp-1);
   min-width: 0;
+}
+.on-pr-transcript-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-5);
+  min-width: 0;
+  padding-block: var(--sp-3);
+}
+.on-pr-transcript-row + .on-pr-transcript-row { border-top: var(--bd); }
+.on-pr-rowmain a.is-title {
+  width: fit-content;
+  font-weight: 600;
+  color: var(--ink-strong);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.on-pr-rowmeta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-mono);
+  letter-spacing: 0;
+  color: var(--ink-3);
 }
 .on-pr-rowmain a.is-title:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
@@ -144,11 +208,8 @@
 }
 @media (max-width: 767px) {
   /* a phone puts the jump under the row's words rather than squeezing them */
-  .on-pr-rows .on-trow2 {
-    grid-template-columns: 3px minmax(0, 1fr);
-  }
+  .on-pr-transcript-row { grid-template-columns: minmax(0, 1fr); }
   .on-pr-rows .on-pr-jump {
-    grid-column: 2;
     justify-self: start;
   }
 }
@@ -159,7 +220,7 @@
   border-top: 1px solid var(--rule);
 }
 .on-pr-coverage {
-  padding: var(--sp-3) 0 var(--sp-2);
+  padding-block-start: var(--sp-3);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   letter-spacing: 0;
@@ -292,12 +353,13 @@
   min-width: 0;
 }
 .on-pr-inbox-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--sp-8) * 2);
+  align-items: baseline;
   gap: var(--sp-2) var(--sp-3);
   min-width: 0;
 }
+.on-pr-inbox-heading > .on-tag { justify-self: start; }
 .on-pr-inbox-heading h3 {
   display: flex;
   align-items: baseline;
@@ -334,10 +396,16 @@
     padding-block: var(--sp-4) 0;
   }
   .on-pr-inbox-row {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) calc(var(--sp-8) * 2);
     padding-block: var(--sp-3);
   }
+  .on-pr-inbox-main, .on-pr-inbox-heading { display: contents; }
+  .on-pr-inbox-heading h3 { grid-column: 1 / -1; grid-row: 1; }
+  .on-pr-inbox-row .on-prcard-meta { grid-column: 1; grid-row: 2; }
+  .on-pr-inbox-heading > .on-tag { grid-column: 2; grid-row: 2; align-self: start; }
   .on-pr-inbox-row .on-pr-gh {
+    grid-column: 1 / -1;
+    grid-row: 3;
     justify-self: start;
   }
 }
