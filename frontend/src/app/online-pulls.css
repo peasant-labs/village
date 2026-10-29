@@ -240,70 +240,105 @@
 
 /* ---------- the list of pull requests waiting on you ---------- */
 
+/* An inbox uses the whole body column. Dates are a quiet rail beside each
+   day's rows, so an older request does not need its own large card. */
 .on-pr-feed {
   display: grid;
-  gap: var(--sp-6);
   min-width: 0;
-  max-width: 55rem;
+  border-top: var(--bd);
 }
 .on-pr-day {
   display: grid;
-  gap: var(--sp-3);
+  grid-template-columns: calc(var(--sp-8) * 2) minmax(0, 1fr);
+  gap: var(--sp-5);
   min-width: 0;
+  border-bottom: var(--bd);
 }
 .on-pr-day > h2 {
   margin: 0;
+  padding-block: var(--sp-4);
   font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
   letter-spacing: 0;
   color: var(--ink-3);
 }
 .on-pr-list {
   display: grid;
-  gap: var(--sp-4);
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.on-pr-list .on-prcard h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--fs-lg);
-  line-height: 1.25;
-  color: var(--ink-strong);
-  overflow-wrap: anywhere;
+.on-pr-list > li {
+  min-width: 0;
 }
-.on-pr-list .on-prcard > header {
-  padding-bottom: var(--sp-4);
+.on-pr-list > li + li {
+  border-top: var(--bd);
 }
-.on-pr-cardfoot {
+.on-pr-inbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-5);
+  min-width: 0;
+  padding-block: var(--sp-4);
+}
+.on-pr-inbox-main {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.on-pr-inbox-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0 var(--sp-4);
-}
-.on-pr-cardhead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
   gap: var(--sp-2) var(--sp-3);
   min-width: 0;
 }
-.on-pr-cardhead h3 {
+.on-pr-inbox-heading h3 {
   display: flex;
-  align-items: center;
-  gap: calc(var(--sp-2) + 2px);
+  align-items: baseline;
+  gap: var(--sp-2);
   min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-body);
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
 }
-.on-pr-cardhead h3 svg {
+.on-pr-inbox-heading h3 svg {
   flex: none;
-  width: var(--ic-lg);
-  height: var(--ic-lg);
+  align-self: center;
+  width: var(--ic-md);
+  height: var(--ic-md);
   color: var(--ink-3);
+}
+.on-pr-inbox-row .on-prcard-meta {
+  margin: 0;
+}
+.on-pr-inbox-row .on-pr-gh {
+  justify-self: end;
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .on-pr-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .on-pr-day > h2 {
+    padding-block: var(--sp-4) 0;
+  }
+  .on-pr-inbox-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--sp-3);
+  }
+  .on-pr-inbox-row .on-pr-gh {
+    justify-self: start;
+  }
 }
 .on-pr-open {
   color: var(--ink-strong);
@@ -321,9 +356,8 @@
 }
 .on-pr-skeleton {
   display: grid;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
 }
 .on-pr-skeleton > div {
-  height: calc(var(--sp-8) * 2 + var(--sp-4));
-  border: 1px solid var(--rule);
+  height: calc(var(--sp-8) + var(--sp-5));
 }
