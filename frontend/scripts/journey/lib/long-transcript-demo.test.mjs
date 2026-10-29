@@ -42,6 +42,7 @@ it('the long content exercises real phases, files and edit diffs', () => {
   expect(content.turnCount).toBe(fixture.expected.turnCount)
   expect(content.turns).toHaveLength(content.turnCount)
   expect(content.turns.flatMap((turn) => turn.toolCalls ?? [])).toHaveLength(fixture.expected.toolCallCount)
+  expect(content.turns[fixture.expected.diagramTurnIndex].content).toContain('```mermaid\n' + fixture.expected.diagramSourceMarker)
   const vm = adaptTranscript(content)
   for (const phase of fixture.expected.phaseLabels) expect(vm.analytics.phases.map((row) => row.label)).toContain(phase)
   for (const path of fixture.expected.diffPaths) expect(vm.diffs.map((row) => row.path)).toContain(path)
@@ -57,4 +58,5 @@ it('the native Claude recording preserves the same prompts, edits and tool resul
   expect(calls.map((call) => call.input)).toEqual(LONG_DEMO.steps.map((step) => step.tool.input))
   expect(results.map((result) => result.tool_use_id)).toEqual(calls.map((call) => call.id))
   expect(results.map((result) => result.content)).toEqual(LONG_DEMO.steps.map((step) => step.tool.result))
+  expect(records.at(-1).message.content[0].text).toBe(LONG_DEMO_CONTENT.turns[fixture.expected.diagramTurnIndex].content)
 })

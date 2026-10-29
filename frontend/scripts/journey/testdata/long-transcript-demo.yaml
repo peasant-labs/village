@@ -145,8 +145,22 @@ steps:
     prompt: Finish with a concise summary and the exact validation results, including the failure that was fixed.
     plan: Running the final focused and integration checks once more for the handoff.
     tool: { name: Bash, input: { command: pnpm test export --run && pnpm test:integration export --run && pnpm lint && pnpm typecheck }, result: "23 export tests passed\n4 HTTP integration tests passed\neslint passed\nTypeScript passed", kind: execute }
-    conclusion: >-
+    conclusion: |
       Implemented bounded CSV streaming, opaque resume cursors, stable duplicate-timestamp handling, escaping, backpressure, and cancellation. Fixed the initially failing inclusive cursor predicate. Validation: 23 export tests, 4 integration tests, lint, and TypeScript all passed. These are simulated outputs from this synthetic demonstration.
+
+      The export keeps one bounded page in memory and stops work when the client disconnects:
+
+      ```mermaid
+      flowchart TD
+        A[Validate resume cursor] --> B[Read bounded page]
+        B --> C[Escape and stream CSV]
+        C --> D[Advance composite cursor]
+        D --> E{More rows?}
+        E -->|yes| B
+        E -->|no| F[Finish response]
+        B -. disconnect .-> G[Cancel work]
+        C -. disconnect .-> G
+      ```
 annotations:
   - { id: long-demo-highlight, index: 55, typeId: turn_flag, value: highlight, reason: Strict composite cursor fixes the reproduced duplicate-row defect. }
   - { id: long-demo-retry, index: 52, typeId: turn_flag, value: error, reason: The intentionally failing boundary test explains why the first query was revised. }

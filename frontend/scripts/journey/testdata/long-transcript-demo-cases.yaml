@@ -3,6 +3,8 @@ expected:
   toolCallCount: 28
   sourceRecordCount: 112
   annotationCount: 3
+  diagramTurnIndex: 83
+  diagramSourceMarker: flowchart TD
   phaseLabels: [Planning, Implementation, Retry loop]
   diffPaths: [src/export/types.ts, src/export/cursor.ts, src/export/repository.ts, src/export/service.ts, src/export/csv.ts, src/routes/export.ts, test/export.test.ts, README.md]
 cases:
