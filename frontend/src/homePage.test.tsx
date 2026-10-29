@@ -525,7 +525,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         } else {
           const section = await screen.findByTestId("home-waiting");
           expect(
-            [...section.querySelectorAll('[data-testid="home-waiting-collective"] a')].map(text),
+            [...section.querySelectorAll('[data-testid="home-waiting-collective"] a.on-link')].map(text),
           ).toEqual(c.expectWaiting);
           for (const name of c.expectWaiting) {
             const pending = c.contributions!.find((x) => x.name === name)!.pending;
