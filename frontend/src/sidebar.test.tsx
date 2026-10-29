@@ -112,25 +112,25 @@ describe("mounted sidebar: the person's collectives", () => {
 });
 
 describe("mounted sidebar: the other apps", () => {
-  it("offers the docs in a new tab and the community as soon, never this app or the local one", async () => {
+  it("offers docs in a new tab without community or duplicate app links", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
 
-    // The other apps sit among the shortcuts at the top, with the search.
+    // Search and docs share the shortcuts near the sidebar footer.
     const apps = screen.getByRole("navigation", { name: "shortcuts" });
     // The sidebar is this app, so the switcher does not name it, and the local
     // app runs on the person's own computer, so it is not offered from here.
     expect(within(apps).queryByText("online")).toBeNull();
     expect(within(apps).queryByText("local")).toBeNull();
-    // The docs are the one way out; the community is named but not open yet.
+    // The docs are the one way out; community is intentionally absent.
     expect(within(apps).getAllByRole("link")).toHaveLength(1);
     const docs = within(apps).getByRole("link", { name: /^docs/ });
     expect(docs).toHaveAttribute("href", DOCS_URL);
     expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
     expect(docs).toHaveAttribute("target", "_blank");
     expect(docs).toHaveTextContent("opens in a new tab");
-    expect(apps).toHaveTextContent(/community\s*soon/);
+    expect(screen.queryByText(/community/i)).not.toBeInTheDocument();
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });
