@@ -64,6 +64,22 @@ func (s *maintenanceBlobStore) Rewrap(_ context.Context, _ uuid.UUID, d storage.
 }
 func (*maintenanceBlobStore) Delete(context.Context, storage.BlobDescriptor) error { return nil }
 
+// This fake stores no publish metadata object: a nil metadata delegates to
+// Write, and any metadata is refused rather than silently dropped.
+func (s *maintenanceBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	if metadata != nil {
+		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, errors.New("test blob store does not store publish metadata")
+	}
+	d, identity, err := s.Write(ctx, id, body)
+	return d, identity, nil, err
+}
+func (*maintenanceBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
+	return nil, storage.ErrObjectNotFound
+}
+func (*maintenanceBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
+	return nil
+}
+
 func TestMaintenanceFixturesRealPostgres(t *testing.T) {
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {

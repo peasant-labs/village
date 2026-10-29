@@ -142,6 +142,22 @@ func (s *descriptorCheckingStore) Rewrap(ctx context.Context, id uuid.UUID, d st
 func (s *descriptorCheckingStore) Delete(ctx context.Context, d storage.BlobDescriptor) error {
 	return s.delegate.Delete(ctx, d)
 }
+
+// This fake stores no publish metadata object: a nil metadata delegates to
+// Write, and any metadata is refused rather than silently dropped.
+func (s *descriptorCheckingStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	if metadata != nil {
+		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, errors.New("test blob store does not store publish metadata")
+	}
+	d, identity, err := s.Write(ctx, id, body)
+	return d, identity, nil, err
+}
+func (*descriptorCheckingStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
+	return nil, storage.ErrObjectNotFound
+}
+func (*descriptorCheckingStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
+	return nil
+}
 func (s *descriptorCheckingStore) uploadCount() int { return s.delegate.uploadCount() }
 
 func TestObservedModelProductionPreservation(t *testing.T) {

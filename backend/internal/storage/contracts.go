@@ -57,6 +57,28 @@ func NewContentIdentity(hash string, size int64) (ContentIdentity, error) {
 func (i ContentIdentity) Hash() ContentHash    { return i.hash }
 func (i ContentIdentity) PlaintextSize() int64 { return i.plaintextSize }
 
+// MetadataObject describes the publish metadata stored as a second encrypted
+// object beside a transcript's content. It carries no key material of its own:
+// the object is sealed under the content's data key, so the content's
+// BlobDescriptor is required to read it and rewrap covers it unchanged.
+type MetadataObject struct {
+	key      ObjectKey
+	identity ContentIdentity
+}
+
+func NewMetadataObject(key ObjectKey, hash string, size int64) (MetadataObject, error) {
+	if !opaqueObjectKey.MatchString(string(key)) {
+		return MetadataObject{}, fmt.Errorf("publish metadata object validation failed because its object key is not an opaque generation key in storage.NewMetadataObject during descriptor construction; the metadata cannot be read; provide the stored opaque metadata key")
+	}
+	identity, err := NewContentIdentity(hash, size)
+	if err != nil {
+		return MetadataObject{}, err
+	}
+	return MetadataObject{key: key, identity: identity}, nil
+}
+func (m MetadataObject) Key() ObjectKey            { return m.key }
+func (m MetadataObject) Identity() ContentIdentity { return m.identity }
+
 type ContentIdentityStatus uint8
 
 const (
@@ -131,7 +153,15 @@ type ObjectStore interface {
 }
 type TranscriptBlobStore interface {
 	Write(context.Context, uuid.UUID, []byte) (BlobDescriptor, ContentIdentity, error)
+	// WriteGeneration writes the content and, when metadata is non-nil, the
+	// publish metadata as a second object under the same fresh data key. A nil
+	// metadata writes one object and returns a nil MetadataObject.
+	WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (BlobDescriptor, ContentIdentity, *MetadataObject, error)
 	Read(context.Context, uuid.UUID, BlobDescriptor, LoadedContentIdentity) ([]byte, ContentIdentity, error)
+	// ReadMetadata unwraps the data key from the content descriptor and returns
+	// the metadata only after authentication and hash and size validation.
+	ReadMetadata(ctx context.Context, id uuid.UUID, d BlobDescriptor, m MetadataObject) ([]byte, error)
 	Rewrap(context.Context, uuid.UUID, BlobDescriptor) (BlobDescriptor, error)
 	Delete(context.Context, BlobDescriptor) error
+	DeleteMetadata(ctx context.Context, m MetadataObject) error
 }

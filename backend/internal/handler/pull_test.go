@@ -55,6 +55,22 @@ func (*fixedTranscriptBlobStore) Rewrap(context.Context, uuid.UUID, storage.Blob
 }
 func (*fixedTranscriptBlobStore) Delete(context.Context, storage.BlobDescriptor) error { return nil }
 
+// This fake stores no publish metadata object: a nil metadata delegates to
+// Write, and any metadata is refused rather than silently dropped.
+func (s *fixedTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	if metadata != nil {
+		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, errors.New("test blob store does not store publish metadata")
+	}
+	d, identity, err := s.Write(ctx, id, body)
+	return d, identity, nil, err
+}
+func (*fixedTranscriptBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
+	return nil, storage.ErrObjectNotFound
+}
+func (*fixedTranscriptBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
+	return nil
+}
+
 // pullTestTranscript returns a minimal sqlc.Transcript owned by ownerID with the
 // given visibility, suitable for the pull-surface tests.
 func pullTestTranscript(id, ownerID uuid.UUID, visibility string) sqlc.Transcript {

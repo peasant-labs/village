@@ -3,7 +3,11 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha3"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -223,4 +227,241 @@ func TestEncryptedTranscriptStoreRewrapDeleteAndAbsence(t *testing.T) {
 	if !errors.Is(err, ErrObjectNotFound) {
 		t.Fatalf("absence=%v", err)
 	}
+}
+
+//go:embed testdata/publish-metadata-object.yaml
+var publishMetadataObjectYAML []byte
+
+type publishMetadataObjectCase struct {
+	Name string `yaml:"name"`
+}
+
+// requiredPublishMetadataObjectCases is the name manifest for the publish
+// metadata object fixture. Removing a row hides a real failure; restore it
+// rather than deleting it from this manifest.
+var requiredPublishMetadataObjectCases = []string{
+	"metadata_round_trips",
+	"metadata_shares_the_body_wrapped_dek",
+	"metadata_as_body_fails_authentication",
+	"body_as_metadata_fails_authentication",
+	"metadata_of_another_transcript_fails",
+	"metadata_hash_mismatch_refused",
+	"nil_metadata_writes_one_object",
+	"metadata_upload_failure_removes_the_body",
+	"rewrap_keeps_metadata_readable_and_bytes_identical",
+}
+
+func loadPublishMetadataObjectCases(t *testing.T) []publishMetadataObjectCase {
+	t.Helper()
+	dec := yaml.NewDecoder(bytes.NewReader(publishMetadataObjectYAML))
+	dec.KnownFields(true)
+	var cases []publishMetadataObjectCase
+	if err := dec.Decode(&cases); err != nil {
+		t.Fatal(err)
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		t.Fatalf("publish metadata object fixture trailing document: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, c := range cases {
+		if c.Name == "" || seen[c.Name] {
+			t.Fatalf("invalid publish metadata object fixture row %+v", c)
+		}
+		seen[c.Name] = true
+	}
+	for _, required := range requiredPublishMetadataObjectCases {
+		if !seen[required] {
+			t.Fatalf("the publish metadata object fixture omits required case %q; restore it rather than deleting it from this manifest", required)
+		}
+	}
+	return cases
+}
+
+// failingPutStore fails the Put call numbered failOn (1-based) and records
+// every key it was asked to delete.
+type failingPutStore struct {
+	*memoryStore
+	failOn  int
+	puts    int
+	deleted []ObjectKey
+}
+
+func (f *failingPutStore) Put(ctx context.Context, key ObjectKey, b []byte, ct string) error {
+	f.puts++
+	if f.puts == f.failOn {
+		return errors.New("simulated object storage outage")
+	}
+	return f.memoryStore.Put(ctx, key, b, ct)
+}
+func (f *failingPutStore) Delete(ctx context.Context, key ObjectKey) error {
+	f.deleted = append(f.deleted, key)
+	return f.memoryStore.Delete(ctx, key)
+}
+
+func TestPublishMetadataObject(t *testing.T) {
+	ctx := context.Background()
+	body := []byte(`{"private":"transcript"}`)
+	metadata := []byte(`{"client":{"name":"peasant","version":"1.2.3"},"private":"metadata"}`)
+	for _, tc := range loadPublishMetadataObjectCases(t) {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			s, objects := testEncryptedStore(t)
+			id, other := uuid.New(), uuid.New()
+			switch tc.Name {
+			case "nil_metadata_writes_one_object":
+				d, identity, m, err := s.WriteGeneration(ctx, id, body, nil)
+				if err != nil || m != nil {
+					t.Fatalf("nil metadata wrote an object or failed: m=%v err=%v", m, err)
+				}
+				if len(objects.objects) != 1 {
+					t.Fatalf("objects=%d, want 1", len(objects.objects))
+				}
+				if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil || !bytes.Equal(plain, body) {
+					t.Fatalf("body read failed: %v", err)
+				}
+				return
+			case "metadata_upload_failure_removes_the_body":
+				failing := &failingPutStore{memoryStore: &memoryStore{objects: map[ObjectKey]memoryObject{}}, failOn: 2}
+				ring, err := config.ParseTranscriptKeyring("1", `{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fs, _ := NewEncryptedTranscriptStore(failing, ring)
+				d, identity, m, err := fs.WriteGeneration(ctx, id, body, metadata)
+				if err == nil || m != nil || d.ObjectKey() != "" || identity != (ContentIdentity{}) {
+					t.Fatalf("failed metadata upload returned a committable result: d=%v m=%v err=%v", d, m, err)
+				}
+				if len(failing.objects) != 0 || len(failing.deleted) != 1 {
+					t.Fatalf("body object not removed: remaining=%d deleted=%v", len(failing.objects), failing.deleted)
+				}
+				return
+			}
+			d, identity, m, err := s.WriteGeneration(ctx, id, body, metadata)
+			if err != nil || m == nil {
+				t.Fatalf("write generation failed: m=%v err=%v", m, err)
+			}
+			if m.Key() == d.ObjectKey() || len(objects.objects) != 2 {
+				t.Fatalf("metadata object key=%q body key=%q objects=%d", m.Key(), d.ObjectKey(), len(objects.objects))
+			}
+			if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil || !bytes.Equal(plain, body) {
+				t.Fatalf("body read failed: %v", err)
+			}
+			expectRefused := func(plain []byte, err error) {
+				t.Helper()
+				if err == nil || plain != nil {
+					t.Fatalf("refusal expected, plain=%q err=%v", plain, err)
+				}
+			}
+			switch tc.Name {
+			case "metadata_round_trips":
+				raw := objects.objects[m.Key()]
+				if raw.contentType != ciphertextContentType || bytes.Contains(raw.body, []byte("metadata")) {
+					t.Fatalf("metadata object is not opaque ciphertext: content-type=%q", raw.contentType)
+				}
+				plain, err := s.ReadMetadata(ctx, id, d, *m)
+				if err != nil || !bytes.Equal(plain, metadata) {
+					t.Fatalf("metadata read failed: %v", err)
+				}
+				if m.Identity() != identityOf(metadata) {
+					t.Fatal("metadata identity is not SHA3-256 and size of the plaintext")
+				}
+				if err := s.DeleteMetadata(ctx, *m); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
+					t.Fatalf("absence=%v", err)
+				}
+				if _, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil {
+					t.Fatalf("deleting metadata removed the body: %v", err)
+				}
+			case "metadata_shares_the_body_wrapped_dek":
+				ring := s.keys
+				dek, err := ring.Unwrap(ctx, d.WrappedDEK(), d.KeyVersion(), dekAAD(id))
+				if err != nil {
+					t.Fatal(err)
+				}
+				block, _ := aes.NewCipher(dek)
+				aead, _ := cipher.NewGCMWithRandomNonce(block)
+				bodyCT, metaCT := objects.objects[d.ObjectKey()].body, objects.objects[m.Key()].body
+				if plain, err := aead.Open(nil, nil, bodyCT, bodyAAD(id)); err != nil || !bytes.Equal(plain, body) {
+					t.Fatalf("body does not open under the descriptor DEK: %v", err)
+				}
+				if plain, err := aead.Open(nil, nil, metaCT, metadataAAD(id)); err != nil || !bytes.Equal(plain, metadata) {
+					t.Fatalf("metadata does not open under the descriptor DEK: %v", err)
+				}
+				if bytes.Equal(bodyCT[:gcmNonceSize], metaCT[:gcmNonceSize]) {
+					t.Fatal("the two objects under one DEK share a nonce")
+				}
+			case "metadata_as_body_fails_authentication":
+				swapped, err := NewBlobDescriptor(m.Key(), d.WrappedDEK(), d.Algorithm(), d.KeyVersion())
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain, _, err := s.Read(ctx, id, swapped, newPendingContentIdentity())
+				expectRefused(plain, err)
+			case "body_as_metadata_fails_authentication":
+				swapped, err := NewMetadataObject(d.ObjectKey(), string(identity.Hash()), identity.PlaintextSize())
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectRefused(s.ReadMetadata(ctx, id, d, swapped))
+			case "metadata_of_another_transcript_fails":
+				d2, _, m2, err := s.WriteGeneration(ctx, other, body, metadata)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectRefused(s.ReadMetadata(ctx, other, d, *m))
+				expectRefused(s.ReadMetadata(ctx, id, d, *m2))
+				expectRefused(s.ReadMetadata(ctx, id, d2, *m))
+				o := objects.objects[m.Key()]
+				o.body = objects.objects[m2.Key()].body
+				objects.objects[m.Key()] = o
+				expectRefused(s.ReadMetadata(ctx, id, d, *m))
+			case "metadata_hash_mismatch_refused":
+				wrongHash, err := NewMetadataObject(m.Key(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", m.Identity().PlaintextSize())
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectRefused(s.ReadMetadata(ctx, id, d, wrongHash))
+				wrongSize, err := NewMetadataObject(m.Key(), string(m.Identity().Hash()), m.Identity().PlaintextSize()+1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectRefused(s.ReadMetadata(ctx, id, d, wrongSize))
+				if _, err := NewMetadataObject("transcripts/not-opaque.bin", string(m.Identity().Hash()), 1); err == nil {
+					t.Fatal("non-opaque metadata key accepted")
+				}
+				if _, err := NewMetadataObject(m.Key(), "AA", 1); err == nil {
+					t.Fatal("non-canonical metadata hash accepted")
+				}
+				var zero MetadataObject
+				expectRefused(s.ReadMetadata(ctx, id, d, zero))
+			case "rewrap_keeps_metadata_readable_and_bytes_identical":
+				before := append([]byte(nil), objects.objects[m.Key()].body...)
+				rewrapped, err := s.Rewrap(ctx, id, d)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if bytes.Equal(rewrapped.WrappedDEK(), d.WrappedDEK()) {
+					t.Fatal("rewrap did not change the wrapped DEK")
+				}
+				plain, err := s.ReadMetadata(ctx, id, rewrapped, *m)
+				if err != nil || !bytes.Equal(plain, metadata) {
+					t.Fatalf("metadata unreadable after rewrap: %v", err)
+				}
+				if !bytes.Equal(before, objects.objects[m.Key()].body) {
+					t.Fatal("rewrap changed the metadata ciphertext")
+				}
+			default:
+				t.Fatalf("unknown publish metadata object fixture case %q", tc.Name)
+			}
+		})
+	}
+}
+
+func identityOf(plaintext []byte) ContentIdentity {
+	sum := sha3.Sum256(plaintext)
+	i, _ := NewContentIdentity(hex.EncodeToString(sum[:]), int64(len(plaintext)))
+	return i
 }
