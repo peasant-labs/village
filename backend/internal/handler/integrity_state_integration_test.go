@@ -320,16 +320,16 @@ func TestIntegrityStickyHistory(t *testing.T) {
 			}
 
 			if c.Want.LatestTurns != nil {
-				latest, err := queries.LatestIntegrityResultForContent(ctx, sqlc.LatestIntegrityResultForContentParams{TranscriptID: current, ContentHash: currentHash})
+				latest, err := queries.ServedIntegrityForContent(ctx, sqlc.ServedIntegrityForContentParams{TranscriptID: current, ContentHash: currentHash})
 				if err != nil {
-					t.Fatalf("LatestIntegrityResultForContent: %v", err)
+					t.Fatalf("ServedIntegrityForContent: %v", err)
 				}
 				got := make([]int, len(latest.FlaggedTurns))
 				for i, turn := range latest.FlaggedTurns {
 					got[i] = int(turn)
 				}
-				if !slices.Equal(got, c.Want.LatestTurns) || latest.Verdict != string(schema.ScryVerdictChecked) {
-					t.Fatalf("latest result for the current content: verdict %q turns %v, want checked %v", latest.Verdict, got, c.Want.LatestTurns)
+				if !slices.Equal(got, c.Want.LatestTurns) {
+					t.Fatalf("latest checked turns for the current content: %v, want %v", got, c.Want.LatestTurns)
 				}
 			}
 		})

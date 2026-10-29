@@ -5,6 +5,8 @@
 # results: stored answers. hash is "current" (the row's content hash) or
 #   "other" (an earlier copy). verdict defaults to checked.
 # inherited: the flag was inherited from a deleted copy; no result backs it.
+# owner_anonymous: the owner is not discoverable and the viewer is not the owner,
+#   so the response shows the owner as anonymous (asserted).
 # viewer: owner, other_user, signed_out, collective_member or collective_owner.
 # want: absent (200, no integrity), not_found (404) or served (200 with
 #   integrity.flagged_turns equal to want_turns exactly).
@@ -33,3 +35,4 @@
 - {name: no_scry_version_in_body, why: "the checker version and verdict never reach the browser", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: other_user, want: served, want_turns: [1]}
 - {name: scry_unset_still_serves_stored_flag, why: "the checker is not configured in this test and the stored flag is served as stored", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: signed_out, want: served, want_turns: [1]}
 - {name: list_and_pull_never_carry_integrity, why: "only the detail route carries integrity", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: owner, want: served, want_turns: [1]}
+- {name: anonymous_owner_public_flagged_validates, why: "a public flagged transcript whose owner is anonymous to the caller still serves integrity and the whole response validates", visibility: public, share: none, owner_anonymous: true, results: [{hash: current, version: 7.31.4, turns: [2]}], viewer: other_user, want: served, want_turns: [2]}

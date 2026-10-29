@@ -89,7 +89,6 @@ type Querier interface {
 
 	// Transcript integrity methods
 	InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
-	LatestIntegrityResultForContent(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error)
 	HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
 	ServedIntegrityForContent(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error)
 	RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error

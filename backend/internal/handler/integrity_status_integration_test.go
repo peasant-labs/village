@@ -32,15 +32,16 @@ type integrityServedResult struct {
 }
 
 type integrityServedCase struct {
-	Name       string                  `yaml:"name"`
-	Why        string                  `yaml:"why"`
-	Visibility string                  `yaml:"visibility"`
-	Share      string                  `yaml:"share"`
-	Results    []integrityServedResult `yaml:"results"`
-	Inherited  bool                    `yaml:"inherited"`
-	Viewer     string                  `yaml:"viewer"`
-	Want       string                  `yaml:"want"`
-	WantTurns  []int                   `yaml:"want_turns"`
+	Name           string                  `yaml:"name"`
+	Why            string                  `yaml:"why"`
+	Visibility     string                  `yaml:"visibility"`
+	Share          string                  `yaml:"share"`
+	Results        []integrityServedResult `yaml:"results"`
+	Inherited      bool                    `yaml:"inherited"`
+	OwnerAnonymous bool                    `yaml:"owner_anonymous"`
+	Viewer         string                  `yaml:"viewer"`
+	Want           string                  `yaml:"want"`
+	WantTurns      []int                   `yaml:"want_turns"`
 }
 
 var requiredIntegrityServedCases = []string{
@@ -64,6 +65,7 @@ var requiredIntegrityServedCases = []string{
 	"no_scry_version_in_body",
 	"scry_unset_still_serves_stored_flag",
 	"list_and_pull_never_carry_integrity",
+	"anonymous_owner_public_flagged_validates",
 }
 
 func loadIntegrityServedCases(t *testing.T) []integrityServedCase {
@@ -198,6 +200,9 @@ func TestServedIntegrityStatus(t *testing.T) {
 			if viewer == nil && c.Viewer != "signed_out" {
 				t.Fatalf("unknown viewer %q", c.Viewer)
 			}
+			if c.OwnerAnonymous {
+				execAsSystem(t, ctx, pool, "UPDATE users SET is_discoverable = FALSE WHERE id = $1", owner)
+			}
 			got := detail(id, viewer)
 
 			if c.Want == "not_found" {
@@ -218,6 +223,9 @@ func TestServedIntegrityStatus(t *testing.T) {
 			}
 			if err := resp.Validate(); err != nil {
 				t.Fatalf("the detail response is not a valid metadata response: %v", err)
+			}
+			if c.OwnerAnonymous && resp.Owner.IsProfile() {
+				t.Fatalf("the owner is shown to the viewer, the case needs an anonymous owner: %+v", resp.Owner)
 			}
 			var raw map[string]json.RawMessage
 			if err := json.Unmarshal(got.Body.Bytes(), &raw); err != nil {
@@ -250,6 +258,17 @@ func TestServedIntegrityStatus(t *testing.T) {
 				}
 				if string(raw["integrity"]) == "null" || !strings.HasPrefix(string(fields["flagged_turns"]), "[") {
 					t.Fatalf("flagged_turns is not an array: %s", raw["integrity"])
+				}
+				if c.Name == "public_flagged_signed_out_identical" {
+					signedIn := uuidFromPg(other)
+					in := detail(id, &signedIn)
+					var inRaw map[string]json.RawMessage
+					if err := json.Unmarshal(in.Body.Bytes(), &inRaw); err != nil || in.Code != http.StatusOK {
+						t.Fatalf("signed-in read: %d %v", in.Code, err)
+					}
+					if !bytes.Equal(inRaw["integrity"], raw["integrity"]) {
+						t.Fatalf("integrity differs between signed-out %s and signed-in %s", raw["integrity"], inRaw["integrity"])
+					}
 				}
 			default:
 				t.Fatalf("unknown want %q", c.Want)

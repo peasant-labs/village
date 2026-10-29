@@ -8,18 +8,6 @@ INSERT INTO transcript_integrity_results (
 )
 ON CONFLICT DO NOTHING;
 
--- name: LatestIntegrityResultForContent :one
--- The latest checked answer for one content. An unchecked answer examined
--- nothing and carries no positions, so it never hides the positions of an
--- earlier checked answer. Versions are compared as numbers, never as text.
-SELECT transcript_id, content_hash, scry_version, verdict, flagged_turns, checked_at
-FROM transcript_integrity_results
-WHERE transcript_id = @transcript_id
-  AND content_hash = @content_hash
-  AND verdict = 'checked'
-ORDER BY string_to_array(scry_version, '.')::numeric[] DESC
-LIMIT 1;
-
 -- name: HasOpenIntegrityFlag :one
 SELECT EXISTS (
     SELECT 1 FROM transcript_integrity_open_flags WHERE transcript_id = @transcript_id

@@ -100,7 +100,6 @@ type mockQuerier struct {
 	recordTranscriptContentRewrite         func(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error
 	insertIntegrityResult                  func(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
 	servedIntegrityForContent              func(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error)
-	latestIntegrityResultForContent        func(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error)
 	hasOpenIntegrityFlag                   func(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
 	recordIntegrityTombstone               func(ctx context.Context, transcriptID pgtype.UUID) error
 	inheritIntegrityTombstone              func(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
@@ -583,12 +582,6 @@ func (m *mockQuerier) InsertIntegrityResult(ctx context.Context, arg sqlc.Insert
 		return m.insertIntegrityResult(ctx, arg)
 	}
 	return nil
-}
-func (m *mockQuerier) LatestIntegrityResultForContent(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error) {
-	if m.latestIntegrityResultForContent != nil {
-		return m.latestIntegrityResultForContent(ctx, arg)
-	}
-	return sqlc.TranscriptIntegrityResult{}, pgx.ErrNoRows
 }
 func (m *mockQuerier) ServedIntegrityForContent(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error) {
 	if m.servedIntegrityForContent != nil {

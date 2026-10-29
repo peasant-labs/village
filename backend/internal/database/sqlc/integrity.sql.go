@@ -173,38 +173,6 @@ func (q *Queries) IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (
 	return in_set, err
 }
 
-const latestIntegrityResultForContent = `-- name: LatestIntegrityResultForContent :one
-SELECT transcript_id, content_hash, scry_version, verdict, flagged_turns, checked_at
-FROM transcript_integrity_results
-WHERE transcript_id = $1
-  AND content_hash = $2
-  AND verdict = 'checked'
-ORDER BY string_to_array(scry_version, '.')::numeric[] DESC
-LIMIT 1
-`
-
-type LatestIntegrityResultForContentParams struct {
-	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
-	ContentHash  string      `db:"content_hash" json:"content_hash"`
-}
-
-// The latest checked answer for one content. An unchecked answer examined
-// nothing and carries no positions, so it never hides the positions of an
-// earlier checked answer. Versions are compared as numbers, never as text.
-func (q *Queries) LatestIntegrityResultForContent(ctx context.Context, arg LatestIntegrityResultForContentParams) (TranscriptIntegrityResult, error) {
-	row := q.db.QueryRow(ctx, latestIntegrityResultForContent, arg.TranscriptID, arg.ContentHash)
-	var i TranscriptIntegrityResult
-	err := row.Scan(
-		&i.TranscriptID,
-		&i.ContentHash,
-		&i.ScryVersion,
-		&i.Verdict,
-		&i.FlaggedTurns,
-		&i.CheckedAt,
-	)
-	return i, err
-}
-
 const listIntegrityCandidates = `-- name: ListIntegrityCandidates :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider, t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count, t.blob_key, t.blob_size_bytes, t.schema_version, t.published_at, t.updated_at, t.parent_session_id, t.ingested_at, t.source_file_path, t.source_format, t.git_branch, t.git_remote, t.git_worktree, t.project_hash, t.project_path, t.project_name, t.tool_call_count, t.subagent_count, t.duration_ms, t.subagents, t.diagnostics_warnings, t.diagnostics_partial, t.tokens_in, t.tokens_out, t.title_generated, t.outcome, t.files_touched, t.lines_changed, t.retry_loops, t.retry_tokens_wasted, t.within_session_reverts, t.signal_density, t.spec_quality_score, t.exploration_ratio, t.scope_breadth, t.discovery_turns, t.m2_token_outcome_ratio, t.m3_unique_tool_count, t.m4_error_recovery_count, t.m4_consecutive_error_max, t.m5_context_utilization_pct, t.m5_peak_context_tokens, t.m5_avg_message_tokens, t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count, t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version, t.accepted_request_operation_fingerprint, t.session_origin, t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships, t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
 FROM transcripts t
