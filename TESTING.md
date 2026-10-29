@@ -28,6 +28,7 @@ suite under the race detector.
 | Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |
 | Thinking-level preservation gate (`thinking_level_v1` proof, advertisement, publish refusal, read validation) | unit; lifecycle `//go:build integration` | the lifecycle test does (PostgreSQL + S3-compatible storage) | both | [Thinking-level preservation gate](#thinking-level-preservation-gate) below |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
+| Transcript integrity (the scry client and fake, the background check, the served flag, the stored publish metadata) | unit; lifecycle `//go:build integration` | the lifecycle tests do (PostgreSQL + S3-compatible storage) | both | [Transcript integrity and the scry fake](#transcript-integrity-and-the-scry-fake) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
 Database/data-model invariants the suites rely on (triggers, GUCs, audit table,
@@ -1261,6 +1262,143 @@ defer cleanupOwners(t, ctx, pool, owner)
 A test that deletes all its transcripts in-body must still purge the audit rows
 for the ids it captured (`defer purgeAuditRows(t, ctx, pool, ids)`) - the
 cleanup helper finds nothing left to collect and orphan audit rows accumulate.
+
+## Transcript integrity and the scry fake
+
+Village asks a separate service, scry, whether a readable transcript carries
+suspect turns, stores the answer, and shows a notice to every reader of a
+flagged transcript. The check is off unless `SCRY_URL` and `SCRY_SHARED_SECRET`
+are both valid (see [`docs/environment.md`](docs/environment.md)). The data rules
+are in [`docs/database-invariants.md`](docs/database-invariants.md), "Transcript
+integrity (migration 049)". Tests never reach a real service.
+
+### The fake: `scry.Fake`
+
+`backend/internal/scry/fake.go` is an in-process `httptest` server that speaks
+the contract's health and check routes. Production code never imports it.
+
+- `NewFake(t, version)` starts it and stops it with the test; `Settings()` gives
+  the client settings that reach it, with `FakeSecret` as the bearer secret.
+- `/healthz` needs no secret, as on the real service; a wrong or missing bearer
+  gets 401 only on the check route. A test that sends a wrong secret therefore
+  sees health succeed and every check refused.
+- `Answer(HashOf(sessionDetail), response)` scripts an answer. The key is the hash
+  of the session detail the fake receives, NOT the stored `content_hash`. A key
+  from the wrong source matches nothing and the request gets the default
+  unflagged reply, so every test that answers by key also asserts
+  **`Unanswered() == 0`**. Without that assertion a mistyped key passes as
+  "nothing flagged".
+- `Fail(status)` fails every call, health included. `FailCheck(status)` fails only
+  check, so health keeps answering. Zero restores both. `SetVersion` changes the
+  reported checker version.
+- `Requests()` lists the check requests the fake answered, oldest first. It leaves
+  out checks refused for their secret, forced to fail, or not valid requests; a
+  test that must count those wraps the client in its own counting checker.
+
+### Calling the worker: `integrityTick`
+
+`integrityTick(ctx)` is one pass of the background worker with no timers: ask
+health, list candidates under the held checker version, and check each in turn.
+Tests call it directly (`TestIntegrityTriggers` drives it with `tick` steps), so
+there is no sleep and no goroutine to race. The pass pauses between two calls
+only when the service has a spacing set, so a test that does not want the pause sets it to zero.
+
+- **The held version.** The worker holds the highest checker version it has seen,
+  from health or from an answer, and only moves it forward. Every pass lists and
+  records under the held version. An answer from a newer checker moves it, and the
+  rest of the same pass lists again under the new version, so a sweep starts
+  without waiting for the next health call. Versions compare as numbers, never as
+  text (`1.10.0` is later than `1.9.0`). `integrity-versions.yaml` holds the
+  table; a rollback to an older checker is picked up only at restart.
+- **Nothing is written when health fails.** The pass ends before it touches the
+  database.
+- **A refused secret is the operator's fault, not the content's.** A 401 or 403
+  on check gives the attempt back uncounted and ends the pass; only a check the
+  service answered with 200, or failed with another status, re-arms the one
+  warning.
+- Only `NewWithDrain` starts the worker, because only it hands back the drain that
+  stops it (`TestOnlyNewWithDrainStartsTheIntegrityCheck`), and `DrainIntegrity`
+  waits for a check in flight to be recorded
+  (`TestDrainIntegrityWaitsForACheckInFlight`).
+
+### Fixtures
+
+Every case table is a YAML fixture with a required-name manifest, never a bare
+count. Names that start with `integrity`, `scry`, `migration-048`, `migration-049`,
+`publish-evidence` or `pull-publish-metadata`:
+
+| Fixture | Test | What it pins |
+|---|---|---|
+| `scry/testdata/scry-client.yaml` | `TestScryClient` | the client against a scripted server: round trips, redirects not followed, bounded bodies, closed error classes; error text never carries the secret, the URL or response content |
+| `handler/testdata/scry-configuration.yaml` | `TestScryConfiguration` | the feature is on only for an http or https URL plus a secret of the required length; each failure logs one line naming only variables |
+| `handler/testdata/integrity-request.yaml` | `TestBuildScryRequest` | the request carries the served session detail and village's own times, and nothing the row copied from the publisher |
+| `handler/testdata/integrity-versions.yaml` | `TestIntegrityVersionTracking` | how the held version moves, from health and from answers |
+| `handler/testdata/integrity-triggers.yaml` | `TestIntegrityTriggers` (integration) | what the worker sends and records as transcripts enter and leave the checked set, through production routes, real PostgreSQL and RustFS and the fake: exact requests, ledger rows, results and nudges |
+| `handler/testdata/integrity-sticky.yaml` | `TestIntegrityStickyHistory` (integration) | flags through publish, republish, audience changes, results and deletion; the post-deletion record and its inheritance |
+| `handler/testdata/integrity-served-status.yaml` | `TestServedIntegrityStatus` (integration) | what the content route serves as `integrity` to each kind of viewer |
+| `handler/testdata/publish-evidence.yaml` | `TestPublishEvidenceLifecycle` (integration) | the encrypted publish-metadata object through publish, republish, rewrite and delete |
+| `handler/testdata/pull-publish-metadata.yaml` | `TestPullPublishMetadata` (integration) | who may read the stored metadata through the pull route, and the uniform 404 |
+| `database/testdata/migration-048-checks.yaml`, `migration-049-checks.yaml` | `TestMigration048_*`, `TestMigration049_Checks` (integration) | each CHECK and trigger of the migrations, one rolled-back statement per case |
+
+Conventions the fixtures share:
+
+- Steps drive the production publish, PATCH, share, review, contribution and
+  content routes. Only the steps no route can reach write rows directly, and the
+  fixture header says why (a seeded post-deletion record, a recorded legacy
+  rewrite).
+- A pre-case guard in the trigger test fails if a transcript outside the case is
+  in the checked set, so a leftover cannot crowd a pass.
+- The trigger test asserts the exact multiset (or order) of requests the fake
+  received, that no request contains an absent content's sentinel text, the exact
+  ledger and results, and that `Unanswered()` is zero.
+- `assert_served` compares the content route's served session detail with the
+  last request: flagged turn positions index the payload the reader sees.
+- Faults (a failing result store, a failing lineage read, a wrong secret, a
+  withdrawn share between listing and reading) are injected by step, through a
+  `Querier` wrapper or the fake, never by sleeping.
+- Hold and backoff times are computed by the database, so the ledger assertions
+  read `due_in` from rows and no test moves an application clock.
+
+### The checked set equals the non-owner edge of `transcriptViewAccess`
+
+A transcript is checked when it is public or has any `transcript_shares` row
+(`ListIntegrityCandidates`; `IsInIntegrityCheckedSet` holds the same predicate
+text, and `TestCheckedSetPredicateIsShared` keeps the two equal). The reason is
+that this is exactly when someone other than the owner can read it, which is the
+non-owner part of `transcriptViewAccess`:
+
+- a public transcript is readable by anyone;
+- a shared transcript is readable by a member of a collective holding an approved
+  share row;
+- the owners of any collective with a share row (pending, approved or rejected)
+  can read it, to review it (`ListGroupOwnersForTranscript`);
+- a withdrawn or revoked share has no row (the derivation deletes it), and then a
+  private transcript is the owner's alone.
+
+`integrity-triggers.yaml` walks each edge (public, shared, pending, rejected,
+withdrawn, made private) and `integrity-served-status.yaml` checks that the served
+flag follows the reader, not the visibility. Leaving the set never removes a
+stored result or flag: the check was asked for while others could read the copy.
+
+### Mutation checks
+
+Each of these was run against the tests above and killed, with the failing case
+named. Reproduce one by making the edit, running the focused test with
+`-tags=integration -race -count=1`, and reverting (regenerate with the pinned
+sqlc after changing a query).
+
+| Edit | Fails |
+|---|---|
+| `recordIntegrityResult` skips the write unless the transcript is still in the checked set | `TestIntegrityStickyHistory`: `flag_written_after_share_withdrawn_mid_check`, `flag_written_after_made_private_mid_check` |
+| open-flag view compares `scry_version` as text instead of numeric arrays (needs a fresh migrated database) | `version_order_is_numeric`, `earlier_version_checked_empty_does_not_void` |
+| `RecordIntegrityTombstone` conflict clause takes `EXCLUDED.flagged_at` instead of the earlier date | `record_over_an_earlier_record_keeps_its_date` |
+| `servedIntegrity` returns nothing unless the transcript is public | `TestServedIntegrityStatus`: `private_shared_flagged_present_for_owner`, `shared_flagged_present_for_member`, `pending_reviewer_sees_flag` and others |
+| `canReadPublishMetadata` reads `ListGroupOwnersForTranscript` (any share status) instead of the pending-or-approved list | `TestPullPublishMetadata`: `collective_owner_rejected_404`, `not_found_bodies_identical` |
+| no checked-set test before the read | `TestIntegrityTriggers`: `left_set_between_list_and_read_sends_nothing` |
+| no legacy-lineage skip | `legacy_rewrite_is_skipped_without_a_call` |
+| no six-attempt cap | `six_failures_is_failed`, `store_failure_backs_off_and_caps` |
+| a refused secret does not end the pass | `rejected_secret_burns_no_attempts` |
+| a too-large answer is retried instead of skipped | `too_large_is_terminal` |
 
 ## Migration & sqlc test conventions
 

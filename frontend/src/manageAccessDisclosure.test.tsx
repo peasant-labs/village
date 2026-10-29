@@ -81,8 +81,8 @@ for (const c of fixtures.cases) {
         break;
       }
       case "no_middle_dot":
-        expect(fixtures.line).not.toContain("·");
-        expect(text).not.toContain("·");
+        expect(fixtures.line).not.toContain("\u00b7");
+        expect(text).not.toContain("\u00b7");
         break;
       case "no_access_claim":
         for (const phrase of fixtures.forbidden) expect(text).not.toContain(phrase);

@@ -1074,6 +1074,8 @@ authenticating. Both are custom Postgres parameters read via
 | `app.share_state_derivation` | Permission for the ONE sanctioned writer of the derived `transcript_shares` row. Set to `on` by `derive_transcript_share` immediately before it writes and back to `off` immediately after, so the permission never outlives the derivation it was opened for. It is not authorization: it marks the derivation, and everything else is refused. | Txn only (`set_config(..., true)`) | `derive_transcript_share` only. NOTHING in Go sets it |
 | `app.transcript_writer_version` | Compatibility marker proving a transcript storage mutation uses the encryption-aware descriptor shape. Exact current value: `1`. It is not authorization. | Txn only (`set_config(..., true)` / `SET LOCAL`) | Every encryption-aware create, republish, rewrite, hash backfill, rewrap, direct delete, and account-delete transaction |
 
+- **The transcript integrity tables (migration 049) add no GUC and no
+  trigger.** The registry above is unchanged.
 - **System actor:** `00000000-0000-0000-0000-000000000000`
   (`database.SystemActorID`) - the reserved attribution for non-user mutations
   (seeds, backfills, runbooks). It references no `users` row on purpose and is
