@@ -1,0 +1,35 @@
+# What the transcript detail route serves as integrity.
+#
+# visibility: private, shared or public (the stored value).
+# share: none, pending, approved, rejected or retracted, to the one collective.
+# results: stored answers. hash is "current" (the row's content hash) or
+#   "other" (an earlier copy). verdict defaults to checked.
+# inherited: the flag was inherited from a deleted copy; no result backs it.
+# viewer: owner, other_user, signed_out, collective_member or collective_owner.
+# want: absent (200, no integrity), not_found (404) or served (200 with
+#   integrity.flagged_turns equal to want_turns exactly).
+
+- {name: public_flagged_has_turns, why: "a public reader sees the flag and its positions", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1, 4]}], viewer: other_user, want: served, want_turns: [1, 4]}
+- {name: public_flagged_signed_out_identical, why: "a signed-out reader gets the same integrity as a signed-in one", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1, 4]}], viewer: signed_out, want: served, want_turns: [1, 4]}
+- {name: public_clear_absent, why: "a checked answer with no turns serves nothing", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: []}], viewer: other_user, want: absent}
+- {name: public_unchecked_absent, why: "an unchecked answer examined nothing and is not a flag", visibility: public, share: none, results: [{hash: current, version: 7.31.4, verdict: unchecked, turns: []}], viewer: other_user, want: absent}
+- {name: public_no_result_absent, why: "a transcript nobody has checked serves nothing", visibility: public, share: none, results: [], viewer: other_user, want: absent}
+- {name: private_shared_flagged_present_for_owner, why: "a flag is not tied to public visibility, the owner of a private transcript with a pending share sees it", visibility: private, share: pending, results: [{hash: current, version: 7.31.4, turns: [2]}], viewer: owner, want: served, want_turns: [2]}
+- {name: shared_flagged_present_for_member, why: "a member reading an approved share sees the flag", visibility: shared, share: approved, results: [{hash: current, version: 7.31.4, turns: [0, 3]}], viewer: collective_member, want: served, want_turns: [0, 3]}
+- {name: pending_reviewer_sees_flag, why: "the collective owner reviewing a private pending submission sees the flag", visibility: private, share: pending, results: [{hash: current, version: 7.31.4, turns: [5]}], viewer: collective_owner, want: served, want_turns: [5]}
+- {name: rejected_reviewer_sees_flag, why: "the collective owner of a rejected share still reads it and sees the flag", visibility: private, share: rejected, results: [{hash: current, version: 7.31.4, turns: [5]}], viewer: collective_owner, want: served, want_turns: [5]}
+- {name: owner_sees_flag_after_withdrawal, why: "the owner keeps seeing the flag after withdrawing the share", visibility: private, share: retracted, results: [{hash: current, version: 7.31.4, turns: [2]}], viewer: owner, want: served, want_turns: [2]}
+- {name: stranger_404_reveals_nothing, why: "a stranger gets the 404 of any private transcript, byte for byte", visibility: private, share: pending, results: [{hash: current, version: 7.31.4, turns: [2]}], viewer: other_user, want: not_found}
+- {name: stranger_signed_out_404, why: "a signed-out viewer gets the same 404 for a flagged private transcript", visibility: private, share: none, results: [{hash: current, version: 7.31.4, turns: [2]}], viewer: signed_out, want: not_found}
+- {name: sticky_flag_on_clean_copy_has_no_turns, why: "the flag is open from an earlier copy and the current copy was checked clean, so there are no positions", visibility: public, share: none, results: [{hash: other, version: 7.31.4, turns: [4]}, {hash: current, version: 7.31.4, turns: []}], viewer: other_user, want: served, want_turns: []}
+- {name: sticky_flag_unchecked_copy_has_no_turns, why: "the flag is open from an earlier copy and nothing applies to the current copy", visibility: public, share: none, results: [{hash: other, version: 7.31.4, turns: [4]}], viewer: other_user, want: served, want_turns: []}
+- {name: other_hash_positions_never_served, why: "positions of a different content are never served for the current one", visibility: public, share: none, results: [{hash: other, version: 9.0.0, turns: [7, 8]}, {hash: current, version: 7.31.4, turns: [1]}], viewer: other_user, want: served, want_turns: [1]}
+- {name: newest_version_turns_win, why: "the latest checked version for the current content names the positions", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}, {hash: current, version: 7.32.0, turns: [2, 3]}], viewer: other_user, want: served, want_turns: [2, 3]}
+- {name: version_order_is_numeric, why: "7.100.0 is later than 7.31.4 although it sorts earlier as text", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}, {hash: current, version: 7.100.0, turns: [6]}], viewer: other_user, want: served, want_turns: [6]}
+- {name: later_unchecked_keeps_turns, why: "a later unchecked answer must not hide the positions of a flag that is still open", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [2]}, {hash: current, version: 7.32.0, verdict: unchecked, turns: []}], viewer: other_user, want: served, want_turns: [2]}
+- {name: voided_flag_absent, why: "a later checked answer with no turns voids the flag", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [2]}, {hash: current, version: 7.32.0, turns: []}], viewer: other_user, want: absent}
+- {name: inherited_flag_has_no_turns, why: "an inherited flag has no result behind it and so no positions", visibility: public, share: none, inherited: true, results: [], viewer: other_user, want: served, want_turns: []}
+- {name: integrity_has_only_flagged_turns, why: "the integrity object carries exactly one key", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: other_user, want: served, want_turns: [1]}
+- {name: no_scry_version_in_body, why: "the checker version and verdict never reach the browser", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: other_user, want: served, want_turns: [1]}
+- {name: scry_unset_still_serves_stored_flag, why: "the checker is not configured in this test and the stored flag is served as stored", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: signed_out, want: served, want_turns: [1]}
+- {name: list_and_pull_never_carry_integrity, why: "only the detail route carries integrity", visibility: public, share: none, results: [{hash: current, version: 7.31.4, turns: [1]}], viewer: owner, want: served, want_turns: [1]}

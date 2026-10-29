@@ -1157,6 +1157,16 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	if len(navigation) > 0 {
 		response["relationshipNavigation"] = navigation
 	}
+	// Only a caller transcriptViewAccess admitted reaches here, so integrity
+	// tests no visibility of its own.
+	integrity, err := h.servedIntegrity(r.Context(), transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read the transcript's integrity status because the database lookup failed. No detail was returned; retry the transcript lookup.")
+		return
+	}
+	if integrity != nil {
+		response["integrity"] = integrity
+	}
 	writeJSON(w, http.StatusOK, response)
 }
 

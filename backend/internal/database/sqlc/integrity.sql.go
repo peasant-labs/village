@@ -387,3 +387,41 @@ func (q *Queries) ReleaseIntegrityAttempt(ctx context.Context, arg ReleaseIntegr
 	_, err := q.db.Exec(ctx, releaseIntegrityAttempt, arg.TranscriptID, arg.ContentHash, arg.ScryVersion)
 	return err
 }
+
+const servedIntegrityForContent = `-- name: ServedIntegrityForContent :one
+SELECT
+    EXISTS (
+        SELECT 1 FROM transcript_integrity_open_flags f WHERE f.transcript_id = $1
+    )::bool AS open,
+    COALESCE((
+        SELECT r.flagged_turns
+        FROM transcript_integrity_results r
+        WHERE r.transcript_id = $1
+          AND r.content_hash = $2
+          AND r.verdict = 'checked'
+        ORDER BY string_to_array(r.scry_version, '.')::numeric[] DESC
+        LIMIT 1
+    ), '{}'::int[])::int[] AS flagged_turns
+`
+
+type ServedIntegrityForContentParams struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	ContentHash  string      `db:"content_hash" json:"content_hash"`
+}
+
+type ServedIntegrityForContentRow struct {
+	Open         bool    `db:"open" json:"open"`
+	FlaggedTurns []int32 `db:"flagged_turns" json:"flagged_turns"`
+}
+
+// What the detail route serves, in one read: whether the transcript has an
+// open flag, and the positions of the latest checked answer for the one
+// content the response names. Positions of any other content are never
+// returned: they are empty when the flag is open but nothing applies to this
+// content. Versions are compared as numbers, never as text.
+func (q *Queries) ServedIntegrityForContent(ctx context.Context, arg ServedIntegrityForContentParams) (ServedIntegrityForContentRow, error) {
+	row := q.db.QueryRow(ctx, servedIntegrityForContent, arg.TranscriptID, arg.ContentHash)
+	var i ServedIntegrityForContentRow
+	err := row.Scan(&i.Open, &i.FlaggedTurns)
+	return i, err
+}

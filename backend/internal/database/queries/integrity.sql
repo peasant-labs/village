@@ -25,6 +25,26 @@ SELECT EXISTS (
     SELECT 1 FROM transcript_integrity_open_flags WHERE transcript_id = @transcript_id
 )::bool AS open;
 
+-- name: ServedIntegrityForContent :one
+-- What the detail route serves, in one read: whether the transcript has an
+-- open flag, and the positions of the latest checked answer for the one
+-- content the response names. Positions of any other content are never
+-- returned: they are empty when the flag is open but nothing applies to this
+-- content. Versions are compared as numbers, never as text.
+SELECT
+    EXISTS (
+        SELECT 1 FROM transcript_integrity_open_flags f WHERE f.transcript_id = @transcript_id
+    )::bool AS open,
+    COALESCE((
+        SELECT r.flagged_turns
+        FROM transcript_integrity_results r
+        WHERE r.transcript_id = @transcript_id
+          AND r.content_hash = @content_hash
+          AND r.verdict = 'checked'
+        ORDER BY string_to_array(r.scry_version, '.')::numeric[] DESC
+        LIMIT 1
+    ), '{}'::int[])::int[] AS flagged_turns;
+
 -- name: RecordIntegrityTombstone :exec
 -- Run in the delete's transaction, before the row goes. Writes nothing when
 -- no flag is open. A second record for the same publisher session keeps the
