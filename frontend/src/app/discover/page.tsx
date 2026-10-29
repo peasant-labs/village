@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Tabs } from "@peasant-labs/fairtrade/ui";
 import { OnHead, OnPage } from "@/components/online/Page";
@@ -17,19 +17,23 @@ function DiscoverViews() {
   const params = useSearchParams();
   const router = useRouter();
   const requested: DiscoverView = params.get("view") === "transcripts" ? "transcripts" : "collectives";
-  const [view, setView] = useState<DiscoverView>(requested);
+  const [selection, setSelection] = useState({ requested, view: requested });
   const [visited, setVisited] = useState<ReadonlySet<DiscoverView>>(() => new Set([requested]));
   const root = useRef<HTMLDivElement>(null);
   useExploreSearchFocus(root);
 
-  useEffect(() => {
-    setView(requested);
-    setVisited((prior) => prior.has(requested) ? prior : new Set(prior).add(requested));
-  }, [requested]);
+  // Adjust before children render when browser navigation changes the URL.
+  // The local selection keeps tab clicks immediate while the router commits.
+  if (selection.requested !== requested) {
+    setSelection({ requested, view: requested });
+  }
+  if (!visited.has(requested)) {
+    setVisited(new Set(visited).add(requested));
+  }
 
   const select = (id: string) => {
     if (id !== "transcripts" && id !== "collectives") return;
-    setView(id);
+    setSelection({ requested, view: id });
     setVisited((prior) => prior.has(id) ? prior : new Set(prior).add(id));
     const query = new URLSearchParams(params.toString());
     query.set("view", id);
@@ -42,7 +46,7 @@ function DiscoverViews() {
       <div ref={root} className="on-discover-views">
         <Tabs
           aria-label="discover"
-          value={view}
+          value={selection.view}
           onChange={select}
           tabs={[
             { id: "transcripts", label: "transcripts", content: visited.has("transcripts") ? <ExplorePage embedded /> : null },

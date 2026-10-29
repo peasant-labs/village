@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Boxes, ChevronDown } from "lucide-react";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
@@ -130,12 +131,17 @@ function ContributedCollectiveRow({
  * how a person loses track of what they offered.
  */
 export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boolean }) {
+  return <Suspense fallback={null}><ProfileCollectivesLocation isOwnProfile={isOwnProfile} /></Suspense>;
+}
+
+function ProfileCollectivesLocation({ isOwnProfile }: { isOwnProfile: boolean }) {
+  const initialCollectiveId = useSearchParams().get("collective");
+  return <ProfileCollectivesBody key={initialCollectiveId ?? ""} isOwnProfile={isOwnProfile} initialCollectiveId={initialCollectiveId} />;
+}
+
+function ProfileCollectivesBody({ isOwnProfile, initialCollectiveId }: { isOwnProfile: boolean; initialCollectiveId: string | null }) {
   const { data, isLoading, isError, error } = useMyCollectiveContributions(isOwnProfile);
-  const [openCollectiveId, setOpenCollectiveId] = useState<string | null>(null);
-  useEffect(() => {
-    const collective = new URLSearchParams(window.location.search).get("collective");
-    if (collective) setOpenCollectiveId(collective);
-  }, []);
+  const [openCollectiveId, setOpenCollectiveId] = useState(initialCollectiveId);
 
   if (!isOwnProfile) return null;
 
