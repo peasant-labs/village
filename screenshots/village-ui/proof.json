@@ -1,0 +1,1726 @@
+{
+  "sourceCommit": "3c5505ca26b2aa93e7221cf08c83b438de3247fe",
+  "package": {
+    "name": "@peasant-labs/fairtrade",
+    "version": "0.0.53",
+    "integrity": "sha512-FfAI0JazZSCiclZsCpQvLbKylcjkVLwQlel7w6JUTK8J6a1e35k018t8uKuJszXtNCokvySuVvIZzxyjkCK7JA=="
+  },
+  "buildId": "Y41MH7eTOCHx3cDsu8P8j",
+  "assets": [
+    {
+      "file": "d113ea50f8deab58.js",
+      "sha256": "b8741c492e4691364993d9fa808efa3c2582258a2e0f03b27e710cc3b6b0114a",
+      "servedMatchesBuild": true
+    },
+    {
+      "file": "60040c643be062ea.css",
+      "sha256": "a19c12ea563e2c8b0ca790e9fd817c2805c761f8367915fa40b852132aa6503d",
+      "servedMatchesBuild": true
+    }
+  ],
+  "fixtures": {
+    "default": "frontend/scripts/journey/mock.mjs with MOCK_DEMO_ATTACHMENTS=1 (curated-owner + long demo)",
+    "profile": "frontend/scripts/visual/mock-rest-profile.mjs (the generic journey fixture does not implement public-profile reads)"
+  },
+  "checks": {
+    "frozenInstall": "passed",
+    "typescript": "passed",
+    "lint": "passed (2 existing unused-symbol warnings)",
+    "productionBuild": "passed",
+    "vitest": "1233 passed; 3 pre-existing Linux-only flock lifecycle failures on macOS",
+    "focusedURLChangeTests": "33 passed after navigation fix",
+    "mutations": "all three mutation commands passed"
+  },
+  "states": [
+    {
+      "name": "home",
+      "theme": "light",
+      "width": 1440,
+      "url": "/",
+      "scrollWidth": 1440,
+      "h1": [
+        "your transcripts"
+      ],
+      "mainText": "your transcripts\n38\ntranscripts\n3\ncollectives\n9\npull requests linked\n19.1M\ntokens recorded\nwaiting for approval\nML Reading Group: 1 transcript waiting for the collective owner's approval.\nview submissions\nlibrary\nprojects: all\ngroup by: project\ncolumns\nexpand all\ntranscripts you published\ntranscript\tproject\twho can read\tagent\twhen\n\ningest-api\n3 transcripts\n\n\nweb\n1 transcript\n\n\nworker\n1 transcript\n\n\nml-notes\n1 transcript\n6 of 6 transcripts",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "profile",
+      "theme": "light",
+      "width": 1440,
+      "url": "/users/alice-dev",
+      "scrollWidth": 1440,
+      "h1": [
+        "Alice Developer"
+      ],
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-transcripts",
+      "theme": "light",
+      "width": 1440,
+      "url": "/discover?view=transcripts",
+      "scrollWidth": 1440,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\n\npage 1 of 1 loaded\n\norder\n\nrecent\nmost turns\nmost tokens\n\nprovider\n\nall\n7\nclaude-code\n3\nopencode\n2\ngemini-cli\n1\ncodex\n1\n\ntopics\n\nclaude-code\n41\ndebugging\n33\ngemini-cli\n28\nrefactoring\n24\ngreenfield\n17\niterative-refinement\n14\n0 active\ntranscripts\n7\ngrid\nlist\nBuilding a REST API from scratch\nclaude-code\nClaude Opus 4.5\n1h 20m\n128 turns\n37 tools\njun 15, 2026\nvisibility: public\nStarted by a session this response does not carry\nopencode\nOpenCode\n19min\n12 turns\n4 tools\njun 14, 2026\nvisibility: public\nDebugging auth middleware with Claude Code\nclaude-code\nClaude Sonnet 4.5\n45min\n64 turns\n19 tools\njun 14, 2026\nvisibility: shared\nRefactoring database queries with Gemini\ngemini-cli\nGemini 2.5 Pro\n1h 36m\n91 turns\n28 tools\njun 13, 2026\nvisibility: public\nGreenfield React app setup\nopencode\nOpenCode\n38min\n47 turns\n14 tools\njun 12, 2026\nvisibility: public\nMulti-agent debugging session\nclaude-code\nClaude Opus 4.5\n3h 31m\n203 turns\n64 tools\njun 11, 2026\nvisibility: public\nUntitled transcript\ncodex\nCodex\n12min\n18 turns\n5 tools\njun 10, 2026\nvisibility: private\n+ 4 agent sessions\nshow",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-collectives",
+      "theme": "light",
+      "width": 1440,
+      "url": "/discover?view=collectives",
+      "scrollWidth": 1440,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\nML Reading Group\n\nPapers we read and the sessions that reproduce them.\n\n2 members\n54 transcripts\nanyone can join and publish\njoin\nOpen Evals 2026\n\nShared evaluation runs for agent benchmarks, published as they finish.\n\n12 members\n1,940 transcripts\nanyone can join and publish\njoin\nRust Review Club\n4 members\n310 transcripts\nmembers of the rust-club github org\njoin\nAgents In Class\n\nA course on working with coding agents. Students publish; the teacher approves each session.\n\n6 members\n488 transcripts\ninvite only; each session approved\nview",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "review",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "scrollWidth": 1440,
+      "h1": [
+        "review transcripts"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nreview\nreview transcripts\nevery harness\ncodex (1)\nclaude-code (1)\n2 waiting \u00b7 0 selected\nselect all\nTrim the onboarding copy\nweb\nmain\n@carol-ml\nclaude-code\nJan 1\napprove\nreject\nAdd retries to the webhook\ningest-api\nretries\n@dan-ops\ncodex\nJan 1\napprove\nreject\nskip to session views\nTrim the onboarding copy\nopen full transcript\nhome\nweb\nTrim the onboarding copy\nTrim the onboarding copy\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\nuser turns\n5 turns\nlist\ngraph\nplanning\nturns 1\u20135\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant turn 1b\nassistant\n#1b\njun 17\n\nSecond assistant response inherits Fable.\n\nmodel changed: claude-fable-5 \u2192\nto\n claude-opus-4-8\nassistant turn 1c\nassistant\n#1c\njun 17\n\nThird assistant response records the switch to Opus.\n\nassistant turn 1d\nassistant\n#1d\njun 17\n\nFourth assistant response inherits Opus.\n\nzen\nfilters\nhighlights\n2\nfull trace\n5\ndiffs\n0\nfiles\n0\nannotations\n0\n1 of 5",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 28
+        },
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 28
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "waiting",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=waiting",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 28
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 28
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-email",
+      "theme": "light",
+      "width": 1440,
+      "url": "/settings",
+      "scrollWidth": 1440,
+      "h1": [
+        "your settings"
+      ],
+      "mainText": "your settings\nprofile\norganizations\npull requests\nemail\nconnections\ndanger zone\nprofile\n2 settings\nhandle\nalice-dev\nedit\ndiscoverable profile\norganizations\n0 organizations\nno github organizations found. make one public on github, then sign out and sign in again.\npull requests\n1 setting\nlink my transcripts to my pull requests automatically\nemail\nemail address\nonly for invitations from collectives. we email you a code to check it's yours.\nsend code\nemail me when a collective invites me\nonly to a verified address. every email has a link to stop them.\nconnections\n2 connections\nsigned in with github as alice-dev\nsign out\npeasant on 2 computers\nlast used Jan 1, 2024.\nsign out everywhere\ndanger zone\ndeleting your account removes it from peasant online, with the transcripts you published and the collectives you own. it cannot be undone.\ndelete account",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-members",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members",
+      "scrollWidth": 1440,
+      "h1": [
+        "members"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nsettings\nmembers\ngeneral\naccess\nmembers\ngithub\npull requests\ndanger zone\ninvite by username\ninvite\nfind a github user to invite\nAD\n@alice-dev\nAlice Developer\nowner\nBA\n@bob-ai\nBob Ainsley\nmember\ncontributor\nremove\nCM\n@carol-ml\nCarol Mendes\nmember\ncontributor\nremove\nEW\n@erin-web\nErin Walsh\nmember\ncontributor\nremove\nDO\n@dan-ops\nDan Okafor\nmember\ncontributor\nremove\nFK\n@farid-k\nFarid Karimi\nmember\ncontributor\nremove\nwhen a member leaves\nwhat happens to the transcripts they published here.\nthe member decides\nremoved when they leave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repositories",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pull-requests",
+      "theme": "light",
+      "width": 1440,
+      "url": "/pulls",
+      "scrollWidth": 1440,
+      "h1": [
+        "pull requests"
+      ],
+      "mainText": "pull requests\nhow pull requests get transcripts\n, opens in a new tab\n\nwaiting for your transcripts\n\njan 1, 2024\nacme/ingest-api #45\nwaiting\n\nasked Jan 1, 2024\nfrom alice-dev/ingest-api\n\nview on github\ndec 31, 2023\nacme/web #33\nwaiting\n\nasked Dec 31, 2023\n\nview on github\ndec 29, 2023\nacme/ingest-api #38\nwaiting\n\nasked Dec 29, 2023\n\nview on github",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pr-digest",
+      "theme": "light",
+      "width": 1440,
+      "url": "/pulls/acme/ingest-api/45",
+      "scrollWidth": 1440,
+      "h1": [
+        "Fix flaky ingest test"
+      ],
+      "mainText": "acme/ingest-api\n#45\nattached\nprivate repository\nFix flaky ingest test\nview on github\n\nfix/flaky-ingest\n4 commits\n\nFix flaky ingest test\n\n2 commits, 4w ago\n\nread\n4\nprompts\nGuard empty turns in the digest\n\n1 commit, 4w ago\n\nread\n2\nprompts\n\n3 of 4 commits traced\n\nprompts\ntranscripts\n2\nprompts\n6\ncommits\n3 of 4\nharness\nclaude-code\nopen pull request digest\nskills and plugins\n/toolkit:write-plan\n1\ntranscripts\n2\n\nj k\nmove between transcripts\n\nFix flaky ingest test\n4 prompts\nGuard empty turns in the digest\n2 prompts\nGuard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": {
+        "width": 782,
+        "prompts": "Guard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121"
+      },
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "light",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the ",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-diagram",
+      "theme": "light",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the async iterator and advance the cursor from the last row actually emitted.\n#11\n2m\nPreserve quoted fields and embedded newl",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 1,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "home",
+      "theme": "light",
+      "width": 390,
+      "url": "/",
+      "scrollWidth": 390,
+      "h1": [
+        "your transcripts"
+      ],
+      "mainText": "your transcripts\n38\ntranscripts\n3\ncollectives\n9\npull requests linked\n19.1M\ntokens recorded\nwaiting for approval\nML Reading Group: 1 transcript waiting for the collective owner's approval.\nview submissions\nlibrary\nprojects: all\ngroup by: project\ncolumns\nexpand all\ntranscripts you published\ntranscript\twhen\n\ningest-api\n3 transcripts\n\n\nweb\n1 transcript\n\n\nworker\n1 transcript\n\n\nml-notes\n1 transcript\n6 of 6 transcripts",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "profile",
+      "theme": "light",
+      "width": 390,
+      "url": "/users/alice-dev",
+      "scrollWidth": 390,
+      "h1": [
+        "Alice Developer"
+      ],
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-transcripts",
+      "theme": "light",
+      "width": 390,
+      "url": "/discover?view=transcripts",
+      "scrollWidth": 390,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\n\npage 1 of 1 loaded\n\nfilters\ntranscripts\n7\ngrid\nlist\nBuilding a REST API from scratch\nclaude-code\nClaude Opus 4.5\n1h 20m\n128 turns\n37 tools\njun 15, 2026\nvisibility: public\nStarted by a session this response does not carry\nopencode\nOpenCode\n19min\n12 turns\n4 tools\njun 14, 2026\nvisibility: public\nDebugging auth middleware with Claude Code\nclaude-code\nClaude Sonnet 4.5\n45min\n64 turns\n19 tools\njun 14, 2026\nvisibility: shared\nRefactoring database queries with Gemini\ngemini-cli\nGemini 2.5 Pro\n1h 36m\n91 turns\n28 tools\njun 13, 2026\nvisibility: public\nGreenfield React app setup\nopencode\nOpenCode\n38min\n47 turns\n14 tools\njun 12, 2026\nvisibility: public\nMulti-agent debugging session\nclaude-code\nClaude Opus 4.5\n3h 31m\n203 turns\n64 tools\njun 11, 2026\nvisibility: public\nUntitled transcript\ncodex\nCodex\n12min\n18 turns\n5 tools\njun 10, 2026\nvisibility: private\n+ 4 agent sessions\nshow",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-collectives",
+      "theme": "light",
+      "width": 390,
+      "url": "/discover?view=collectives",
+      "scrollWidth": 390,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\nML Reading Group\n\nPapers we read and the sessions that reproduce them.\n\n2 members\n54 transcripts\nanyone can join and publish\njoin\nOpen Evals 2026\n\nShared evaluation runs for agent benchmarks, published as they finish.\n\n12 members\n1,940 transcripts\nanyone can join and publish\njoin\nRust Review Club\n4 members\n310 transcripts\nmembers of the rust-club github org\njoin\nAgents In Class\n\nA course on working with coding agents. Students publish; the teacher approves each session.\n\n6 members\n488 transcripts\ninvite only; each session approved\nview",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "review",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "scrollWidth": 390,
+      "h1": [
+        "review transcripts"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nreview\nreview transcripts\nevery harness\ncodex (1)\nclaude-code (1)\n2 waiting \u00b7 0 selected\nselect all\nTrim the onboarding copy\nweb\nmain\n@carol-ml\nclaude-code\nJan 1\napprove\nreject\nAdd retries to the webhook\ningest-api\nretries\n@dan-ops\ncodex\nJan 1\napprove\nreject\nskip to session views\nTrim the onboarding copy\nopen full transcript\nTrim the onboarding copy\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\nplanning\nturns 1\u20135\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant turn 1b\nassistant\n#1b\njun 17\n\nSecond assistant response inherits Fable.\n\nmodel changed: claude-fable-5 \u2192\nto\n claude-opus-4-8\nassistant turn 1c\nassistant\n#1c\njun 17\n\nThird assistant response records the switch to Opus.\n\nassistant turn 1d\nassistant\n#1d\njun 17\n\nFourth assistant response inherits Opus.\n\nhighlights\n2\nfull trace\n5\ndiffs\n0\nfiles\n0\nannotations\n0",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 44
+        },
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 44
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "waiting",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=waiting",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 44
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 44
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-email",
+      "theme": "light",
+      "width": 390,
+      "url": "/settings",
+      "scrollWidth": 390,
+      "h1": [
+        "your settings"
+      ],
+      "mainText": "your settings\nprofile\norganizations\npull requests\nemail\nconnections\ndanger zone\nprofile\n2 settings\nhandle\nalice-dev\nedit\ndiscoverable profile\norganizations\n0 organizations\nno github organizations found. make one public on github, then sign out and sign in again.\npull requests\n1 setting\nlink my transcripts to my pull requests automatically\nemail\nemail address\nonly for invitations from collectives. we email you a code to check it's yours.\nsend code\nemail me when a collective invites me\nonly to a verified address. every email has a link to stop them.\nconnections\n2 connections\nsigned in with github as alice-dev\nsign out\npeasant on 2 computers\nlast used Jan 1, 2024.\nsign out everywhere\ndanger zone\ndeleting your account removes it from peasant online, with the transcripts you published and the collectives you own. it cannot be undone.\ndelete account",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-members",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members",
+      "scrollWidth": 390,
+      "h1": [
+        "members"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nsettings\nmembers\ngeneral\naccess\nmembers\ngithub\npull requests\ndanger zone\ninvite by username\ninvite\nfind a github user to invite\nAD\n@alice-dev\nowner\nBA\n@bob-ai\nmember\ncontributor\nremove\nCM\n@carol-ml\nmember\ncontributor\nremove\nEW\n@erin-web\nmember\ncontributor\nremove\nDO\n@dan-ops\nmember\ncontributor\nremove\nFK\n@farid-k\nmember\ncontributor\nremove\nwhen a member leaves\nwhat happens to the transcripts they published here.\nthe member decides\nremoved when they leave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repositories",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pull-requests",
+      "theme": "light",
+      "width": 390,
+      "url": "/pulls",
+      "scrollWidth": 390,
+      "h1": [
+        "pull requests"
+      ],
+      "mainText": "pull requests\nhow pull requests get transcripts\n, opens in a new tab\n\nwaiting for your transcripts\n\njan 1, 2024\nacme/ingest-api #45\nwaiting\n\nasked Jan 1, 2024\nfrom alice-dev/ingest-api\n\nview on github\ndec 31, 2023\nacme/web #33\nwaiting\n\nasked Dec 31, 2023\n\nview on github\ndec 29, 2023\nacme/ingest-api #38\nwaiting\n\nasked Dec 29, 2023\n\nview on github",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pr-digest",
+      "theme": "light",
+      "width": 390,
+      "url": "/pulls/acme/ingest-api/45",
+      "scrollWidth": 390,
+      "h1": [
+        "Fix flaky ingest test"
+      ],
+      "mainText": "acme/ingest-api\n#45\nattached\nprivate repository\nFix flaky ingest test\nview on github\n\nfix/flaky-ingest\n4 commits\n\nFix flaky ingest test\n\n2 commits, 4w ago\n\nread\n4\nprompts\nGuard empty turns in the digest\n\n1 commit, 4w ago\n\nread\n2\nprompts\n\n3 of 4 commits traced\n\nprompts\ntranscripts\n2\nprompts\n6\ncommits\n3 of 4\nharness\nclaude-code\nopen pull request digest\nskills and plugins\n/toolkit:write-plan\n1\ntranscripts\n2\n\nj k\nmove between transcripts\n\nFix flaky ingest test\n4 prompts\nGuard empty turns in the digest\n2 prompts\nGuard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": {
+        "width": 324,
+        "prompts": "Guard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121"
+      },
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "light",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLo",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-diagram",
+      "theme": "light",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLocate the unbounded read and trace how the response gets writt",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 1,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "home",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/",
+      "scrollWidth": 1440,
+      "h1": [
+        "your transcripts"
+      ],
+      "mainText": "your transcripts\n38\ntranscripts\n3\ncollectives\n9\npull requests linked\n19.1M\ntokens recorded\nwaiting for approval\nML Reading Group: 1 transcript waiting for the collective owner's approval.\nview submissions\nlibrary\nprojects: all\ngroup by: project\ncolumns\nexpand all\ntranscripts you published\ntranscript\tproject\twho can read\tagent\twhen\n\ningest-api\n3 transcripts\n\n\nweb\n1 transcript\n\n\nworker\n1 transcript\n\n\nml-notes\n1 transcript\n6 of 6 transcripts",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "profile",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/users/alice-dev",
+      "scrollWidth": 1440,
+      "h1": [
+        "Alice Developer"
+      ],
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-transcripts",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/discover?view=transcripts",
+      "scrollWidth": 1440,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\n\npage 1 of 1 loaded\n\norder\n\nrecent\nmost turns\nmost tokens\n\nprovider\n\nall\n7\nclaude-code\n3\nopencode\n2\ngemini-cli\n1\ncodex\n1\n\ntopics\n\nclaude-code\n41\ndebugging\n33\ngemini-cli\n28\nrefactoring\n24\ngreenfield\n17\niterative-refinement\n14\n0 active\ntranscripts\n7\ngrid\nlist\nBuilding a REST API from scratch\nclaude-code\nClaude Opus 4.5\n1h 20m\n128 turns\n37 tools\njun 15, 2026\nvisibility: public\nStarted by a session this response does not carry\nopencode\nOpenCode\n19min\n12 turns\n4 tools\njun 14, 2026\nvisibility: public\nDebugging auth middleware with Claude Code\nclaude-code\nClaude Sonnet 4.5\n45min\n64 turns\n19 tools\njun 14, 2026\nvisibility: shared\nRefactoring database queries with Gemini\ngemini-cli\nGemini 2.5 Pro\n1h 36m\n91 turns\n28 tools\njun 13, 2026\nvisibility: public\nGreenfield React app setup\nopencode\nOpenCode\n38min\n47 turns\n14 tools\njun 12, 2026\nvisibility: public\nMulti-agent debugging session\nclaude-code\nClaude Opus 4.5\n3h 31m\n203 turns\n64 tools\njun 11, 2026\nvisibility: public\nUntitled transcript\ncodex\nCodex\n12min\n18 turns\n5 tools\njun 10, 2026\nvisibility: private\n+ 4 agent sessions\nshow",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-collectives",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/discover?view=collectives",
+      "scrollWidth": 1440,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\nML Reading Group\n\nPapers we read and the sessions that reproduce them.\n\n2 members\n54 transcripts\nanyone can join and publish\njoin\nOpen Evals 2026\n\nShared evaluation runs for agent benchmarks, published as they finish.\n\n12 members\n1,940 transcripts\nanyone can join and publish\njoin\nRust Review Club\n4 members\n310 transcripts\nmembers of the rust-club github org\njoin\nAgents In Class\n\nA course on working with coding agents. Students publish; the teacher approves each session.\n\n6 members\n488 transcripts\ninvite only; each session approved\nview",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "review",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "scrollWidth": 1440,
+      "h1": [
+        "review transcripts"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nreview\nreview transcripts\nevery harness\ncodex (1)\nclaude-code (1)\n2 waiting \u00b7 0 selected\nselect all\nTrim the onboarding copy\nweb\nmain\n@carol-ml\nclaude-code\nJan 1\napprove\nreject\nAdd retries to the webhook\ningest-api\nretries\n@dan-ops\ncodex\nJan 1\napprove\nreject\nskip to session views\nTrim the onboarding copy\nopen full transcript\nhome\nweb\nTrim the onboarding copy\nTrim the onboarding copy\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\nuser turns\n5 turns\nlist\ngraph\nplanning\nturns 1\u20135\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant turn 1b\nassistant\n#1b\njun 17\n\nSecond assistant response inherits Fable.\n\nmodel changed: claude-fable-5 \u2192\nto\n claude-opus-4-8\nassistant turn 1c\nassistant\n#1c\njun 17\n\nThird assistant response records the switch to Opus.\n\nassistant turn 1d\nassistant\n#1d\njun 17\n\nFourth assistant response inherits Opus.\n\nzen\nfilters\nhighlights\n2\nfull trace\n5\ndiffs\n0\nfiles\n0\nannotations\n0\n1 of 5",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 28
+        },
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 28
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "waiting",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=waiting",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 28
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 28
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 28
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-email",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/settings",
+      "scrollWidth": 1440,
+      "h1": [
+        "your settings"
+      ],
+      "mainText": "your settings\nprofile\norganizations\npull requests\nemail\nconnections\ndanger zone\nprofile\n2 settings\nhandle\nalice-dev\nedit\ndiscoverable profile\norganizations\n0 organizations\nno github organizations found. make one public on github, then sign out and sign in again.\npull requests\n1 setting\nlink my transcripts to my pull requests automatically\nemail\nemail address\nonly for invitations from collectives. we email you a code to check it's yours.\nsend code\nemail me when a collective invites me\nonly to a verified address. every email has a link to stop them.\nconnections\n2 connections\nsigned in with github as alice-dev\nsign out\npeasant on 2 computers\nlast used Jan 1, 2024.\nsign out everywhere\ndanger zone\ndeleting your account removes it from peasant online, with the transcripts you published and the collectives you own. it cannot be undone.\ndelete account",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-members",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members",
+      "scrollWidth": 1440,
+      "h1": [
+        "members"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nsettings\nmembers\ngeneral\naccess\nmembers\ngithub\npull requests\ndanger zone\ninvite by username\ninvite\nfind a github user to invite\nAD\n@alice-dev\nAlice Developer\nowner\nBA\n@bob-ai\nBob Ainsley\nmember\ncontributor\nremove\nCM\n@carol-ml\nCarol Mendes\nmember\ncontributor\nremove\nEW\n@erin-web\nErin Walsh\nmember\ncontributor\nremove\nDO\n@dan-ops\nDan Okafor\nmember\ncontributor\nremove\nFK\n@farid-k\nFarid Karimi\nmember\ncontributor\nremove\nwhen a member leaves\nwhat happens to the transcripts they published here.\nthe member decides\nremoved when they leave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repositories",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pull-requests",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/pulls",
+      "scrollWidth": 1440,
+      "h1": [
+        "pull requests"
+      ],
+      "mainText": "pull requests\nhow pull requests get transcripts\n, opens in a new tab\n\nwaiting for your transcripts\n\njan 1, 2024\nacme/ingest-api #45\nwaiting\n\nasked Jan 1, 2024\nfrom alice-dev/ingest-api\n\nview on github\ndec 31, 2023\nacme/web #33\nwaiting\n\nasked Dec 31, 2023\n\nview on github\ndec 29, 2023\nacme/ingest-api #38\nwaiting\n\nasked Dec 29, 2023\n\nview on github",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pr-digest",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/pulls/acme/ingest-api/45",
+      "scrollWidth": 1440,
+      "h1": [
+        "Fix flaky ingest test"
+      ],
+      "mainText": "acme/ingest-api\n#45\nattached\nprivate repository\nFix flaky ingest test\nview on github\n\nfix/flaky-ingest\n4 commits\n\nFix flaky ingest test\n\n2 commits, 4w ago\n\nread\n4\nprompts\nGuard empty turns in the digest\n\n1 commit, 4w ago\n\nread\n2\nprompts\n\n3 of 4 commits traced\n\nprompts\ntranscripts\n2\nprompts\n6\ncommits\n3 of 4\nharness\nclaude-code\nopen pull request digest\nskills and plugins\n/toolkit:write-plan\n1\ntranscripts\n2\n\nj k\nmove between transcripts\n\nFix flaky ingest test\n4 prompts\nGuard empty turns in the digest\n2 prompts\nGuard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": {
+        "width": 782,
+        "prompts": "Guard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121"
+      },
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the ",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-diagram",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the async iterator and advance the cursor from the last row actually emitted.\n#11\n2m\nPreserve quoted fields and embedded newl",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 1,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "home",
+      "theme": "dark",
+      "width": 390,
+      "url": "/",
+      "scrollWidth": 390,
+      "h1": [
+        "your transcripts"
+      ],
+      "mainText": "your transcripts\n38\ntranscripts\n3\ncollectives\n9\npull requests linked\n19.1M\ntokens recorded\nwaiting for approval\nML Reading Group: 1 transcript waiting for the collective owner's approval.\nview submissions\nlibrary\nprojects: all\ngroup by: project\ncolumns\nexpand all\ntranscripts you published\ntranscript\twhen\n\ningest-api\n3 transcripts\n\n\nweb\n1 transcript\n\n\nworker\n1 transcript\n\n\nml-notes\n1 transcript\n6 of 6 transcripts",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "profile",
+      "theme": "dark",
+      "width": 390,
+      "url": "/users/alice-dev",
+      "scrollWidth": 390,
+      "h1": [
+        "Alice Developer"
+      ],
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-transcripts",
+      "theme": "dark",
+      "width": 390,
+      "url": "/discover?view=transcripts",
+      "scrollWidth": 390,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\n\npage 1 of 1 loaded\n\nfilters\ntranscripts\n7\ngrid\nlist\nBuilding a REST API from scratch\nclaude-code\nClaude Opus 4.5\n1h 20m\n128 turns\n37 tools\njun 15, 2026\nvisibility: public\nStarted by a session this response does not carry\nopencode\nOpenCode\n19min\n12 turns\n4 tools\njun 14, 2026\nvisibility: public\nDebugging auth middleware with Claude Code\nclaude-code\nClaude Sonnet 4.5\n45min\n64 turns\n19 tools\njun 14, 2026\nvisibility: shared\nRefactoring database queries with Gemini\ngemini-cli\nGemini 2.5 Pro\n1h 36m\n91 turns\n28 tools\njun 13, 2026\nvisibility: public\nGreenfield React app setup\nopencode\nOpenCode\n38min\n47 turns\n14 tools\njun 12, 2026\nvisibility: public\nMulti-agent debugging session\nclaude-code\nClaude Opus 4.5\n3h 31m\n203 turns\n64 tools\njun 11, 2026\nvisibility: public\nUntitled transcript\ncodex\nCodex\n12min\n18 turns\n5 tools\njun 10, 2026\nvisibility: private\n+ 4 agent sessions\nshow",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "discover-collectives",
+      "theme": "dark",
+      "width": 390,
+      "url": "/discover?view=collectives",
+      "scrollWidth": 390,
+      "h1": [
+        "discover"
+      ],
+      "mainText": "discover\ntranscripts\ncollectives\nML Reading Group\n\nPapers we read and the sessions that reproduce them.\n\n2 members\n54 transcripts\nanyone can join and publish\njoin\nOpen Evals 2026\n\nShared evaluation runs for agent benchmarks, published as they finish.\n\n12 members\n1,940 transcripts\nanyone can join and publish\njoin\nRust Review Club\n4 members\n310 transcripts\nmembers of the rust-club github org\njoin\nAgents In Class\n\nA course on working with coding agents. Students publish; the teacher approves each session.\n\n6 members\n488 transcripts\ninvite only; each session approved\nview",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "review",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "scrollWidth": 390,
+      "h1": [
+        "review transcripts"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nreview\nreview transcripts\nevery harness\ncodex (1)\nclaude-code (1)\n2 waiting \u00b7 0 selected\nselect all\nTrim the onboarding copy\nweb\nmain\n@carol-ml\nclaude-code\nJan 1\napprove\nreject\nAdd retries to the webhook\ningest-api\nretries\n@dan-ops\ncodex\nJan 1\napprove\nreject\nskip to session views\nTrim the onboarding copy\nopen full transcript\nTrim the onboarding copy\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\nplanning\nturns 1\u20135\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant turn 1b\nassistant\n#1b\njun 17\n\nSecond assistant response inherits Fable.\n\nmodel changed: claude-fable-5 \u2192\nto\n claude-opus-4-8\nassistant turn 1c\nassistant\n#1c\njun 17\n\nThird assistant response records the switch to Opus.\n\nassistant turn 1d\nassistant\n#1d\njun 17\n\nFourth assistant response inherits Opus.\n\nhighlights\n2\nfull trace\n5\ndiffs\n0\nfiles\n0\nannotations\n0",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 44
+        },
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 44
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "waiting",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=waiting",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 79.09375,
+          "height": 44
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 87.9375,
+          "height": 44
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 79.09375,
+          "height": 44
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-email",
+      "theme": "dark",
+      "width": 390,
+      "url": "/settings",
+      "scrollWidth": 390,
+      "h1": [
+        "your settings"
+      ],
+      "mainText": "your settings\nprofile\norganizations\npull requests\nemail\nconnections\ndanger zone\nprofile\n2 settings\nhandle\nalice-dev\nedit\ndiscoverable profile\norganizations\n0 organizations\nno github organizations found. make one public on github, then sign out and sign in again.\npull requests\n1 setting\nlink my transcripts to my pull requests automatically\nemail\nemail address\nonly for invitations from collectives. we email you a code to check it's yours.\nsend code\nemail me when a collective invites me\nonly to a verified address. every email has a link to stop them.\nconnections\n2 connections\nsigned in with github as alice-dev\nsign out\npeasant on 2 computers\nlast used Jan 1, 2024.\nsign out everywhere\ndanger zone\ndeleting your account removes it from peasant online, with the transcripts you published and the collectives you own. it cannot be undone.\ndelete account",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "settings-members",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members",
+      "scrollWidth": 390,
+      "h1": [
+        "members"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\n/\nsettings\nmembers\ngeneral\naccess\nmembers\ngithub\npull requests\ndanger zone\ninvite by username\ninvite\nfind a github user to invite\nAD\n@alice-dev\nowner\nBA\n@bob-ai\nmember\ncontributor\nremove\nCM\n@carol-ml\nmember\ncontributor\nremove\nEW\n@erin-web\nmember\ncontributor\nremove\nDO\n@dan-ops\nmember\ncontributor\nremove\nFK\n@farid-k\nmember\ncontributor\nremove\nwhen a member leaves\nwhat happens to the transcripts they published here.\nthe member decides\nremoved when they leave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repositories",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pull-requests",
+      "theme": "dark",
+      "width": 390,
+      "url": "/pulls",
+      "scrollWidth": 390,
+      "h1": [
+        "pull requests"
+      ],
+      "mainText": "pull requests\nhow pull requests get transcripts\n, opens in a new tab\n\nwaiting for your transcripts\n\njan 1, 2024\nacme/ingest-api #45\nwaiting\n\nasked Jan 1, 2024\nfrom alice-dev/ingest-api\n\nview on github\ndec 31, 2023\nacme/web #33\nwaiting\n\nasked Dec 31, 2023\n\nview on github\ndec 29, 2023\nacme/ingest-api #38\nwaiting\n\nasked Dec 29, 2023\n\nview on github",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "pr-digest",
+      "theme": "dark",
+      "width": 390,
+      "url": "/pulls/acme/ingest-api/45",
+      "scrollWidth": 390,
+      "h1": [
+        "Fix flaky ingest test"
+      ],
+      "mainText": "acme/ingest-api\n#45\nattached\nprivate repository\nFix flaky ingest test\nview on github\n\nfix/flaky-ingest\n4 commits\n\nFix flaky ingest test\n\n2 commits, 4w ago\n\nread\n4\nprompts\nGuard empty turns in the digest\n\n1 commit, 4w ago\n\nread\n2\nprompts\n\n3 of 4 commits traced\n\nprompts\ntranscripts\n2\nprompts\n6\ncommits\n3 of 4\nharness\nclaude-code\nopen pull request digest\nskills and plugins\n/toolkit:write-plan\n1\ntranscripts\n2\n\nj k\nmove between transcripts\n\nFix flaky ingest test\n4 prompts\nGuard empty turns in the digest\n2 prompts\nGuard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": {
+        "width": 324,
+        "prompts": "Guard empty turns in the digest\n2 prompts\nopen the transcript\n5\nan empty turn breaks the digest builder\n6\nskip turns with no text and add a test\n+12\n\u22121"
+      },
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "dark",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLo",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-diagram",
+      "theme": "dark",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLocate the unbounded read and trace how the response gets writt",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 1,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    }
+  ],
+  "navigation": {
+    "profile": [
+      {
+        "mode": "profile",
+        "theme": "light",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "errors": []
+      },
+      {
+        "mode": "profile",
+        "theme": "light",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "errors": []
+      },
+      {
+        "mode": "profile",
+        "theme": "dark",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "errors": []
+      },
+      {
+        "mode": "profile",
+        "theme": "dark",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "errors": []
+      }
+    ],
+    "discover": [
+      {
+        "mode": "discover",
+        "theme": "light",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/discover?view=transcripts",
+        "errors": []
+      },
+      {
+        "mode": "discover",
+        "theme": "light",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/discover?view=transcripts",
+        "errors": []
+      },
+      {
+        "mode": "discover",
+        "theme": "dark",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/discover?view=transcripts",
+        "errors": []
+      },
+      {
+        "mode": "discover",
+        "theme": "dark",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/discover?view=transcripts",
+        "errors": []
+      }
+    ],
+    "pr": [
+      {
+        "mode": "pr",
+        "theme": "light",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/pulls/acme/ingest-api/45",
+        "errors": []
+      },
+      {
+        "mode": "pr",
+        "theme": "light",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/pulls/acme/ingest-api/45",
+        "errors": []
+      },
+      {
+        "mode": "pr",
+        "theme": "dark",
+        "width": 1440,
+        "passed": true,
+        "url": "http://localhost:3340/pulls/acme/ingest-api/45",
+        "errors": []
+      },
+      {
+        "mode": "pr",
+        "theme": "dark",
+        "width": 390,
+        "passed": true,
+        "url": "http://localhost:3340/pulls/acme/ingest-api/45",
+        "errors": []
+      }
+    ]
+  },
+  "inspection": {
+    "reviewed": "2026-10-29",
+    "states": 56,
+    "navigationStates": 12,
+    "method": "All theme/viewport states visually inspected in per-route overview captures; representative full-size screenshots inspected for profile, review, waiting, prompt digest, email, and long transcript. No production appearance modifications were used for captures."
+  }
+}
