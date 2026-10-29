@@ -89,7 +89,7 @@ const preview = (id) => {
 /** Existing synthetic transcript content, served by the composed mock's proxy. */
 export function demoContributionContentPath(path) {
   const match = path.match(/^\/transcripts\/([^/]+)\/content$/)
-  return enabled() && match && preview(match[1]) ? '/api/v1/transcripts/demo/content' : null
+  return enabled() && match && preview(match[1]) ? `/api/v1/transcripts/${process.env.MOCK_TRANSCRIPT_ID || 'demo'}/content` : null
 }
 const answer = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json', 'access-control-allow-origin': '*' })

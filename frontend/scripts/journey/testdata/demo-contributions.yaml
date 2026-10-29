@@ -78,19 +78,20 @@ cases:
         eligible: true
   - name: selected-session-metadata-and-content-are-previewable
     enabled: true
+    contentId: session-demo
     steps:
       - method: GET
         path: /transcripts/{eligible}
         status: 200
         schema: metadata
         title: Reproduce the tokenizer benchmark
-        contentPath: /api/v1/transcripts/demo/content
+        contentPath: /api/v1/transcripts/session-demo/content
       - method: GET
         path: /transcripts/{queued}
         status: 200
         schema: metadata
         title: Add retries to the webhook
-        contentPath: /api/v1/transcripts/demo/content
+        contentPath: /api/v1/transcripts/session-demo/content
   - name: decisions-remove-queued-rows-and-repeat-safely
     enabled: true
     steps:

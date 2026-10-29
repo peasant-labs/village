@@ -34,6 +34,7 @@ afterEach(() => vi.unstubAllEnvs())
 for (const fixture of cases) {
   it(fixture.name, async () => {
     vi.stubEnv('MOCK_DEMO_ATTACHMENTS', fixture.enabled ? '1' : '')
+    vi.stubEnv('MOCK_TRANSCRIPT_ID', fixture.contentId ?? '')
     resetDemoContributions()
     for (const step of replace(fixture.steps)) {
       if (step.resetBefore) resetDemoContributions()
