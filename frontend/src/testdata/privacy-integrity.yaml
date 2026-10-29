@@ -37,6 +37,11 @@ cases:
     contains:
       - Editing the transcript does not remove an existing flag either.
     absent: []
+  - name: says_checks_stop_only_when_nobody_else_can_read
+    contains:
+      - Once nobody but you can read it (private, and not submitted to any collective, including a submission that was declined), no further checks run, but the flag stays.
+    absent:
+      - stops further checks
   - name: says_servers_decrypt_for_every_read
     contains:
       - Its servers decrypt a transcript every time an authorised reader opens it
