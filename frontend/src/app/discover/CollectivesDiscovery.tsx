@@ -282,32 +282,30 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
             <li key={card.id}>
               <article className="on-card on-discover-collective" aria-labelledby={titleId} data-collective-id={card.id}>
                 <div className="on-discover-identity">
-                  <div className="on-card-head">
-                    <h2 id={titleId}>
-                      <Link href={`/collectives/${card.id}`}>{card.name}</Link>
-                    </h2>
-                    <span className="on-chrome is-n">{counted(card.memberCount, "member")}</span>
-                  </div>
+                  <h2 id={titleId}>
+                    <Link href={`/collectives/${card.id}`}>{card.name}</Link>
+                  </h2>
                   {card.description ? <p className="on-card-desc">{card.description}</p> : null}
                 </div>
-                <div className="on-discover-policy">
-                  {who && card.mode ? (
-                    <div className="on-card-who">
-                      <JoinIcon mode={card.mode} />
-                      {who}
-                    </div>
-                  ) : null}
+                <div className="on-discover-facts">
+                  <span className="on-chrome is-n on-card-members">{counted(card.memberCount, "member")}</span>
+                  <span className="on-chrome is-n on-card-transcripts">{counted(card.transcriptCount, "transcript")}</span>
                   {role || justJoined || card.contributed ? (
                     <div className="on-card-tags" data-card="standing">
-                      {justJoined ? (
-                        <span className="on-tag" data-tone="ok">
-                          joined
-                        </span>
-                      ) : null}
+                      {justJoined ? <span className="on-tag" data-tone="ok">joined</span> : null}
                       {role ? <span className="on-tag">{role}</span> : null}
                       {card.contributed ? <span className="on-tag">contributed</span> : null}
                     </div>
                   ) : null}
+                </div>
+                <div className="on-card-foot">
+                  {who && card.mode ? (
+                    <div className="on-card-who">
+                      <JoinIcon mode={card.mode} />
+                      <span>{who}</span>
+                    </div>
+                  ) : null}
+                  {action}
                 </div>
                 {error ? (
                   <p className="on-card-msg" role="alert">
@@ -315,10 +313,6 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
                     <span>could not join: {error}</span>
                   </p>
                 ) : null}
-                <div className="on-card-foot">
-                  <span className="on-chrome is-n">{counted(card.transcriptCount, "transcript")}</span>
-                  {action}
-                </div>
               </article>
             </li>
           );

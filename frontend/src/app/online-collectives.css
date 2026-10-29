@@ -228,41 +228,59 @@
   color: inherit;
 }
 
-/* Discovery is a comparison list: names and context first, policy beside
-   them when space permits, then a single clear action. Rows grow to their
-   content rather than stretching to the tallest marketing-style card. */
+/* Each collective is one complete comparison unit. Card width follows the
+   available page body, and height follows real text rather than a fixed box. */
+.on-discover-views {
+  container-type: inline-size;
+}
 .on-discover-collectives {
   grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  align-items: start;
+  gap: var(--sp-4);
 }
 .on-discover-collective {
-  display: grid;
-  gap: var(--sp-3) var(--sp-5);
   height: auto;
-  padding: var(--sp-4) 0;
-  border: 0;
-  border-bottom: var(--bd);
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: var(--bd);
 }
-.on-discover-identity,
-.on-discover-policy {
+.on-discover-identity {
   display: grid;
-  align-content: center;
   gap: var(--sp-2);
   min-width: 0;
 }
 .on-discover-collective h2 {
-  font-size: var(--fs-body);
+  font-size: var(--fs-lg);
   line-height: var(--lh-body);
 }
 .on-discover-collective .on-card-desc {
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
+}
+.on-discover-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
 }
 .on-discover-collective .on-card-foot {
-  margin: 0;
-  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0 0;
 }
-.on-discover-collective .on-card-msg {
-  grid-column: 1 / -1;
+.on-discover-collective .on-card-foot > .btn {
+  grid-column: 2;
+}
+.on-discover-collective .on-card-who {
+  align-items: flex-start;
+  min-width: 0;
+  gap: var(--sp-2);
+}
+.on-discover-collective .on-card-who svg {
+  width: var(--ic-md);
+  height: var(--ic-md);
+  margin-top: var(--sp-1);
 }
 .on-discover-search {
   flex: 1;
@@ -273,29 +291,13 @@
   -webkit-appearance: none;
   appearance: none;
 }
-@media (min-width: 1024px) {
-  .on-discover-collective {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .on-discover-policy {
-    grid-column: 1;
-  }
-  .on-discover-collective .on-card-foot {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: center;
-    gap: var(--sp-4);
+@container (min-width: 768px) {
+  .on-discover-collectives {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (min-width: 1440px) {
-  .on-discover-collective {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  }
-  .on-discover-policy {
-    grid-column: 2;
-  }
-  .on-discover-collective .on-card-foot {
-    grid-column: 3;
-    grid-row: 1;
+@container (min-width: 1440px) {
+  .on-discover-collectives {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
