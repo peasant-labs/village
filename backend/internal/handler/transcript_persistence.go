@@ -185,15 +185,20 @@ func (h *Handler) deleteMetadataForCleanup(ctx context.Context, operation blobCl
 
 // deleteGenerationForCleanup deletes a body generation and, when it has one,
 // its metadata object, both under one cleanup decision. Both deletions are
-// attempted; the first failure is returned.
-func (h *Handler) deleteGenerationForCleanup(ctx context.Context, operation blobCleanupOperation, transcriptID pgtype.UUID, descriptor storage.BlobDescriptor, m *storage.MetadataObject, completion TransactionCompletion) error {
+// attempted; the first failure is returned with the key of the object it
+// retained.
+func (h *Handler) deleteGenerationForCleanup(ctx context.Context, operation blobCleanupOperation, transcriptID pgtype.UUID, descriptor storage.BlobDescriptor, m *storage.MetadataObject, completion TransactionCompletion) (storage.ObjectKey, error) {
+	var retained storage.ObjectKey
 	err := h.deleteBlobForCleanup(ctx, operation, transcriptID, descriptor, completion)
+	if err != nil {
+		retained = descriptor.ObjectKey()
+	}
 	if m != nil {
-		if metadataErr := h.deleteMetadataForCleanup(ctx, operation, transcriptID, *m, completion); err == nil {
-			err = metadataErr
+		if metadataErr := h.deleteMetadataForCleanup(ctx, operation, transcriptID, *m, completion); metadataErr != nil && err == nil {
+			retained, err = m.Key(), metadataErr
 		}
 	}
-	return err
+	return retained, err
 }
 
 // metadataObjectParams renders a metadata object as its three nullable

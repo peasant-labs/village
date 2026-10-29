@@ -313,6 +313,10 @@ boundary are documented in
   decision that deletes or retains a body generation (candidate, superseded,
   or delete target) applies to its metadata object too, so a republish that
   switches to legacy deletes the old metadata object with the old body.
+  A committed delete removes the body and metadata objects that
+  `DeleteTranscriptReturningDescriptor` returned, never the handler's earlier
+  read, which a rewrite or republish can replace in between; returned columns
+  that do not map delete nothing and answer 500 with reconciliation evidence.
 
 ## 2. Licensing data model
 

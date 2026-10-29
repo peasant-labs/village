@@ -791,8 +791,8 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			if isUpdate {
 				cleanupOperation = cleanupRepublishCandidate
 			}
-			if cleanupErr := h.deleteGenerationForCleanup(r.Context(), cleanupOperation, candidateID, candidate, candidateMetadata, persistence.Completion); cleanupErr != nil {
-				err = &stagedObjectCleanupError{key: string(candidate.ObjectKey()), saveErr: persistence.Err, cleanupErr: cleanupErr}
+			if retained, cleanupErr := h.deleteGenerationForCleanup(r.Context(), cleanupOperation, candidateID, candidate, candidateMetadata, persistence.Completion); cleanupErr != nil {
+				err = &stagedObjectCleanupError{key: string(retained), saveErr: persistence.Err, cleanupErr: cleanupErr}
 			}
 			candidateWritten = false
 		} else if decision.Reconcile && candidateWritten {
@@ -841,7 +841,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hasSuperseded && deleteSuperseded {
-		_ = h.deleteGenerationForCleanup(r.Context(), cleanupRepublishSuperseded, transcript.ID, superseded, supersededMetadata, TransactionCommitted)
+		_, _ = h.deleteGenerationForCleanup(r.Context(), cleanupRepublishSuperseded, transcript.ID, superseded, supersededMetadata, TransactionCommitted)
 	}
 	if !replayed {
 		h.nudgeIntegrity()
@@ -1382,9 +1382,9 @@ func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Trans
 	installed := result.Err == nil && !lost
 	decision := cleanupDecision("rewrite", result.Completion, installed)
 	if decision.DeleteSuperseded {
-		_ = h.deleteGenerationForCleanup(ctx, cleanupRewriteSuperseded, row.ID, oldDescriptor, oldMetadata, result.Completion)
+		_, _ = h.deleteGenerationForCleanup(ctx, cleanupRewriteSuperseded, row.ID, oldDescriptor, oldMetadata, result.Completion)
 	} else if decision.DeleteCandidate {
-		_ = h.deleteGenerationForCleanup(ctx, cleanupRewriteCandidate, row.ID, newDescriptor, newMetadata, result.Completion)
+		_, _ = h.deleteGenerationForCleanup(ctx, cleanupRewriteCandidate, row.ID, newDescriptor, newMetadata, result.Completion)
 	} else if decision.Reconcile {
 		emitBlobReconciliation("rewrite", row.ID, newDescriptor, result.Completion)
 		emitMetadataReconciliation("rewrite", row.ID, newMetadata, result.Completion)
@@ -1577,14 +1577,14 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	descriptor, err := descriptorFromTranscript(transcript)
+	// The objects as the pre-read saw them. Another writer can replace them
+	// before the delete's transaction, so they only name what reconciliation
+	// must look for; a known commit deletes the objects the delete returned.
+	readDescriptor, err := descriptorFromTranscript(transcript)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// The metadata object as the pre-read saw it; only an ambiguous commit uses
-	// it, to name what reconciliation must find. A known commit deletes the
-	// object the delete itself returned.
 	readMetadata, err := metadataObjectFromTranscript(transcript)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1629,7 +1629,7 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 	decision := cleanupDecision("delete", result.Completion, result.Err == nil)
 	if !decision.DeleteTarget {
 		if decision.Reconcile {
-			emitBlobReconciliation("delete", transcript.ID, descriptor, result.Completion)
+			emitBlobReconciliation("delete", transcript.ID, readDescriptor, result.Completion)
 			emitMetadataReconciliation("delete", transcript.ID, readMetadata, result.Completion)
 		}
 		writeError(w, http.StatusInternalServerError, "Failed to delete transcript")
@@ -1644,14 +1644,19 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 			log.Printf("pull request attachment refresh after transcript deletion failed: %v", err)
 		}
 	}
-	// The committed delete returned the row's metadata columns. The CHECK
-	// constraints keep them complete; should they ever fail to map, the
-	// pre-read of the same row names the same object.
+	// Delete exactly the objects the deleted row named: the row the
+	// transaction removed, not the pre-read, which a concurrent rewrite or
+	// republish may have replaced. Columns that do not map leave the objects
+	// in place, with evidence naming what the pre-read saw.
+	deletedDescriptor, descriptorErr := descriptorFromColumns(deleted.BlobKey, deleted.WrappedDataKey, deleted.EncryptionAlgorithm, deleted.KeyVersion)
 	deletedMetadata, metadataErr := metadataObjectFromColumns(deleted.PublishMetadataKey, deleted.PublishMetadataHash, deleted.PublishMetadataSize)
-	if metadataErr != nil {
-		deletedMetadata = readMetadata
+	if mapErr := errors.Join(descriptorErr, metadataErr); mapErr != nil {
+		emitBlobReconciliation(string(cleanupDeleteTarget), transcript.ID, readDescriptor, result.Completion)
+		emitMetadataReconciliation(string(cleanupDeleteTarget), transcript.ID, readMetadata, result.Completion)
+		writeError(w, http.StatusInternalServerError, mapErr.Error())
+		return
 	}
-	if err := h.deleteGenerationForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, descriptor, deletedMetadata, result.Completion); err != nil {
+	if _, err := h.deleteGenerationForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, deletedDescriptor, deletedMetadata, result.Completion); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -40,6 +40,7 @@ type publishEvidenceStep struct {
 	WantStatus        int    `yaml:"want_status"`
 	WantWrites        int64  `yaml:"want_writes"`
 	WantNewGeneration bool   `yaml:"want_new_generation"`
+	RollbackRepublish bool   `yaml:"rollback_republish"`
 }
 
 type publishEvidenceRewrite struct {
@@ -55,6 +56,8 @@ type publishEvidenceCase struct {
 	WantMetadataStep *int                    `yaml:"want_metadata_step"`
 	WantDeleted      bool                    `yaml:"want_deleted"`
 	WantRewrite      *publishEvidenceRewrite `yaml:"want_rewrite"`
+	// WantErrorNamesMetadataKey: the failing step's 500 names the metadata key.
+	WantErrorNamesMetadataKey bool `yaml:"want_error_names_metadata_key"`
 }
 
 var requiredPublishEvidenceCases = []string{
@@ -70,6 +73,8 @@ var requiredPublishEvidenceCases = []string{
 	"rewrite_records_the_replaced_hash",
 	"rewrite_of_raw_jsonl_is_legacy",
 	"orphaned_body_on_metadata_failure_emits_reconciliation",
+	"delete_after_concurrent_rewrite_removes_the_current_objects",
+	"metadata_cleanup_failure_names_the_metadata_key",
 }
 
 func loadPublishEvidenceCases(t *testing.T) []publishEvidenceCase {
@@ -130,6 +135,58 @@ func (s *metadataFaultObjectStore) Put(ctx context.Context, key storage.ObjectKe
 
 func (*metadataFaultObjectStore) Delete(context.Context, storage.ObjectKey) error {
 	return errors.New("fixture object deletion refused")
+}
+
+// metadataDeleteFaultObjectStore fails only the deletion of metadata objects:
+// the second upload of each generation.
+type metadataDeleteFaultObjectStore struct {
+	storage.ObjectStore
+	mu       sync.Mutex
+	puts     int
+	metadata map[storage.ObjectKey]bool
+}
+
+func (s *metadataDeleteFaultObjectStore) Put(ctx context.Context, key storage.ObjectKey, body []byte, contentType string) error {
+	s.mu.Lock()
+	s.puts++
+	if s.puts%2 == 0 {
+		s.metadata[key] = true
+	}
+	s.mu.Unlock()
+	return s.ObjectStore.Put(ctx, key, body, contentType)
+}
+
+func (s *metadataDeleteFaultObjectStore) Delete(ctx context.Context, key storage.ObjectKey) error {
+	s.mu.Lock()
+	refused := s.metadata[key]
+	s.mu.Unlock()
+	if refused {
+		return errors.New("fixture metadata deletion refused")
+	}
+	return s.ObjectStore.Delete(ctx, key)
+}
+
+func (s *metadataDeleteFaultObjectStore) isMetadata(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.metadata[storage.ObjectKey(key)]
+}
+
+// staleReadQuerier hands out the transcript row it read and, once, runs
+// afterRead before returning it, so whatever afterRead commits lands between
+// the handler's pre-read and its own transaction.
+type staleReadQuerier struct {
+	Querier
+	afterRead func()
+}
+
+func (q *staleReadQuerier) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+	row, err := q.Querier.GetTranscriptByID(ctx, id)
+	if hook := q.afterRead; hook != nil && err == nil {
+		q.afterRead = nil
+		hook()
+	}
+	return row, err
 }
 
 func publishEvidenceObjects(t *testing.T) storage.ObjectStore {
@@ -249,10 +306,14 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 			defer cleanupOwners(t, context.Background(), pool, owner)
 
 			var objects storage.ObjectStore = rawObjects
+			var metadataDeleteFault *metadataDeleteFaultObjectStore
 			switch c.Fault {
 			case "":
 			case "metadata_upload_and_cleanup":
 				objects = &metadataFaultObjectStore{ObjectStore: rawObjects}
+			case "metadata_delete":
+				metadataDeleteFault = &metadataDeleteFaultObjectStore{ObjectStore: rawObjects, metadata: map[storage.ObjectKey]bool{}}
+				objects = metadataDeleteFault
 			default:
 				t.Fatalf("unknown fault %q", c.Fault)
 			}
@@ -287,7 +348,11 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 			generations := make([]evidenceGeneration, len(c.Steps))
 			seenKeys := map[string]bool{}
 			before := evidenceGeneration{}
+			var failedBody string
 			for index, step := range c.Steps {
+				if step.RollbackRepublish {
+					installRepublishRollback(t, ctx, pool, before.row.ID)
+				}
 				content := []byte(step.Content)
 				if step.ContentFixture == "legacy_bare_payload" {
 					content = legacyBarePayloadJSON("claude")
@@ -322,6 +387,28 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 					if err != nil || installed == nil {
 						t.Fatalf("rewrite: installed=%v err=%v", installed, err)
 					}
+				case "delete_after_concurrent_rewrite":
+					stale := before.row
+					concurrent := &Handler{cfg: minimalConfig(), pool: pool, queries: queries, blobs: store, titles: titles}
+					h.queries = &staleReadQuerier{Querier: queries, afterRead: func() {
+						installed, err := concurrent.rewriteCanonicalTranscript(ctx, stale, canonicalStoredContent(t), ShapeBarePayload)
+						if err != nil || installed == nil {
+							t.Fatalf("concurrent rewrite: installed=%v err=%v", installed, err)
+						}
+						rewritten := load()
+						if rewritten.row.BlobKey == stale.BlobKey || rewritten.metadataKey == "" || rewritten.metadataKey == stale.PublishMetadataKey.String {
+							t.Fatalf("the concurrent rewrite installed no new generation")
+						}
+						seenKeys[rewritten.row.BlobKey] = true
+						seenKeys[rewritten.metadataKey] = true
+					}}
+					id := uuidFromPg(before.row.ID).String()
+					r := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+id, nil)
+					r = withChiURLParam(r, "id", id)
+					r = r.WithContext(withUserID(r.Context(), uuidFromPg(owner)))
+					w = httptest.NewRecorder()
+					h.DeleteTranscript(w, r)
+					h.queries = queries
 				case "delete":
 					id := uuidFromPg(before.row.ID).String()
 					r := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+id, nil)
@@ -334,6 +421,9 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 				}
 				if w.Code != step.WantStatus {
 					t.Fatalf("step %d %s: status %d, want %d: %s", index, step.Action, w.Code, step.WantStatus, w.Body.String())
+				}
+				if w.Code >= 500 {
+					failedBody = w.Body.String()
 				}
 				if writes := store.writes.Load() - writesBefore; writes != step.WantWrites {
 					t.Fatalf("step %d %s: generations written = %d, want %d", index, step.Action, writes, step.WantWrites)
@@ -365,7 +455,30 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 			}
 
 			final := before
-			if c.Fault != "" {
+			if c.WantErrorNamesMetadataKey {
+				matches := reconciliationObjectKey.FindAllStringSubmatch(logs.String(), -1)
+				if len(matches) != 1 {
+					t.Fatalf("want exactly one reconciliation event, got: %s", logs.String())
+				}
+				retained := matches[0][1]
+				if metadataDeleteFault == nil || !metadataDeleteFault.isMetadata(retained) {
+					t.Fatalf("the reconciliation event names %q, which is not a metadata object", retained)
+				}
+				if !strings.Contains(failedBody, retained) {
+					t.Fatalf("the 500 does not name the retained metadata key %q: %s", retained, failedBody)
+				}
+				for _, match := range regexp.MustCompile(`transcripts/[0-9a-f-]{36}\.bin`).FindAllString(failedBody, -1) {
+					if match != retained {
+						t.Fatalf("the 500 names %q, which is not the retained metadata key %q: %s", match, retained, failedBody)
+					}
+				}
+				if !objectExists(t, ctx, rawObjects, retained) {
+					t.Fatalf("the retained metadata object %q is not in RustFS", retained)
+				}
+				if err := rawObjects.Delete(ctx, storage.ObjectKey(retained)); err != nil {
+					t.Fatalf("remove the retained fixture metadata: %v", err)
+				}
+			} else if c.Fault != "" {
 				matches := reconciliationObjectKey.FindAllStringSubmatch(logs.String(), -1)
 				if len(matches) != 1 || !strings.Contains(logs.String(), "msg=transcript_blob_reconciliation_required") {
 					t.Fatalf("want exactly one reconciliation event naming the orphaned body, got: %s", logs.String())

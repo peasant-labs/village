@@ -4,7 +4,8 @@
 # Every case drives one transcript (one owner, one local session id) through
 # its steps with the production handlers:
 #   action: publish_authoritative | publish_legacy | read_content | rewrite |
-#     delete. rewrite calls the rewrite the content route calls, with the
+#     delete | delete_after_concurrent_rewrite. The last one installs a
+#     rewrite after the delete's pre-read and before its transaction. rewrite calls the rewrite the content route calls, with the
 #     canonical fixture bytes and the shape sniffed from the stored generation;
 #     it exists because raw JSONL without a harness is served by the route but
 #     cannot be encoded canonically, so the route never rewrites it.
@@ -15,6 +16,7 @@
 #   want_status: the handler's HTTP status
 #   want_writes: how many generations the step asked the store to write
 #   want_new_generation: the content object key changed in this step
+#   rollback_republish: a trigger refuses the step's republish transaction
 #
 # want_metadata_step is the index of the publish step whose authoritative
 # request, as json.Marshal renders it, must be the stored metadata object;
@@ -27,6 +29,9 @@
 #
 # fault: metadata_upload_and_cleanup makes the metadata upload and every
 # deletion fail, so the uploaded body is an orphan the handler must report.
+# metadata_delete makes only the deletion of metadata objects fail.
+# want_error_names_metadata_key: the 500 names the metadata object key whose
+# deletion failed, and that key is the one reconciliation evidence names.
 
 - name: authoritative_publish_stores_metadata
   why: an authoritative publish keeps its validated metadata as a second object of the same generation
@@ -193,3 +198,34 @@
       want_writes: 1
       want_new_generation: false
   want_deleted: true
+
+- name: delete_after_concurrent_rewrite_removes_the_current_objects
+  why: a rewrite that commits between the delete's pre-read and its transaction must not leave the new body behind; delete removes the objects the deleted row named
+  steps:
+    - action: publish_authoritative
+      content_fixture: legacy_bare_payload
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: delete_after_concurrent_rewrite
+      want_status: 200
+      want_writes: 1
+  want_deleted: true
+
+- name: metadata_cleanup_failure_names_the_metadata_key
+  why: when the candidate body is deleted but its metadata object is not, the error names the metadata key, the one that is actually retained
+  fault: metadata_delete
+  steps:
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence before refused republish"}]'
+      want_status: 201
+      want_writes: 1
+      want_new_generation: true
+    - action: publish_authoritative
+      content: '[{"role":"user","content":"evidence refused republish"}]'
+      rollback_republish: true
+      want_status: 500
+      want_writes: 1
+      want_new_generation: false
+  want_metadata_step: 0
+  want_error_names_metadata_key: true
