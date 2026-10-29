@@ -26,23 +26,15 @@ import {
   unownedGroupedItems,
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
-import { Button } from "@/lib/ft-ui";
+import { Button, ProviderName } from "@/lib/ft-ui";
+import { isHarness } from "@/lib/harness";
 import RequestFailureState from "@/components/RequestFailureState";
 
 /**
- * The owner's review route for a collective: `/collectives/{id}/review`.
- *
- * The collective page's queue block decides ONE submission per click, which
- * makes a queue of any size a long sequence of single decisions and shows a
- * reviewer nothing of the work they are deciding on. This page reads the same
- * pending queue through the contribute page's tree and preview composition:
- * project > branch > session on the left with checkboxes, the focused
- * submission's transcript on the right, and one bottom bar that applies a
- * single decision to the whole selection in ONE request.
- *
- * Owner-only. A maintainer role that could also review is deliberately not
- * modelled here — village's role set is owner | member | contributor | pending,
- * and adding a reviewer role is its own change to the role model.
+ * Owner-only review of pending submissions. Session rows put preview and a
+ * single-session decision together; checkboxes retain explicit bulk decisions.
+ * Started sessions and saved helper threads keep their canonical disclosures,
+ * shared selection identities and server-resolved access boundaries.
  */
 export default function GroupReviewPage({
   params,
@@ -61,6 +53,7 @@ export default function GroupReviewPage({
   const review = useBatchReview(id);
 
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [quickDecisionID, setQuickDecisionID] = useState<string | null>(null);
   const [filters, setFilters] = useState<ContributeFilters>({ search: "", harness: null });
   // Rows the server reported as already decided on the LAST action. They stay
   // on screen, marked and unselectable, until the refetched queue drops them:
@@ -107,9 +100,13 @@ export default function GroupReviewPage({
 
   const shares = useMemo(() => pending ?? [], [pending]);
   const rows = useMemo(() => toReviewRows(shares, stale), [shares, stale]);
+  const rowByID = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const tree = useMemo(() => buildReviewTree(filteredRows), [filteredRows]);
   const counts = useMemo(() => harnessCounts(rows, filters.search), [rows, filters.search]);
+  // Reading the first submission is safe; selection always waits for a checkbox.
+  const activePreviewId = rows.some((row) => row.id === previewId && !row.stale)
+    ? previewId : tree.flatMap((project) => project.children.flatMap((branch) => branch.children)).find((session) => !session.locked)?.id ?? null;
   // Every transcript the flat tree actually draws, folded rows included. A
   // grouped owner named here is ALREADY represented, so the grouped exit below
   // skips it instead of mounting a second owner row.
@@ -232,22 +229,27 @@ export default function GroupReviewPage({
     helper.applyTreeSelection(next);
   }
 
-  async function decide(status: ReviewDecision) {
-    if (selectedCount === 0) return;
+  async function decide(status: ReviewDecision, quickID?: string) {
+    if (review.isPending || (!quickID && selectedCount === 0)) return;
+    setQuickDecisionID(quickID ?? null);
     // Tree rows and individually ticked helper members are ONE set of explicit
     // transcript ids: the decision names submissions, never a group id and
     // never a parent/sibling a helper happened to be grouped under.
-    const ids = [...new Set([...selected, ...groupedReviewSelection(queuedHelperItems)])];
-    const outcome = await review.mutateAsync({ transcript_ids: ids, status });
-    // Every id the server answered about leaves the selection: a decided row
-    // is done, and a stale row can never be decided from here — leaving it
-    // ticked would resend it on every later action and make the count
-    // disagree with the row, which is drawn disabled. The stale ids stay
-    // VISIBLE and marked, so the reviewer can see what someone else already
-    // decided instead of the rows simply vanishing.
-    const answered = new Set([...outcome.decided, ...outcome.already_decided]);
-    setStale(new Set(outcome.already_decided));
-    helper.forget(answered);
+    const ids = quickID ? [quickID] : [...new Set([...selected, ...groupedReviewSelection(queuedHelperItems)])];
+    try {
+      const outcome = await review.mutateAsync({ transcript_ids: ids, status });
+      // Every id the server answered about leaves the selection: a decided row
+      // is done, and a stale row can never be decided from here — leaving it
+      // ticked would resend it on every later action and make the count
+      // disagree with the row, which is drawn disabled. The stale ids stay
+      // VISIBLE and marked, so the reviewer can see what someone else already
+      // decided instead of the rows simply vanishing.
+      const answered = new Set([...outcome.decided, ...outcome.already_decided]);
+      setStale(new Set(outcome.already_decided));
+      helper.forget(answered);
+    } catch {
+      // The mutation keeps its error beside the action, with selection intact.
+    }
   }
 
   const deciding = review.isPending;
@@ -261,15 +263,7 @@ export default function GroupReviewPage({
           { label: "review" },
         ]}
       />
-      {/* The collective's name is USER CONTENT, so it keeps its case inside
-          the lowercase heading. */}
-      <OnHead
-        title={
-          <>
-            review contributions to <span className="normal-case">{group.group.name}</span>
-          </>
-        }
-      />
+      <OnHead title="review transcripts" />
 
       {listingFailed && (
         <RequestFailureState
@@ -290,7 +284,7 @@ export default function GroupReviewPage({
       ) : (
         <>
           {tree.length > 0 && (
-            <div className="on-contribute-workspace" data-testid="review-panel">
+            <div className="on-contribute-workspace on-review-workspace" data-testid="review-panel">
               <div className="on-contribute-columns">
                 <div className="on-contribute-browser">
                   <ContributeTree
@@ -299,12 +293,39 @@ export default function GroupReviewPage({
                     onToggleNode={handleToggle}
                     onToggleAll={handleToggleAll}
                     onPreview={setPreviewId}
-                    previewId={previewId}
+                    previewId={activePreviewId}
+                    layout="sessions"
+                    selectionSummary={<>
+                      {filteredRows.filter((row) => !row.stale).length} waiting · <span data-testid="review-selection-count">{selectedCount} selected</span>
+                    </>}
                     filters={filters}
                     onFiltersChange={setFilters}
                     harnessCounts={counts}
                     countNoun="contribution"
                     emptyLabel="no pending contributions match this filter."
+                    sessionFacts={(session) => {
+                      const row = rowByID.get(session.id)!;
+                      return <span className="on-review-facts">
+                        <span>{row.project_display_name}</span>
+                        {row.git_branch && <span>{row.git_branch}</span>}
+                        <span>{row.share.owner?.kind === "profile" ? `@${row.owner_label}` : row.owner_label}</span>
+                        {isHarness(row.model_provider) ? <ProviderName harness={row.model_provider} /> : <span>{row.model_provider}</span>}
+                        <span>{new Date(row.share.shared_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      </span>;
+                    }}
+                    sessionActions={(session) => (
+                      <div className="on-review-row-actions">
+                        <Button size="sm" variant="secondary" disabled={deciding || listing.isFetching || session.locked}
+                          loading={deciding && quickDecisionID === session.id && review.variables?.status === "approved"}
+                          aria-label={`approve ${session.label}`} onClick={() => void decide("approved", session.id)}>approve</Button>
+                        <Button size="sm" variant="ghost" disabled={deciding || listing.isFetching || session.locked}
+                          loading={deciding && quickDecisionID === session.id && review.variables?.status === "rejected"}
+                          aria-label={`reject ${session.label}`} onClick={() => void decide("rejected", session.id)}>reject</Button>
+                        {review.isError && quickDecisionID === session.id && <p role="alert" className="on-review-error">
+                          {review.error instanceof Error ? review.error.message : "the decision could not be applied. try again."}
+                        </p>}
+                      </div>
+                    )}
                     helperGroupSlot={(session, owner) => {
                       const groups = helperGroups.get(session.id);
                       // A submission with no saved helper group renders
@@ -322,7 +343,7 @@ export default function GroupReviewPage({
                   />
                 </div>
                 <div className="on-contribute-preview">
-                  <TranscriptPreview transcriptId={previewId} />
+                  <TranscriptPreview transcriptId={activePreviewId} />
                 </div>
               </div>
             </div>
@@ -351,10 +372,13 @@ export default function GroupReviewPage({
         </>
       )}
 
-      <div className="on-contribute-footer">
+      {review.isSuccess && (review.data?.decided.length ?? 0) > 0 && <p role="status" className="on-review-result">
+        {review.data!.decided.length} {review.variables?.status === "approved" ? "approved" : "rejected"}
+      </p>}
+      {(selectedCount > 0 || stale.size > 0 || (review.isError && quickDecisionID == null)) && <div className="on-contribute-footer">
         <div className="on-contribute-footer-inner">
           <div className="flex flex-col gap-1 min-w-0">
-            <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="review-selection-count">
+            <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums">
               {selectedCount} selected
             </p>
             {stale.size > 0 && (
@@ -362,15 +386,16 @@ export default function GroupReviewPage({
                 {stale.size} already decided by someone else
               </p>
             )}
-            {review.isError && (
+            {review.isError && quickDecisionID == null && (
               <p className="text-[length:var(--fs-body)] text-danger" data-testid="review-error">
                 {review.error instanceof Error ? review.error.message : "the decision could not be applied."}
               </p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {selectedCount > 0 && <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
+              loading={deciding && quickDecisionID == null && review.variables?.status === "rejected"}
               disabled={selectedCount === 0 || deciding}
               onClick={() => void decide("rejected")}
             >
@@ -378,15 +403,15 @@ export default function GroupReviewPage({
             </Button>
             <Button
               variant="primary"
-              loading={deciding}
+              loading={deciding && quickDecisionID == null && review.variables?.status === "approved"}
               disabled={selectedCount === 0 || deciding}
               onClick={() => void decide("approved")}
             >
               approve selected
             </Button>
-          </div>
+          </div>}
         </div>
-      </div>
+      </div>}
     </OnPage>
   );
 }

@@ -101,3 +101,20 @@
 @media (max-width: 600px) {
   .on-transcript-attribution:not(.is-owner-hidden) { inline-size: calc(8ch + var(--ic-lg) * 2 + var(--sp-2) * 2); }
 }
+
+
+/* Review leads with the submissions and puts decisions beside each one. */
+.on-review-session-list > div + div { border-top: var(--bd); }
+.on-review-session-list .contribute-session-row { align-items: flex-start; }
+.on-review-session-list .contribute-session-row > .contribute-check { margin-block-start: var(--sp-1); }
+.on-review-session-list .contribute-session-row button[aria-pressed] { font-family: var(--font-body); font-size: var(--fs-body); white-space: normal; overflow-wrap: anywhere; line-height: var(--lh-body); min-block-size: var(--control-h); }
+.on-review-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-block-start: var(--sp-1); }
+.on-review-facts > span { min-width: 0; overflow-wrap: anywhere; }
+.on-review-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-block-start: var(--sp-3); }
+.on-review-error { flex-basis: 100%; margin: 0; color: var(--danger); font-family: var(--font-body); font-size: var(--fs-body); }
+.on-review-workspace .on-contribute-preview { min-block-size: calc(var(--sp-8) * 7); }
+@container (min-width: 880px) {
+  .on-review-workspace .on-contribute-columns { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+}
+
+.on-review-result { margin: 0; font-family: var(--font-mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; color: var(--ink-3); }

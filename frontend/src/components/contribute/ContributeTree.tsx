@@ -25,6 +25,11 @@ interface ContributeTreeProps {
    *  DECIDE, so the two pages count the same rows in different words. */
   countNoun?: string;
   emptyLabel?: string;
+  /** Review queues keep session context inline rather than nesting projects. */
+  layout?: "tree" | "sessions";
+  sessionActions?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+  sessionFacts?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+  selectionSummary?: React.ReactNode;
   /** The saved helper groups hanging off one session row, mounted by the page
    *  that owns the grouped read. The slot receives the row this tree already
    *  draws (and the sessions it started) so the page can mount that very row as
@@ -147,7 +152,11 @@ function SessionRow({
   openChildren,
   onToggleChildren,
   helperGroupSlot,
+  sessionActions,
+  sessionFacts,
 }: {
+  sessionActions?: ContributeTreeProps["sessionActions"];
+  sessionFacts?: ContributeTreeProps["sessionFacts"];
   session: SessionNode<TreeRowFacts>;
   depth: number;
   selection: Selection;
@@ -173,9 +182,10 @@ function SessionRow({
   const row = (
     <div
       ref={rowRef}
-      className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+      className={`contribute-session-row flex items-center gap-3 px-4 py-3 transition-colors ${
         isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
       }`}
+      data-preview-active={isActive || undefined}
       data-testid={`contribute-session-row-${session.id}`}
     >
       <TriStateCheckbox
@@ -192,6 +202,7 @@ function SessionRow({
         <div className="flex items-center gap-3">
           <button
             type="button"
+            aria-pressed={isActive}
             onClick={() => onPreview(session.id)}
             className="min-w-0 flex-1 text-sm text-ink truncate text-left cursor-pointer focus-mono"
           >
@@ -199,7 +210,8 @@ function SessionRow({
           </button>
           {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
         </div>
-        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
+        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionFacts?.(session) ?? session.meta}</div>
+        {sessionActions?.(session)}
       </div>
     </div>
   );
@@ -248,6 +260,8 @@ function SessionRow({
               openChildren={openChildren}
               onToggleChildren={onToggleChildren}
               helperGroupSlot={helperGroupSlot}
+              sessionActions={sessionActions}
+              sessionFacts={sessionFacts}
             />
           ))}
         </div>
@@ -451,6 +465,10 @@ export default function ContributeTree({
   harnessCounts,
   countNoun = "session",
   emptyLabel = "no contributable sessions match this filter.",
+  layout = "tree",
+  sessionActions,
+  sessionFacts,
+  selectionSummary,
   helperGroupSlot,
 }: ContributeTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(new Set());
@@ -479,6 +497,7 @@ export default function ContributeTree({
   // own row, so the connector never traces a row nobody can see.
   const orderedRows = useMemo<RailRow[]>(() => {
     const rows: RailRow[] = [];
+    if (layout === "sessions") return rows;
     const walkSession = (session: SessionNode<TreeRowFacts>, depth: number) => {
       rows.push({ key: `s:${session.id}`, depth });
       if (!openChildren.has(session.id)) return;
@@ -493,7 +512,7 @@ export default function ContributeTree({
       }
     }
     return rows;
-  }, [collapsedProjects, openChildren, tree]);
+  }, [collapsedProjects, openChildren, tree, layout]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -578,8 +597,8 @@ export default function ContributeTree({
       </div>
       <div className="on-contribute-selection">
         <div className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid="contribute-selection-tally">
-          {selectedVisibleCount} selected · {selectableIds.length} {countNoun}
-          {selectableIds.length !== 1 ? "s" : ""}
+          {selectionSummary ?? <>{selectedVisibleCount} selected · {selectableIds.length} {countNoun}
+          {selectableIds.length !== 1 ? "s" : ""}</>}
         </div>
         <Button
           size="sm"
@@ -594,6 +613,21 @@ export default function ContributeTree({
       <div className="on-contribute-rows">
         {tree.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-ink-3">{emptyLabel}</p>
+        ) : layout === "sessions" ? (
+          <div className="on-review-session-list">
+            {tree.flatMap((project) => project.children.flatMap((group) => group.children)).map((session) => (
+              <SessionRow key={session.id} session={session} depth={0}
+                selection={selection} onToggleNode={onToggleNode} onPreview={onPreview} previewId={previewId}
+                setRowElement={setRowElement} openChildren={openChildren}
+                onToggleChildren={(id) => setOpenChildren((before) => {
+                  const next = new Set(before);
+                  if (next.has(id)) next.delete(id); else next.add(id);
+                  return next;
+                })}
+                helperGroupSlot={helperGroupSlot} sessionActions={sessionActions} sessionFacts={sessionFacts}
+              />
+            ))}
+          </div>
         ) : (
           <div ref={containerRef} className="relative">
             <svg className="contribute-rail" aria-hidden="true">

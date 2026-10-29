@@ -11,6 +11,7 @@ import {
   type ReviewPageCase,
 } from "@/test/groupsReviewPageFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 
 /**
  * The REAL `/collectives/{id}/review` route, mounted inside the real
@@ -41,6 +42,7 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
       ? null
       : pending.filter((row) => testCase.pendingAfterRefetch!.includes(row.transcript_id));
   let pendingReads = 0;
+  let decisionWrites = 0;
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -70,7 +72,18 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
       return json(afterRefetch != null && pendingReads > 1 ? afterRefetch : pending);
     }
     if (url.endsWith(`/collectives/${GROUP_ID}/shares`) && method === "PATCH") {
+      const failure = testCase.decisionFailures?.[decisionWrites++];
+      if (failure) return json({ error: "the decision could not be applied" }, failure);
       return json({ decided: testCase.decided, already_decided: testCase.alreadyDecided });
+    }
+    const transcriptMatch = url.match(/\/transcripts\/([^/?]+)(\/[^?]+)?$/);
+    if (transcriptMatch) {
+      const row = pending.find((item) => item.transcript_id === transcriptMatch[1]);
+      if (transcriptMatch[2] === "/annotations") return json([]);
+      if (transcriptMatch[2] === "/collectives") return json({ collectives: [] });
+      if (transcriptMatch[2] === "/pull-requests") return json({ pull_requests: [], unverified_pull_requests: [] });
+      if (transcriptMatch[2] === "/content") return json({ turns: [], harness: "claude-code" });
+      if (row) return json({ transcript: makeTranscriptFixture({ id: row.transcript_id, title: row.title, local_id: row.local_id }), owner: row.owner, tags: [], shares: [] });
     }
     if (new RegExp(`/collectives/${GROUP_ID}$`).test(url)) {
       return json({
@@ -147,13 +160,13 @@ afterEach(() => {
 });
 
 describe("/collectives/{id}/review", () => {
-  it("reads the pending queue as a project > branch > session tree", async () => {
-    const testCase = reviewCaseByName(cases, "owner_reads_the_queue_grouped_by_project");
+  it("shows submissions directly with inline project context", async () => {
+    const testCase = reviewCaseByName(cases, "owner_reads_sessions_with_inline_project_context");
     await mountReviewRoute(testCase);
 
     await screen.findByTestId("review-panel");
     for (const label of testCase.expect.projectLabels as string[]) {
-      expect(screen.getByRole("region", { name: `project ${label}` })).toBeTruthy();
+      expect(screen.getByText(label)).toBeTruthy();
     }
     for (const id of testCase.expect.sessionIds as string[]) {
       expect(screen.getByTestId(`contribute-session-row-${id}`)).toBeTruthy();
@@ -213,16 +226,16 @@ describe("/collectives/{id}/review", () => {
     // "0 selected" on every unselected fold would be noise.
     expect(label.textContent).toBe(testCase.expect.collapsedControlLabelWhenNoneSelected as string);
 
-    // Ticking the project reaches the folded child, which stays off screen.
+    // Selecting all reaches the folded child, which stays off screen.
     await act(async () => {
-      fireEvent.click(screen.getByRole("checkbox", { name: /^select project / }));
+      fireEvent.click(screen.getByRole("button", { name: "select all" }));
     });
     expect(control.getAttribute("aria-expanded")).toBe("false");
 
     // The bar counts the hidden row, so what it offers to decide is what a
     // decision would actually reach.
     expect(screen.getByTestId("review-selection-count").textContent).toBe(
-      `${testCase.expect.selectedAfterSelectingProject as number} selected`,
+      `${testCase.expect.selectedAfterSelectingAll as number} selected`,
     );
     // The control names the hidden selected row rather than leaving a viewer
     // to infer it from an indeterminate mark somewhere else.
@@ -377,5 +390,32 @@ describe("review queue read failures", () => {
       expect(await screen.findByTestId(`contribute-session-row-${id}`)).toBeInTheDocument();
     }
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("direct review decisions", () => {
+  it.each(cases.filter((c) => c.name.startsWith("quick_")))("$name", async (testCase) => {
+    const { requests } = await mountReviewRoute(testCase);
+    await screen.findByTestId("review-panel");
+    const clickedID = testCase.expect.clickedId as string;
+    const row = screen.getByTestId(`contribute-session-row-${clickedID}`);
+    // A preview never grants selection or sends a decision.
+    expect(within(row).getByRole("button", { name: clickedID })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("review-selection-count")).toHaveTextContent("0 selected");
+    expect(requests.filter((request) => request.method === "PATCH")).toHaveLength(0);
+    await select(testCase.select);
+    const action = within(row).getByRole("button", { name: `${testCase.expect.quickStatus === "approved" ? "approve" : "reject"} ${clickedID}` });
+    await act(async () => { fireEvent.click(action); });
+    if (testCase.decisionFailures) {
+      expect(await within(row).findByRole("alert")).toHaveTextContent(testCase.expect.error as string);
+      expect(screen.getByTestId("review-selection-count")).toHaveTextContent(`${testCase.select.length} selected`);
+      await act(async () => { fireEvent.click(action); });
+    }
+    await waitFor(() => expect(screen.getByTestId("review-selection-count")).toHaveTextContent(`${testCase.expect.selectedAfter} selected`));
+    expect(requests.filter((request) => request.method === "PATCH").at(-1)?.body).toEqual({
+      transcript_ids: testCase.expect.requestIds,
+      status: testCase.expect.quickStatus,
+    });
   });
 });

@@ -9,12 +9,10 @@
 # the rest with a realistic constant.
 
 cases:
-  - name: owner_reads_the_queue_grouped_by_project
+  - name: owner_reads_sessions_with_inline_project_context
     why: >
-      The whole reason this page exists. A queue holding submissions from two
-      projects is read as a project > branch > session tree, the same way a
-      contributor reads their own sessions on the contribute page, instead of
-      one flat list a reviewer cannot navigate.
+      A queue shows each submission directly with its project, publisher and
+      harness nearby. Project and branch containers do not bury its actions.
     viewer: mod
     role: owner
     pending:
@@ -89,10 +87,10 @@ cases:
       # With nothing selected the control says only what it hides: a count of
       # zero selected rows is noise on every unselected fold in the tree.
       collapsedControlLabelWhenNoneSelected: 1 child session
-      # Ticking the project reaches the folded child. The bar counts BOTH
+      # Selecting all reaches the folded child. The bar counts BOTH
       # rows, the control names the hidden one, and the visible parent row
       # reads fully ticked rather than empty.
-      selectedAfterSelectingProject: 2
+      selectedAfterSelectingAll: 2
       collapsedControlLabel: 1 child session, 1 selected
       visibleParentRowState: all
       # Unticking the one visible session row takes its hidden child with it,
@@ -258,3 +256,53 @@ cases:
     alreadyDecided: []
     expect:
       sessionIds: [retry-session]
+
+  - name: quick_approve_decides_only_the_clicked_session
+    why: a row decision names exactly that session and leaves the separate bulk selection intact
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: clicked, local_id: clicked, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: selected, local_id: selected, project_hash: pa, project_name: alpha, owner_username: sam}
+    select: [selected]
+    decided: [clicked]
+    alreadyDecided: []
+    expect:
+      clickedId: clicked
+      quickStatus: approved
+      selectedAfter: 1
+      requestIds: [clicked]
+
+  - name: quick_reject_decides_only_the_clicked_session
+    why: a row decision names exactly that session and leaves the separate bulk selection intact
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: clicked, local_id: clicked, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: selected, local_id: selected, project_hash: pa, project_name: alpha, owner_username: sam}
+    select: [selected]
+    decided: [clicked]
+    alreadyDecided: []
+    expect:
+      clickedId: clicked
+      quickStatus: rejected
+      selectedAfter: 1
+      requestIds: [clicked]
+
+  - name: quick_failure_keeps_selection_and_can_retry
+    why: a row decision names exactly that session and leaves the separate bulk selection intact
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: clicked, local_id: clicked, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: selected, local_id: selected, project_hash: pa, project_name: alpha, owner_username: sam}
+    select: [selected]
+    decided: [clicked]
+    alreadyDecided: []
+    decisionFailures: [500]
+    expect:
+      clickedId: clicked
+      quickStatus: approved
+      selectedAfter: 1
+      requestIds: [clicked]
+      error: the decision could not be applied
