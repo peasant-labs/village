@@ -260,6 +260,33 @@ boundary are documented in
   during a rolling deploy its create, join and add fail loudly until the
   rollout finishes.
 
+- **048 records the publish metadata object and village's own content
+  rewrites.** `transcripts.publish_metadata_key`, `publish_metadata_hash` and
+  `publish_metadata_size` describe a second encrypted object holding the
+  validated publish metadata, the way `blob_key`, `content_hash` and
+  `blob_size_bytes` describe the content. They are all NULL or all set
+  (`transcripts_publish_metadata_complete`); the key has the opaque
+  `transcripts/<uuid>.bin` shape, the hash is 64 lowercase hex digits and the
+  size is not negative. They are not derivable: the hash and size authenticate
+  the decrypted object before anything reads it, so they cannot be recomputed
+  without decrypting the object they validate. The client name and version have
+  no columns; they live inside the stored object and no query filters on them.
+  **The writer fence now covers the object too.** `trg_transcript_writer_version`
+  is recreated to fire on `UPDATE OF` these three columns as well as the
+  six it already watched, so a write to any of the nine needs
+  `app.transcript_writer_version=1`. The down migration recreates it with the
+  original six. `transcript_content_rewrites` keeps one row per replacement of
+  stored content by village's own rewrite, keyed `(transcript_id,
+  installed_content_hash)` and deleted with the transcript. It records only the
+  raw fact `replaced_was_legacy` (the replaced content was legacy JSONL), which
+  cannot be recovered once the rewrite has replaced it. Lineage is derived,
+  never stored: `IsLegacyLineageContent` walks installed to replaced hash and
+  answers true when any step was legacy, so a chain that began from legacy JSONL
+  stays legacy. The table has no trigger and no `app.actor_id` requirement; it
+  is not a disclosure axis. Every full-row transcript column list (the sqlc
+  queries and the handler's `transcriptSelectColumns`) ends with the three
+  columns, because rows scan into `sqlc.Transcript` by name.
+
 ## 2. Licensing data model
 
 ### Private organization snapshot issuance

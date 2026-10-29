@@ -74,7 +74,8 @@ INSERT INTO transcripts (
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
-    input_submission_count, root_session_id, session_purpose, session_relationships
+    input_submission_count, root_session_id, session_purpose, session_relationships,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 `
 
 type CreateTranscriptParams struct {
@@ -301,6 +302,9 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.RootSessionID,
 		&i.SessionPurpose,
 		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }
@@ -363,7 +367,8 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
-    input_submission_count, root_session_id, session_purpose, session_relationships
+    input_submission_count, root_session_id, session_purpose, session_relationships,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 FROM transcripts WHERE id = $1
 `
 
@@ -445,6 +450,9 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.RootSessionID,
 		&i.SessionPurpose,
 		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }
@@ -868,7 +876,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id,
     t.wrapped_data_key, t.encryption_algorithm, t.key_version,
     t.accepted_request_operation_fingerprint, t.session_origin,
-    t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
+    t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
 FROM transcripts t
 WHERE t.owner_id = $1
   AND t.project_hash = $2
@@ -984,6 +993,9 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.RootSessionID,
 			&i.SessionPurpose,
 			&i.SessionRelationships,
+			&i.PublishMetadataKey,
+			&i.PublishMetadataHash,
+			&i.PublishMetadataSize,
 		); err != nil {
 			return nil, err
 		}
@@ -1207,7 +1219,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
-    input_submission_count, root_session_id, session_purpose, session_relationships
+    input_submission_count, root_session_id, session_purpose, session_relationships,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -1432,6 +1445,9 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.RootSessionID,
 		&i.SessionPurpose,
 		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }
@@ -1458,7 +1474,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
-    input_submission_count, root_session_id, session_purpose, session_relationships
+    input_submission_count, root_session_id, session_purpose, session_relationships,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -1553,6 +1570,9 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.RootSessionID,
 		&i.SessionPurpose,
 		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }

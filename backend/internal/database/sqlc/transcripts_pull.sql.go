@@ -80,7 +80,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
-    input_submission_count, root_session_id, session_purpose, session_relationships
+    input_submission_count, root_session_id, session_purpose, session_relationships,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 `
 
 type CompareAndSwapTranscriptBlobParams struct {
@@ -187,6 +188,9 @@ func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareA
 		&i.RootSessionID,
 		&i.SessionPurpose,
 		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }
@@ -304,14 +308,18 @@ func (q *Queries) CountTranscriptAnnotations(ctx context.Context, transcriptID p
 const deleteTranscriptReturningDescriptor = `-- name: DeleteTranscriptReturningDescriptor :one
 DELETE FROM transcripts
 WHERE id = $1
-RETURNING blob_key, wrapped_data_key, encryption_algorithm, key_version
+RETURNING blob_key, wrapped_data_key, encryption_algorithm, key_version,
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size
 `
 
 type DeleteTranscriptReturningDescriptorRow struct {
-	BlobKey             string `db:"blob_key" json:"blob_key"`
-	WrappedDataKey      []byte `db:"wrapped_data_key" json:"wrapped_data_key"`
-	EncryptionAlgorithm string `db:"encryption_algorithm" json:"encryption_algorithm"`
-	KeyVersion          int32  `db:"key_version" json:"key_version"`
+	BlobKey             string      `db:"blob_key" json:"blob_key"`
+	WrappedDataKey      []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
+	EncryptionAlgorithm string      `db:"encryption_algorithm" json:"encryption_algorithm"`
+	KeyVersion          int32       `db:"key_version" json:"key_version"`
+	PublishMetadataKey  pgtype.Text `db:"publish_metadata_key" json:"publish_metadata_key"`
+	PublishMetadataHash pgtype.Text `db:"publish_metadata_hash" json:"publish_metadata_hash"`
+	PublishMetadataSize pgtype.Int8 `db:"publish_metadata_size" json:"publish_metadata_size"`
 }
 
 func (q *Queries) DeleteTranscriptReturningDescriptor(ctx context.Context, id pgtype.UUID) (DeleteTranscriptReturningDescriptorRow, error) {
@@ -322,6 +330,9 @@ func (q *Queries) DeleteTranscriptReturningDescriptor(ctx context.Context, id pg
 		&i.WrappedDataKey,
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
 	)
 	return i, err
 }

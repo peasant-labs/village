@@ -285,6 +285,9 @@ type Transcript struct {
 	RootSessionID                       pgtype.Text        `db:"root_session_id" json:"root_session_id"`
 	SessionPurpose                      pgtype.Text        `db:"session_purpose" json:"session_purpose"`
 	SessionRelationships                []byte             `db:"session_relationships" json:"session_relationships"`
+	PublishMetadataKey                  pgtype.Text        `db:"publish_metadata_key" json:"publish_metadata_key"`
+	PublishMetadataHash                 pgtype.Text        `db:"publish_metadata_hash" json:"publish_metadata_hash"`
+	PublishMetadataSize                 pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
 }
 
 type TranscriptAssociation struct {
@@ -308,6 +311,14 @@ type TranscriptCommit struct {
 	AuthoredAt   pgtype.Timestamptz `db:"authored_at" json:"authored_at"`
 	CommittedAt  pgtype.Timestamptz `db:"committed_at" json:"committed_at"`
 	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type TranscriptContentRewrite struct {
+	TranscriptID         pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ReplacedContentHash  string             `db:"replaced_content_hash" json:"replaced_content_hash"`
+	InstalledContentHash string             `db:"installed_content_hash" json:"installed_content_hash"`
+	ReplacedWasLegacy    bool               `db:"replaced_was_legacy" json:"replaced_was_legacy"`
+	RewrittenAt          pgtype.Timestamptz `db:"rewritten_at" json:"rewritten_at"`
 }
 
 type TranscriptGovernanceEventsAudit struct {
