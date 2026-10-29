@@ -65,7 +65,9 @@ and point the frontend at that mock's `/api/v1` address. Open
 `/transcripts/long-demo` (or `/transcripts/5d625d28-937e-4d9f-bd1a-1a44890d6112`).
 The regular production transcript route renders an 84-turn synthetic export
 implementation with 28 tool calls, edit diffs, touched files, a reproduced cursor
-failure, and saved review labels. Labels added in the preview live in memory;
+failure, and saved review labels. The final assistant response includes the export
+flow as a Mermaid fence; choose `view diagram` to render it, or `view source` to
+read the original. Labels added in the preview live in memory;
 changing the mock scenario restores the initial labels. The endpoint is absent
 when the opt-in flag is off. The landing example stays separate.
 
@@ -89,8 +91,11 @@ JS
 
 Ingest only that session with Peasant's `harvest --source-harness claude-code
 --source-path /tmp/long-demo-recordings --session
-5d625d28-937e-4d9f-bd1a-1a44890d6112 --detect-commits=false`, using explicit disposable
+5d625d28-937e-4d9f-bd1a-1a44890d6112
+--output /tmp/long-demo-data/peasant/peasant-sync --detect-commits=false`, using explicit disposable
 `--data-dir`, `--config-dir`, `--state-dir`, and a config with `selection.mode: all`.
+The explicit disposable `--output` is mandatory: `--data-dir` relocates the
+database but does not relocate the harvest command's default normalized output.
 Do not point a preview generator or ingestion run at a personal recording tree.
 The displayed command outputs are synthetic fixture content, not evidence that
 this sample project was built or tested.
