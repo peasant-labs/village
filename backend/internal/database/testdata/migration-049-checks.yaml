@@ -24,28 +24,28 @@
   statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', 'ABC', '1.2.3', 'checked')
   expect: transcript_integrity_results_hash_shape
 - name: result_cascades_with_transcript
-  statement: >-
+  statement: |-
     INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'checked');
     DELETE FROM transcripts WHERE id = '{transcript_id}'
   expect: ok
   check_sql: SELECT count(*)::text FROM transcript_integrity_results WHERE transcript_id = '{transcript_id}'
   want: "0"
 - name: inherited_flag_cascades_with_transcript
-  statement: >-
+  statement: |-
     INSERT INTO transcript_integrity_inherited_flags (transcript_id, flagged_at) VALUES ('{transcript_id}', now());
     DELETE FROM transcripts WHERE id = '{transcript_id}'
   expect: ok
   check_sql: SELECT count(*)::text FROM transcript_integrity_inherited_flags WHERE transcript_id = '{transcript_id}'
   want: "0"
 - name: tombstone_survives_transcript_delete
-  statement: >-
+  statement: |-
     INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ('{owner_id}', 'local-1', now());
     DELETE FROM transcripts WHERE id = '{transcript_id}'
   expect: ok
   check_sql: SELECT count(*)::text FROM integrity_flag_tombstones WHERE owner_id = '{owner_id}'
   want: "1"
 - name: tombstone_goes_with_the_account
-  statement: >-
+  statement: |-
     INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ('{owner_id}', 'local-1', now());
     DELETE FROM transcripts WHERE id = '{transcript_id}';
     DELETE FROM users WHERE id = '{owner_id}'
@@ -76,7 +76,7 @@
   statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', 'v1', 'pending')
   expect: transcript_integrity_attempts_version_shape
 - name: attempt_cascades_with_transcript
-  statement: >-
+  statement: |-
     INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'pending');
     DELETE FROM transcripts WHERE id = '{transcript_id}'
   expect: ok

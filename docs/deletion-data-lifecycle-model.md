@@ -231,7 +231,9 @@ actor UUIDs so a zero value can never silently impersonate the system.
   that owns it, removes them.
 - **Deleting a flagged transcript leaves a content-free record.**
   `integrity_flag_tombstones` keeps the owner id, the publisher's own session
-  id and when it was flagged. It holds no content, hash, turns, rule or
+  id and two dates. `flagged_at` is the flag's date, kept in the record the
+  design describes (the fact and date of the flag); `recorded_at` is the time
+  Village wrote the record. It holds no content, hash, turns, rule or
   version. It exists so that publishing the same session again cannot shed
   the flag by deleting first: the later publish inherits it.
 - **Account deletion removes the record.** The tombstone cascades from
