@@ -93,6 +93,12 @@ type Querier interface {
 	HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
 	RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error
 	InheritIntegrityTombstone(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
+	ListIntegrityCandidates(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error)
+	IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (bool, error)
+	ClaimIntegrityAttempt(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error)
+	CompleteIntegrityAttempt(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error
+	ReleaseIntegrityAttempt(ctx context.Context, arg sqlc.ReleaseIntegrityAttemptParams) error
+	IsLegacyLineageContent(ctx context.Context, arg sqlc.IsLegacyLineageContentParams) (bool, error)
 
 	// Transcript commit methods
 	InsertTranscriptCommits(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error

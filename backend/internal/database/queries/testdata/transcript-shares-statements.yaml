@@ -50,3 +50,6 @@
 - {name: ListTranscriptsCollectivesForViewer, file: groups.sql, kind: read}
 - {name: ListReadableTranscriptIDs, file: transcripts.sql, kind: read}
 - {name: ListOwnersMatchingRepositoryFilter, file: transcripts.sql, kind: read}
+
+- {name: ListIntegrityCandidates, file: integrity.sql, kind: read}
+- {name: IsInIntegrityCheckedSet, file: integrity.sql, kind: read}

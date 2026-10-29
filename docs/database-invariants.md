@@ -699,6 +699,29 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   pending attempts; every other lookup leads with the primary key.
 - Which transcripts need a check is a query over `transcripts`,
   `transcript_shares` and the results, not a stored list.
+  `ListIntegrityCandidates` returns the rows in the checked set
+  (`visibility = 'public'` or any `transcript_shares` row) with a known
+  `content_hash`, no result for that content under the current checker
+  version, and no attempt for that key that is `done`, `skipped`, `failed` or
+  not yet due. Content with no result under any version comes first, so new
+  content is checked before a version sweep. `IsInIntegrityCheckedSet` carries
+  the same predicate text (a unit test holds the two equal); the worker runs
+  it on the reloaded row immediately before the read and sends nothing for a
+  transcript that has left the set.
+- **Taking and ending an attempt.** `ClaimIntegrityAttempt` is a conditional
+  upsert: it adds one to `attempts` and holds the key until `next_attempt_at`
+  (one transcript's whole check runs under that hold), and returns no row
+  while another holder's time has not passed or the attempt is finished. A
+  check that answers ends `done`; legacy content and content the service
+  refuses as too large end `skipped` (no retry); every other failure stays
+  `pending` with `next_attempt_at` pushed back by `min(1 minute << attempts,
+  6 hours)` until the sixth attempt, which ends `failed`. An attempt that sent
+  nothing because the transcript left the set or changed content before the
+  read is given back by `ReleaseIntegrityAttempt` (a first attempt leaves no
+  row, a later one is due again with its earlier count), so coming back into
+  the set still checks it. An attempt interrupted by a shutdown is never
+  ended, and is due again once its hold passes. A new content hash or checker
+  version is a new key with fresh attempts.
 
 ## 4. Governance event taxonomy
 

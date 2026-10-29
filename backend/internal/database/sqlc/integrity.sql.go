@@ -11,6 +11,79 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimIntegrityAttempt = `-- name: ClaimIntegrityAttempt :one
+INSERT INTO transcript_integrity_attempts (
+    transcript_id, content_hash, scry_version, status, attempts, next_attempt_at
+) VALUES (
+    $1, $2, $3, 'pending', 1, $4
+)
+ON CONFLICT (transcript_id, content_hash, scry_version) DO UPDATE
+SET attempts = transcript_integrity_attempts.attempts + 1,
+    status = 'pending',
+    next_attempt_at = EXCLUDED.next_attempt_at,
+    updated_at = now()
+WHERE transcript_integrity_attempts.status = 'pending'
+  AND transcript_integrity_attempts.next_attempt_at <= now()
+RETURNING attempts
+`
+
+type ClaimIntegrityAttemptParams struct {
+	TranscriptID  pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ContentHash   string             `db:"content_hash" json:"content_hash"`
+	ScryVersion   string             `db:"scry_version" json:"scry_version"`
+	NextAttemptAt pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+}
+
+// Takes one check attempt for (transcript, content, version) and holds it
+// until next_attempt_at. It returns the attempt count after taking it, or no
+// row when the attempt is finished or another holder's time has not passed;
+// the conditional upsert locks the row, so two instances cannot both take it.
+func (q *Queries) ClaimIntegrityAttempt(ctx context.Context, arg ClaimIntegrityAttemptParams) (int32, error) {
+	row := q.db.QueryRow(ctx, claimIntegrityAttempt,
+		arg.TranscriptID,
+		arg.ContentHash,
+		arg.ScryVersion,
+		arg.NextAttemptAt,
+	)
+	var attempts int32
+	err := row.Scan(&attempts)
+	return attempts, err
+}
+
+const completeIntegrityAttempt = `-- name: CompleteIntegrityAttempt :exec
+UPDATE transcript_integrity_attempts
+SET status = $1,
+    last_error = $2,
+    next_attempt_at = $3,
+    updated_at = now()
+WHERE transcript_id = $4
+  AND content_hash = $5
+  AND scry_version = $6
+`
+
+type CompleteIntegrityAttemptParams struct {
+	Status        string             `db:"status" json:"status"`
+	LastError     pgtype.Text        `db:"last_error" json:"last_error"`
+	NextAttemptAt pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	TranscriptID  pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ContentHash   string             `db:"content_hash" json:"content_hash"`
+	ScryVersion   string             `db:"scry_version" json:"scry_version"`
+}
+
+// Records how a taken attempt ended. last_error is a closed set, never raw
+// error text.
+func (q *Queries) CompleteIntegrityAttempt(ctx context.Context, arg CompleteIntegrityAttemptParams) error {
+	_, err := q.db.Exec(ctx, completeIntegrityAttempt,
+		arg.Status,
+		arg.LastError,
+		arg.NextAttemptAt,
+		arg.TranscriptID,
+		arg.ContentHash,
+		arg.ScryVersion,
+	)
+	return err
+}
+
 const hasOpenIntegrityFlag = `-- name: HasOpenIntegrityFlag :one
 SELECT EXISTS (
     SELECT 1 FROM transcript_integrity_open_flags WHERE transcript_id = $1
@@ -75,6 +148,23 @@ func (q *Queries) InsertIntegrityResult(ctx context.Context, arg InsertIntegrity
 	return err
 }
 
+const isInIntegrityCheckedSet = `-- name: IsInIntegrityCheckedSet :one
+SELECT EXISTS (
+    SELECT 1 FROM transcripts t
+    WHERE t.id = $1
+      AND (t.visibility = 'public' OR EXISTS (SELECT 1 FROM transcript_shares s WHERE s.transcript_id = t.id))
+)::bool AS in_set
+`
+
+// Whether anyone but the owner can read the transcript now. The predicate is
+// the same text as ListIntegrityCandidates'.
+func (q *Queries) IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isInIntegrityCheckedSet, id)
+	var in_set bool
+	err := row.Scan(&in_set)
+	return in_set, err
+}
+
 const latestIntegrityResultForContent = `-- name: LatestIntegrityResultForContent :one
 SELECT transcript_id, content_hash, scry_version, verdict, flagged_turns, checked_at
 FROM transcript_integrity_results
@@ -107,6 +197,136 @@ func (q *Queries) LatestIntegrityResultForContent(ctx context.Context, arg Lates
 	return i, err
 }
 
+const listIntegrityCandidates = `-- name: ListIntegrityCandidates :many
+SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider, t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count, t.blob_key, t.blob_size_bytes, t.schema_version, t.published_at, t.updated_at, t.parent_session_id, t.ingested_at, t.source_file_path, t.source_format, t.git_branch, t.git_remote, t.git_worktree, t.project_hash, t.project_path, t.project_name, t.tool_call_count, t.subagent_count, t.duration_ms, t.subagents, t.diagnostics_warnings, t.diagnostics_partial, t.tokens_in, t.tokens_out, t.title_generated, t.outcome, t.files_touched, t.lines_changed, t.retry_loops, t.retry_tokens_wasted, t.within_session_reverts, t.signal_density, t.spec_quality_score, t.exploration_ratio, t.scope_breadth, t.discovery_turns, t.m2_token_outcome_ratio, t.m3_unique_tool_count, t.m4_error_recovery_count, t.m4_consecutive_error_max, t.m5_context_utilization_pct, t.m5_peak_context_tokens, t.m5_avg_message_tokens, t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count, t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version, t.accepted_request_operation_fingerprint, t.session_origin, t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships, t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
+FROM transcripts t
+WHERE (t.visibility = 'public' OR EXISTS (SELECT 1 FROM transcript_shares s WHERE s.transcript_id = t.id))
+  AND t.content_hash IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM transcript_integrity_results r
+      WHERE r.transcript_id = t.id AND r.content_hash = t.content_hash AND r.scry_version = $1
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM transcript_integrity_attempts a
+      WHERE a.transcript_id = t.id AND a.content_hash = t.content_hash AND a.scry_version = $1
+        AND (a.status IN ('done', 'skipped', 'failed') OR a.next_attempt_at > now())
+  )
+ORDER BY EXISTS (
+      SELECT 1 FROM transcript_integrity_results r
+      WHERE r.transcript_id = t.id AND r.content_hash = t.content_hash
+  ) ASC, t.updated_at DESC
+LIMIT $2::int
+`
+
+type ListIntegrityCandidatesParams struct {
+	ScryVersion string `db:"scry_version" json:"scry_version"`
+	Batch       int32  `db:"batch" json:"batch"`
+}
+
+// The transcripts the background check owes an answer under one checker
+// version: in the checked set (public, or shared to any collective in any
+// share status), with a known content hash, no result for that content under
+// this version, and no attempt for it that is finished or waiting out its
+// backoff. Content with no result under any version comes first, so new
+// content is checked before a version sweep; then the most recently updated.
+func (q *Queries) ListIntegrityCandidates(ctx context.Context, arg ListIntegrityCandidatesParams) ([]Transcript, error) {
+	rows, err := q.db.Query(ctx, listIntegrityCandidates, arg.ScryVersion, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Transcript{}
+	for rows.Next() {
+		var i Transcript
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.Title,
+			&i.Description,
+			&i.Visibility,
+			&i.ModelProvider,
+			&i.ModelName,
+			&i.HarnessVersion,
+			&i.SessionStart,
+			&i.SessionEnd,
+			&i.TurnCount,
+			&i.TokenCount,
+			&i.BlobKey,
+			&i.BlobSizeBytes,
+			&i.SchemaVersion,
+			&i.PublishedAt,
+			&i.UpdatedAt,
+			&i.ParentSessionID,
+			&i.IngestedAt,
+			&i.SourceFilePath,
+			&i.SourceFormat,
+			&i.GitBranch,
+			&i.GitRemote,
+			&i.GitWorktree,
+			&i.ProjectHash,
+			&i.ProjectPath,
+			&i.ProjectName,
+			&i.ToolCallCount,
+			&i.SubagentCount,
+			&i.DurationMs,
+			&i.Subagents,
+			&i.DiagnosticsWarnings,
+			&i.DiagnosticsPartial,
+			&i.TokensIn,
+			&i.TokensOut,
+			&i.TitleGenerated,
+			&i.Outcome,
+			&i.FilesTouched,
+			&i.LinesChanged,
+			&i.RetryLoops,
+			&i.RetryTokensWasted,
+			&i.WithinSessionReverts,
+			&i.SignalDensity,
+			&i.SpecQualityScore,
+			&i.ExplorationRatio,
+			&i.ScopeBreadth,
+			&i.DiscoveryTurns,
+			&i.M2TokenOutcomeRatio,
+			&i.M3UniqueToolCount,
+			&i.M4ErrorRecoveryCount,
+			&i.M4ConsecutiveErrorMax,
+			&i.M5ContextUtilizationPct,
+			&i.M5PeakContextTokens,
+			&i.M5AvgMessageTokens,
+			&i.M6OutputSurvivalPct,
+			&i.M6LinesSurvived,
+			&i.M6LinesTotal,
+			&i.M7SpecWordCount,
+			&i.M7SpecHasExamples,
+			&i.M7SpecHasConstraints,
+			&i.ComputedAt,
+			&i.ComputeVersion,
+			&i.ContentHash,
+			&i.LicenseID,
+			&i.WrappedDataKey,
+			&i.EncryptionAlgorithm,
+			&i.KeyVersion,
+			&i.AcceptedRequestOperationFingerprint,
+			&i.SessionOrigin,
+			&i.InputSubmissionCount,
+			&i.RootSessionID,
+			&i.SessionPurpose,
+			&i.SessionRelationships,
+			&i.PublishMetadataKey,
+			&i.PublishMetadataHash,
+			&i.PublishMetadataSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordIntegrityTombstone = `-- name: RecordIntegrityTombstone :exec
 INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at)
 SELECT t.owner_id, t.local_id, min(f.flagged_at)
@@ -123,5 +343,38 @@ SET flagged_at = LEAST(integrity_flag_tombstones.flagged_at, EXCLUDED.flagged_at
 // earlier flag date.
 func (q *Queries) RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, recordIntegrityTombstone, transcriptID)
+	return err
+}
+
+const releaseIntegrityAttempt = `-- name: ReleaseIntegrityAttempt :exec
+WITH released AS (
+    UPDATE transcript_integrity_attempts u
+    SET attempts = u.attempts - 1, next_attempt_at = now(), updated_at = now()
+    WHERE u.transcript_id = $1
+      AND u.content_hash = $2
+      AND u.scry_version = $3
+      AND u.status = 'pending'
+      AND u.attempts > 1
+    RETURNING 1
+)
+DELETE FROM transcript_integrity_attempts d
+WHERE d.transcript_id = $1
+  AND d.content_hash = $2
+  AND d.scry_version = $3
+  AND d.status = 'pending'
+  AND d.attempts = 1
+`
+
+type ReleaseIntegrityAttemptParams struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	ContentHash  string      `db:"content_hash" json:"content_hash"`
+	ScryVersion  string      `db:"scry_version" json:"scry_version"`
+}
+
+// Gives back a taken attempt that sent nothing because the transcript was no
+// longer a candidate when it was read: a first attempt leaves no row, a later
+// one is due again with its earlier count.
+func (q *Queries) ReleaseIntegrityAttempt(ctx context.Context, arg ReleaseIntegrityAttemptParams) error {
+	_, err := q.db.Exec(ctx, releaseIntegrityAttempt, arg.TranscriptID, arg.ContentHash, arg.ScryVersion)
 	return err
 }

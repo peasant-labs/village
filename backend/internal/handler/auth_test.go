@@ -103,6 +103,10 @@ type mockQuerier struct {
 	hasOpenIntegrityFlag                   func(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
 	recordIntegrityTombstone               func(ctx context.Context, transcriptID pgtype.UUID) error
 	inheritIntegrityTombstone              func(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
+	listIntegrityCandidates                func(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error)
+	isInIntegrityCheckedSet                func(ctx context.Context, id pgtype.UUID) (bool, error)
+	claimIntegrityAttempt                  func(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error)
+	completeIntegrityAttempt               func(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error
 	deleteTranscriptReturningDescriptor    func(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 
@@ -602,6 +606,36 @@ func (m *mockQuerier) InheritIntegrityTombstone(ctx context.Context, arg sqlc.In
 		return m.inheritIntegrityTombstone(ctx, arg)
 	}
 	return nil
+}
+func (m *mockQuerier) ListIntegrityCandidates(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error) {
+	if m.listIntegrityCandidates != nil {
+		return m.listIntegrityCandidates(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (bool, error) {
+	if m.isInIntegrityCheckedSet != nil {
+		return m.isInIntegrityCheckedSet(ctx, id)
+	}
+	return false, nil
+}
+func (m *mockQuerier) ClaimIntegrityAttempt(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error) {
+	if m.claimIntegrityAttempt != nil {
+		return m.claimIntegrityAttempt(ctx, arg)
+	}
+	return 0, pgx.ErrNoRows
+}
+func (m *mockQuerier) CompleteIntegrityAttempt(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error {
+	if m.completeIntegrityAttempt != nil {
+		return m.completeIntegrityAttempt(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) ReleaseIntegrityAttempt(context.Context, sqlc.ReleaseIntegrityAttemptParams) error {
+	return nil
+}
+func (m *mockQuerier) IsLegacyLineageContent(context.Context, sqlc.IsLegacyLineageContentParams) (bool, error) {
+	return false, nil
 }
 func (m *mockQuerier) ListTranscriptDescriptorsForRewrap(context.Context, sqlc.ListTranscriptDescriptorsForRewrapParams) ([]sqlc.ListTranscriptDescriptorsForRewrapRow, error) {
 	return nil, nil
