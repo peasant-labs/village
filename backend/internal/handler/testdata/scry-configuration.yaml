@@ -1,8 +1,9 @@
 # The integrity check is on only when SCRY_URL is an http or https URL and
 # SCRY_SHARED_SECRET is at least 32 characters. Every other combination leaves
 # it off. problems is what Problems names; with nothing set it names both
-# variables while the startup log stays one quiet line.
-- {name: both_unset_is_off_quietly, url: '', secret: '', enabled: false, problems: [SCRY_URL, SCRY_SHARED_SECRET]}
+# variables. quiet: the startup log is one line that lists no problem.
+# Every case logs exactly one line.
+- {name: both_unset_is_off_quietly, url: '', secret: '', enabled: false, quiet: true, problems: [SCRY_URL, SCRY_SHARED_SECRET]}
 - {name: url_only_is_off, url: 'http://scry.internal:8080', secret: '', enabled: false, problems: [SCRY_SHARED_SECRET]}
 - {name: secret_only_is_off, url: '', secret: 0123456789abcdef0123456789abcdef, enabled: false, problems: [SCRY_URL]}
 - {name: short_secret_is_off, url: 'http://scry.internal:8080', secret: too-short, enabled: false, problems: [SCRY_SHARED_SECRET]}

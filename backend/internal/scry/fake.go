@@ -26,6 +26,9 @@ type Fake struct {
 	answers  map[string]schema.ScryCheckResponse
 	failWith int
 	requests []schema.ScryCheckRequest
+	// unanswered counts check requests that matched no Answer and so got the
+	// default unflagged reply.
+	unanswered int
 }
 
 // HashOf is the key Answer uses: the hex SHA-256 of the JSON encoding of the
@@ -55,7 +58,10 @@ func (f *Fake) URL() string { return f.server.URL }
 func (f *Fake) Settings() Settings { return Settings{URL: f.server.URL, SharedSecret: FakeSecret} }
 
 // Answer sets the response for a transcript whose session detail hashes to
-// hash (see HashOf).
+// hash. The key is HashOf(SessionDetail), NOT the stored content_hash: a key
+// from the wrong source never matches and the request gets the default
+// unflagged reply. A test that answers by key should assert Unanswered() is
+// zero so such a miss cannot pass silently.
 func (f *Fake) Answer(hash string, resp schema.ScryCheckResponse) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -67,6 +73,14 @@ func (f *Fake) Fail(status int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failWith = status
+}
+
+// Unanswered is the number of check requests that matched no Answer and got
+// the default reply. A test that expects its answers to be used asserts zero.
+func (f *Fake) Unanswered() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.unanswered
 }
 
 // SetVersion changes the scry version the fake reports.
@@ -122,6 +136,9 @@ func (f *Fake) check(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.requests = append(f.requests, req)
 	resp, ok := f.answers[HashOf(req.SessionDetail)]
+	if !ok {
+		f.unanswered++
+	}
 	version := f.version
 	f.mu.Unlock()
 	if !ok {

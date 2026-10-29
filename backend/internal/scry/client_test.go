@@ -249,7 +249,15 @@ func TestFake(t *testing.T) {
 	if _, err = c.Check(context.Background(), req); Classify(err) != ClassUnavailable {
 		t.Fatalf("fail = %v", err)
 	}
-	if len(f.Requests()) != 2 {
+	f.Fail(0)
+	if f.Unanswered() != 1 {
+		t.Fatalf("unanswered = %d, want 1 (the default-answered request)", f.Unanswered())
+	}
+	f.Answer(HashOf(req.SessionDetail), schema.ScryCheckResponse{ScryVersion: "1.2.3", Verdict: schema.ScryVerdictChecked, FlaggedTurns: []int{0}})
+	if _, err = c.Check(context.Background(), req); err != nil || f.Unanswered() != 1 {
+		t.Fatalf("an answered request must not count: %v, %d", err, f.Unanswered())
+	}
+	if len(f.Requests()) != 3 {
 		t.Fatalf("recorded %d requests", len(f.Requests()))
 	}
 }

@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	_ "embed"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -18,6 +21,7 @@ type scryConfigurationCase struct {
 	Secret   string   `yaml:"secret"`
 	Enabled  bool     `yaml:"enabled"`
 	Problems []string `yaml:"problems"`
+	Quiet    bool     `yaml:"quiet"`
 }
 
 var requiredScryConfigurationCases = []string{
@@ -39,7 +43,22 @@ func TestScryConfiguration(t *testing.T) {
 	assertExactTitleFixtureNames(t, "scry-configuration", present, requiredScryConfigurationCases)
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
+			var logged bytes.Buffer
+			log.SetOutput(&logged)
+			flags := log.Flags()
+			log.SetFlags(0)
+			t.Cleanup(func() { log.SetOutput(os.Stderr); log.SetFlags(flags) })
 			svc := newIntegrityService(&config.Config{ScryURL: c.URL, ScrySharedSecret: c.Secret})
+			lines := strings.Split(strings.TrimRight(logged.String(), "\n"), "\n")
+			if len(lines) != 1 || lines[0] == "" {
+				t.Fatalf("logged %d lines %q, want exactly one", len(lines), logged.String())
+			}
+			if c.Quiet && (strings.Contains(lines[0], "incomplete") || strings.Contains(lines[0], "not set") || strings.Contains(lines[0], "shorter")) {
+				t.Fatalf("quiet line %q names a problem list", lines[0])
+			}
+			if strings.Contains(lines[0], "SECRETVALUE") || strings.Contains(lines[0], c.Secret) && c.Secret != "" {
+				t.Fatalf("log line %q echoes a value", lines[0])
+			}
 			if (svc != nil) != c.Enabled {
 				t.Fatalf("integrity enabled = %v, want %v", svc != nil, c.Enabled)
 			}
