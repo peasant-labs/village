@@ -62,6 +62,13 @@ type Handler struct {
 	// an observation point for tests, like discoveryReadBarrier: the same
 	// statements run whether or not it is set.
 	onIntegrityNudge func()
+	// onIntegrityCandidates, when non-nil, runs once per background check
+	// pass, after the pass lists its candidates and before it reads any of
+	// them, so a test can change a transcript's audience in between.
+	onIntegrityCandidates func()
+
+	// integrity is the background integrity check, nil when it is off.
+	integrity *integrityService
 
 	// projectNames resolves the one display name every surface renders for a
 	// project. Its RemoteLabeler seam is filled by the contract module's
@@ -192,6 +199,9 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 
 	// Email is optional too. Without it invitations still work in the app.
 	h.mail = newMailService(cfg)
+
+	// So is the integrity check. Without it no transcript is checked.
+	h.integrity = newIntegrityService(cfg)
 
 	return h
 }

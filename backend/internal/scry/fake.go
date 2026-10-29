@@ -25,7 +25,9 @@ type Fake struct {
 	version  string
 	answers  map[string]schema.ScryCheckResponse
 	failWith int
-	requests []schema.ScryCheckRequest
+	// failCheckWith fails only check requests, so health still answers.
+	failCheckWith int
+	requests      []schema.ScryCheckRequest
 	// unanswered counts check requests that matched no Answer and so got the
 	// default unflagged reply.
 	unanswered int
@@ -73,6 +75,14 @@ func (f *Fake) Fail(status int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failWith = status
+}
+
+// FailCheck makes every check request answer with status while health keeps
+// answering; zero restores normal answers.
+func (f *Fake) FailCheck(status int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failCheckWith = status
 }
 
 // Unanswered is the number of check requests that matched no Answer and got
@@ -125,6 +135,13 @@ func (f *Fake) health(w http.ResponseWriter, r *http.Request) {
 
 func (f *Fake) check(w http.ResponseWriter, r *http.Request) {
 	if f.gate(w, r) {
+		return
+	}
+	f.mu.Lock()
+	status := f.failCheckWith
+	f.mu.Unlock()
+	if status != 0 {
+		w.WriteHeader(status)
 		return
 	}
 	raw, err := io.ReadAll(r.Body)

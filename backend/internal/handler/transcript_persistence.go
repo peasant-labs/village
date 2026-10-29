@@ -223,12 +223,3 @@ func setPublishMetadataObject(ctx context.Context, q Querier, transcriptID pgtyp
 // contentHashHeader names the generation the content route served: its value
 // is the bare lowercase hex content hash of that generation.
 const contentHashHeader = "Village-Content-Hash"
-
-// nudgeIntegrity tells the integrity queue that a transcript's content may
-// have changed. It is called after every committed publish and after a
-// migrate-on-read rewrite installs a new generation.
-func (h *Handler) nudgeIntegrity() {
-	if h.onIntegrityNudge != nil {
-		h.onIntegrityNudge()
-	}
-}

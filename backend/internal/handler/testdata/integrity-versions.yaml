@@ -1,0 +1,17 @@
+# How the background check moves its idea of the checker's version.
+#
+# current: the version held before (empty: none yet).
+# source: health (the service's own report, which is authoritative) or
+#   answer (the version on one check answer, which only moves it forward).
+# observed: the version reported.
+# want: the version held after.
+#
+# Versions are compared as numbers, never as text.
+
+- {name: first_health_sets, why: nothing is held before the first report, current: "", source: health, observed: 1.0.0, want: 1.0.0}
+- {name: health_moves_back, why: "the service's own report is what it runs now, even after a rollback", current: 1.2.0, source: health, observed: 1.1.0, want: 1.1.0}
+- {name: newer_answer_moves_forward, why: an answer from a newer checker starts the sweep before the next health call, current: 1.0.0, source: answer, observed: 1.0.1, want: 1.0.1}
+- {name: answer_order_is_numeric, why: 1.10.0 is later than 1.9.0 although it sorts earlier as text, current: 1.9.0, source: answer, observed: 1.10.0, want: 1.10.0}
+- {name: older_answer_does_not_rewind, why: an answer from an older instance during a rollout must not restart a sweep, current: 1.10.0, source: answer, observed: 1.9.0, want: 1.10.0}
+- {name: same_answer_keeps, why: an answer under the held version changes nothing, current: 2.0.0, source: answer, observed: 2.0.0, want: 2.0.0}
+- {name: first_answer_sets, why: an answer before any health report is the only version known, current: "", source: answer, observed: 0.3.0, want: 0.3.0}
