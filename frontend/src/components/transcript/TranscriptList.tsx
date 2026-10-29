@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Pencil, Trash2 } from "lucide-react";
-import { formatCount, ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
+import { Avatar, formatCount, ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import TranscriptEditDialog from "./TranscriptEditDialog";
 import ChildSessionDisclosure from "./ChildSessionDisclosure";
@@ -320,35 +319,18 @@ function Row({
   const selectable = selection !== undefined;
   const selected = selection?.selectedIDs.has(t.id) ?? false;
 
-  const ownerFace = attribution.anonymous ? (
-    <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-3">
-      ?
-    </div>
-  ) : profile?.avatar_url ? (
-    <Image src={profile.avatar_url} alt="" width={16} height={16} unoptimized className="w-4 h-4 border border-rule" />
-  ) : (
-    <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-2">
-      {attribution.label[0].toUpperCase()}
-    </div>
+  const ownerFace = (
+    <span aria-hidden="true">
+      <Avatar name={attribution.label} initials={attribution.anonymous ? "?" : undefined} src={profile?.avatar_url ?? undefined} />
+    </span>
   );
-  // An anonymous author is never linked, whatever the list asked for: the whole
-  // point of the anonymous pill is that it names nobody, and a link to
-  // /users/<handle> would name them in its href.
-  const ownerPill =
-    linkOwner && profile ? (
-      <Link
-        href={`/users/${encodeURIComponent(profile.username)}`}
-        className="inline-flex min-w-0 items-center gap-2 focus-mono cursor-pointer hover:underline"
-      >
-        {ownerFace}
-        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 truncate max-w-[6.5rem] sm:max-w-[14rem]" title={attribution.label}>{attribution.label}</span>
-      </Link>
-    ) : (
-      <>
-        {ownerFace}
-        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 truncate max-w-[6.5rem] sm:max-w-[14rem]" title={attribution.label}>{attribution.label}</span>
-      </>
-    );
+  const ownerLabel = <span className="on-transcript-owner-label" title={attribution.label}>{attribution.label}</span>;
+  // Anonymous attribution stays unlinked: even an href would name its author.
+  const ownerPill = linkOwner && profile ? (
+    <Link href={`/users/${encodeURIComponent(profile.username)}`} className="on-transcript-owner focus-mono hover:underline">
+      {ownerFace}{ownerLabel}
+    </Link>
+  ) : <span className="on-transcript-owner">{ownerFace}{ownerLabel}</span>;
 
   function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
@@ -447,7 +429,7 @@ function Row({
       {/* The owner keeps to its width: a long handle ends in an ellipsis
           (named in full on hover) rather than pushing the title and its facts
           out of the row. */}
-      <div className="relative z-10 flex min-w-0 items-center gap-2 shrink-0">
+      <div className={cn("relative z-10 on-transcript-attribution", hideOwner && "is-owner-hidden", hideVisibility && "is-visibility-hidden")}>
         {!hideOwner && <>{ownerPill}</>}
         {!hideVisibility && (
           <VisibilityEye

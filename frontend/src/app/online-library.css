@@ -74,3 +74,30 @@
 
 /* Home's plain toolbar actions share the search and menu controls' outer height. */
 .on-home-library .on-tools > .btn { min-height: var(--target-comfortable); }
+
+
+/* Repeated authors share a stable avatar, handle and visibility track. */
+.on-transcript-attribution {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ic-lg);
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  min-width: 0;
+  inline-size: calc(14ch + var(--ic-lg) * 2 + var(--sp-2) * 2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+}
+.on-transcript-owner {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.on-transcript-owner-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
+.on-transcript-attribution.is-owner-hidden { inline-size: auto; grid-template-columns: var(--ic-lg); }
+.on-transcript-attribution.is-visibility-hidden { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 600px) {
+  .on-transcript-attribution:not(.is-owner-hidden) { inline-size: calc(8ch + var(--ic-lg) * 2 + var(--sp-2) * 2); }
+}
