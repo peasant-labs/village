@@ -22,16 +22,18 @@ import CollectiveSubmissions from "./CollectiveSubmissions";
 function ContributionCounter({
   testId,
   label,
+  shortLabel,
   value,
 }: {
   testId: string;
   label: string;
+  shortLabel?: string;
   value: number;
 }) {
   return (
-    <div data-testid={testId} className="flex min-w-0 flex-col gap-0.5">
-      <span className="font-mono text-[length:var(--fs-label)] text-ink-3">{label}</span>
-      <span className="font-mono text-sm text-ink tabular-nums">{value.toLocaleString()}</span>
+    <div data-testid={testId} className="on-contribution-counter">
+      <dt>{shortLabel ? <><span aria-hidden="true">{shortLabel}</span><span className="sr-only">{label}</span></> : label}</dt>
+      <dd>{value.toLocaleString()}</dd>
     </div>
   );
 }
@@ -67,15 +69,17 @@ function ContributedCollectiveRow({
           )}
         </div>
         <div className="on-contribution-facts">
-          <div className="on-contribution-counters">
+          <dl className="on-contribution-counters">
             <ContributionCounter
               testId="counter-approved"
               label={CONTRIBUTION_COUNTER_LABELS.approved}
+              shortLabel="approved"
               value={collective.approved_count}
             />
             <ContributionCounter
               testId="counter-pending"
               label={CONTRIBUTION_COUNTER_LABELS.pending}
+              shortLabel="awaiting review"
               value={collective.pending_count}
             />
             <ContributionCounter
@@ -88,7 +92,7 @@ function ContributedCollectiveRow({
               label={CONTRIBUTION_COUNTER_LABELS.withdrawnAttempts}
               value={collective.withdrawn_attempt_count}
             />
-          </div>
+          </dl>
           <button
             type="button"
             aria-expanded={open}

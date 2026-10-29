@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Image from "next/image";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
@@ -10,17 +10,13 @@ import {
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
-import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
+import { usePublicProfile } from "@/lib/queries/auth";
 import { usePublicOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import {
-  Button,
-  ConsentDialog,
   DataState,
-  RailSection,
-  RailShell,
   TeachingEmptyState,
 } from "@/lib/ft-ui";
 import DocsLink from "@/components/online/DocsLink";
@@ -29,13 +25,10 @@ import ProfileCollectives from "@/components/collective/ProfileCollectives";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import { groupByProject } from "@/lib/format";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
-import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   EyeOff,
   FolderOpen,
   Library,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
@@ -75,8 +68,6 @@ export default function UserProfilePage({
   const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
   const refreshGrouped = grouped.refreshOrigin;
-  const deleteAccountMutation = useDeleteAccount();
-  const updateSettingsMutation = useUpdateMySettings();
 
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
@@ -92,11 +83,6 @@ export default function UserProfilePage({
   const effectiveProfile = profile ?? (isOwnProfile ? user : undefined);
   const displayName = effectiveProfile?.display_name ?? username;
   const avatarUrl = effectiveProfile?.avatar_url ?? undefined;
-
-  // Deleting the account is asked in fairtrade's consent dialog: what goes,
-  // and a tick that the person understands it cannot be undone, before the
-  // same request the settings page sends.
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (isProfileError && !isOwnProfile) {
     return (
@@ -275,66 +261,7 @@ export default function UserProfilePage({
     </div>
   );
 
-  // ── Rail — own profile only ──────────────────────────────────────────────────
-  // Privacy toggle + account ops in two RailSections. Null for viewers: no rail
-  // content means no RailShell (avoids a blank 320 px column beside the library).
-  const profileRail =
-    isOwnProfile && user ? (
-      <>
-        <RailSection title="privacy" icon={EyeOff} meta={undefined}>
-          <div className="flex flex-col gap-4">
-            <p className="text-sm font-medium text-ink">discoverable profile</p>
-            <label
-              className={cn(
-                "inline-flex items-center gap-2 cursor-pointer select-none",
-                updateSettingsMutation.isPending && "opacity-50 cursor-wait",
-              )}
-            >
-              <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
-                {user.is_discoverable ? "on" : "off"}
-              </span>
-              <input
-                type="checkbox"
-                checked={user.is_discoverable}
-                disabled={updateSettingsMutation.isPending}
-                onChange={(e) =>
-                  updateSettingsMutation.mutate({
-                    is_discoverable: e.target.checked,
-                  })
-                }
-                className="h-4 w-4 border border-rule bg-surface focus-mono cursor-pointer disabled:cursor-wait"
-              />
-            </label>
-          </div>
-        </RailSection>
-
-        <RailSection title="account" icon={AlertTriangle} meta={undefined}>
-          <div className="flex flex-col gap-3">
-            <p className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed">
-              permanently delete your account. this also removes your published
-              transcripts and the collectives you own. this cannot be undone.
-            </p>
-            <Button
-              variant="danger"
-              size="sm"
-              icon={Trash2}
-              disabled={deleteAccountMutation.isPending}
-              onClick={() => setConfirmingDelete(true)}
-            >
-              {deleteAccountMutation.isPending ? "deleting" : "delete account"}
-            </Button>
-            {deleteAccountMutation.isError && (
-              <p role="alert" className="text-[length:var(--fs-body)] text-ink">
-                your account was not deleted: {deleteAccountMutation.error.message}
-              </p>
-            )}
-          </div>
-        </RailSection>
-      </>
-    ) : null;
-
   return (
-    <>
     <OnPage tight={isLoggedIn} testId="profile-page">
       <ProfileCrumb username={username} signedIn={isLoggedIn} />
 
@@ -367,6 +294,7 @@ export default function UserProfilePage({
             <p className="on-chrome m-0">@{username}</p>
           </div>
         </div>
+        {isOwnProfile && <div className="on-actions"><Link href="/settings" className="btn btn-secondary">settings</Link></div>}
       </header>
 
       {/*
@@ -420,51 +348,7 @@ export default function UserProfilePage({
        * place it can be got wrong rather than two. */}
       <ProfileCollectives isOwnProfile={isOwnProfile} />
 
-      {/*
-       * Library + profile settings.
-       *
-       * Own profile  → RailShell: library as scrolling canvas, privacy toggle +
-       *   account ops in a 320 px sticky rail. On mobile the rail collapses into a
-       *   fixed bottom-sheet toggled by "profile settings".
-       *
-       * Viewer profile → library standalone, no rail column.
-       */}
-      {profileRail ? (
-        <RailShell
-          toolbar={undefined}
-          sheetMeta={undefined}
-          sheetTitle="profile settings"
-          rail={profileRail}
-        >
-          {libraryPanel}
-        </RailShell>
-      ) : (
-        libraryPanel
-      )}
+      {libraryPanel}
     </OnPage>
-
-      {isOwnProfile && (
-        <ConsentDialog
-          open={confirmingDelete}
-          labelId="cns-delete-account"
-          tone="danger"
-          title="delete your account?"
-          intro={
-            <p>
-              your account is removed from peasant online, with the transcripts you published and the
-              collectives you own.
-            </p>
-          }
-          consentLabel="i understand this cannot be undone"
-          confirmLabel="delete account"
-          confirmIcon={Trash2}
-          busy={deleteAccountMutation.isPending}
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={() =>
-            deleteAccountMutation.mutate(undefined, { onError: () => setConfirmingDelete(false) })
-          }
-        />
-      )}
-    </>
   );
 }

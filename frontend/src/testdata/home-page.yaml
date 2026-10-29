@@ -340,7 +340,7 @@ homeCases:
     expectSharedWithCells:
       - { title: Private approved session, text: [not shared with collective members] }
 
-  - name: more-sessions-than-the-recent-list-shows-are-capped
+  - name: a-long-library-pages-without-dropping-transcripts
     # More rows than one page: the table lists the first page, says how many it
     # holds out of the total, and `show N more` appends the rest. The rows are
     # written newest first so the first page served is the newest one.

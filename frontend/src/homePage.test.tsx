@@ -421,6 +421,8 @@ describe("mounted home route: your transcripts, their totals and your collective
         expect(notice!.getAttribute("role")).toBe("alert");
       }
 
+      expect(screen.queryByTestId("home-recent")).not.toBeInTheDocument();
+      expect(document.querySelectorAll(".on-home-library")).toHaveLength(1);
       const empty = document.querySelector('[data-testid="home-empty-state"]');
       expect(empty !== null).toBe(c.expectHomeSurface === "empty");
       if (c.expectHomeSurface === "empty") {

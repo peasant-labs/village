@@ -37,7 +37,7 @@ async function groupByNothing(page) {
 }
 
 test.describe('home', () => {
-  test('lists your transcripts, their totals and the newest as cards', async ({ page, theme }, testInfo) => {
+  test('lists your transcripts once, with totals and one searchable library', async ({ page, theme }, testInfo) => {
     await page.goto('/')
     const home = page.getByTestId('home-page')
     await expect(home).toBeVisible()
@@ -52,11 +52,8 @@ test.describe('home', () => {
     await expect(stats).toContainText('9 pull requests linked')
     await expect(stats).toContainText('19.1M tokens recorded')
 
-    // The newest three as cards, each leading to its transcript.
-    const recent = page.getByRole('region', { name: 'recent' })
-    await expect(recent.getByRole('link')).toHaveCount(Math.min(3, HOME_ROWS.length))
-    // A card carries where it was opened from, so the transcript page can lead back here.
-    await expect(recent.getByRole('link').first()).toHaveAttribute('href', `/transcripts/${HOME_ROWS[0].id}?in=home`)
+    await expect(page.getByTestId('home-recent')).toHaveCount(0)
+    await expect(page.locator('.on-home-library')).toHaveCount(1)
 
     // The table opens grouped by project with every group closed; one control
     // opens them all.

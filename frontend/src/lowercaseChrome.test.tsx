@@ -497,7 +497,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       } else {
         await screen.findByText("published library");
         await waitFor(() => expect(document.body.textContent).toContain("transcript-flaky-ingest"));
-        if (c.state === "own") await screen.findAllByText("discoverable profile");
+        if (c.state === "own") expect(screen.queryByText("discoverable profile")).toBeNull();
       }
       return document.body;
     }

@@ -18,7 +18,6 @@ import {
 import { useAuth } from "@/providers/AuthProvider";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import HomeTable from "@/components/home/HomeTable";
-import HomeRecent from "@/components/home/HomeRecent";
 import HomeWaiting from "@/components/home/HomeWaiting";
 import DocsLink from "@/components/online/DocsLink";
 import { DOCS_PUBLISH_URL } from "@/lib/appLinks";
@@ -502,7 +501,6 @@ function HomeBody({ username }: { username: string }) {
         }}
       />
 
-      {query === "" && !searching && own != null && <HomeRecent rows={rows} now={now} />}
 
       <section className="on-home-library" aria-labelledby="home-library-title">
       <h2 id="home-library-title" className="on-h2">library</h2>

@@ -9,9 +9,10 @@
 .on-contribution-name p { max-width: var(--measure-prose); margin: 0; }
 .on-contribution-link { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 600; color: var(--ink); width: fit-content; overflow-wrap: anywhere; }
 .on-contribution-link:hover { text-decoration: underline; }
-.on-contribution-facts { display: flex; align-items: end; gap: var(--sp-5); min-width: 0; }
-.on-contribution-counters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); flex: 1; min-width: 0; }
-.on-contribution-counters > div > span:last-child { order: -1; font-size: var(--fs-body); }
+.on-contribution-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5); min-width: 0; }
+.on-contribution-counters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5); min-width: 0; margin: 0; }
+.on-contribution-counter { display: inline-flex; align-items: baseline; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-label); color: var(--ink-3); }
+.on-contribution-counter dd { order: -1; margin: 0; font-weight: 600; font-size: var(--fs-body); color: var(--ink-strong); font-variant-numeric: tabular-nums; }
 .on-contribution-toggle { flex: none; }
 .on-contribution-submissions { padding-block-end: var(--sp-5); min-width: 0; }
 .on-submissions-list { display: grid; list-style: none; margin: 0; padding: 0; min-width: 0; }
@@ -52,9 +53,7 @@
   .on-contribute-browser { max-block-size: min(75dvh, calc(var(--sp-8) * 14)); }
 }
 @media (max-width: 767px) {
-  .on-contribution-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .on-contribution-facts { flex-wrap: wrap; }
-  .on-contribution-counters { flex-basis: 100%; }
   .on-contribute-filters { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -62,11 +61,9 @@
 .on-invite-row { align-items: stretch; }
 .on-invite-row :is(.on-input, .btn) { height: var(--control-h); min-height: var(--control-h); padding-block: 0; }
 
-/* The dashboard's overview, recent items and working library have distinct rhythms. */
+/* The dashboard separates its overview from the working library. */
 .on-home-library { display: grid; gap: var(--sp-4); min-width: 0; border-top: var(--bd); padding-block-start: var(--sp-6); }
 .on-home-library > .on-h2 { margin: 0; }
-.on-page > .on-recent { padding-block: var(--sp-3); }
-.on-page > .on-recent .on-rcard { border: var(--bd); background: var(--surface-2); }
 .on-home-library .on-table-box { max-width: 100%; border-top: var(--bd); }
 .on-home-library .on-table { table-layout: auto; }
 .on-home-library .on-table tr.is-in > td:first-child { padding-inline-start: var(--sp-5); background-image: none; }
