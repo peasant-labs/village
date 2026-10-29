@@ -58,6 +58,11 @@ type Handler struct {
 	// path: the same count/page/commit statements run whether or not it is set.
 	discoveryReadBarrier func()
 
+	// onIntegrityNudge, when non-nil, observes every integrity nudge. It is
+	// an observation point for tests, like discoveryReadBarrier: the same
+	// statements run whether or not it is set.
+	onIntegrityNudge func()
+
 	// projectNames resolves the one display name every surface renders for a
 	// project. Its RemoteLabeler seam is filled by the contract module's
 	// RemoteLabel, so the rule that turns a raw git remote into a

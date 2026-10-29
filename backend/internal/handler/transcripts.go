@@ -1172,17 +1172,30 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// servedHash names the generation the body comes from: the stored identity
+	// of the generation that was read, or the identity a rewrite installed. A
+	// pending identity names none.
+	var servedHash storage.ContentHash
+	if loaded, err := identityFromTranscript(readResult.Row); err == nil {
+		if _, known := loaded.Known(); known {
+			servedHash = readResult.Identity.Hash()
+		}
+	}
 	response := raw
 	if rewrite {
 		encoded, encodeErr := encodeCanonicalTranscript(payload)
 		if encodeErr == nil {
 			response = encoded
-			if _, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded, sniffShape(raw)); err != nil {
+			installed, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded, sniffShape(raw))
+			if err != nil {
 				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
 					writeError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
 				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
+			} else if installed != nil {
+				servedHash = installed.Hash()
+				h.nudgeIntegrity()
 			}
 		} else if errors.Is(encodeErr, errCanonicalRewriteTooLarge) {
 			// Escaping during an optional read repair must not poison a valid
@@ -1226,6 +1239,9 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	if servedHash != "" {
+		w.Header().Set(contentHashHeader, string(servedHash))
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(response)
 }

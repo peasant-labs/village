@@ -1,0 +1,90 @@
+# GET /transcripts/{id}/content and the Village-Content-Hash response header.
+#
+# The header names the generation the served body came from: the identity a
+# migrate-on-read rewrite installed when it installed one, otherwise the stored
+# identity of the generation that was read. A row whose identity is pending
+# sends no header. Withholding an anonymous owner's repository fields does not
+# change it. The route never sends an ETag.
+#
+# stored: canonical (a current envelope, served as stored) or legacy (a bare
+#   provider-keyed payload that migrate-on-read rewrites).
+# identity: known (the row carries content_hash) or pending (it does not).
+# cas: installed (the rewrite's compare-and-swap matches) or lost (another
+#   writer moved the row first, seen inside the transaction).
+# viewers: who reads it; each one is asserted. owner, other, signed_out.
+# owner_anonymous: the owner is hidden, so their repository is withheld.
+# want_header: read (the stored hash), installed (the rewrite's new hash) or none.
+# want_nudges: how many times the integrity queue was nudged per read.
+# want_rewrite_records: whether the metadata replace and the rewrite record ran.
+# cors: the case goes through the CORS middleware with OPTIONS and GET.
+
+- name: envelope_sends_its_hash
+  why: a canonical generation is served as stored, so the header is its stored hash
+  stored: canonical
+  identity: known
+  viewers: [signed_out]
+  want_header: read
+  want_nudges: 0
+
+- name: pending_identity_sends_none
+  why: a pending identity names no hash, so no header is sent
+  stored: canonical
+  identity: pending
+  viewers: [signed_out]
+  want_header: none
+  want_nudges: 0
+
+- name: rewrite_moves_the_header_and_queues_the_new_hash
+  why: an installed rewrite serves its new generation, so the header is the installed hash and the queue is nudged once
+  stored: legacy
+  identity: known
+  cas: installed
+  viewers: [signed_out]
+  want_header: installed
+  want_nudges: 1
+  want_rewrite_records: true
+
+- name: lost_rewrite_race_sends_the_read_hash
+  why: when another writer wins the compare-and-swap inside the transaction nothing is installed, so the header stays the read hash and nothing is recorded
+  stored: legacy
+  identity: known
+  cas: lost
+  viewers: [signed_out]
+  want_header: read
+  want_nudges: 0
+  want_rewrite_records: false
+
+- name: anonymous_owner_sends_the_same_hash
+  why: withholding drops repository fields of the same generation, so the header does not change
+  stored: canonical
+  identity: known
+  owner_anonymous: true
+  viewers: [signed_out, other]
+  want_header: read
+  want_nudges: 0
+
+- name: no_etag_on_any_path
+  why: the browser content route has no conditional-request behaviour for any viewer
+  stored: canonical
+  identity: known
+  viewers: [owner, other, signed_out]
+  want_header: read
+  want_nudges: 0
+
+- name: no_etag_for_an_anonymous_owner
+  why: the withheld response has no ETag either
+  stored: canonical
+  identity: known
+  owner_anonymous: true
+  viewers: [owner, other, signed_out]
+  want_header: read
+  want_nudges: 0
+
+- name: cors_exposes_the_header
+  why: a cross-origin browser can read the header only when CORS exposes it, on the preflight and on the GET
+  stored: canonical
+  identity: known
+  viewers: [signed_out]
+  want_header: read
+  want_nudges: 0
+  cors: true
