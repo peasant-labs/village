@@ -87,6 +87,7 @@ var requiredIntegrityTriggerCases = []string{
 	"store_failure_backs_off_and_caps",
 	"database_failure_before_the_call_backs_off",
 	"claim_refuses_past_the_cap",
+	"newer_answer_starts_the_sweep",
 	"withdrawn_share_stops_checks",
 	"reshare_of_checked_hash_sends_nothing",
 	"public_publish_is_checked_once",
@@ -261,12 +262,13 @@ func TestIntegrityTriggers(t *testing.T) {
 			refText := map[string]string{}
 			answers := map[string][]int{}
 			version := "1.0.0"
+			answerVersion := version
 			answer := func(detail string, turns []int) {
 				if turns == nil {
 					turns = []int{}
 				}
 				answers[detail] = turns
-				fake.Answer(detail, schema.ScryCheckResponse{ScryVersion: version, Verdict: schema.ScryVerdictChecked, FlaggedTurns: turns})
+				fake.Answer(detail, schema.ScryCheckResponse{ScryVersion: answerVersion, Verdict: schema.ScryVerdictChecked, FlaggedTurns: turns})
 			}
 			name := func(step integrityTriggerStep) string {
 				if step.T == "" {
@@ -365,8 +367,14 @@ func TestIntegrityTriggers(t *testing.T) {
 						refDetail[step.As] = scry.HashOf(*envelope.SessionDetail)
 						answer(refDetail[step.As], nil)
 					}
+				case "answer_version":
+					answerVersion = step.Version
+					for detail, turns := range answers {
+						answer(detail, turns)
+					}
 				case "set_version":
 					version = step.Version
+					answerVersion = version
 					fake.SetVersion(version)
 					for detail, turns := range answers {
 						answer(detail, turns)

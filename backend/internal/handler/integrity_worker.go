@@ -159,8 +159,8 @@ func (h *Handler) nudgeIntegrity() {
 }
 
 // integrityTick runs one pass: ask the service its version, list what has no
-// answer under it, and check each transcript in turn. When the service does
-// not answer health the pass ends before it writes anything.
+// answer under the held version, and check each transcript in turn. When the
+// service does not answer health the pass ends before it writes anything.
 func (h *Handler) integrityTick(ctx context.Context) error {
 	s := h.integrity
 	if s == nil {
@@ -176,42 +176,59 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 		slog.Info("integrity check service did not answer health", "outcome", string(scry.Classify(err)), "status", scryStatus(err))
 		return nil
 	}
-	s.setVersion(health.ScryVersion)
-	version := health.ScryVersion
+	s.observeVersion(health.ScryVersion)
 
-	rows, err := h.queries.ListIntegrityCandidates(ctx, sqlc.ListIntegrityCandidatesParams{ScryVersion: version, MaxAttempts: maxIntegrityAttempts, Batch: integrityBatchSize})
-	if err != nil {
-		if ctx.Err() != nil {
-			return nil
-		}
-		return fmt.Errorf("list integrity candidates: %w", err)
-	}
-	if h.onIntegrityCandidates != nil {
-		h.onIntegrityCandidates()
-	}
+	// The pass lists and records under the held version. When an answer
+	// moves it forward, the rest of the pass lists again under the newer
+	// version, so a sweep starts without waiting for the next health call.
+	// One pass checks at most integrityBatchSize transcripts in all.
 	var errs []error
 	pause := false
-	for _, row := range rows {
-		if ctx.Err() != nil {
-			return errors.Join(errs...)
-		}
-		if pause && s.callSpacing > 0 {
-			timer := time.NewTimer(s.callSpacing)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
+	budget := integrityBatchSize
+	for budget > 0 {
+		version, _ := s.currentVersion()
+		rows, err := h.queries.ListIntegrityCandidates(ctx, sqlc.ListIntegrityCandidatesParams{ScryVersion: version, MaxAttempts: maxIntegrityAttempts, Batch: int32(budget)})
+		if err != nil {
+			if ctx.Err() != nil {
 				return errors.Join(errs...)
-			case <-timer.C:
+			}
+			return errors.Join(append(errs, fmt.Errorf("list integrity candidates: %w", err))...)
+		}
+		if h.onIntegrityCandidates != nil {
+			h.onIntegrityCandidates()
+		}
+		advanced := false
+		for _, row := range rows {
+			if ctx.Err() != nil {
+				return errors.Join(errs...)
+			}
+			if pause && s.callSpacing > 0 {
+				timer := time.NewTimer(s.callSpacing)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return errors.Join(errs...)
+				case <-timer.C:
+				}
+			}
+			budget--
+			sent, stop, err := h.checkCandidate(ctx, version, row)
+			pause = sent
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if stop {
+				// The service refused the secret; every other check would
+				// be refused too, and none of them says anything about
+				// content.
+				return errors.Join(errs...)
+			}
+			if held, _ := s.currentVersion(); held != version {
+				advanced = true
+				break
 			}
 		}
-		sent, stop, err := h.checkCandidate(ctx, version, row)
-		pause = sent
-		if err != nil {
-			errs = append(errs, err)
-		}
-		if stop {
-			// The service refused the secret; every other check would be
-			// refused too, and none of them says anything about content.
+		if !advanced {
 			break
 		}
 	}

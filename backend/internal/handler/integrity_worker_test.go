@@ -26,7 +26,7 @@ type integrityVersionCase struct {
 }
 
 var requiredIntegrityVersionCases = []string{
-	"first_health_sets", "health_moves_back", "newer_answer_moves_forward", "answer_order_is_numeric",
+	"first_health_sets", "health_does_not_move_back", "newer_health_moves_forward", "newer_answer_moves_forward", "answer_order_is_numeric",
 	"older_answer_does_not_rewind", "same_answer_keeps", "first_answer_sets",
 }
 
@@ -44,12 +44,12 @@ func TestIntegrityVersionTracking(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			s := newIntegrityServiceFor(nil)
 			if c.Current != "" {
-				s.setVersion(c.Current)
+				s.observeVersion(c.Current)
 			}
 			switch c.Source {
-			case "health":
-				s.setVersion(c.Observed)
-			case "answer":
+			case "health", "answer":
+				// The two sources follow the one rule; the case names which
+				// report it models.
 				s.observeVersion(c.Observed)
 			default:
 				t.Fatalf("unknown source %q", c.Source)

@@ -64,16 +64,11 @@ func (s *integrityService) currentVersion() (string, bool) {
 	return *v, true
 }
 
-// setVersion records the version the service's health report names. It is
-// what the service runs now, so it replaces the held version even when it is
-// older (a rollback).
-func (s *integrityService) setVersion(v string) {
-	s.version.Store(&v)
-}
-
-// observeVersion records the version on one check answer. It only moves the
-// held version forward: during a rollout an older instance may still answer,
-// and that must not restart a sweep. Versions compare as numbers.
+// observeVersion records a version the service reported, on a health call
+// or on one check answer. It only moves the held version forward: during a
+// rollout an older instance may still answer, and that must not restart a
+// sweep. A rollback to an older checker is picked up when the server
+// restarts. Versions compare as numbers.
 func (s *integrityService) observeVersion(v string) {
 	for {
 		held := s.version.Load()

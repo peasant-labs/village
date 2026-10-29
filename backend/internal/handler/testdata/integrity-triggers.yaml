@@ -22,6 +22,9 @@
 #   read_content: the content route as the owner. With as, the read must
 #     install a rewrite, and as names the installed content.
 #   set_version: the service now reports this checker version.
+#   answer_version: the service's answers now report this version while its
+#     health still reports the earlier one, as a newer checker answering
+#     during a rollout.
 #   fail: every service call answers this status (0 restores). fail_check
 #     fails only the check call, so health still answers.
 #   make_due: the attempts for t are due now, as if their wait had passed.
@@ -543,3 +546,24 @@
     sent: []
     ledger: [{ref: a, status: pending, attempts: 6}]
     results: []
+
+- name: newer_answer_starts_the_sweep
+  why: an answer from a newer checker moves the held version forward, so the same pass rechecks older content under it, and an older health report does not move it back
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: tick}
+    - {do: answer_version, version: 1.1.0}
+    - {do: publish, ref: b, t: t2}
+    - {do: make_public, t: t2}
+    - {do: tick}
+    - {do: expect_sent, count: 3}
+    - {do: tick}
+  want:
+    sent: [a, b, a]
+    ordered: true
+    ledger:
+      - {ref: a, status: done, attempts: 1}
+      - {ref: b, status: done, attempts: 1}
+      - {ref: a, version: 1.1.0, status: done, attempts: 1}
+    results: [{ref: a}, {ref: b, version: 1.1.0}, {ref: a, version: 1.1.0}]
