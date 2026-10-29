@@ -341,7 +341,8 @@ function Row({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 px-5 transition-colors hover:bg-surface-hover",
+        "group on-transcript-list-row relative flex items-center gap-3 px-5 transition-colors hover:bg-surface-hover",
+        selectable && "is-selectable",
         // One design-system spacing step closer when the row's own chip follows
         // it. The chip's control cannot close the gap from its own side: it
         // carries a 44px minimum for its hit target, which its content does not
@@ -376,7 +377,7 @@ function Row({
           reads as nothing. */}
       {selectable && (
         <label
-          className="relative z-10 flex shrink-0 items-center justify-center"
+          className="on-transcript-row-check relative z-10 flex shrink-0 items-center justify-center"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -389,7 +390,7 @@ function Row({
         </label>
       )}
 
-      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+      <div className="on-transcript-row-content min-w-0 flex-1 flex flex-col gap-0.5">
         <span className="font-[family-name:var(--font-body)] text-[length:var(--fs-body)] text-ink font-medium truncate">
           {displayTitle}
         </span>
@@ -429,7 +430,7 @@ function Row({
       {/* The owner keeps to its width: a long handle ends in an ellipsis
           (named in full on hover) rather than pushing the title and its facts
           out of the row. */}
-      <div className={cn("relative z-10 on-transcript-attribution", hideOwner && "is-owner-hidden", hideVisibility && "is-visibility-hidden")}>
+      {(!hideOwner || !hideVisibility) && <div className={cn("relative z-10 on-transcript-attribution", hideOwner && "is-owner-hidden", hideVisibility && "is-visibility-hidden")}>
         {!hideOwner && <>{ownerPill}</>}
         {!hideVisibility && (
           <VisibilityEye
@@ -441,11 +442,11 @@ function Row({
             }
           />
         )}
-      </div>
+      </div>}
 
       {canManage && (
         <div
-          className="relative z-10 flex items-center gap-1"
+          className="on-transcript-row-actions relative z-10 flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           {confirmingDelete ? (

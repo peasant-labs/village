@@ -98,9 +98,6 @@
 .on-transcript-owner-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .on-transcript-attribution.is-owner-hidden { inline-size: auto; grid-template-columns: var(--ic-lg); }
 .on-transcript-attribution.is-visibility-hidden { grid-template-columns: minmax(0, 1fr); }
-@media (max-width: 600px) {
-  .on-transcript-attribution:not(.is-owner-hidden) { inline-size: calc(8ch + var(--ic-lg) * 2 + var(--sp-2) * 2); }
-}
 
 
 /* Review leads with the submissions and puts decisions beside each one. */
@@ -118,3 +115,16 @@
 }
 
 .on-review-result { margin: 0; font-family: var(--font-mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums; color: var(--ink-3); }
+
+
+@media (max-width: 600px) {
+  .on-transcript-list-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2) var(--sp-3); }
+  .on-transcript-list-row > .on-transcript-row-content { grid-column: 1 / -1; }
+  .on-transcript-list-row > .on-transcript-attribution { grid-column: 1; grid-row: 2; }
+  .on-transcript-list-row > .on-transcript-row-actions { grid-column: 2; grid-row: 2; }
+  .on-transcript-list-row.is-selectable { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .on-transcript-list-row.is-selectable > .on-transcript-row-check { grid-column: 1; grid-row: 1; align-self: start; margin-block-start: var(--sp-1); }
+  .on-transcript-list-row.is-selectable > .on-transcript-row-content { grid-column: 2 / -1; }
+  .on-transcript-list-row.is-selectable > .on-transcript-attribution { grid-column: 2; }
+  .on-transcript-list-row.is-selectable > .on-transcript-row-actions { grid-column: 3; }
+}
