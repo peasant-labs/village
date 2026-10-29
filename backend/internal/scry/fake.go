@@ -100,7 +100,11 @@ func (f *Fake) SetVersion(v string) {
 	f.version = v
 }
 
-// Requests returns the check requests received, oldest first.
+// Requests returns the check requests the fake answered, oldest first. It
+// excludes every check that failed before an answer: one refused for its
+// secret, one forced to fail by Fail or FailCheck, and one that was not a
+// valid request. A test that needs to count refused or failed calls counts
+// them in its own checker.
 func (f *Fake) Requests() []schema.ScryCheckRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
