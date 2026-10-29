@@ -85,7 +85,7 @@ func TestMigration049_Checks(t *testing.T) {
 }
 
 // catalog049 renders the columns, constraints and indexes of the four tables
-// migration 049 creates.
+// migration 049 creates, and the definition of its open-flag view.
 func catalog049(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
 	ctx := context.Background()
@@ -114,6 +114,7 @@ func catalog049(t *testing.T, pool *pgxpool.Pool) string {
 		WHERE conrelid::regclass::text IN ` + tables + ` ORDER BY conrelid::regclass::text, conname`)
 	collect(`SELECT 'index ' || indexdef FROM pg_indexes WHERE tablename IN ` + tables + ` AND schemaname = current_schema() ORDER BY indexname`)
 	collect(`SELECT 'trigger ' || tgname FROM pg_trigger WHERE tgrelid::regclass::text IN ` + tables + ` AND NOT tgisinternal ORDER BY tgname`)
+	collect(`SELECT 'view ' || viewname || ' ' || definition FROM pg_views WHERE viewname = 'transcript_integrity_open_flags' AND schemaname = current_schema()`)
 	return strings.Join(out, "\n")
 }
 

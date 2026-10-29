@@ -18,6 +18,11 @@
 #   share opens a pending share of the current transcript to one collective;
 #     withdraw_share retracts it and reject_share rejects it.
 #   delete deletes the current transcript through the delete route.
+#   seed_tombstone writes a post-deletion record for (publisher, session)
+#     directly, dated days_ago days before now. No route writes one while the
+#     transcript exists; it reaches the record's date merge, which a second
+#     copy of the same session never can, because that copy inherits the
+#     first record's date.
 #   result stores one answer for the current transcript: the content named by
 #     hash_ref (which may be replaced content: an answer that arrives after a
 #     republish), version, verdict (checked by default) and turns.
@@ -29,6 +34,7 @@
 #     session s1.
 #   tombstone_flagged_at_step: the record's flag date is the checked_at of
 #     the result written at this step index.
+#   tombstone_flagged_at_seed: the record's flag date is the seeded one.
 #   latest_turns: the turns of the latest checked result for the current
 #     content (left out when none is wanted; [] means a checked result with
 #     no turns).
@@ -263,3 +269,13 @@
     - {action: result, hash_ref: b, version: 1.0.0, turns: [2]}
     - {action: delete}
   want: {tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: record_over_an_earlier_record_keeps_its_date
+  why: recording over an existing record with a later flag date keeps the earlier date
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: seed_tombstone, days_ago: 30}
+    - {action: delete}
+  want: {tombstone: true, tombstone_flagged_at_seed: true}

@@ -34,12 +34,14 @@ type integrityStickyStep struct {
 	Version    string `yaml:"version"`
 	Verdict    string `yaml:"verdict"`
 	Turns      []int  `yaml:"turns"`
+	DaysAgo    int    `yaml:"days_ago"`
 }
 
 type integrityStickyWant struct {
 	OpenFlag               *bool `yaml:"open_flag"`
 	Tombstone              bool  `yaml:"tombstone"`
 	TombstoneFlaggedAtStep *int  `yaml:"tombstone_flagged_at_step"`
+	TombstoneFlaggedAtSeed bool  `yaml:"tombstone_flagged_at_seed"`
 	LatestTurns            []int `yaml:"latest_turns"`
 }
 
@@ -75,6 +77,7 @@ var requiredIntegrityStickyCases = []string{
 	"other_publisher_does_not_inherit",
 	"inherited_flag_survives_a_checked_empty_result",
 	"second_delete_keeps_earliest_flag_date",
+	"record_over_an_earlier_record_keeps_its_date",
 }
 
 func loadIntegrityStickyCases(t *testing.T) []integrityStickyCase {
@@ -154,6 +157,7 @@ func TestIntegrityStickyHistory(t *testing.T) {
 			var currentOwner pgtype.UUID
 			var currentHash string
 			deleted := false
+			var seededAt time.Time
 			shareEvent := 0
 
 			publish := func(index int, step integrityStickyStep) {
@@ -209,6 +213,13 @@ func TestIntegrityStickyHistory(t *testing.T) {
 					tag, err := pool.Exec(ctx, `UPDATE transcript_share_attempts SET status = $3, decided_at = now() WHERE transcript_id = $1 AND group_id = $2 AND status = 'pending'`, current, group, status)
 					if err != nil || tag.RowsAffected() != 1 {
 						t.Fatalf("step %d: %s: rows=%d err=%v", index, step.Action, tag.RowsAffected(), err)
+					}
+				case "seed_tombstone":
+					if step.DaysAgo <= 0 {
+						t.Fatalf("step %d: seed_tombstone needs a positive days_ago", index)
+					}
+					if err := pool.QueryRow(ctx, `INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ($1, $2, now() - make_interval(days => $3)) RETURNING flagged_at`, owner(step.Publisher), session(step.Session), step.DaysAgo).Scan(&seededAt); err != nil {
+						t.Fatalf("step %d: seed the post-deletion record: %v", index, err)
 					}
 				case "delete":
 					id := uuidFromPg(current).String()
@@ -277,6 +288,14 @@ func TestIntegrityStickyHistory(t *testing.T) {
 				}
 				if !tombstoneAt.Equal(want) {
 					t.Fatalf("post-deletion record flagged_at = %v, want the step %d result's %v", tombstoneAt, *step, want)
+				}
+			}
+			if c.Want.TombstoneFlaggedAtSeed {
+				if seededAt.IsZero() {
+					t.Fatal("tombstone_flagged_at_seed is wanted but no step seeded a record")
+				}
+				if !tombstoneAt.Equal(seededAt) {
+					t.Fatalf("post-deletion record flagged_at = %v, want the earlier seeded %v", tombstoneAt, seededAt)
 				}
 			}
 			var others int
