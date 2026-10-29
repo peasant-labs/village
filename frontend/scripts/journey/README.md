@@ -206,8 +206,11 @@ Covers Explore, the project page's orphan-sessions group, and the transcript
 viewer. The app-agnostic modules in `lib/`
 (`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are vendored
 byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
-`pnpm check:journey-vendoring` (with `FAIRTRADE_CHECKOUT` set) fails when a
-vendored body drifts. `lib/fixtures.mjs` and `lib/scenario.mjs` stay
+`pnpm check:journey-vendoring` always compares each vendored body against its
+committed SHA-256 pin in `lib/vendor-digests.testdata.yaml`. Setting
+`FAIRTRADE_CHECKOUT` adds a comparison against the live canonical body. Every
+file in `lib/` is classified in that fixture, so new app helpers must be added
+as `app-local` and guard files as `guard`; shared copies remain `vendored`. `lib/fixtures.mjs` and `lib/scenario.mjs` stay
 app-specific. The composed mock currently serves explore + project + transcript
 + auth; the home and collective surfaces can be folded in the same way. Served-bytes
 build provenance, as the production shoots assert, is a later slice, since a dev
