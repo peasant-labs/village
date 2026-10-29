@@ -184,8 +184,9 @@ func computedAssociationPushItem(associationID string) schema.AnnotationPushItem
 }
 
 type recordingTranscriptBlobStore struct {
-	mu    sync.Mutex
-	blobs map[string][]byte
+	mu       sync.Mutex
+	blobs    map[string][]byte
+	metadata fakeMetadataStore
 }
 
 func newRecordingTranscriptBlobStore() *recordingTranscriptBlobStore {
@@ -232,19 +233,14 @@ func (s *recordingTranscriptBlobStore) Delete(_ context.Context, descriptor stor
 	return nil
 }
 
-// This fake stores no publish metadata object: a nil metadata delegates to
-// Write, and any metadata is refused rather than silently dropped.
 func (s *recordingTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
-	if metadata != nil {
-		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, errors.New("test blob store does not store publish metadata")
-	}
-	d, identity, err := s.Write(ctx, id, body)
-	return d, identity, nil, err
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
 }
-func (*recordingTranscriptBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, errFakeStoresNoMetadata
+func (s *recordingTranscriptBlobStore) ReadMetadata(_ context.Context, _ uuid.UUID, _ storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.metadata.read(m)
 }
-func (*recordingTranscriptBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
+func (s *recordingTranscriptBlobStore) DeleteMetadata(_ context.Context, m storage.MetadataObject) error {
+	s.metadata.delete(m)
 	return nil
 }
 

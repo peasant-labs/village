@@ -268,6 +268,11 @@ type stagingProbeBlobStore struct {
 }
 
 func (s *stagingProbeBlobStore) Write(ctx context.Context, id uuid.UUID, contents []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
+	descriptor, identity, _, err := s.WriteGeneration(ctx, id, contents, nil)
+	return descriptor, identity, err
+}
+
+func (s *stagingProbeBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, contents, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
 	if s.observeNext.CompareAndSwap(true, false) {
 		var visibility string
 		if s.observePool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id=$1`, s.observeTranscript).Scan(&visibility) == nil && visibility == dbVisibilityPrivate {
@@ -278,7 +283,7 @@ func (s *stagingProbeBlobStore) Write(ctx context.Context, id uuid.UUID, content
 			s.observedNarrowingAudit.Store(true)
 		}
 	}
-	descriptor, identity, err := s.TranscriptBlobStore.Write(ctx, id, contents)
+	descriptor, identity, metadataObject, err := s.TranscriptBlobStore.WriteGeneration(ctx, id, contents, metadata)
 	if err == nil {
 		s.mu.Lock()
 		key := string(descriptor.ObjectKey())
@@ -287,7 +292,7 @@ func (s *stagingProbeBlobStore) Write(ctx context.Context, id uuid.UUID, content
 		s.lastWritten = key
 		s.mu.Unlock()
 	}
-	return descriptor, identity, err
+	return descriptor, identity, metadataObject, err
 }
 
 func (s *stagingProbeBlobStore) keys() []string {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -80,6 +81,27 @@ func descriptorFromColumns(key string, wrapped []byte, algorithm string, version
 	return descriptor, nil
 }
 
+// metadataObjectFromTranscript maps the row's publish metadata columns. It
+// returns nil when the row carries no metadata object (all three NULL); any
+// other partial or malformed state is an error.
+func metadataObjectFromTranscript(row sqlc.Transcript) (*storage.MetadataObject, error) {
+	return metadataObjectFromColumns(row.PublishMetadataKey, row.PublishMetadataHash, row.PublishMetadataSize)
+}
+
+func metadataObjectFromColumns(key, hash pgtype.Text, size pgtype.Int8) (*storage.MetadataObject, error) {
+	if !key.Valid && !hash.Valid && !size.Valid {
+		return nil, nil
+	}
+	if !key.Valid || !hash.Valid || !size.Valid {
+		return nil, fmt.Errorf("publish metadata load failed because the persisted metadata key, hash and size are only partly set in handler.metadataObjectFromColumns during database row mapping; the metadata object cannot be authenticated; repair all three columns before retrying")
+	}
+	m, err := storage.NewMetadataObject(storage.ObjectKey(key.String), hash.String, size.Int64)
+	if err != nil {
+		return nil, fmt.Errorf("publish metadata load failed because the persisted metadata columns are invalid in handler.metadataObjectFromColumns during database row mapping; the metadata object cannot be authenticated; repair the columns before retrying: %w", err)
+	}
+	return &m, nil
+}
+
 func identityFromTranscript(row sqlc.Transcript) (storage.LoadedContentIdentity, error) {
 	var hash *string
 	if row.ContentHash.Valid {
@@ -104,10 +126,36 @@ func nullableInt8(value pgtype.Int8) any {
 }
 
 func emitBlobReconciliation(operation string, transcriptID pgtype.UUID, descriptor storage.BlobDescriptor, completion TransactionCompletion) {
+	emitObjectReconciliation(operation, transcriptID, descriptor.ObjectKey(), completion)
+}
+
+// emitMetadataReconciliation is emitBlobReconciliation for a publish metadata
+// object, which the same decision retains.
+func emitMetadataReconciliation(operation string, transcriptID pgtype.UUID, m *storage.MetadataObject, completion TransactionCompletion) {
+	if m != nil {
+		emitObjectReconciliation(operation, transcriptID, m.Key(), completion)
+	}
+}
+
+// emitUncommittedWriteReconciliation reports a body generation that a failed
+// metadata upload left behind with no descriptor referencing it. It returns
+// false when err is not that failure.
+func emitUncommittedWriteReconciliation(operation blobCleanupOperation, transcriptID pgtype.UUID, err error) bool {
+	var orphan *storage.UncommittedObjectCleanupError
+	if !errors.As(err, &orphan) {
+		return false
+	}
+	emitObjectReconciliation(string(operation), transcriptID, orphan.ObjectKey(), TransactionKnownRollback)
+	return true
+}
+
+// emitObjectReconciliation is the one transcript_blob_reconciliation_required
+// event, keyed by the opaque object key it retains.
+func emitObjectReconciliation(operation string, transcriptID pgtype.UUID, key storage.ObjectKey, completion TransactionCompletion) {
 	slog.Error("transcript_blob_reconciliation_required",
 		"operation", operation,
 		"transcript_id", uuidFromPg(transcriptID).String(),
-		"object_key", string(descriptor.ObjectKey()),
+		"object_key", string(key),
 		"completion", completion.String(),
 		"meaning", "ciphertext was retained because database authority is uncertain",
 		"remediation", "wait beyond the transaction recovery window, query the authoritative primary for this object key, and delete only when no row or in-flight transaction can reference it")
@@ -122,4 +170,37 @@ func (h *Handler) deleteBlobForCleanup(ctx context.Context, operation blobCleanu
 		return fmt.Errorf("transcript blob cleanup failed because object storage did not delete the retained ciphertext in handler.deleteBlobForCleanup during %s; database authority is unchanged and reconciliation is required; inspect the transcript_blob_reconciliation_required event, restore object storage, then reconcile before retrying: %w", operation, err)
 	}
 	return nil
+}
+
+// deleteMetadataForCleanup deletes a publish metadata object under the same
+// cleanup decision that deleted its body generation. A failure leaves the same
+// reconciliation evidence a body failure does.
+func (h *Handler) deleteMetadataForCleanup(ctx context.Context, operation blobCleanupOperation, transcriptID pgtype.UUID, m storage.MetadataObject, completion TransactionCompletion) error {
+	if err := h.blobs.DeleteMetadata(ctx, m); err != nil {
+		emitObjectReconciliation(string(operation), transcriptID, m.Key(), completion)
+		return fmt.Errorf("publish metadata cleanup failed because object storage did not delete the retained metadata ciphertext in handler.deleteMetadataForCleanup during %s; database authority is unchanged and reconciliation is required; inspect the transcript_blob_reconciliation_required event, restore object storage, then reconcile before retrying: %w", operation, err)
+	}
+	return nil
+}
+
+// deleteGenerationForCleanup deletes a body generation and, when it has one,
+// its metadata object, both under one cleanup decision. Both deletions are
+// attempted; the first failure is returned.
+func (h *Handler) deleteGenerationForCleanup(ctx context.Context, operation blobCleanupOperation, transcriptID pgtype.UUID, descriptor storage.BlobDescriptor, m *storage.MetadataObject, completion TransactionCompletion) error {
+	err := h.deleteBlobForCleanup(ctx, operation, transcriptID, descriptor, completion)
+	if m != nil {
+		if metadataErr := h.deleteMetadataForCleanup(ctx, operation, transcriptID, *m, completion); err == nil {
+			err = metadataErr
+		}
+	}
+	return err
+}
+
+// metadataObjectParams renders a metadata object as its three nullable
+// columns; nil renders all three NULL.
+func metadataObjectParams(m *storage.MetadataObject) (pgtype.Text, pgtype.Text, pgtype.Int8) {
+	if m == nil {
+		return pgtype.Text{}, pgtype.Text{}, pgtype.Int8{}
+	}
+	return pgtype.Text{String: string(m.Key()), Valid: true}, pgtype.Text{String: string(m.Identity().Hash()), Valid: true}, pgtype.Int8{Int64: m.Identity().PlaintextSize(), Valid: true}
 }

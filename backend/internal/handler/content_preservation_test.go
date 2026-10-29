@@ -143,20 +143,14 @@ func (s *descriptorCheckingStore) Delete(ctx context.Context, d storage.BlobDesc
 	return s.delegate.Delete(ctx, d)
 }
 
-// This fake stores no publish metadata object: a nil metadata delegates to
-// Write, and any metadata is refused rather than silently dropped.
 func (s *descriptorCheckingStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
-	if metadata != nil {
-		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, errors.New("test blob store does not store publish metadata")
-	}
-	d, identity, err := s.Write(ctx, id, body)
-	return d, identity, nil, err
+	return s.delegate.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
 }
-func (*descriptorCheckingStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, errFakeStoresNoMetadata
+func (s *descriptorCheckingStore) ReadMetadata(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.delegate.ReadMetadata(ctx, id, d, m)
 }
-func (*descriptorCheckingStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
-	return nil
+func (s *descriptorCheckingStore) DeleteMetadata(ctx context.Context, m storage.MetadataObject) error {
+	return s.delegate.DeleteMetadata(ctx, m)
 }
 func (s *descriptorCheckingStore) uploadCount() int { return s.delegate.uploadCount() }
 

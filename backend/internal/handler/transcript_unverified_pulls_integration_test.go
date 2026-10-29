@@ -32,6 +32,11 @@ func (s *countedEncryptedStore) Write(ctx context.Context, id uuid.UUID, content
 	return s.TranscriptBlobStore.Write(ctx, id, content)
 }
 
+func (s *countedEncryptedStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	s.writes++
+	return s.TranscriptBlobStore.WriteGeneration(ctx, id, body, metadata)
+}
+
 // The real publication route stores the already-redacted payload encrypted;
 // the existing pull-list route must only read that generation after access.
 func TestTranscriptUnverifiedPullsEncryptedPublication(t *testing.T) {

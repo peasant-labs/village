@@ -81,6 +81,9 @@ type Querier interface {
 	CompareAndSwapTranscriptBlob(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
 	CompareAndSwapWrappedDataKey(ctx context.Context, arg sqlc.CompareAndSwapWrappedDataKeyParams) (int64, error)
 	DeleteTranscriptReturningDescriptor(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error)
+	SetTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.SetTranscriptPublishMetadataObjectParams) error
+	ReplaceTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.ReplaceTranscriptPublishMetadataObjectParams) (int64, error)
+	RecordTranscriptContentRewrite(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error
 	ListTranscriptDescriptorsForRewrap(ctx context.Context, arg sqlc.ListTranscriptDescriptorsForRewrapParams) ([]sqlc.ListTranscriptDescriptorsForRewrapRow, error)
 	ListApprovedTranscriptShareGroups(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 

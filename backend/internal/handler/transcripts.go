@@ -1177,7 +1177,7 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		encoded, encodeErr := encodeCanonicalTranscript(payload)
 		if encodeErr == nil {
 			response = encoded
-			if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded); err != nil {
+			if _, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded, sniffShape(raw)); err != nil {
 				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
 					writeError(w, http.StatusInternalServerError, err.Error())
 					return
@@ -1230,59 +1230,119 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(response)
 }
 
-func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {
+// rewriteCanonicalTranscript installs canonical as the transcript's new
+// generation when the row still holds the generation the caller read. The
+// metadata object, when the row has one, is decrypted under the old data key
+// and written again beside the new body under the fresh one. replacedShape is
+// the shape of the generation being replaced, so the rewrite record says
+// whether it was legacy JSONL. installed is the new identity, or nil when
+// another writer moved the row first and nothing was installed.
+func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte, replacedShape EnvelopeShape) (*storage.ContentIdentity, error) {
 	oldDescriptor, err := descriptorFromTranscript(row)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if h.blobs == nil {
-		return fmt.Errorf("canonical transcript rewrite failed because encrypted blob storage was not composed in handler.rewriteCanonicalTranscript before migrate-on-read persistence; the old generation remains authoritative and the response was withheld to avoid claiming a durable preservation Village cannot complete; configure key custody and object storage, restart Village, then retry")
+		return nil, fmt.Errorf("canonical transcript rewrite failed because encrypted blob storage was not composed in handler.rewriteCanonicalTranscript before migrate-on-read persistence; the old generation remains authoritative and the response was withheld to avoid claiming a durable preservation Village cannot complete; configure key custody and object storage, restart Village, then retry")
 	}
 	unlock := defaultRewriteLocks.Lock(string(oldDescriptor.ObjectKey()))
 	defer unlock()
 	current, err := h.queries.GetTranscriptByID(ctx, row.ID)
 	if err != nil {
-		return fmt.Errorf("canonical transcript rewrite failed because the current database descriptor could not be reloaded in handler.rewriteCanonicalTranscript after migration and before immutable replacement; the old generation remains authoritative and no response was served; restore PostgreSQL access, then retry: %w", err)
+		return nil, fmt.Errorf("canonical transcript rewrite failed because the current database descriptor could not be reloaded in handler.rewriteCanonicalTranscript after migration and before immutable replacement; the old generation remains authoritative and no response was served; restore PostgreSQL access, then retry: %w", err)
 	}
 	currentDescriptor, err := descriptorFromTranscript(current)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !descriptorsEqual(oldDescriptor, currentDescriptor) {
 		// Another request already installed a canonical immutable generation. The
 		// caller's payload came from the authenticated old generation and the
 		// compare-before-write prevents it from overwriting the winner, so this is
 		// a successful no-op rather than a rewrite failure.
-		return nil
+		return nil, nil
 	}
-	newDescriptor, identity, err := h.blobs.Write(ctx, uuidFromPg(row.ID), canonical)
+	oldMetadata, err := metadataObjectFromTranscript(current)
 	if err != nil {
-		return fmt.Errorf("canonical transcript rewrite failed because encrypted object storage rejected the replacement in handler.rewriteCanonicalTranscript after typed migration; the old generation remains authoritative and no response was served; restore key custody and object storage, then retry: %w", err)
+		return nil, err
+	}
+	var metadata []byte
+	if oldMetadata != nil {
+		metadata, err = h.blobs.ReadMetadata(ctx, uuidFromPg(row.ID), oldDescriptor, *oldMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("canonical transcript rewrite failed because the publish metadata of the current generation could not be read in handler.rewriteCanonicalTranscript before immutable replacement; the old generation remains authoritative and nothing was written; restore key custody and object storage, then retry: %w", err)
+		}
+	}
+	replacedIdentity, err := identityFromTranscript(current)
+	if err != nil {
+		return nil, err
+	}
+	newDescriptor, identity, newMetadata, err := h.blobs.WriteGeneration(ctx, uuidFromPg(row.ID), canonical, metadata)
+	if err != nil {
+		emitUncommittedWriteReconciliation(cleanupRewriteCandidate, row.ID, err)
+		return nil, fmt.Errorf("canonical transcript rewrite failed because encrypted object storage rejected the replacement in handler.rewriteCanonicalTranscript after typed migration; the old generation remains authoritative and no response was served; restore key custody and object storage, then retry: %w", err)
 	}
 	systemID, err := uuid.Parse(database.SystemActorID)
 	if err != nil {
-		return fmt.Errorf("canonical transcript rewrite failed because the reserved system actor could not be parsed in handler.rewriteCanonicalTranscript before database installation; the candidate ciphertext may require reconciliation and no response was served; correct database.SystemActorID and retry: %w", err)
+		return nil, fmt.Errorf("canonical transcript rewrite failed because the reserved system actor could not be parsed in handler.rewriteCanonicalTranscript before database installation; the candidate ciphertext may require reconciliation and no response was served; correct database.SystemActorID and retry: %w", err)
 	}
+	// lost is a compare-and-swap that matched no row: another writer moved the
+	// descriptor after the reload. Nothing else runs in that transaction.
+	lost := false
 	result := h.inEncryptedTx(ctx, toPgUUID(systemID), func(q Querier) error {
 		_, err := q.CompareAndSwapTranscriptBlob(ctx, sqlc.CompareAndSwapTranscriptBlobParams{
 			BlobKey: string(newDescriptor.ObjectKey()), WrappedDataKey: newDescriptor.WrappedDEK(), EncryptionAlgorithm: string(newDescriptor.Algorithm()), KeyVersion: int32(newDescriptor.KeyVersion()),
 			ContentHash: pgtype.Text{String: string(identity.Hash()), Valid: true}, PlaintextSize: pgtype.Int8{Int64: identity.PlaintextSize(), Valid: true}, ID: row.ID,
 			ExpectedBlobKey: string(oldDescriptor.ObjectKey()), ExpectedWrappedDataKey: oldDescriptor.WrappedDEK(), ExpectedEncryptionAlgorithm: string(oldDescriptor.Algorithm()), ExpectedKeyVersion: int32(oldDescriptor.KeyVersion()),
 		})
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			lost = true
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if oldMetadata != nil {
+			key, hash, size := metadataObjectParams(newMetadata)
+			replaced, err := q.ReplaceTranscriptPublishMetadataObject(ctx, sqlc.ReplaceTranscriptPublishMetadataObjectParams{
+				ID: row.ID, PublishMetadataKey: key, PublishMetadataHash: hash, PublishMetadataSize: size,
+				ExpectedPublishMetadataKey: pgtype.Text{String: string(oldMetadata.Key()), Valid: true},
+			})
+			if err != nil {
+				return fmt.Errorf("replace publish metadata object: %w", err)
+			}
+			if replaced != 1 {
+				return fmt.Errorf("replace publish metadata object: the row no longer holds the metadata object the rewrite read")
+			}
+		}
+		// A pending identity names no replaced hash, so there is nothing to
+		// record; the lineage starts at the first known hash.
+		if replaced, known := replacedIdentity.Known(); known {
+			if err := q.RecordTranscriptContentRewrite(ctx, sqlc.RecordTranscriptContentRewriteParams{
+				TranscriptID: row.ID, ReplacedContentHash: string(replaced.Hash()), InstalledContentHash: string(identity.Hash()), ReplacedWasLegacy: replacedShape == ShapeRawJSONL,
+			}); err != nil {
+				return fmt.Errorf("record content rewrite: %w", err)
+			}
+		}
+		return nil
 	})
-	decision := cleanupDecision("rewrite", result.Completion, result.Err == nil)
+	installed := result.Err == nil && !lost
+	decision := cleanupDecision("rewrite", result.Completion, installed)
 	if decision.DeleteSuperseded {
-		_ = h.deleteBlobForCleanup(ctx, cleanupRewriteSuperseded, row.ID, oldDescriptor, result.Completion)
+		_ = h.deleteGenerationForCleanup(ctx, cleanupRewriteSuperseded, row.ID, oldDescriptor, oldMetadata, result.Completion)
 	} else if decision.DeleteCandidate {
-		_ = h.deleteBlobForCleanup(ctx, cleanupRewriteCandidate, row.ID, newDescriptor, result.Completion)
+		_ = h.deleteGenerationForCleanup(ctx, cleanupRewriteCandidate, row.ID, newDescriptor, newMetadata, result.Completion)
 	} else if decision.Reconcile {
 		emitBlobReconciliation("rewrite", row.ID, newDescriptor, result.Completion)
+		emitMetadataReconciliation("rewrite", row.ID, newMetadata, result.Completion)
 	}
 	if result.Err != nil {
-		return fmt.Errorf("canonical transcript rewrite failed because the encrypted database transaction did not install the migrated descriptor in handler.rewriteCanonicalTranscript after candidate upload; completion=%s determines candidate cleanup and no response was served; inspect transcript_blob_reconciliation_required when completion is ambiguous, restore PostgreSQL, then retry: %w", result.Completion, result.Err)
+		return nil, fmt.Errorf("canonical transcript rewrite failed because the encrypted database transaction did not install the migrated descriptor in handler.rewriteCanonicalTranscript after candidate upload; completion=%s determines candidate cleanup and no response was served; inspect transcript_blob_reconciliation_required when completion is ambiguous, restore PostgreSQL, then retry: %w", result.Completion, result.Err)
 	}
-	return nil
+	if lost {
+		return nil, nil
+	}
+	return &identity, nil
 }
 
 func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {

@@ -119,7 +119,8 @@ func TestLegacyDispatchEncryptedPublicationAndReads(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := h.rewriteCanonicalTranscript(ctx, row, raw); err != nil {
+				// Setup only: the replaced generation's shape is not under test.
+				if _, err := h.rewriteCanonicalTranscript(ctx, row, raw, ShapeUnknown); err != nil {
 					t.Fatal(err)
 				}
 			}

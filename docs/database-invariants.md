@@ -292,6 +292,18 @@ boundary are documented in
   is not a disclosure axis. Every full-row transcript column list (the sqlc
   queries and the handler's `transcriptSelectColumns`) ends with the three
   columns, because rows scan into `sqlc.Transcript` by name.
+  **A rewrite moves both objects in one transaction.** Migrate-on-read writes
+  the canonical body and, when the row has a metadata object, the same
+  metadata again under the new generation's fresh data key. The transaction
+  that compare-and-swaps the content descriptor also replaces the metadata
+  columns, conditioned on the row still holding the metadata key the rewrite
+  read (zero rows fails the transaction), and records the rewrite. A
+  compare-and-swap that matches no row means another writer moved the row
+  first: nothing else runs, the candidate objects are deleted, and nothing is
+  recorded. Only Village's own rewrite records a row, so every
+  `installed_content_hash` is content Village produced, never bytes a
+  publisher supplied. A replaced generation whose identity is pending names no
+  hash, so its rewrite records nothing.
 
 ## 2. Licensing data model
 

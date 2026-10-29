@@ -49,6 +49,10 @@ func (s failingRewriteStore) Write(ctx context.Context, id uuid.UUID, body []byt
 	return generationTestBlobStore{s.fakeBlobStore}.Write(ctx, id, body)
 }
 
+func (s failingRewriteStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+
 func TestMountedRewriteFailurePolicy(t *testing.T) {
 	for _, tc := range loadRewriteFailureFixtures(t) {
 		t.Run(tc.Name, func(t *testing.T) {
