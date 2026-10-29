@@ -318,6 +318,13 @@ boundary are documented in
   read, which a rewrite or republish can replace in between; returned columns
   that do not map delete nothing and answer 500 with reconciliation evidence.
 
+- **049 stores transcript integrity results, inherited flags, a content-free
+  post-deletion record and the check ledger.** Four tables, none a disclosure
+  axis, so none carries a governance trigger or needs `app.actor_id`. Every
+  closed set and shape is a named CHECK (hash, version, verdict, status, error
+  class). The down migration drops the four tables. Details: §3, "Transcript
+  integrity (migration 049)".
+
 ## 2. Licensing data model
 
 ### Private organization snapshot issuance
@@ -637,6 +644,45 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   per day (429). The one-click unsubscribe link is an HMAC under
   `EMAIL_LINK_SIGNING_KEY` over the account and an expiry; it can only turn
   `email_invitations` off.
+
+### Transcript integrity (migration 049)
+
+- **Results are a per-version history and a cache.** `transcript_integrity_results`
+  holds one row per `(transcript_id, content_hash, scry_version)`, kept on
+  republish and deleted only with the transcript. Every row is an automatic
+  check asked for while the content was in the checked set (public, or any
+  `transcript_shares` row). Leaving the checked set removes no result and no
+  flag: the check was asked for while the copy was readable by others, and an
+  answer that arrives after the transcript left the set is still stored.
+- **Flagged is derived.** A result is flagged when `verdict = 'checked'` and
+  `cardinality(flagged_turns) > 0`; `unchecked` never carries turns
+  (`transcript_integrity_results_unchecked_has_no_turns`). `flagged_turns` are
+  zero-based positions in the top-level turns of the content the hash names.
+  A flag produced by a check is never stored.
+- **A transcript's open flag is one query.** It is open when an inherited row
+  exists, or a flagged result exists that no later version's `checked` result
+  with no turns on the same content voids. Inherited flags and flags on
+  replaced content are never void.
+- **`transcript_integrity_inherited_flags`** is the only stored flag: a later
+  publish of a session whose flagged copy was deleted has no result behind it.
+  `flagged_at` is copied from the record it was inherited from. It cascades
+  with the transcript.
+- **`integrity_flag_tombstones` is the post-deletion record**, keyed on
+  `(owner_id, local_id)` because the transcript row, and with it its id, is
+  gone when the record is needed; the local id is the publisher's own session
+  id, which a republish carries. It holds no content, hash or turns, survives
+  deleting the transcript, and goes with the account (`ON DELETE CASCADE` from
+  `users`). Its `recorded_at` is when the deletion happened.
+- **`transcript_integrity_attempts`** is the ledger of check attempts, keyed
+  like the results. `status` is `pending`, `done`, `skipped` or `failed`.
+  `last_error` is a closed set (`timeout`, `unavailable`, `rejected`,
+  `invalid_response`, `too_large`, `read_failed`, `legacy_content`), so no raw
+  error text, and therefore no content, can be stored; `read_failed` covers a
+  failure to read, migrate or decode the content or metadata. The partial
+  index `transcript_integrity_attempts_due_idx` serves the scan for due
+  pending attempts; every other lookup leads with the primary key.
+- Which transcripts need a check is a query over `transcripts`,
+  `transcript_shares` and the results, not a stored list.
 
 ## 4. Governance event taxonomy
 

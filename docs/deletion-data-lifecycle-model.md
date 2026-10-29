@@ -223,3 +223,16 @@ actor UUIDs so a zero value can never silently impersonate the system.
   from `users`, and counts older than a day are deleted by the next count.
 - **No history of a person's answers is kept.** Accepting and revoking delete
   the invitation; a decline is kept only until the invitation expires.
+
+## 9. Integrity flags on deletion (migration 049)
+
+- **Results, inherited flags and check attempts go with the transcript.** All
+  three cascade from `transcripts`, so deleting a transcript, or the account
+  that owns it, removes them.
+- **Deleting a flagged transcript leaves a content-free record.**
+  `integrity_flag_tombstones` keeps the owner id, the publisher's own session
+  id and when it was flagged. It holds no content, hash, turns, rule or
+  version. It exists so that publishing the same session again cannot shed
+  the flag by deleting first: the later publish inherits it.
+- **Account deletion removes the record.** The tombstone cascades from
+  `users`, so nothing about the flag outlives the account.
