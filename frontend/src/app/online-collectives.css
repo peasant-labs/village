@@ -82,7 +82,7 @@
   color: var(--ink-2);
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -235,17 +235,18 @@
 }
 .on-discover-collectives {
   grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
   gap: var(--sp-4);
 }
 .on-discover-collective {
-  height: auto;
+  height: 100%;
   gap: var(--sp-3);
   padding: var(--sp-4);
   border: var(--bd);
 }
 .on-discover-identity {
   display: grid;
+  grid-template-rows: auto minmax(calc(var(--fs-body) * var(--lh-body) * 2), auto);
   gap: var(--sp-2);
   min-width: 0;
 }
@@ -254,7 +255,7 @@
   line-height: var(--lh-body);
 }
 .on-discover-collective .on-card-desc {
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 .on-discover-facts {
   display: flex;
@@ -300,4 +301,11 @@
   .on-discover-collectives {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+.on-discover-collective .on-card-foot { margin-block-start: auto; }
+.on-discover-facts { min-block-size: var(--target-min); }
+@media (width < 768px) {
+  .on-discover-identity { grid-template-rows: auto; }
+  .on-discover-collective .on-card-desc { -webkit-line-clamp: unset; }
 }

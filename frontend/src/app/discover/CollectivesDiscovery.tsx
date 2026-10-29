@@ -290,11 +290,10 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
                 <div className="on-discover-facts">
                   <span className="on-chrome is-n on-card-members">{counted(card.memberCount, "member")}</span>
                   <span className="on-chrome is-n on-card-transcripts">{counted(card.transcriptCount, "transcript")}</span>
-                  {role || justJoined || card.contributed ? (
+                  {role || justJoined ? (
                     <div className="on-card-tags" data-card="standing">
                       {justJoined ? <span className="on-tag" data-tone="ok">joined</span> : null}
                       {role ? <span className="on-tag">{role}</span> : null}
-                      {card.contributed ? <span className="on-tag">contributed</span> : null}
                     </div>
                   ) : null}
                 </div>

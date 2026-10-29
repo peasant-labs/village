@@ -249,6 +249,7 @@
 }
 .on-pr-day {
   display: grid;
+  align-items: baseline;
   grid-template-columns: calc(var(--sp-8) * 2) minmax(0, 1fr);
   gap: var(--sp-5);
   min-width: 0;

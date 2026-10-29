@@ -19,7 +19,6 @@ export default function CollectiveRepositories({ github, onResult }: { github: C
       <div className="on-row" data-testid="collective-org-line">
         <BrandMark name="github" />
         <span className="on-keep-case on-orgline-text">{github.org ? (typeof github.org.total === "number" ? `${github.org.login}: ${github.org.linked ?? 0} of ${github.org.total} repos linked` : github.org.login) : "nothing linked"}</span>
-        <span className="on-muted tnum">{github.linkedIds.length} repositories linked</span>
       </div>
       {github.canManage ? (
         <RepoPicker

@@ -11,8 +11,7 @@ export function orgLineText(org: CollectiveGithub["org"]): string {
 
 /**
  * The collective in numbers (transcripts, members, tokens, pull requests
- * linked), then its GitHub org: how many repositories are linked, and for the
- * owner the picker that links them.
+ * linked). Repository controls live on the repositories tab.
  */
 export default function CollectiveStats({
   name,
@@ -34,8 +33,6 @@ export default function CollectiveStats({
           </div>
         ))}
       </dl>
-
-
     </div>
   );
 }

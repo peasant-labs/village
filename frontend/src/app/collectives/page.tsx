@@ -154,7 +154,6 @@ export default function CollectivesPage() {
                   <td data-cell="standing">
                     <span className="on-standing">
                       <span>{standing.memberRole}</span>
-                      {standing.hasContributed ? <span className="on-tag">contributed</span> : null}
                     </span>
                   </td>
                   <td className="is-policy">
