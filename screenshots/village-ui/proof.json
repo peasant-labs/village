@@ -1,34 +1,32 @@
 {
-  "sourceCommit": "3c5505ca26b2aa93e7221cf08c83b438de3247fe",
+  "sourceCommit": "d8002a634239fcc76224a79bbf1d6da0ff1cb864",
+  "sourceTree": "46ebd3c7b0ad47cd2f60800b5fa2e05026c021c3",
+  "sourceStatus": "",
   "package": {
     "name": "@peasant-labs/fairtrade",
-    "version": "0.0.53",
-    "integrity": "sha512-FfAI0JazZSCiclZsCpQvLbKylcjkVLwQlel7w6JUTK8J6a1e35k018t8uKuJszXtNCokvySuVvIZzxyjkCK7JA=="
+    "version": "0.0.54",
+    "integrity": "sha512-lEtuYQ6zTqgRMwBga9qlQgrjLPaJWMSj3FCP+iJOH7fVmJPafLlnyj3sMsQvtmV0MmMHksNIoTvM5ES2M21RBQ=="
   },
-  "buildId": "Y41MH7eTOCHx3cDsu8P8j",
+  "buildId": "wzulw4aOblbHT-4VhXxGr",
   "assets": [
     {
-      "file": "d113ea50f8deab58.js",
-      "sha256": "b8741c492e4691364993d9fa808efa3c2582258a2e0f03b27e710cc3b6b0114a",
+      "file": "5fffe2206bb294d6.js",
+      "sha256": "0ec4fe92283823eee8ea6d3535dd2f312d85413a0272f376b0afb41f44f64727",
       "servedMatchesBuild": true
     },
     {
-      "file": "60040c643be062ea.css",
-      "sha256": "a19c12ea563e2c8b0ca790e9fd817c2805c761f8367915fa40b852132aa6503d",
+      "file": "2de2ed6b0f2ac1f1.css",
+      "sha256": "bb38b016986a8b7426339f4397e45aae8ceb481d31b5045c5b791f777adc9c9e",
       "servedMatchesBuild": true
     }
   ],
-  "fixtures": {
-    "default": "frontend/scripts/journey/mock.mjs with MOCK_DEMO_ATTACHMENTS=1 (curated-owner + long demo)",
-    "profile": "frontend/scripts/visual/mock-rest-profile.mjs (the generic journey fixture does not implement public-profile reads)"
-  },
+  "fixture": "Preserved live journey fixture with local schema-validated profile, owner-history and pagination composition; no backend, access-control or production contract changes",
   "checks": {
     "frozenInstall": "passed",
     "typescript": "passed",
-    "lint": "passed (2 existing unused-symbol warnings)",
+    "lint": "passed (2 pre-existing unused-symbol warnings)",
     "productionBuild": "passed",
     "vitest": "1233 passed; 3 pre-existing Linux-only flock lifecycle failures on macOS",
-    "focusedURLChangeTests": "33 passed after navigation fix",
     "mutations": "all three mutation commands passed"
   },
   "states": [
@@ -50,6 +48,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -63,7 +62,7 @@
       "h1": [
         "Alice Developer"
       ],
-      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n6\nprojects in the main library\n4\ncollectives you contribute to\nML Reading Group\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Platform\napproved\napproved transcripts\n5\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Company\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\npublished library\ningest-api\n3 sessions\nFix flaky ingest test\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nGuard empty turns in the digest\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nRefactoring database queries\nclaude-code\n\u00b7\nDec 24, 2023\n\u00b7\n24 turns\nvisibility: shared\nweb\n1 session\nPaginate the collectives list\nclaude-code\n\u00b7\nDec 31, 2023\n\u00b7\n24 turns\nvisibility: shared\nworker\n1 session\nMigrate retry queue to worker\nclaude-code\n\u00b7\nDec 30, 2023\n\u00b7\n24 turns\nvisibility: shared\nml-notes\n1 session\nReproduce the tokenizer benchmark\nclaude-code\n\u00b7\nDec 29, 2023\n\u00b7\n24 turns\nvisibility: pri",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -72,6 +71,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -94,6 +94,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -116,6 +117,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -159,6 +161,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -172,7 +175,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -202,6 +205,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -224,6 +228,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -246,6 +251,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -259,7 +265,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -289,6 +295,139 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-transcripts",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\tcontributor\tagent\tturns\twhen\nFix flaky ingest test\n#42\n#45\n#51\nacme/ingest-api, 4 pull requests\n\t@alice-dev\t\nclaude-code\n\t37\tJan 1, 2024\nGuard empty turns in the digest\n#42\nacme/ingest-api\n\t@alice-dev\t\nclaude-code\n\t22\tJan 1, 2024\nPaginate the collectives list\n#31\n#33\nacme/web\n\t@bob-ai\t\ncodex\n\t51\tDec 31, 2023\nMigrate retry queue to worker\t@bob-ai\t\nopencode\n\t64\tDec 30, 2023\nRefactoring database queries\n#36\n#38\n#40\nacme/ingest-api\n\t@carol-ml\t\ngemini-cli\n\t91\tDec 24, 2023\nRecorded replay 1: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 2: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 3: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 4: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 5: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 6: Fix flaky ingest t",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-last-page",
+      "theme": "light",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\tcontributor\tagent\tturns\twhen\nRecorded replay 16: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 17: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 18: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 19: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 20: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nshowing 21 to 25 of 25\nprev\n1\n2\nnext\ntranscript groups\nshow\nyour contributions\n2\nclaude-code\nInvestigate the private review\npending\nJan 1\n1 child session\nshow\n1 more grouped result\nload more",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -311,6 +450,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -336,6 +476,7 @@
       },
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -358,6 +499,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -380,6 +522,106 @@
       "digest": null,
       "diagrams": 1,
       "overflow": [],
+      "diagramProof": {
+        "bounds": {
+          "left": 577,
+          "right": 1117.265625,
+          "top": 655.1875,
+          "bottom": 1477.578125
+        },
+        "viewBox": "-91 -91.5 540.265625 822.4000244140625",
+        "labels": [
+          {
+            "text": "yes",
+            "fontSize": "16px",
+            "left": 702.2905883789062,
+            "right": 726.7437133789062,
+            "top": 984.18359375,
+            "bottom": 1004.18359375
+          },
+          {
+            "text": "no",
+            "fontSize": "16px",
+            "left": 754.0322265625,
+            "right": 772.3759765625,
+            "top": 1375.5791015625,
+            "bottom": 1395.5791015625
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 1021.91162109375,
+            "right": 1103.61474609375,
+            "top": 984.18359375,
+            "bottom": 1004.18359375
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 932.63916015625,
+            "right": 1014.34228515625,
+            "top": 1085.782470703125,
+            "bottom": 1105.782470703125
+          },
+          {
+            "text": "Validate resumecursor",
+            "fontSize": "16px",
+            "left": 833.9057006835938,
+            "right": 956.6244506835938,
+            "top": 774.2859497070312,
+            "bottom": 811.8857421875
+          },
+          {
+            "text": "Read boundedpage",
+            "fontSize": "16px",
+            "left": 840.0619506835938,
+            "right": 950.4682006835938,
+            "top": 875.8848266601562,
+            "bottom": 913.484619140625
+          },
+          {
+            "text": "Escape and streamCSV",
+            "fontSize": "16px",
+            "left": 821.4916381835938,
+            "right": 969.0385131835938,
+            "top": 977.483642578125,
+            "bottom": 1015.0834350585938
+          },
+          {
+            "text": "Advance compositecursor",
+            "fontSize": "16px",
+            "left": 742.7738037109375,
+            "right": 891.2581787109375,
+            "top": 1079.08251953125,
+            "bottom": 1116.6822509765625
+          },
+          {
+            "text": "More rows?",
+            "fontSize": "16px",
+            "left": 719.2978515625,
+            "right": 807.7041015625,
+            "top": 1241.08056640625,
+            "bottom": 1261.0806884765625
+          },
+          {
+            "text": "Finish response",
+            "fontSize": "16px",
+            "left": 702.8837890625,
+            "right": 824.1181640625,
+            "top": 1449.0782470703125,
+            "bottom": 1469.078369140625
+          },
+          {
+            "text": "Cancel work",
+            "fontSize": "16px",
+            "left": 994.372802734375,
+            "right": 1087.154052734375,
+            "top": 1178.081298828125,
+            "bottom": 1198.081298828125
+          }
+        ],
+        "clipped": []
+      },
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -402,6 +644,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -415,7 +658,7 @@
       "h1": [
         "Alice Developer"
       ],
-      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n6\nprojects in the main library\n4\ncollectives you contribute to\nML Reading Group\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Platform\napproved\napproved transcripts\n5\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Company\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\npublished library\ningest-api\n3 sessions\nFix flaky ingest test\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nGuard empty turns in the digest\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nRefactoring database queries\nclaude-code\n\u00b7\nDec 24, 2023\n\u00b7\n24 turns\nvisibility: shared\nweb\n1 session\nPaginate the collectives list\nclaude-code\n\u00b7\nDec 31, 2023\n\u00b7\n24 turns\nvisibility: shared\nworker\n1 session\nMigrate retry queue to worker\nclaude-code\n\u00b7\nDec 30, 2023\n\u00b7\n24 turns\nvisibility: shared\nml-notes\n1 session\nReproduce the tokenizer benchmark\nclaude-code\n\u00b7\nDec 29, 2023\n\u00b7\n24 turns\nvisibility: pri",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -424,6 +667,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -446,6 +690,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -468,6 +713,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -511,6 +757,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -524,7 +771,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -554,6 +801,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -576,6 +824,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -598,6 +847,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -611,7 +861,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -641,6 +891,139 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-transcripts",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\twhen\nFix flaky ingest test\n#42\n#45\n#51\nacme/ingest-api, 4 pull requests\n@alice-dev\nclaude-code\n37 turns\n\tJan 1, 2024\nGuard empty turns in the digest\n#42\nacme/ingest-api\n@alice-dev\nclaude-code\n22 turns\n\tJan 1, 2024\nPaginate the collectives list\n#31\n#33\nacme/web\n@bob-ai\ncodex\n51 turns\n\tDec 31, 2023\nMigrate retry queue to worker\n@bob-ai\nopencode\n64 turns\n\tDec 30, 2023\nRefactoring database queries\n#36\n#38\n#40\nacme/ingest-api\n@carol-ml\ngemini-cli\n91 turns\n\tDec 24, 2023\nRecorded replay 1: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 2: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 3: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 4: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 5: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-last-page",
+      "theme": "light",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\twhen\nRecorded replay 16: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 17: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 18: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 19: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 20: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nshowing 21 to 25 of 25\nprev\n1\n2\nnext\ntranscript groups\nshow\nyour contributions\n2\nclaude-code\nInvestigate the private review\npending\nJan 1\n1 child session\nshow\n1 more grouped result\nload more",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -663,6 +1046,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -688,6 +1072,7 @@
       },
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -701,7 +1086,7 @@
       "h1": [
         "Build a resumable activity export"
       ],
-      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLo",
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n8h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n8h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n8h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n7h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n7h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n7h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n7h ago\n\nLo",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -710,6 +1095,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -723,7 +1109,7 @@
       "h1": [
         "Build a resumable activity export"
       ],
-      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLocate the unbounded read and trace how the response gets writt",
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n8h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n8h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n8h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n7h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n7h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n7h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n7h ago\n\nLocate the unbounded read and trace how the response gets writt",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -732,6 +1118,111 @@
       "digest": null,
       "diagrams": 1,
       "overflow": [],
+      "diagramProof": {
+        "bounds": {
+          "left": 45,
+          "right": 538.765625,
+          "top": 1027.984375,
+          "bottom": 1812.875
+        },
+        "viewBox": "-91 -91.5 540.265625 822.4000244140625",
+        "labels": [
+          {
+            "text": "yes",
+            "fontSize": "16px",
+            "left": 159.50013732910156,
+            "right": 181.85951232910156,
+            "top": 1345.013427734375,
+            "bottom": 1363.0135498046875
+          },
+          {
+            "text": "no",
+            "fontSize": "16px",
+            "left": 206.78622436523438,
+            "right": 223.56747436523438,
+            "top": 1702.7261962890625,
+            "bottom": 1720.7261962890625
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 451.6048278808594,
+            "right": 526.3079223632812,
+            "top": 1345.013427734375,
+            "bottom": 1363.0135498046875
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 370.0150451660156,
+            "right": 444.7181396484375,
+            "top": 1437.868896484375,
+            "bottom": 1455.868896484375
+          },
+          {
+            "text": "Validate resumecursor",
+            "fontSize": "16px",
+            "left": 279.7791442871094,
+            "right": 391.9666442871094,
+            "top": 1153.1793212890625,
+            "bottom": 1187.2645263671875
+          },
+          {
+            "text": "Read boundedpage",
+            "fontSize": "16px",
+            "left": 285.4041442871094,
+            "right": 386.34161376953125,
+            "top": 1246.0347900390625,
+            "bottom": 1280.119873046875
+          },
+          {
+            "text": "Escape and streamCSV",
+            "fontSize": "16px",
+            "left": 268.4275817871094,
+            "right": 403.3182067871094,
+            "top": 1338.89013671875,
+            "bottom": 1372.975341796875
+          },
+          {
+            "text": "Advance compositecursor",
+            "fontSize": "16px",
+            "left": 196.47496032714844,
+            "right": 332.2405700683594,
+            "top": 1431.74560546875,
+            "bottom": 1465.830810546875
+          },
+          {
+            "text": "More rows?",
+            "fontSize": "16px",
+            "left": 175.03411865234375,
+            "right": 255.86224365234375,
+            "top": 1579.802490234375,
+            "bottom": 1597.802490234375
+          },
+          {
+            "text": "Finish response",
+            "fontSize": "16px",
+            "left": 160.02630615234375,
+            "right": 270.87005615234375,
+            "top": 1769.900146484375,
+            "bottom": 1787.900146484375
+          },
+          {
+            "text": "Cancel work",
+            "fontSize": "16px",
+            "left": 426.4358215332031,
+            "right": 511.2639465332031,
+            "top": 1522.2247314453125,
+            "bottom": 1540.224853515625
+          }
+        ],
+        "clipped": [],
+        "pan": {
+          "width": 324,
+          "scrollWidth": 564,
+          "scrollLeft": 40
+        }
+      },
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -754,6 +1245,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -767,7 +1259,7 @@
       "h1": [
         "Alice Developer"
       ],
-      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n6\nprojects in the main library\n4\ncollectives you contribute to\nML Reading Group\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Platform\napproved\napproved transcripts\n5\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Company\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\npublished library\ningest-api\n3 sessions\nFix flaky ingest test\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nGuard empty turns in the digest\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nRefactoring database queries\nclaude-code\n\u00b7\nDec 24, 2023\n\u00b7\n24 turns\nvisibility: shared\nweb\n1 session\nPaginate the collectives list\nclaude-code\n\u00b7\nDec 31, 2023\n\u00b7\n24 turns\nvisibility: shared\nworker\n1 session\nMigrate retry queue to worker\nclaude-code\n\u00b7\nDec 30, 2023\n\u00b7\n24 turns\nvisibility: shared\nml-notes\n1 session\nReproduce the tokenizer benchmark\nclaude-code\n\u00b7\nDec 29, 2023\n\u00b7\n24 turns\nvisibility: pri",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -776,6 +1268,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -798,6 +1291,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -820,6 +1314,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -863,6 +1358,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -876,7 +1372,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\ntranscript\tcontributor\tagent\treview\twhen\nAdd retries to the webhook\ningest-api, retries\n\t@dan-ops\t\ncodex\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024\nTrim the onboarding copy\nweb, main\n\t@carol-ml\t\nclaude-code\n\t\nwaiting\napprove\nreject\n\tJan 1, 2024",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -906,6 +1402,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -928,6 +1425,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -950,6 +1448,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -963,7 +1462,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -993,6 +1492,139 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-transcripts",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\tcontributor\tagent\tturns\twhen\nFix flaky ingest test\n#42\n#45\n#51\nacme/ingest-api, 4 pull requests\n\t@alice-dev\t\nclaude-code\n\t37\tJan 1, 2024\nGuard empty turns in the digest\n#42\nacme/ingest-api\n\t@alice-dev\t\nclaude-code\n\t22\tJan 1, 2024\nPaginate the collectives list\n#31\n#33\nacme/web\n\t@bob-ai\t\ncodex\n\t51\tDec 31, 2023\nMigrate retry queue to worker\t@bob-ai\t\nopencode\n\t64\tDec 30, 2023\nRefactoring database queries\n#36\n#38\n#40\nacme/ingest-api\n\t@carol-ml\t\ngemini-cli\n\t91\tDec 24, 2023\nRecorded replay 1: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 2: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 3: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 4: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 5: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 6: Fix flaky ingest t",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-last-page",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 1440,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\tcontributor\tagent\tturns\twhen\nRecorded replay 16: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 17: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 18: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 19: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nRecorded replay 20: Fix flaky ingest test\t@bob-ai\t\nclaude-code\n\t5\tJan 1, 2024\nshowing 21 to 25 of 25\nprev\n1\n2\nnext\ntranscript groups\nshow\nyour contributions\n2\nclaude-code\nInvestigate the private review\npending\nJan 1\n1 child session\nshow\n1 more grouped result\nload more",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1015,6 +1647,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1040,6 +1673,7 @@
       },
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1062,6 +1696,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1084,6 +1719,106 @@
       "digest": null,
       "diagrams": 1,
       "overflow": [],
+      "diagramProof": {
+        "bounds": {
+          "left": 577,
+          "right": 1117.265625,
+          "top": 655.1875,
+          "bottom": 1477.578125
+        },
+        "viewBox": "-91 -91.5 540.265625 822.4000244140625",
+        "labels": [
+          {
+            "text": "yes",
+            "fontSize": "16px",
+            "left": 702.2905883789062,
+            "right": 726.7437133789062,
+            "top": 984.18359375,
+            "bottom": 1004.18359375
+          },
+          {
+            "text": "no",
+            "fontSize": "16px",
+            "left": 754.0322265625,
+            "right": 772.3759765625,
+            "top": 1375.5791015625,
+            "bottom": 1395.5791015625
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 1021.91162109375,
+            "right": 1103.61474609375,
+            "top": 984.18359375,
+            "bottom": 1004.18359375
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 932.63916015625,
+            "right": 1014.34228515625,
+            "top": 1085.782470703125,
+            "bottom": 1105.782470703125
+          },
+          {
+            "text": "Validate resumecursor",
+            "fontSize": "16px",
+            "left": 833.9057006835938,
+            "right": 956.6244506835938,
+            "top": 774.2859497070312,
+            "bottom": 811.8857421875
+          },
+          {
+            "text": "Read boundedpage",
+            "fontSize": "16px",
+            "left": 840.0619506835938,
+            "right": 950.4682006835938,
+            "top": 875.8848266601562,
+            "bottom": 913.484619140625
+          },
+          {
+            "text": "Escape and streamCSV",
+            "fontSize": "16px",
+            "left": 821.4916381835938,
+            "right": 969.0385131835938,
+            "top": 977.483642578125,
+            "bottom": 1015.0834350585938
+          },
+          {
+            "text": "Advance compositecursor",
+            "fontSize": "16px",
+            "left": 742.7738037109375,
+            "right": 891.2581787109375,
+            "top": 1079.08251953125,
+            "bottom": 1116.6822509765625
+          },
+          {
+            "text": "More rows?",
+            "fontSize": "16px",
+            "left": 719.2978515625,
+            "right": 807.7041015625,
+            "top": 1241.08056640625,
+            "bottom": 1261.0806884765625
+          },
+          {
+            "text": "Finish response",
+            "fontSize": "16px",
+            "left": 702.8837890625,
+            "right": 824.1181640625,
+            "top": 1449.0782470703125,
+            "bottom": 1469.078369140625
+          },
+          {
+            "text": "Cancel work",
+            "fontSize": "16px",
+            "left": 994.372802734375,
+            "right": 1087.154052734375,
+            "top": 1178.081298828125,
+            "bottom": 1198.081298828125
+          }
+        ],
+        "clipped": []
+      },
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1106,6 +1841,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1119,7 +1855,7 @@
       "h1": [
         "Alice Developer"
       ],
-      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n0\nprojects in the main library\n0\ncollectives you contribute to\nAI Research Team\n\ntranscripts of applied model work, reviewed before publication\n\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n2\nwithdrawn attempts\n1\nsubmissions\nQuiet Reviewers\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n3\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nFormer Home\n\neverything offered here was withdrawn again\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n1\nsubmissions\nStrict Curators\n\nrefused three times, then withdrawn\n\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n3\nwithdrawn attempts\n1\nsubmissions\npublished library\nyour library is empty\n\nthe sessions you publish from peasant show up here.\n\nhow to publish\n, opens in a new tab",
+      "mainText": "home\n/\n@alice-dev\nA\nAlice Developer\n\n@alice-dev\n\nsettings\norganizations\npeasant-labs\ntranscripts\n6\nprojects in the main library\n4\ncollectives you contribute to\nML Reading Group\napproved\napproved transcripts\n0\nawaiting review\ntranscripts awaiting review\n1\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Platform\napproved\napproved transcripts\n5\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\nAcme Company\napproved\napproved transcripts\n2\nawaiting review\ntranscripts awaiting review\n0\nrejected attempts\n0\nwithdrawn attempts\n0\nsubmissions\npublished library\ningest-api\n3 sessions\nFix flaky ingest test\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nGuard empty turns in the digest\nclaude-code\n\u00b7\nJan 1, 2024\n\u00b7\n24 turns\nvisibility: shared\nRefactoring database queries\nclaude-code\n\u00b7\nDec 24, 2023\n\u00b7\n24 turns\nvisibility: shared\nweb\n1 session\nPaginate the collectives list\nclaude-code\n\u00b7\nDec 31, 2023\n\u00b7\n24 turns\nvisibility: shared\nworker\n1 session\nMigrate retry queue to worker\nclaude-code\n\u00b7\nDec 30, 2023\n\u00b7\n24 turns\nvisibility: shared\nml-notes\n1 session\nReproduce the tokenizer benchmark\nclaude-code\n\u00b7\nDec 29, 2023\n\u00b7\n24 turns\nvisibility: pri",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -1128,6 +1864,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1150,6 +1887,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1172,6 +1910,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1215,6 +1954,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1228,7 +1968,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\n\n2 sessions wait for your approval before members can read them.\n\nreview transcripts\nwaiting for approval 2\nAdd retries to the webhook\ningest-api, retries\n@dan-ops\ncodex\nwaiting\napprove\nreject\nJan 1, 2024\nTrim the onboarding copy\nweb, main\n@carol-ml\nclaude-code\nwaiting\napprove\nreject\nJan 1, 2024",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -1258,6 +1998,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1280,6 +2021,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1302,6 +2044,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1315,7 +2058,7 @@
       "h1": [
         "Acme Platform"
       ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -1345,6 +2088,139 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "repository-controls",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-transcripts",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\twhen\nFix flaky ingest test\n#42\n#45\n#51\nacme/ingest-api, 4 pull requests\n@alice-dev\nclaude-code\n37 turns\n\tJan 1, 2024\nGuard empty turns in the digest\n#42\nacme/ingest-api\n@alice-dev\nclaude-code\n22 turns\n\tJan 1, 2024\nPaginate the collectives list\n#31\n#33\nacme/web\n@bob-ai\ncodex\n51 turns\n\tDec 31, 2023\nMigrate retry queue to worker\n@bob-ai\nopencode\n64 turns\n\tDec 30, 2023\nRefactoring database queries\n#36\n#38\n#40\nacme/ingest-api\n@carol-ml\ngemini-cli\n91 turns\n\tDec 24, 2023\nRecorded replay 1: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 2: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 3: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 4: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 5: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "collective-last-page",
+      "theme": "dark",
+      "width": 390,
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "scrollWidth": 390,
+      "h1": [
+        "Acme Platform"
+      ],
+      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n25\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\ntranscripts 25\ntranscript\twhen\nRecorded replay 16: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 17: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 18: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 19: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nRecorded replay 20: Fix flaky ingest test\n@bob-ai\nclaude-code\n5 turns\n\tJan 1, 2024\nshowing 21 to 25 of 25\nprev\n1\n2\nnext\ntranscript groups\nshow\nyour contributions\n2\nclaude-code\nInvestigate the private review\npending\nJan 1\n1 child session\nshow\n1 more grouped result\nload more",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [
+        {
+          "name": "approve Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Add retries to the webhook",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "approve Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "name": "reject Trim the onboarding copy",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1367,6 +2243,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1392,6 +2269,7 @@
       },
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1405,7 +2283,7 @@
       "h1": [
         "Build a resumable activity export"
       ],
-      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLo",
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n8h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n8h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n8h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n7h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n7h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n7h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n7h ago\n\nLo",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -1414,6 +2292,7 @@
       "digest": null,
       "diagrams": 0,
       "overflow": [],
+      "diagramProof": null,
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
@@ -1427,7 +2306,7 @@
       "h1": [
         "Build a resumable activity export"
       ],
-      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n6h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n6h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n6h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n6h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n6h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n6h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n6h ago\n\nLocate the unbounded read and trace how the response gets writt",
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1\u201319\nuser turn 1\nuser\n#1\n8h ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n8h ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n8h ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n8h ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n7h ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n7h ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n7h ago\n\nLocate the unbounded read and trace how the response gets writt",
       "fonts": {
         "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
         "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
@@ -1436,181 +2315,216 @@
       "digest": null,
       "diagrams": 1,
       "overflow": [],
+      "diagramProof": {
+        "bounds": {
+          "left": 45,
+          "right": 585.265625,
+          "top": 1027.984375,
+          "bottom": 1850.375
+        },
+        "viewBox": "-91 -91.5 540.265625 822.4000244140625",
+        "labels": [
+          {
+            "text": "yes",
+            "fontSize": "16px",
+            "left": 170.2905731201172,
+            "right": 194.7436981201172,
+            "top": 1356.98046875,
+            "bottom": 1376.98046875
+          },
+          {
+            "text": "no",
+            "fontSize": "16px",
+            "left": 222.03221130371094,
+            "right": 240.37596130371094,
+            "top": 1748.3759765625,
+            "bottom": 1768.3759765625
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 489.91162109375,
+            "right": 571.6146850585938,
+            "top": 1356.98046875,
+            "bottom": 1376.98046875
+          },
+          {
+            "text": "disconnect",
+            "fontSize": "16px",
+            "left": 400.6391906738281,
+            "right": 482.34228515625,
+            "top": 1458.579345703125,
+            "bottom": 1478.579345703125
+          },
+          {
+            "text": "Validate resumecursor",
+            "fontSize": "16px",
+            "left": 301.90570068359375,
+            "right": 424.62445068359375,
+            "top": 1147.0828857421875,
+            "bottom": 1184.6826171875
+          },
+          {
+            "text": "Read boundedpage",
+            "fontSize": "16px",
+            "left": 308.06195068359375,
+            "right": 418.46820068359375,
+            "top": 1248.681640625,
+            "bottom": 1286.281494140625
+          },
+          {
+            "text": "Escape and streamCSV",
+            "fontSize": "16px",
+            "left": 289.49163818359375,
+            "right": 437.03851318359375,
+            "top": 1350.280517578125,
+            "bottom": 1387.88037109375
+          },
+          {
+            "text": "Advance compositecursor",
+            "fontSize": "16px",
+            "left": 210.77378845214844,
+            "right": 359.2581481933594,
+            "top": 1451.87939453125,
+            "bottom": 1489.4791259765625
+          },
+          {
+            "text": "More rows?",
+            "fontSize": "16px",
+            "left": 187.29783630371094,
+            "right": 275.7041015625,
+            "top": 1613.87744140625,
+            "bottom": 1633.8775634765625
+          },
+          {
+            "text": "Finish response",
+            "fontSize": "16px",
+            "left": 170.88375854492188,
+            "right": 292.1181640625,
+            "top": 1821.8751220703125,
+            "bottom": 1841.875244140625
+          },
+          {
+            "text": "Cancel work",
+            "fontSize": "16px",
+            "left": 462.372802734375,
+            "right": 555.154052734375,
+            "top": 1550.878173828125,
+            "bottom": 1570.878173828125
+          }
+        ],
+        "clipped": [],
+        "pan": {
+          "width": 324,
+          "scrollWidth": 564,
+          "scrollLeft": 40
+        }
+      },
       "errors": [],
       "consoleErrors": [],
       "failedReads": []
-    },
+    }
+  ],
+  "dialog": [
     {
-      "name": "repository-controls",
       "theme": "light",
       "width": 1440,
-      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
-      "scrollWidth": 1440,
-      "h1": [
-        "Acme Platform"
-      ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
-      "fonts": {
-        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
-        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      "geometry": {
+        "left": 360,
+        "right": 1080,
+        "top": 263,
+        "bottom": 737,
+        "width": 720,
+        "height": 474,
+        "portalOutsideMain": true,
+        "focused": "_r_3_-name"
       },
-      "reviewActions": [
-        {
-          "name": "approve Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "approve Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        }
+      "stepsFocused": [
+        "name",
+        "publishing radio",
+        "invite username",
+        "publishing radio",
+        "name"
       ],
-      "digest": null,
-      "diagrams": 0,
-      "overflow": [],
+      "focusRestored": true,
+      "mutations": [],
       "errors": [],
-      "consoleErrors": [],
-      "failedReads": []
+      "passed": true
     },
     {
-      "name": "repository-controls",
       "theme": "light",
       "width": 390,
-      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
-      "scrollWidth": 390,
-      "h1": [
-        "Acme Platform"
-      ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
-      "fonts": {
-        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
-        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      "geometry": {
+        "left": 0,
+        "right": 390,
+        "top": 467,
+        "bottom": 1000,
+        "width": 390,
+        "height": 533,
+        "portalOutsideMain": true,
+        "focused": "_r_3_-name"
       },
-      "reviewActions": [
-        {
-          "name": "approve Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "approve Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        }
+      "stepsFocused": [
+        "name",
+        "publishing radio",
+        "invite username",
+        "publishing radio",
+        "name"
       ],
-      "digest": null,
-      "diagrams": 0,
-      "overflow": [],
+      "focusRestored": true,
+      "mutations": [],
       "errors": [],
-      "consoleErrors": [],
-      "failedReads": []
+      "passed": true
     },
     {
-      "name": "repository-controls",
       "theme": "dark",
       "width": 1440,
-      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
-      "scrollWidth": 1440,
-      "h1": [
-        "Acme Platform"
-      ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
-      "fonts": {
-        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
-        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      "geometry": {
+        "left": 360,
+        "right": 1080,
+        "top": 263,
+        "bottom": 737,
+        "width": 720,
+        "height": 474,
+        "portalOutsideMain": true,
+        "focused": "_r_3_-name"
       },
-      "reviewActions": [
-        {
-          "name": "approve Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "approve Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        }
+      "stepsFocused": [
+        "name",
+        "publishing radio",
+        "invite username",
+        "publishing radio",
+        "name"
       ],
-      "digest": null,
-      "diagrams": 0,
-      "overflow": [],
+      "focusRestored": true,
+      "mutations": [],
       "errors": [],
-      "consoleErrors": [],
-      "failedReads": []
+      "passed": true
     },
     {
-      "name": "repository-controls",
       "theme": "dark",
       "width": 390,
-      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
-      "scrollWidth": 390,
-      "h1": [
-        "Acme Platform"
-      ],
-      "mainText": "collectives\n/\nAcme Platform\nAcme Platform\nsettings\ninvite people\n\nTranscripts behind the ingest and web services.\n\nwho can publish:\nyou approve each session\nwho can read:\nmembers read\nyour role:\nyou are the owner\ntranscripts\n248\nwaiting for approval\n2\nmembers\n6\nrepositories\nstats\nacme: 2 of 14 repos linked\nrepositories\n\npull requests in linked repositories can show this collective's transcripts.\n\nsearch repos\nselect all\nclear\n2 of 14 selected\n\nacme\norganisation\n\ningest-api\nprivate\n4 members publish from it\nlinked\nweb\n2 members publish from it\nlinked\nworker\n3 members publish from it\ncli\n1 member publishes from it\ninfra\nprivate\ndocs\nbilling\nprivate\nauth\nmobile\ndesign-tokens\nstatus-page\nsdk-js\nsdk-go\nterraform\nprivate\nreset\nsave",
-      "fonts": {
-        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
-        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      "geometry": {
+        "left": 0,
+        "right": 390,
+        "top": 467,
+        "bottom": 1000,
+        "width": 390,
+        "height": 533,
+        "portalOutsideMain": true,
+        "focused": "_r_3_-name"
       },
-      "reviewActions": [
-        {
-          "name": "approve Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Add retries to the webhook",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "approve Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        },
-        {
-          "name": "reject Trim the onboarding copy",
-          "width": 0,
-          "height": 0
-        }
+      "stepsFocused": [
+        "name",
+        "publishing radio",
+        "invite username",
+        "publishing radio",
+        "name"
       ],
-      "digest": null,
-      "diagrams": 0,
-      "overflow": [],
+      "focusRestored": true,
+      "mutations": [],
       "errors": [],
-      "consoleErrors": [],
-      "failedReads": []
+      "passed": true
     }
   ],
   "navigation": {
@@ -1620,7 +2534,7 @@
         "theme": "light",
         "width": 1440,
         "passed": true,
-        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "url": "http://localhost:3340/users/alice-dev?collective=c011ec71-0000-4000-8000-000000000003#contributions",
         "errors": []
       },
       {
@@ -1628,7 +2542,7 @@
         "theme": "light",
         "width": 390,
         "passed": true,
-        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "url": "http://localhost:3340/users/alice-dev?collective=c011ec71-0000-4000-8000-000000000003#contributions",
         "errors": []
       },
       {
@@ -1636,7 +2550,7 @@
         "theme": "dark",
         "width": 1440,
         "passed": true,
-        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "url": "http://localhost:3340/users/alice-dev?collective=c011ec71-0000-4000-8000-000000000003#contributions",
         "errors": []
       },
       {
@@ -1644,7 +2558,7 @@
         "theme": "dark",
         "width": 390,
         "passed": true,
-        "url": "http://localhost:3340/users/alice-dev?collective=11111111-1111-4111-8111-111111111111#contributions",
+        "url": "http://localhost:3340/users/alice-dev?collective=c011ec71-0000-4000-8000-000000000003#contributions",
         "errors": []
       }
     ],
@@ -1717,10 +2631,413 @@
       }
     ]
   },
+  "images": [
+    {
+      "file": "collective-last-page-dark-1440.png",
+      "sha256": "e651b57f2e076132437a4712803e4c773c186e5eccdfdf16fee81fb9782dd6cc",
+      "bytes": 134666
+    },
+    {
+      "file": "collective-last-page-dark-390.png",
+      "sha256": "ba5f2b64b3abaf19f9972372b59948708fb9df819ef03a52692867b4b8bd720e",
+      "bytes": 58527
+    },
+    {
+      "file": "collective-last-page-light-1440.png",
+      "sha256": "77153b40f7981946e31689da558ccaca64e36361bd78ae708b192604fff4703b",
+      "bytes": 135316
+    },
+    {
+      "file": "collective-last-page-light-390.png",
+      "sha256": "fe7b62e95d79e252da31c7a3f8a22323bb025f30715faeec6eff59362f3d40ae",
+      "bytes": 59404
+    },
+    {
+      "file": "collective-transcripts-dark-1440.png",
+      "sha256": "79505b2e26356a9f47e968e7dce9d9ba81fe6dee6e7187bae4ae809b94165dc1",
+      "bytes": 167119
+    },
+    {
+      "file": "collective-transcripts-dark-390.png",
+      "sha256": "964cd1682ff6df07d0d5f1abffccc4a0e28009a5deebcd3edb98acb3ef3e5c59",
+      "bytes": 58944
+    },
+    {
+      "file": "collective-transcripts-light-1440.png",
+      "sha256": "d8a48b64b0d3a25e4bb3797ebb4110a01d86669741dbcfe029965eddae3f428b",
+      "bytes": 166843
+    },
+    {
+      "file": "collective-transcripts-light-390.png",
+      "sha256": "f27f1c6e9be86ab0d3b7c52d6b8e5af15c2b2d18b7920c5a41e7e8eff102e76b",
+      "bytes": 59819
+    },
+    {
+      "file": "discover-collectives-dark-1440.png",
+      "sha256": "1b5090fa361d72fcfd9e26e6c89d0c58a69409dd7f915c5cd706c1f6d58651e1",
+      "bytes": 94721
+    },
+    {
+      "file": "discover-collectives-dark-390.png",
+      "sha256": "6416b33b13555680ab02e273f2898de969d78ad1719f5223818d855c18cbc90e",
+      "bytes": 60721
+    },
+    {
+      "file": "discover-collectives-light-1440.png",
+      "sha256": "fc66ef93783ad750a6066a0651b598fede935024077d7cef9d51e53cc99a5cfd",
+      "bytes": 94978
+    },
+    {
+      "file": "discover-collectives-light-390.png",
+      "sha256": "1e74dc4b33746489471e78f4e43280b895d1f847a81b22ec8731367902ea40de",
+      "bytes": 61010
+    },
+    {
+      "file": "discover-history-dark-1440.png",
+      "sha256": "962f1dfb016985fa3ba189fb526168494d85af115d45cf917974fc8ce30da160",
+      "bytes": 147834
+    },
+    {
+      "file": "discover-history-dark-390.png",
+      "sha256": "6ee018bbd047d14cde0b75779660aa407cd465ec81a518acdfc43eb5d9c6fccd",
+      "bytes": 69180
+    },
+    {
+      "file": "discover-history-light-1440.png",
+      "sha256": "bfaa54b30003ba730813eb92977503b608a61eab11754dac2a9af35d7cd7c349",
+      "bytes": 149648
+    },
+    {
+      "file": "discover-history-light-390.png",
+      "sha256": "042d0de67820d064225efcb2f85a6e059ce11d3e5ad68388bde022108fd53d29",
+      "bytes": 70172
+    },
+    {
+      "file": "discover-transcripts-dark-1440.png",
+      "sha256": "dba566e84b2ee4fca0b4284f034ec5e172a4d1a521cf2afa6b9f06accd3f9606",
+      "bytes": 148242
+    },
+    {
+      "file": "discover-transcripts-dark-390.png",
+      "sha256": "29ff8de8c9b4d6713e2e9021c499486e1ed1c3bb3647035bf8adb9eee0ab0c14",
+      "bytes": 69521
+    },
+    {
+      "file": "discover-transcripts-light-1440.png",
+      "sha256": "d3aab48e2963693c8168f696166896d8de09c527d5bc14c99fe5d444b26e4dd4",
+      "bytes": 149945
+    },
+    {
+      "file": "discover-transcripts-light-390.png",
+      "sha256": "b3b61b541ed0f482c8a7b93c91017fcc12a0854a9f6f51388f1a6563099bf9a5",
+      "bytes": 70490
+    },
+    {
+      "file": "home-dark-1440.png",
+      "sha256": "7cd8d5e2b8c3303cfa47bb91cd267504fab3b47084332258080d65c68df175dc",
+      "bytes": 84478
+    },
+    {
+      "file": "home-dark-390.png",
+      "sha256": "b83a8cdd63a4200c1296d817d1b75b7406b3264fb3551899c0dcab0960986ab3",
+      "bytes": 47178
+    },
+    {
+      "file": "home-light-1440.png",
+      "sha256": "d692bdbbaa8258e8f7cadf9ddc883d0ae47e196e2cf0ecdc5aec2de16b0aa471",
+      "bytes": 84877
+    },
+    {
+      "file": "home-light-390.png",
+      "sha256": "d63319873641b6b6ce6c46d60b6450fdd4da9febe3de91179b0e5c73de6c0dd1",
+      "bytes": 47430
+    },
+    {
+      "file": "long-demo-dark-1440.png",
+      "sha256": "080b6ac9135794a9cfe8ad32159a6ad5c9869c1814c866b0445c5be41c2d1b51",
+      "bytes": 226374
+    },
+    {
+      "file": "long-demo-dark-390.png",
+      "sha256": "46ebdd9f762624fdaececb1da72055830bfa18485b01a3f0915402ca10054383",
+      "bytes": 82563
+    },
+    {
+      "file": "long-demo-light-1440.png",
+      "sha256": "64b15312ea7fe85bf5e1c9fd94330ed1464c04d1e13e89ac197bedaceb64cfc6",
+      "bytes": 226761
+    },
+    {
+      "file": "long-demo-light-390.png",
+      "sha256": "17ef58daa1d2e3d73ca7edf5839836e11a4d0f4351806b990d6d7fb943d4163d",
+      "bytes": 82521
+    },
+    {
+      "file": "long-diagram-dark-1440.png",
+      "sha256": "1a39100736a14ae0bc4e54aae55c3148a08849e170a4bdd42bfb81287aede501",
+      "bytes": 179691
+    },
+    {
+      "file": "long-diagram-dark-390.png",
+      "sha256": "7b2e7b85fd64dd2776fbca163774d879df3c3bc51c2e655807d1343b0d113ced",
+      "bytes": 30833
+    },
+    {
+      "file": "long-diagram-light-1440.png",
+      "sha256": "0175133e1ff247e087a4468ee4e09fdcd6e9e163a73b183f72ecfa8d89a36989",
+      "bytes": 180311
+    },
+    {
+      "file": "long-diagram-light-390.png",
+      "sha256": "993dee25eff4bdb15f70493ecbdf1e14f25ad8231ed22acdca9bbfae28120316",
+      "bytes": 31092
+    },
+    {
+      "file": "new-collective-dialog-dark-1440.png",
+      "sha256": "5b27c51771dc094540547997cc1cbb3388a09c6708280f1033c2399065e920d0",
+      "bytes": 103231
+    },
+    {
+      "file": "new-collective-dialog-dark-390.png",
+      "sha256": "16a40e3b4e30afc06eb4e31f36ccfdc579ebfc8af39969405c5171210403d30a",
+      "bytes": 58189
+    },
+    {
+      "file": "new-collective-dialog-light-1440.png",
+      "sha256": "134a33f3ce7a58097b1252e7ec2265c0209323a45eb61fcebf47560638a57ca2",
+      "bytes": 104833
+    },
+    {
+      "file": "new-collective-dialog-light-390.png",
+      "sha256": "173b823644eebed1b2230e2132a73eb8f046b5d10de6dcc143ed39a02d683769",
+      "bytes": 59477
+    },
+    {
+      "file": "pr-digest-dark-1440.png",
+      "sha256": "d9b31689cf67be0542b612c3d9433958a8413ba6da574c1e0edf0e312e269b0a",
+      "bytes": 107465
+    },
+    {
+      "file": "pr-digest-dark-390.png",
+      "sha256": "73805554c1314bea3e4ef7be4737c451ed023321373f6939c0b1fc83b58001ea",
+      "bytes": 54039
+    },
+    {
+      "file": "pr-digest-light-1440.png",
+      "sha256": "3f50378f0b44cbcf7417102b12fa32145a0f6470689abf60c18be04ba81186b8",
+      "bytes": 108004
+    },
+    {
+      "file": "pr-digest-light-390.png",
+      "sha256": "4f809c7686181dc0c96d3b860197e7151ff00c68a330cd78d9c2c7429ecef3a2",
+      "bytes": 54493
+    },
+    {
+      "file": "pr-history-dark-1440.png",
+      "sha256": "1b41ecdea1007d3d3cf210d1b4391514a0975b3000237f2f5fa6bb0483eb04ad",
+      "bytes": 110095
+    },
+    {
+      "file": "pr-history-dark-390.png",
+      "sha256": "246c538ea1f65c8365884dea00bce94f0590f9d0f5a624c63e76b7ad52ed5f95",
+      "bytes": 58138
+    },
+    {
+      "file": "pr-history-light-1440.png",
+      "sha256": "465a492bf2540740648a1a822e2921172f482868111b73290ba6950278b2b8c0",
+      "bytes": 110665
+    },
+    {
+      "file": "pr-history-light-390.png",
+      "sha256": "07682d877c10fe2d1aab3853718253b823a183dae2bed18aa83de66303172628",
+      "bytes": 58580
+    },
+    {
+      "file": "profile-dark-1440.png",
+      "sha256": "4c31e226737323b6b933dc06bbe40b9720800b4c04b1b63a78c549b3b92d7e88",
+      "bytes": 97873
+    },
+    {
+      "file": "profile-dark-390.png",
+      "sha256": "9a8764c34c3231544978b4a15a521c9a0460cda5112452673c6d3adcad91ad61",
+      "bytes": 48538
+    },
+    {
+      "file": "profile-history-dark-1440.png",
+      "sha256": "f57668d6736ed46c32e2f5a033693452a22ca7a6b14e9cd570337f6329c85f21",
+      "bytes": 94104
+    },
+    {
+      "file": "profile-history-dark-390.png",
+      "sha256": "2ba08da331f856b901ff6bf97facfb1e0db53dcd40ca81c664bbceb7c949cce4",
+      "bytes": 48312
+    },
+    {
+      "file": "profile-history-light-1440.png",
+      "sha256": "cd2f5cfa348e08b22d343d39c237c258be5604e9ba4c0d9f8e8667d037df24df",
+      "bytes": 94249
+    },
+    {
+      "file": "profile-history-light-390.png",
+      "sha256": "74d91f4541ca21f56b3fd5e7e8c21a84b78fea3f258df261b76edf72d3445629",
+      "bytes": 48700
+    },
+    {
+      "file": "profile-light-1440.png",
+      "sha256": "5fc4fd8e5e0dd7d83cab5994950fbd4e9c2e8ac4036760df45071a0806f64e47",
+      "bytes": 98400
+    },
+    {
+      "file": "profile-light-390.png",
+      "sha256": "53212b460897504dbdfbbc33728204076565ba7501aac9bb8045355104270909",
+      "bytes": 49018
+    },
+    {
+      "file": "pull-requests-dark-1440.png",
+      "sha256": "3de4edb143bcf2d0d3edc99005207a7dbebe18e17631912fd4d4cee97a333cb8",
+      "bytes": 80352
+    },
+    {
+      "file": "pull-requests-dark-390.png",
+      "sha256": "fed5388bb3a51c03e85b5de245042668af3df4febaed6b251aa37b44c3a8ac7f",
+      "bytes": 52513
+    },
+    {
+      "file": "pull-requests-light-1440.png",
+      "sha256": "a46fa83cebce04473473640e6eeba53ea43ee3caec67f070f2b20205d7192f25",
+      "bytes": 80786
+    },
+    {
+      "file": "pull-requests-light-390.png",
+      "sha256": "8590d53ca3c4718d478f8fadec6f9da78c3a088d5b4b6f01224ed98a75de175d",
+      "bytes": 52737
+    },
+    {
+      "file": "repositories-dark-1440.png",
+      "sha256": "344ef32f04d14333c37cf3f1a1b5e6dbf52b5716c399ca96c1c19b17552c21a4",
+      "bytes": 103849
+    },
+    {
+      "file": "repositories-dark-390.png",
+      "sha256": "7e3e4100d53ed1f4a3e642becae4fa42a38069ecfe4944198f1e5d11ecdbd97e",
+      "bytes": 59897
+    },
+    {
+      "file": "repositories-light-1440.png",
+      "sha256": "9fe73e21e4b3410df32d1b28a870c3656c8a266dc723e024bd9da923e7797060",
+      "bytes": 104673
+    },
+    {
+      "file": "repositories-light-390.png",
+      "sha256": "056c543af3b12ecd3d188243e48c2e14d9b5ef358eb483036bc4d48a4b9e339e",
+      "bytes": 59939
+    },
+    {
+      "file": "repository-controls-dark-1440.png",
+      "sha256": "d5d69cbdbda15f84c99568dd06d55fe312782b162451b2d96a3e3b52706efdeb",
+      "bytes": 79559
+    },
+    {
+      "file": "repository-controls-dark-390.png",
+      "sha256": "ff34d847889929ff0c87707c0da076b09b79a88bdb8a52ef7cfa5139ad1df16c",
+      "bytes": 42654
+    },
+    {
+      "file": "repository-controls-light-1440.png",
+      "sha256": "8cbaf1cca0289ee186534ff4d40542e397adafffc7ba201530cfb35d7a225a62",
+      "bytes": 80217
+    },
+    {
+      "file": "repository-controls-light-390.png",
+      "sha256": "7ec917234d1740b503ac1ec98699566d72a145ea86eb461f949fa6c882a58e5f",
+      "bytes": 42897
+    },
+    {
+      "file": "review-dark-1440.png",
+      "sha256": "b4208bd58e8e484b0832aae32a987e64e46f26c28473104b759c2da1c4b94f50",
+      "bytes": 128869
+    },
+    {
+      "file": "review-dark-390.png",
+      "sha256": "f29ef64cff33fcbb893f162a17d40a895a7ed32f3ef53a8ab42397b1ad8b169e",
+      "bytes": 59840
+    },
+    {
+      "file": "review-light-1440.png",
+      "sha256": "7be06cd510759499ab1196188e50eac5191c76e43517d3b93e73881bbc051437",
+      "bytes": 129727
+    },
+    {
+      "file": "review-light-390.png",
+      "sha256": "6baf4bce085936518f1b15e9483045e462058eeb0cb53aa643d957b6379a93e2",
+      "bytes": 60162
+    },
+    {
+      "file": "settings-email-dark-1440.png",
+      "sha256": "d77b975d77ed4b01644abc0b9a20c785cf401fada292d13239820a96d3081258",
+      "bytes": 103540
+    },
+    {
+      "file": "settings-email-dark-390.png",
+      "sha256": "4d333ca7be991a66b475c82ae5cb6424793e14f134c8773669812b3811722c3c",
+      "bytes": 49754
+    },
+    {
+      "file": "settings-email-light-1440.png",
+      "sha256": "a924425f33772bf0f566109623b94cf5fc420e7c422c024d70d9815ed88f98c0",
+      "bytes": 103996
+    },
+    {
+      "file": "settings-email-light-390.png",
+      "sha256": "31bc45c12e9d523dd1fe73a8ed776bd84dd0cb92b715b07831df5c9b3d344df6",
+      "bytes": 49836
+    },
+    {
+      "file": "settings-members-dark-1440.png",
+      "sha256": "ff297b0b7e9c81486f401fb71d940f3162d02514834871623568a34b5111257a",
+      "bytes": 95176
+    },
+    {
+      "file": "settings-members-dark-390.png",
+      "sha256": "bc9549e824d23fa19b15a0a37861060d88b6bc259202711c9336ccb4e9dd3e8d",
+      "bytes": 50893
+    },
+    {
+      "file": "settings-members-light-1440.png",
+      "sha256": "0eb5ff399833a800335532702fd9c623ea0641ec0ad3cf252c4e684e5b362ea0",
+      "bytes": 95532
+    },
+    {
+      "file": "settings-members-light-390.png",
+      "sha256": "5626e66c5510ed26cb6bef40335c66a33f94f81cb9516b24993a374257ac088b",
+      "bytes": 51044
+    },
+    {
+      "file": "waiting-dark-1440.png",
+      "sha256": "30a11ec0275e45b26210840860c1a95dd60594f8d833fcc321334b70d3ac99a6",
+      "bytes": 97182
+    },
+    {
+      "file": "waiting-dark-390.png",
+      "sha256": "7db026726ad46c1cdbe6bf49a3163aff7a22d72d44747922fae2b5314943c169",
+      "bytes": 63200
+    },
+    {
+      "file": "waiting-light-1440.png",
+      "sha256": "19a0cfc5f35ff818d960d1ef33902580e6e815e84c2704d56e247cc9f139f17b",
+      "bytes": 97880
+    },
+    {
+      "file": "waiting-light-390.png",
+      "sha256": "d041f6a3ae2713ef45e202a21288d3afdefc42d3ea0e0354d68e8e52e5d50638",
+      "bytes": 63708
+    }
+  ],
   "inspection": {
     "reviewed": "2026-10-29",
-    "states": 56,
-    "navigationStates": 12,
-    "method": "All theme/viewport states visually inspected in per-route overview captures; representative full-size screenshots inspected for profile, review, waiting, prompt digest, email, and long transcript. No production appearance modifications were used for captures."
+    "imagesReviewed": 80,
+    "method": "All20 per-route overviews inspected across both themes and viewport sizes; full-size diagram and dialog captures inspected individually. No style changes or hidden elements used for captures.",
+    "result": "passed",
+    "diagramGlyphBounds": "All SVG text bounds inside their own SVG at16px; intentional stage panning verified independently on phone."
   }
 }
