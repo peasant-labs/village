@@ -50,6 +50,7 @@
   .on-contribute-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .on-contribute-browser { border-bottom: 0; border-right: var(--bd); }
   .on-contribute-preview { block-size: min(75dvh, calc(var(--sp-8) * 14)); overflow: auto; }
+  .on-contribute-preview:has(.on-preview-state) { block-size: auto; }
   .on-contribute-browser { max-block-size: min(75dvh, calc(var(--sp-8) * 14)); }
 }
 @media (max-width: 767px) {
@@ -70,3 +71,6 @@
 .on-home-library .on-table tbody tr.is-row > td { height: auto; vertical-align: top; padding-block: var(--sp-4); }
 .on-home-library .on-table td:first-child { min-width: 16ch; }
 .on-home-library .on-gtog { gap: var(--sp-2); }
+
+/* Home's plain toolbar actions share the search and menu controls' outer height. */
+.on-home-library .on-tools > .btn { min-height: var(--target-comfortable); }
