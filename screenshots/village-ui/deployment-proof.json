@@ -1,0 +1,202 @@
+{
+  "commit": "4cdcb75355d25d461876a43ff55fc38996063086",
+  "deploymentId": 7415546436,
+  "deploymentState": "success",
+  "url": "https://village.peasantlabs.org/auth/callback",
+  "assets": [
+    {
+      "asset": "/_next/static/chunks/061f4f305c0a6020.js",
+      "bytes": 1884,
+      "sha256": "c42858ada699b79aa23262aee1e74a0e32aa2e56981120fc3e4fd6d427da9c3d",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/1ea7b1147b60fb03.js",
+      "bytes": 29374,
+      "sha256": "50a448f1b7095c2a7726f802825f29331664d77d30ef1487059c7bdb8f988d72",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/28f3f0623e472e27.css",
+      "bytes": 34389,
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/2de2ed6b0f2ac1f1.css",
+      "bytes": 410001,
+      "sha256": "bb38b016986a8b7426339f4397e45aae8ceb481d31b5045c5b791f777adc9c9e",
+      "canonicalDepth": true,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/3b74b56c2ee14f7f.js",
+      "bytes": 30786,
+      "sha256": "e434954d5eab748b8973682c94ad4292759b6b7954d8c899074f045bd7abffc7",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/3d89390ea40b1fbc.js",
+      "bytes": 224520,
+      "sha256": "64987f09541cd4a8b7ba571bca8aaa997d1285eb5bdf1b71d89d61b6f0abc3a9",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/3f528fa3c98882a2.js",
+      "bytes": 283,
+      "sha256": "287262813d01fbd27bdeb942c8bcc387b5850bbea68a81539b446aee08cbebe8",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/4c372270c6fb2d5c.js",
+      "bytes": 1576,
+      "sha256": "b2c8ea2d059670058b830ef22f209c15094d9495993993b14f45247361d2adca",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/50c6d0a50413bd71.js",
+      "bytes": 33514,
+      "sha256": "c1196f9120d26b5e2f7cbb76f308f904f0d694f3843438863db1869c46d50b73",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/5b27a99b082c7e56.js",
+      "bytes": 1120,
+      "sha256": "af0452e2e8bea959ed2d3fd5c075a8551e28bd3ad33e3052b0d3ec0377492ea3",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/5fffe2206bb294d6.js",
+      "bytes": 1155455,
+      "sha256": "0ec4fe92283823eee8ea6d3535dd2f312d85413a0272f376b0afb41f44f64727",
+      "canonicalDepth": true,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": true
+    },
+    {
+      "asset": "/_next/static/chunks/77df77db59e8e46b.css",
+      "bytes": 8848,
+      "sha256": "19fb7972d7bd47821899675e5f30b156ed72c219dcd89453aec46929326844d0",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/a6dad97d9634a72d.js",
+      "bytes": 112594,
+      "sha256": "0973c1d64c88adc8e3c950410cb58b288f72118d5965b78049438deb8f2f9683",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/aed9b9d73ef29d64.js",
+      "bytes": 13396,
+      "sha256": "98cb0e524f1be399319494a5abec0a0b8331316771610747bd94938b2f69b0cb",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/b5507667d38843e0.css",
+      "bytes": 1960,
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/b58f3376fb80ca41.js",
+      "bytes": 29184,
+      "sha256": "5c9b8147d4548f351379533b90fd77bb28470edc1ecf9a96432b437dda448b17",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/b839eb01c6cac97a.js",
+      "bytes": 28856,
+      "sha256": "ee03277268ccc0d7214f19b8c267ac926534832cf629aecc3ddacc97cf9f137d",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/d717afca7ee664a0.js",
+      "bytes": 33805,
+      "sha256": "ade5e08882488da8d9cb43858099c481091e8ecd9334e00fad49d0d83ca86906",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/d885a2a78b9332c2.css",
+      "bytes": 70808,
+      "sha256": "5fd4c2870ddcd320cdd5dbc13a34066458b41ff4756222f936587f3a10f19307",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/ef844473cc9a4fb2.js",
+      "bytes": 2967,
+      "sha256": "e313a529295792015c679d3b51eb3465c762364b34530fa884e8bf0ac602f629",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/f41ff1a76522ab5c.js",
+      "bytes": 111604,
+      "sha256": "0beb7c8aab5fcff5d1178af2e9a90dc7e1dcab3b2eb98960a1825d87ec00815c",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/f5f673af012e23a2.js",
+      "bytes": 44012,
+      "sha256": "8707fb99d3d7622fe0ba4780d5415c95789e48b76f4b5b8d80ab31e31d5267aa",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    },
+    {
+      "asset": "/_next/static/chunks/turbopack-6e51f76869557b45.js",
+      "bytes": 10269,
+      "sha256": "e95dbc4ae0e2db22242fd5a3fa7d3491cee3e10df3b7fa5eea51f78ca4b8d1cb",
+      "canonicalDepth": false,
+      "unifiedDiscover": false,
+      "diagramFontCorrection": false
+    }
+  ],
+  "routeStyles": [
+    {
+      "asset": "https://village.peasantlabs.org/_next/static/chunks/545b843a4b4dd1d0.css",
+      "sha256": "6794dc9128859347e669e3924f6983477bb27ab370d88c3de3d9cc6a477f962c",
+      "matchesFreshMergedBuild": true,
+      "unifiedDiscover": true
+    }
+  ],
+  "verifiedCanonicalAssetsMatchInspectedBuild": true,
+  "note": "The unauthenticated callback intentionally loads only common styles. Discover route CSS is verified separately against the freshly synced merged build; no authenticated data or account action is used."
+}
