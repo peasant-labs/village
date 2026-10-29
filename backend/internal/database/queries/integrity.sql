@@ -84,13 +84,16 @@ SELECT EXISTS (
 
 -- name: ClaimIntegrityAttempt :one
 -- Takes one check attempt for (transcript, content, version) and holds it
--- until next_attempt_at. It returns the attempt count after taking it, or no
--- row when the attempt is finished or another holder's time has not passed;
--- the conditional upsert locks the row, so two instances cannot both take it.
+-- for hold_seconds. It returns the attempt count after taking it, or no row
+-- when the attempt is finished or another holder's time has not passed; the
+-- conditional upsert locks the row, so two instances cannot both take it.
+-- Every time is the database's own now(), so an application clock can never
+-- shorten a hold.
 INSERT INTO transcript_integrity_attempts (
     transcript_id, content_hash, scry_version, status, attempts, next_attempt_at
 ) VALUES (
-    @transcript_id, @content_hash, @scry_version, 'pending', 1, @next_attempt_at
+    @transcript_id, @content_hash, @scry_version, 'pending', 1,
+    now() + make_interval(secs => @hold_seconds::float8)
 )
 ON CONFLICT (transcript_id, content_hash, scry_version) DO UPDATE
 SET attempts = transcript_integrity_attempts.attempts + 1,
@@ -103,11 +106,12 @@ RETURNING attempts;
 
 -- name: CompleteIntegrityAttempt :exec
 -- Records how a taken attempt ended. last_error is a closed set, never raw
--- error text.
+-- error text. The attempt is due again retry_after_seconds after the
+-- database's now().
 UPDATE transcript_integrity_attempts
 SET status = @status,
     last_error = sqlc.narg(last_error),
-    next_attempt_at = @next_attempt_at,
+    next_attempt_at = now() + make_interval(secs => @retry_after_seconds::float8),
     updated_at = now()
 WHERE transcript_id = @transcript_id
   AND content_hash = @content_hash

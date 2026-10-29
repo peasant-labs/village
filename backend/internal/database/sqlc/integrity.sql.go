@@ -15,7 +15,8 @@ const claimIntegrityAttempt = `-- name: ClaimIntegrityAttempt :one
 INSERT INTO transcript_integrity_attempts (
     transcript_id, content_hash, scry_version, status, attempts, next_attempt_at
 ) VALUES (
-    $1, $2, $3, 'pending', 1, $4
+    $1, $2, $3, 'pending', 1,
+    now() + make_interval(secs => $4::float8)
 )
 ON CONFLICT (transcript_id, content_hash, scry_version) DO UPDATE
 SET attempts = transcript_integrity_attempts.attempts + 1,
@@ -28,22 +29,24 @@ RETURNING attempts
 `
 
 type ClaimIntegrityAttemptParams struct {
-	TranscriptID  pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
-	ContentHash   string             `db:"content_hash" json:"content_hash"`
-	ScryVersion   string             `db:"scry_version" json:"scry_version"`
-	NextAttemptAt pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	ContentHash  string      `db:"content_hash" json:"content_hash"`
+	ScryVersion  string      `db:"scry_version" json:"scry_version"`
+	HoldSeconds  float64     `db:"hold_seconds" json:"hold_seconds"`
 }
 
 // Takes one check attempt for (transcript, content, version) and holds it
-// until next_attempt_at. It returns the attempt count after taking it, or no
-// row when the attempt is finished or another holder's time has not passed;
-// the conditional upsert locks the row, so two instances cannot both take it.
+// for hold_seconds. It returns the attempt count after taking it, or no row
+// when the attempt is finished or another holder's time has not passed; the
+// conditional upsert locks the row, so two instances cannot both take it.
+// Every time is the database's own now(), so an application clock can never
+// shorten a hold.
 func (q *Queries) ClaimIntegrityAttempt(ctx context.Context, arg ClaimIntegrityAttemptParams) (int32, error) {
 	row := q.db.QueryRow(ctx, claimIntegrityAttempt,
 		arg.TranscriptID,
 		arg.ContentHash,
 		arg.ScryVersion,
-		arg.NextAttemptAt,
+		arg.HoldSeconds,
 	)
 	var attempts int32
 	err := row.Scan(&attempts)
@@ -54,7 +57,7 @@ const completeIntegrityAttempt = `-- name: CompleteIntegrityAttempt :exec
 UPDATE transcript_integrity_attempts
 SET status = $1,
     last_error = $2,
-    next_attempt_at = $3,
+    next_attempt_at = now() + make_interval(secs => $3::float8),
     updated_at = now()
 WHERE transcript_id = $4
   AND content_hash = $5
@@ -62,21 +65,22 @@ WHERE transcript_id = $4
 `
 
 type CompleteIntegrityAttemptParams struct {
-	Status        string             `db:"status" json:"status"`
-	LastError     pgtype.Text        `db:"last_error" json:"last_error"`
-	NextAttemptAt pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
-	TranscriptID  pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
-	ContentHash   string             `db:"content_hash" json:"content_hash"`
-	ScryVersion   string             `db:"scry_version" json:"scry_version"`
+	Status            string      `db:"status" json:"status"`
+	LastError         pgtype.Text `db:"last_error" json:"last_error"`
+	RetryAfterSeconds float64     `db:"retry_after_seconds" json:"retry_after_seconds"`
+	TranscriptID      pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	ContentHash       string      `db:"content_hash" json:"content_hash"`
+	ScryVersion       string      `db:"scry_version" json:"scry_version"`
 }
 
 // Records how a taken attempt ended. last_error is a closed set, never raw
-// error text.
+// error text. The attempt is due again retry_after_seconds after the
+// database's now().
 func (q *Queries) CompleteIntegrityAttempt(ctx context.Context, arg CompleteIntegrityAttemptParams) error {
 	_, err := q.db.Exec(ctx, completeIntegrityAttempt,
 		arg.Status,
 		arg.LastError,
-		arg.NextAttemptAt,
+		arg.RetryAfterSeconds,
 		arg.TranscriptID,
 		arg.ContentHash,
 		arg.ScryVersion,

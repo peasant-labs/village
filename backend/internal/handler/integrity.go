@@ -23,7 +23,6 @@ type integrityService struct {
 	wake   chan struct{}
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
-	now    func() time.Time
 	// callSpacing is the pause between two checks in one pass.
 	callSpacing time.Duration
 	// secretRejected is set while the service refuses the shared secret, so
@@ -52,7 +51,6 @@ func newIntegrityServiceFor(checker scry.Checker) *integrityService {
 	return &integrityService{
 		checker:     checker,
 		wake:        make(chan struct{}, 1),
-		now:         time.Now,
 		callSpacing: integrityCallSpacing,
 	}
 }

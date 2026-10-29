@@ -724,7 +724,9 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   given back the same way and the pass ends, so a wrong secret burns no
   attempts. An attempt interrupted by a shutdown is never
   ended, and is due again once its hold passes. A new content hash or checker
-  version is a new key with fresh attempts.
+  version is a new key with fresh attempts. Every hold and backoff is
+  computed in SQL from the database's own `now()`, so a skewed application
+  clock cannot shorten a hold or a backoff.
 
 ## 4. Governance event taxonomy
 

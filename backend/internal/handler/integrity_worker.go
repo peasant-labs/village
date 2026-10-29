@@ -220,15 +220,14 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 // cancel, bounded by the attempt's hold, so a check in flight finishes and is
 // recorded while the drain waits for it. stop reports that the pass must end.
 func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.Transcript) (sent, stop bool, err error) {
-	s := h.integrity
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), integrityAttemptHold)
 	defer cancel()
 	hash := row.ContentHash.String
 	attempts, err := h.queries.ClaimIntegrityAttempt(ctx, sqlc.ClaimIntegrityAttemptParams{
-		TranscriptID:  row.ID,
-		ContentHash:   hash,
-		ScryVersion:   version,
-		NextAttemptAt: pgtype.Timestamptz{Time: s.now().Add(integrityAttemptHold), Valid: true},
+		TranscriptID: row.ID,
+		ContentHash:  hash,
+		ScryVersion:  version,
+		HoldSeconds:  integrityAttemptHold.Seconds(),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Another instance holds it, or it finished since the listing.
@@ -250,17 +249,16 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 	}
 	slog.Info("integrity check", "transcript_id", uuidFromPg(row.ID).String(), "scry_version", version, "verdict", string(resp.Verdict), "outcome", outcome.Class, "status", outcome.Status)
 
-	key := func(status, lastError string, next time.Time) sqlc.CompleteIntegrityAttemptParams {
+	key := func(status, lastError string, retryAfter time.Duration) sqlc.CompleteIntegrityAttemptParams {
 		return sqlc.CompleteIntegrityAttemptParams{
-			Status:        status,
-			LastError:     pgtype.Text{String: lastError, Valid: lastError != ""},
-			NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
-			TranscriptID:  row.ID,
-			ContentHash:   hash,
-			ScryVersion:   version,
+			Status:            status,
+			LastError:         pgtype.Text{String: lastError, Valid: lastError != ""},
+			RetryAfterSeconds: retryAfter.Seconds(),
+			TranscriptID:      row.ID,
+			ContentHash:       hash,
+			ScryVersion:       version,
 		}
 	}
-	now := s.now()
 	var completion sqlc.CompleteIntegrityAttemptParams
 	switch outcome.Class {
 	case outcomeNotCandidate, outcomeSecretRefused:
@@ -270,16 +268,16 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 		}
 		return false, stop, nil
 	case outcomeChecked:
-		completion = key("done", "", now)
+		completion = key("done", "", 0)
 	case outcomeLegacy:
-		completion = key("skipped", outcomeLegacy, now)
+		completion = key("skipped", outcomeLegacy, 0)
 	case string(scry.ClassTooLarge):
-		completion = key("skipped", outcome.Class, now)
+		completion = key("skipped", outcome.Class, 0)
 	default:
 		if attempts >= maxIntegrityAttempts {
-			completion = key("failed", outcome.Class, now)
+			completion = key("failed", outcome.Class, 0)
 		} else {
-			completion = key("pending", outcome.Class, now.Add(integrityBackoff(attempts)))
+			completion = key("pending", outcome.Class, integrityBackoff(attempts))
 		}
 	}
 	if err := h.queries.CompleteIntegrityAttempt(ctx, completion); err != nil {
