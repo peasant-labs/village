@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -37,10 +36,6 @@ func metadataAAD(id uuid.UUID) []byte {
 	return []byte("village:transcript-publish-metadata:v1:" + id.String())
 }
 
-// gcmNonceSize is the length of the random nonce cipher.NewGCMWithRandomNonce
-// draws from crypto/rand for every Seal and prepends to the ciphertext.
-const gcmNonceSize = 12
-
 func identity(body []byte) ContentIdentity {
 	sum := sha3.Sum256(body)
 	i, _ := NewContentIdentity(hex.EncodeToString(sum[:]), int64(len(body)))
@@ -53,9 +48,8 @@ func (s *EncryptedTranscriptStore) Write(ctx context.Context, id uuid.UUID, plai
 }
 
 // WriteGeneration seals the body and, when metadata is non-nil, the metadata
-// under one fresh DEK. Each Seal draws its own random 96-bit nonce; the two
-// nonces are compared and an equal pair is refused before anything is
-// uploaded, so no nonce is ever used twice under one DEK.
+// under one fresh DEK. Each Seal draws its own random 96-bit nonce from
+// crypto/rand, and two messages per DEK are far inside the random-nonce budget.
 func (s *EncryptedTranscriptStore) WriteGeneration(ctx context.Context, id uuid.UUID, plaintext []byte, metadata []byte) (BlobDescriptor, ContentIdentity, *MetadataObject, error) {
 	if id == uuid.Nil {
 		return BlobDescriptor{}, ContentIdentity{}, nil, fmt.Errorf("transcript encryption failed because the transcript UUID is nil in storage.EncryptedTranscriptStore.WriteGeneration before encryption; no object was written; generate the final transcript UUID first")
@@ -70,9 +64,6 @@ func (s *EncryptedTranscriptStore) WriteGeneration(ctx context.Context, id uuid.
 	var metadataCiphertext []byte
 	if metadata != nil {
 		metadataCiphertext = aead.Seal(nil, nil, metadata, metadataAAD(id))
-		if bytes.Equal(ciphertext[:gcmNonceSize], metadataCiphertext[:gcmNonceSize]) {
-			return BlobDescriptor{}, ContentIdentity{}, nil, fmt.Errorf("transcript encryption failed because the body and metadata drew the same nonce under one DEK in storage.EncryptedTranscriptStore.WriteGeneration during encryption; no object was written; retry the write, which generates a fresh DEK")
-		}
 	}
 	wrapped, version, err := s.keys.Wrap(ctx, dek, dekAAD(id))
 	if err != nil {
@@ -101,11 +92,11 @@ func (s *EncryptedTranscriptStore) WriteGeneration(ctx context.Context, id uuid.
 	}
 	if m != nil {
 		if err := s.objects.Put(ctx, m.key, metadataCiphertext, ciphertextContentType); err != nil {
-			cleanup := "the uploaded body generation was deleted"
+			uploadErr := fmt.Errorf("publish metadata upload failed because object storage rejected the metadata generation in storage.EncryptedTranscriptStore.WriteGeneration after the body upload; no descriptor can be committed; restore object storage and retry: %w", err)
 			if derr := s.objects.Delete(context.WithoutCancel(ctx), key); derr != nil {
-				cleanup = "the uploaded body generation could not be deleted and is unreferenced encrypted residue"
+				return BlobDescriptor{}, ContentIdentity{}, nil, &UncommittedObjectCleanupError{key: key, uploadErr: uploadErr, cleanupErr: derr}
 			}
-			return BlobDescriptor{}, ContentIdentity{}, nil, fmt.Errorf("publish metadata upload failed because object storage rejected the metadata generation in storage.EncryptedTranscriptStore.WriteGeneration after the body upload; %s, and no descriptor can be committed; restore object storage and retry: %w", cleanup, err)
+			return BlobDescriptor{}, ContentIdentity{}, nil, uploadErr
 		}
 	}
 	return d, identity(plaintext), m, nil

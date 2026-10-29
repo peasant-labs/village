@@ -141,6 +141,22 @@ func (i LoadedContentIdentity) validate() error {
 
 var ErrObjectNotFound = errors.New("object not found")
 
+// UncommittedObjectCleanupError reports an uploaded generation that no
+// descriptor references and that could not be deleted after a later step of the
+// same write failed. The caller must emit reconciliation evidence for ObjectKey;
+// the key is kept out of Error so it reaches only that evidence.
+type UncommittedObjectCleanupError struct {
+	key        ObjectKey
+	uploadErr  error
+	cleanupErr error
+}
+
+func (e *UncommittedObjectCleanupError) ObjectKey() ObjectKey { return e.key }
+func (e *UncommittedObjectCleanupError) Error() string {
+	return fmt.Sprintf("%v; deleting the uncommitted body generation also failed, so encrypted residue that no descriptor references remains and reconciliation is required; emit reconciliation evidence for the opaque object key, restore object storage, and delete it: %v", e.uploadErr, e.cleanupErr)
+}
+func (e *UncommittedObjectCleanupError) Unwrap() []error { return []error{e.uploadErr, e.cleanupErr} }
+
 type KeyCustodian interface {
 	Wrap(context.Context, []byte, []byte) ([]byte, KeyVersion, error)
 	Unwrap(context.Context, []byte, KeyVersion, []byte) ([]byte, error)

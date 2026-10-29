@@ -242,7 +242,7 @@ func (s *recordingTranscriptBlobStore) WriteGeneration(ctx context.Context, id u
 	return d, identity, nil, err
 }
 func (*recordingTranscriptBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, storage.ErrObjectNotFound
+	return nil, errFakeStoresNoMetadata
 }
 func (*recordingTranscriptBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
 	return nil

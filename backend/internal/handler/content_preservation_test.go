@@ -153,7 +153,7 @@ func (s *descriptorCheckingStore) WriteGeneration(ctx context.Context, id uuid.U
 	return d, identity, nil, err
 }
 func (*descriptorCheckingStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, storage.ErrObjectNotFound
+	return nil, errFakeStoresNoMetadata
 }
 func (*descriptorCheckingStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
 	return nil

@@ -1040,6 +1040,11 @@ func (m *mockTranscriptBlobStore) Delete(_ context.Context, descriptor storage.B
 	return m.deleteErr
 }
 
+// errFakeStoresNoMetadata is what a test blob store returns from ReadMetadata.
+// It is deliberately not storage.ErrObjectNotFound, so a fake can never be
+// mistaken for a row whose metadata object is missing.
+var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")
+
 // This fake stores no publish metadata object: a nil metadata delegates to
 // Write, and any metadata is refused rather than silently dropped.
 func (s *mockTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
@@ -1050,7 +1055,7 @@ func (s *mockTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.U
 	return d, identity, nil, err
 }
 func (*mockTranscriptBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, storage.ErrObjectNotFound
+	return nil, errFakeStoresNoMetadata
 }
 func (*mockTranscriptBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
 	return nil

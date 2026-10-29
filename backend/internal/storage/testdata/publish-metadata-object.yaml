@@ -9,3 +9,4 @@
 - name: nil_metadata_writes_one_object
 - name: metadata_upload_failure_removes_the_body
 - name: rewrap_keeps_metadata_readable_and_bytes_identical
+- name: metadata_upload_and_body_cleanup_both_fail_reports_the_key

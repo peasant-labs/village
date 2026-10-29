@@ -85,12 +85,12 @@ keeps one wrapped key per row, so the key-version index, rewrap, and backup KEK
 retention cover both objects without new state. The distinct AAD prefix stops a
 metadata object from authenticating as a body, or a body as metadata, and the
 UUID binds both to their transcript. Each `Seal` draws its own random 96-bit
-nonce from `crypto/rand`; the write compares the two nonces and refuses an
-equal pair before any upload, so no nonce is used twice under one DEK. Two
-messages per DEK are far inside the random-nonce budget. Every write still
-makes a fresh DEK, so a rewrite re-encrypts both objects. If the metadata upload
-fails after the body upload, the write deletes the body generation best effort
-and returns an error; nothing is committed.
+nonce from `crypto/rand`. Two messages per DEK are far inside the random-nonce
+budget. Every write still makes a fresh DEK, so a rewrite re-encrypts both
+objects. If the metadata upload fails after the body upload, the write deletes
+the body generation best effort and returns an error; nothing is committed. If
+that deletion also fails, the error is typed and carries the body's opaque
+object key so the caller emits reconciliation evidence for it.
 
 ### Envelope write and stored split
 

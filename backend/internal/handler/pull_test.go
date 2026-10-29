@@ -65,7 +65,7 @@ func (s *fixedTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.
 	return d, identity, nil, err
 }
 func (*fixedTranscriptBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, storage.ErrObjectNotFound
+	return nil, errFakeStoresNoMetadata
 }
 func (*fixedTranscriptBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error {
 	return nil

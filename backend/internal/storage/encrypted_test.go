@@ -5,12 +5,11 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha3"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 
@@ -248,6 +247,7 @@ var requiredPublishMetadataObjectCases = []string{
 	"metadata_hash_mismatch_refused",
 	"nil_metadata_writes_one_object",
 	"metadata_upload_failure_removes_the_body",
+	"metadata_upload_and_body_cleanup_both_fail_reports_the_key",
 	"rewrap_keeps_metadata_readable_and_bytes_identical",
 }
 
@@ -282,9 +282,11 @@ func loadPublishMetadataObjectCases(t *testing.T) []publishMetadataObjectCase {
 // every key it was asked to delete.
 type failingPutStore struct {
 	*memoryStore
-	failOn  int
-	puts    int
-	deleted []ObjectKey
+	failOn       int
+	failDeletes  bool
+	puts         int
+	deleted      []ObjectKey
+	uploadedKeys []ObjectKey
 }
 
 func (f *failingPutStore) Put(ctx context.Context, key ObjectKey, b []byte, ct string) error {
@@ -292,10 +294,14 @@ func (f *failingPutStore) Put(ctx context.Context, key ObjectKey, b []byte, ct s
 	if f.puts == f.failOn {
 		return errors.New("simulated object storage outage")
 	}
+	f.uploadedKeys = append(f.uploadedKeys, key)
 	return f.memoryStore.Put(ctx, key, b, ct)
 }
 func (f *failingPutStore) Delete(ctx context.Context, key ObjectKey) error {
 	f.deleted = append(f.deleted, key)
+	if f.failDeletes {
+		return errors.New("simulated object storage delete outage")
+	}
 	return f.memoryStore.Delete(ctx, key)
 }
 
@@ -310,14 +316,14 @@ func TestPublishMetadataObject(t *testing.T) {
 			id, other := uuid.New(), uuid.New()
 			switch tc.Name {
 			case "nil_metadata_writes_one_object":
-				d, identity, m, err := s.WriteGeneration(ctx, id, body, nil)
+				d, bodyIdentity, m, err := s.WriteGeneration(ctx, id, body, nil)
 				if err != nil || m != nil {
 					t.Fatalf("nil metadata wrote an object or failed: m=%v err=%v", m, err)
 				}
 				if len(objects.objects) != 1 {
 					t.Fatalf("objects=%d, want 1", len(objects.objects))
 				}
-				if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil || !bytes.Equal(plain, body) {
+				if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(bodyIdentity)); err != nil || !bytes.Equal(plain, body) {
 					t.Fatalf("body read failed: %v", err)
 				}
 				return
@@ -328,23 +334,52 @@ func TestPublishMetadataObject(t *testing.T) {
 					t.Fatal(err)
 				}
 				fs, _ := NewEncryptedTranscriptStore(failing, ring)
-				d, identity, m, err := fs.WriteGeneration(ctx, id, body, metadata)
-				if err == nil || m != nil || d.ObjectKey() != "" || identity != (ContentIdentity{}) {
+				d, bodyIdentity, m, err := fs.WriteGeneration(ctx, id, body, metadata)
+				if err == nil || m != nil || d.ObjectKey() != "" || bodyIdentity != (ContentIdentity{}) {
 					t.Fatalf("failed metadata upload returned a committable result: d=%v m=%v err=%v", d, m, err)
 				}
 				if len(failing.objects) != 0 || len(failing.deleted) != 1 {
 					t.Fatalf("body object not removed: remaining=%d deleted=%v", len(failing.objects), failing.deleted)
 				}
+				var orphan *UncommittedObjectCleanupError
+				if errors.As(err, &orphan) {
+					t.Fatal("a successful body cleanup reported an orphaned object")
+				}
+				return
+			case "metadata_upload_and_body_cleanup_both_fail_reports_the_key":
+				failing := &failingPutStore{memoryStore: &memoryStore{objects: map[ObjectKey]memoryObject{}}, failOn: 2, failDeletes: true}
+				ring, err := config.ParseTranscriptKeyring("1", `{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fs, _ := NewEncryptedTranscriptStore(failing, ring)
+				d, bodyIdentity, m, err := fs.WriteGeneration(ctx, id, body, metadata)
+				if err == nil || m != nil || d.ObjectKey() != "" || bodyIdentity != (ContentIdentity{}) {
+					t.Fatalf("failed metadata upload returned a committable result: d=%v m=%v err=%v", d, m, err)
+				}
+				if len(failing.uploadedKeys) != 1 || len(failing.objects) != 1 {
+					t.Fatalf("expected exactly one retained body object, uploaded=%v remaining=%d", failing.uploadedKeys, len(failing.objects))
+				}
+				var orphan *UncommittedObjectCleanupError
+				if !errors.As(err, &orphan) {
+					t.Fatalf("cleanup failure is not a typed orphan error: %v", err)
+				}
+				if orphan.ObjectKey() != failing.uploadedKeys[0] {
+					t.Fatalf("orphan key=%q, want the uploaded body key %q", orphan.ObjectKey(), failing.uploadedKeys[0])
+				}
+				if strings.Contains(err.Error(), string(orphan.ObjectKey())) {
+					t.Fatal("the error text carries the opaque object key; it belongs only in reconciliation evidence")
+				}
 				return
 			}
-			d, identity, m, err := s.WriteGeneration(ctx, id, body, metadata)
+			d, bodyIdentity, m, err := s.WriteGeneration(ctx, id, body, metadata)
 			if err != nil || m == nil {
 				t.Fatalf("write generation failed: m=%v err=%v", m, err)
 			}
 			if m.Key() == d.ObjectKey() || len(objects.objects) != 2 {
 				t.Fatalf("metadata object key=%q body key=%q objects=%d", m.Key(), d.ObjectKey(), len(objects.objects))
 			}
-			if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil || !bytes.Equal(plain, body) {
+			if plain, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(bodyIdentity)); err != nil || !bytes.Equal(plain, body) {
 				t.Fatalf("body read failed: %v", err)
 			}
 			expectRefused := func(plain []byte, err error) {
@@ -363,8 +398,8 @@ func TestPublishMetadataObject(t *testing.T) {
 				if err != nil || !bytes.Equal(plain, metadata) {
 					t.Fatalf("metadata read failed: %v", err)
 				}
-				if m.Identity() != identityOf(metadata) {
-					t.Fatal("metadata identity is not SHA3-256 and size of the plaintext")
+				if m.Identity() != identity(metadata) {
+					t.Fatal("metadata bodyIdentity is not SHA3-256 and size of the plaintext")
 				}
 				if err := s.DeleteMetadata(ctx, *m); err != nil {
 					t.Fatal(err)
@@ -372,7 +407,7 @@ func TestPublishMetadataObject(t *testing.T) {
 				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
 					t.Fatalf("absence=%v", err)
 				}
-				if _, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil {
+				if _, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(bodyIdentity)); err != nil {
 					t.Fatalf("deleting metadata removed the body: %v", err)
 				}
 			case "metadata_shares_the_body_wrapped_dek":
@@ -390,7 +425,8 @@ func TestPublishMetadataObject(t *testing.T) {
 				if plain, err := aead.Open(nil, nil, metaCT, metadataAAD(id)); err != nil || !bytes.Equal(plain, metadata) {
 					t.Fatalf("metadata does not open under the descriptor DEK: %v", err)
 				}
-				if bytes.Equal(bodyCT[:gcmNonceSize], metaCT[:gcmNonceSize]) {
+				const nonceSize = 12 // the random nonce NewGCMWithRandomNonce prepends
+				if bytes.Equal(bodyCT[:nonceSize], metaCT[:nonceSize]) {
 					t.Fatal("the two objects under one DEK share a nonce")
 				}
 			case "metadata_as_body_fails_authentication":
@@ -401,7 +437,7 @@ func TestPublishMetadataObject(t *testing.T) {
 				plain, _, err := s.Read(ctx, id, swapped, newPendingContentIdentity())
 				expectRefused(plain, err)
 			case "body_as_metadata_fails_authentication":
-				swapped, err := NewMetadataObject(d.ObjectKey(), string(identity.Hash()), identity.PlaintextSize())
+				swapped, err := NewMetadataObject(d.ObjectKey(), string(bodyIdentity.Hash()), bodyIdentity.PlaintextSize())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -458,10 +494,4 @@ func TestPublishMetadataObject(t *testing.T) {
 			}
 		})
 	}
-}
-
-func identityOf(plaintext []byte) ContentIdentity {
-	sum := sha3.Sum256(plaintext)
-	i, _ := NewContentIdentity(hex.EncodeToString(sum[:]), int64(len(plaintext)))
-	return i
 }

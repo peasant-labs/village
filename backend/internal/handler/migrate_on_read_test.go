@@ -86,7 +86,7 @@ func (s *fakeBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body 
 	return d, identity, nil, err
 }
 func (*fakeBlobStore) ReadMetadata(context.Context, uuid.UUID, storage.BlobDescriptor, storage.MetadataObject) ([]byte, error) {
-	return nil, storage.ErrObjectNotFound
+	return nil, errFakeStoresNoMetadata
 }
 func (*fakeBlobStore) DeleteMetadata(context.Context, storage.MetadataObject) error { return nil }
 
