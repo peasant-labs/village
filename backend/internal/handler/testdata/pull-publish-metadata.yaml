@@ -11,7 +11,10 @@
 #   share: pending | approved | rejected, the state of one submission to a
 #     collective that `collective_owner` owns and `member` belongs to
 #   fault: tamper_stored_object overwrites the metadata object's ciphertext in
-#     RustFS; owner_anonymous_to_caller makes the public-owner rule answer
+#     RustFS; delete_stored_object deletes the metadata object while the row
+#     still names it; republish_before_metadata_read republishes the
+#     transcript after the handler read its row and before its object read,
+#     so the object that row names is gone; owner_anonymous_to_caller makes the public-owner rule answer
 #     anonymous for the transcript's owner. No present rule shows an allowed
 #     caller an anonymous owner (the owner sees themselves, and a collective
 #     owner sees whoever submitted to it), so the fault stands in for a rule
@@ -22,7 +25,11 @@
 #     invalid (not an id)
 #   pull_contract: the request header value; leave it out for the default
 #   want_status: the HTTP status
-#   want_metadata: the 200 body is json.Marshal of the published request
+#   want_metadata: the 200 body is json.Marshal of the published request (the
+#     republished one, when the case republishes)
+#   want_metadata_reads: how many times the handler read the metadata object
+#   want_log_message, want_log_level, want_log_stage: the one log line a 500
+#     must leave; a missing object is a warning, never a failed verification
 #   reads_transcript: a precondition, checked before the request, that the
 #     caller can read the transcript itself through the web read rule, so the
 #     404 is about the metadata alone
@@ -109,6 +116,28 @@ cases:
     caller: owner
     fault: tamper_stored_object
     want_status: 500
+    want_metadata_reads: 1
+    want_log_message: publish metadata verification failed
+    want_log_level: ERROR
+    want_log_stage: read
+
+  - name: republished_between_row_and_object_read_retries
+    why: a republish deletes the object the first row named; the handler reloads the row, decides access again and serves the new metadata
+    caller: owner
+    fault: republish_before_metadata_read
+    want_status: 200
+    want_metadata: true
+    want_metadata_reads: 2
+
+  - name: object_missing_500
+    why: an object the unchanged row still names is a storage reconciliation matter, logged as such, and is not read twice
+    caller: owner
+    fault: delete_stored_object
+    want_status: 500
+    want_metadata_reads: 1
+    want_log_message: publish metadata object missing
+    want_log_level: WARN
+    want_log_stage: object_missing
 
   - name: below_pull_contract_refused
     why: a signed-in client below the minimum pull contract is refused before the read

@@ -41,6 +41,10 @@ type pullPublishMetadataCase struct {
 	WantStatus      int      `yaml:"want_status"`
 	WantMetadata    bool     `yaml:"want_metadata"`
 	ReadsTranscript bool     `yaml:"reads_transcript"`
+	WantReads       int      `yaml:"want_metadata_reads"`
+	WantLogMessage  string   `yaml:"want_log_message"`
+	WantLogLevel    string   `yaml:"want_log_level"`
+	WantLogStage    string   `yaml:"want_log_stage"`
 	CompareNotFound []string `yaml:"compare_not_found"`
 }
 
@@ -62,6 +66,8 @@ var requiredPullPublishMetadataCases = []string{
 	"tampered_stored_object_500",
 	"below_pull_contract_refused",
 	"owner_anonymous_to_caller_404",
+	"republished_between_row_and_object_read_retries",
+	"object_missing_500",
 	"not_found_bodies_identical",
 }
 
@@ -109,6 +115,24 @@ func (q anonymousOwnerQuerier) ListPublicOwnersForViewer(ctx context.Context, ar
 		}
 	}
 	return rows, err
+}
+
+// readMetadataHookStore counts metadata reads and runs beforeFirst once,
+// before the first read reaches storage, so whatever it commits lands between
+// the handler's row read and its object read.
+type readMetadataHookStore struct {
+	storage.TranscriptBlobStore
+	reads       int
+	beforeFirst func()
+}
+
+func (s *readMetadataHookStore) ReadMetadata(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	s.reads++
+	if hook := s.beforeFirst; hook != nil {
+		s.beforeFirst = nil
+		hook()
+	}
+	return s.TranscriptBlobStore.ReadMetadata(ctx, id, d, m)
 }
 
 func pullPublishMetadataRequest(localID, sentinel string, content []byte) schema.AuthoritativePublishRequest {
@@ -169,7 +193,8 @@ func TestPullPublishMetadata(t *testing.T) {
 			if c.Fault == "owner_anonymous_to_caller" {
 				q = anonymousOwnerQuerier{Querier: queries, hidden: owner}
 			}
-			h := &Handler{cfg: cfg, pool: pool, queries: queries, blobs: blobs, titles: titles}
+			hooked := &readMetadataHookStore{TranscriptBlobStore: blobs}
+			h := &Handler{cfg: cfg, pool: pool, queries: queries, blobs: hooked, titles: titles}
 
 			// Publish as the owner through the production handler.
 			localID := uuid.NewString()
@@ -202,9 +227,15 @@ func TestPullPublishMetadata(t *testing.T) {
 				t.Fatalf("load the published transcript: %v", err)
 			}
 			defer func() {
-				_ = rawObjects.Delete(context.Background(), storage.ObjectKey(row.BlobKey))
-				if row.PublishMetadataKey.Valid {
-					_ = rawObjects.Delete(context.Background(), storage.ObjectKey(row.PublishMetadataKey.String))
+				removeObjects := func(row sqlc.Transcript) {
+					_ = rawObjects.Delete(context.Background(), storage.ObjectKey(row.BlobKey))
+					if row.PublishMetadataKey.Valid {
+						_ = rawObjects.Delete(context.Background(), storage.ObjectKey(row.PublishMetadataKey.String))
+					}
+				}
+				removeObjects(row)
+				if current, err := queries.GetTranscriptByID(context.Background(), transcriptID); err == nil {
+					removeObjects(current)
 				}
 			}()
 			if (c.Publish == "legacy") == row.PublishMetadataKey.Valid {
@@ -239,6 +270,31 @@ func TestPullPublishMetadata(t *testing.T) {
 				ciphertext[len(ciphertext)-1] ^= 0xff
 				if err := rawObjects.Put(ctx, key, ciphertext, contentType); err != nil {
 					t.Fatalf("overwrite the stored metadata ciphertext: %v", err)
+				}
+			case "delete_stored_object":
+				if err := rawObjects.Delete(ctx, storage.ObjectKey(row.PublishMetadataKey.String)); err != nil {
+					t.Fatalf("delete the stored metadata object: %v", err)
+				}
+			case "republish_before_metadata_read":
+				publisher := &Handler{cfg: cfg, pool: pool, queries: queries, blobs: blobs, titles: titles}
+				hooked.beforeFirst = func() {
+					republished := []byte(`[{"role":"user","content":"pull publish metadata republished ` + suffix + `"}]`)
+					req := pullPublishMetadataRequest(localID, file.Sentinel, republished)
+					encoded, err := json.Marshal(req)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if w := publishEvidencePost(t, publisher, ownerUser, req, republished); w.Code != http.StatusOK && w.Code != http.StatusCreated {
+						t.Fatalf("republish: %d %s", w.Code, w.Body.String())
+					}
+					current, err := queries.GetTranscriptByID(ctx, transcriptID)
+					if err != nil || current.PublishMetadataKey.String == row.PublishMetadataKey.String {
+						t.Fatalf("the republish installed no new metadata object (err %v)", err)
+					}
+					if objectExists(t, ctx, rawObjects, row.PublishMetadataKey.String) {
+						t.Fatal("the republish left the old metadata object in place, so the read cannot race it")
+					}
+					published = encoded
 				}
 			default:
 				t.Fatalf("unknown fault %q", c.Fault)
@@ -297,6 +353,9 @@ func TestPullPublishMetadata(t *testing.T) {
 			if w.Code != c.WantStatus {
 				t.Fatalf("status %d, want %d: %s", w.Code, c.WantStatus, w.Body.String())
 			}
+			if c.WantReads != 0 && hooked.reads != c.WantReads {
+				t.Fatalf("metadata reads = %d, want %d", hooked.reads, c.WantReads)
+			}
 			if etag := w.Header().Get("ETag"); etag != "" {
 				t.Fatalf("the route sent ETag %q; it serves no conditional GET", etag)
 			}
@@ -331,8 +390,17 @@ func TestPullPublishMetadata(t *testing.T) {
 					t.Fatalf("500 body = %s (%v), want the verification failure message", w.Body.String(), err)
 				}
 				captured := logs.String()
-				if !strings.Contains(captured, "publish metadata verification failed") || !strings.Contains(captured, "transcript_id="+uuidFromPg(transcriptID).String()) {
-					t.Fatalf("the log does not name the failure and the transcript id: %s", captured)
+				if c.WantLogMessage == "" || c.WantLogLevel == "" || c.WantLogStage == "" {
+					t.Fatal("a 500 case must name the log message, level and stage it expects")
+				}
+				var line string
+				for _, candidate := range strings.Split(captured, "\n") {
+					if strings.Contains(candidate, `msg="`+c.WantLogMessage+`"`) {
+						line = candidate
+					}
+				}
+				if line == "" || !strings.Contains(line, "level="+c.WantLogLevel+" ") || !strings.Contains(line, "stage="+c.WantLogStage) || !strings.Contains(line, "transcript_id="+uuidFromPg(transcriptID).String()) {
+					t.Fatalf("want a %s log line %q with stage %s and the transcript id, got: %s", c.WantLogLevel, c.WantLogMessage, c.WantLogStage, captured)
 				}
 				for _, leak := range []string{file.Sentinel, row.PublishMetadataKey.String, "AES-GCM"} {
 					if strings.Contains(captured, leak) || strings.Contains(w.Body.String(), leak) {
