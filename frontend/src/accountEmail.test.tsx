@@ -51,6 +51,10 @@ describe("the email settings", () => {
     const section = await screen.findByTestId("settings-email");
     await waitFor(() => expect(within(section).queryByText("checking your email settings")).toBeNull());
 
+    for (const form of section.querySelectorAll("form")) {
+      expect(form.querySelector("input")).toHaveClass("input", "is-input");
+      expect(form.querySelector('button[type="submit"]')).not.toHaveClass("btn-sm");
+    }
     for (const step of c.steps) {
       if (step.kind === "type") {
         fireEvent.change(await within(section).findByLabelText(step.field), { target: { value: step.value } });

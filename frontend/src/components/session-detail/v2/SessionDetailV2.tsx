@@ -151,6 +151,9 @@ function SessionDetailV2Content({
   const { user } = useAuth();
   const { theme } = useTheme();
   const isPreview = variant === "preview";
+  // A split-pane preview starts with room for the transcript. Explicit rail
+  // toggles stay available; the standalone reader keeps its own defaults.
+  const [previewSidebarLayout, setPreviewSidebarLayout] = useState({ outline: false, filters: false, host: true });
   const isOwner = !isPreview && isOwnedBy(owner, user?.id);
 
   const router = useRouter();
@@ -398,8 +401,8 @@ function SessionDetailV2Content({
     // Bounded host: the composite's .txn-app is height:100%, so a bounded
     // column is what lets its stream scroll internally — which is what
     // reveals the sticky scrubber timeline and anchors the keybind hint.
-    <div className={isPreview ? 'flex flex-col h-[calc(100dvh-var(--app-header-height))]' : 'flex flex-col h-full min-h-0'}>
-      <div className="flex-1 min-h-0" ref={streamContainerRef}>
+    <div className={isPreview ? 'on-transcript-preview' : 'flex flex-col h-full min-h-0 min-w-0'}>
+      <div className="flex-1 min-h-0 min-w-0" ref={streamContainerRef}>
         <TranscriptViewer
           beforeHeader={<>
       {beforeHeader}
@@ -436,6 +439,8 @@ function SessionDetailV2Content({
           // h1; the contribute page's preview column sits under that page's own.
           headingLevel={isPreview ? 2 : 1}
           presentation={presentation}
+          sidebarLayout={isPreview ? previewSidebarLayout : undefined}
+          onSidebarLayoutChange={isPreview ? setPreviewSidebarLayout : undefined}
           viewModel={vm!}
           theme={theme}
           // The header row is the host's own, as in the fairtrade in-use demo:

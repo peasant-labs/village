@@ -412,7 +412,10 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         return document.body;
       }
       await screen.findByRole("navigation", { name: "settings sections" });
-      if (c.state === "github") await screen.findByText(/1 of 2 repositories linked/);
+      if (c.state === "github") {
+        await screen.findByRole("region", { name: "repositories" });
+        await screen.findByText("acme: 1 of 2 repos linked");
+      }
       if (c.state === "delete-confirm") {
         fireEvent.click(screen.getByRole("button", { name: "delete collective" }));
         await screen.findByRole("dialog");
@@ -497,7 +500,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       } else {
         await screen.findByText("published library");
         await waitFor(() => expect(document.body.textContent).toContain("transcript-flaky-ingest"));
-        if (c.state === "own") await screen.findAllByText("discoverable profile");
+        if (c.state === "own") expect(screen.queryByText("discoverable profile")).toBeNull();
       }
       return document.body;
     }

@@ -1,0 +1,127 @@
+cases:
+  - name: disabled-preview-leaves-ordinary-journeys-alone
+    enabled: false
+    steps:
+      - method: GET
+        path: /collectives/{owner}/contributable
+        handled: false
+  - name: flat-and-grouped-pickers-share-the-same-owned-catalog
+    enabled: true
+    steps:
+      - method: GET
+        path: /collectives/{owner}/contributable
+        status: 200
+        schema: contributable
+        eligible: true
+        hasAlreadyShared: true
+      - method: GET
+        path: /collectives/{owner}/contributable?view=grouped&page=1&limit=20
+        status: 200
+        schema: groupedContributable
+        eligible: true
+        hasAlreadyShared: true
+  - name: private-contribution-needs-consent-and-updates-the-queue
+    enabled: true
+    steps:
+      - method: POST
+        path: /collectives/{owner}/shares
+        body: { project_hash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", transcript_ids: ["{eligible}"], visibility_confirmed: false }
+        status: 409
+      - method: POST
+        path: /collectives/{owner}/shares
+        body: { project_hash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", transcript_ids: ["{eligible}"], visibility_confirmed: true }
+        status: 200
+        schema: share
+        shared: [{ transcript_id: "{eligible}", status: pending }]
+        alreadyShared: []
+      - method: GET
+        path: /collectives/{owner}/contributable
+        status: 200
+        schema: contributable
+        eligible: false
+      - method: GET
+        path: /collectives/{owner}/pending
+        status: 200
+        schema: pending
+        contains: ["{queued}", "{eligible}"]
+      - method: POST
+        path: /collectives/{owner}/shares
+        body: { project_hash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", transcript_ids: ["{eligible}"], visibility_confirmed: true }
+        status: 200
+        schema: share
+        shared: []
+        alreadyShared: ["{eligible}"]
+      - resetBefore: true
+        method: GET
+        path: /collectives/{owner}/contributable
+        status: 200
+        schema: contributable
+        eligible: true
+  - name: rejected-own-submission-becomes-selectable-again
+    enabled: true
+    steps:
+      - method: POST
+        path: /collectives/{owner}/shares
+        body: { project_hash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", transcript_ids: ["{eligible}"], visibility_confirmed: true }
+        status: 200
+        schema: share
+      - method: PATCH
+        path: /collectives/{owner}/shares
+        body: { transcript_ids: ["{eligible}"], status: rejected }
+        status: 200
+        schema: review
+        decided: ["{eligible}"]
+      - method: GET
+        path: /collectives/{owner}/contributable
+        status: 200
+        schema: contributable
+        eligible: true
+  - name: selected-session-metadata-and-content-are-previewable
+    enabled: true
+    contentId: session-demo
+    steps:
+      - method: GET
+        path: /transcripts/{eligible}
+        status: 200
+        schema: metadata
+        title: Reproduce the tokenizer benchmark
+        contentPath: /api/v1/transcripts/session-demo/content
+      - method: GET
+        path: /transcripts/{queued}
+        status: 200
+        schema: metadata
+        title: Add retries to the webhook
+        contentPath: /api/v1/transcripts/session-demo/content
+  - name: decisions-remove-queued-rows-and-repeat-safely
+    enabled: true
+    steps:
+      - method: GET
+        path: /collectives/{owner}/pending?view=grouped&page=1&limit=20
+        status: 200
+        schema: groupedPending
+        contains: ["{queued}"]
+      - method: PATCH
+        path: /collectives/{owner}/shares
+        body: { transcript_ids: ["{queued}"], status: approved }
+        status: 200
+        schema: review
+        decided: ["{queued}"]
+        alreadyDecided: []
+      - method: GET
+        path: /collectives/{owner}/pending
+        status: 200
+        schema: pending
+        excludes: ["{queued}"]
+      - method: PATCH
+        path: /collectives/{owner}/shares
+        body: { transcript_ids: ["{queued}"], status: rejected }
+        status: 200
+        schema: review
+        decided: []
+        alreadyDecided: ["{queued}"]
+  - name: member-cannot-read-an-owner-review-queue
+    enabled: true
+    steps:
+      - method: GET
+        path: /collectives/{member}/pending
+        status: 403

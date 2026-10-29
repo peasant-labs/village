@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -419,6 +421,8 @@ describe("mounted home route: your transcripts, their totals and your collective
         expect(notice!.getAttribute("role")).toBe("alert");
       }
 
+      expect(screen.queryByTestId("home-recent")).not.toBeInTheDocument();
+      expect(document.querySelectorAll(".on-home-library")).toHaveLength(1);
       const empty = document.querySelector('[data-testid="home-empty-state"]');
       expect(empty !== null).toBe(c.expectHomeSurface === "empty");
       if (c.expectHomeSurface === "empty") {
@@ -523,7 +527,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         } else {
           const section = await screen.findByTestId("home-waiting");
           expect(
-            [...section.querySelectorAll('[data-testid="home-waiting-collective"] a')].map(text),
+            [...section.querySelectorAll('[data-testid="home-waiting-collective"] a.on-link')].map(text),
           ).toEqual(c.expectWaiting);
           for (const name of c.expectWaiting) {
             const pending = c.contributions!.find((x) => x.name === name)!.pending;
@@ -663,4 +667,15 @@ describe("mounted home route: a failure belongs to the handle it came from", () 
       expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
     });
   }
+});
+
+const agentOnly = parse(readFileSync("src/testdata/home-agent-sessions.yaml", "utf8")) as {
+  name: string; viewerUsername: string; agentTotal: number; expectedGroupLabel: string;
+};
+it(agentOnly.name, async () => {
+  installHomeRouteREST({ viewerUsername: agentOnly.viewerUsername, transcripts: [], agentTotal: agentOnly.agentTotal });
+  await renderAppRoute("/");
+  await waitFor(() => expect(screen.getByTestId("home-agent-only")).toBeInTheDocument());
+  expect(screen.queryByTestId("home-empty-state")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: new RegExp(agentOnly.expectedGroupLabel.replace("+", "\\+")) })).toBeInTheDocument();
 });

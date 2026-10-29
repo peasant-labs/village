@@ -35,15 +35,56 @@
 .on-pr-title {
   text-transform: none;
 }
-.on-prcard h1.on-pr-title {
+.on-pr-detail {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.on-pr-detail-head {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.on-pr-detail .on-pr-title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: var(--fs-xl);
-  line-height: 1.2;
+  line-height: var(--lh-tight);
+  color: var(--ink-strong);
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.on-pr-titlebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+  min-width: 0;
+}
+.on-pr-titlebar > h1 { flex: 1 1 20rem; }
+.on-pr-source { flex: none; }
+.on-pr-source svg {
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+.on-pr-detail .on-prcard-meta { margin: 0; }
+.on-pr-detail-transcripts {
+  min-width: 0;
+  border-top: var(--bd);
+}
+.on-pr-band + .on-pr-detail-transcripts { border-top: 0; }
+.on-pr-detail-actions {
+  padding-block-start: var(--sp-3);
+  border-top: var(--bd);
 }
 @media (max-width: 767px) {
-  .on-prcard h1.on-pr-title {
+  .on-pr-detail .on-pr-title {
     font-size: var(--fs-lg);
   }
+  .on-pr-detail .on-prcard-repo .on-prcard-chips { margin-inline-start: 0; }
 }
 
 .on-pr-num,
@@ -77,9 +118,8 @@
 .on-pr-band {
   display: grid;
   gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-5);
-  border-top: 1px solid var(--rule);
-  background: var(--surface-2);
+  padding-block: var(--sp-3);
+  border-block: var(--bd);
   color: var(--ink-2);
   line-height: var(--lh-body);
 }
@@ -111,8 +151,32 @@
 }
 .on-pr-rowmain {
   display: grid;
-  gap: 2px;
+  gap: var(--sp-1);
   min-width: 0;
+}
+.on-pr-transcript-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-5);
+  min-width: 0;
+  padding-block: var(--sp-3);
+}
+.on-pr-transcript-row + .on-pr-transcript-row { border-top: var(--bd); }
+.on-pr-rowmain a.is-title {
+  width: fit-content;
+  font-weight: 600;
+  color: var(--ink-strong);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.on-pr-rowmeta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-mono);
+  letter-spacing: 0;
+  color: var(--ink-3);
 }
 .on-pr-rowmain a.is-title:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
@@ -144,11 +208,8 @@
 }
 @media (max-width: 767px) {
   /* a phone puts the jump under the row's words rather than squeezing them */
-  .on-pr-rows .on-trow2 {
-    grid-template-columns: 3px minmax(0, 1fr);
-  }
+  .on-pr-transcript-row { grid-template-columns: minmax(0, 1fr); }
   .on-pr-rows .on-pr-jump {
-    grid-column: 2;
     justify-self: start;
   }
 }
@@ -159,7 +220,7 @@
   border-top: 1px solid var(--rule);
 }
 .on-pr-coverage {
-  padding: var(--sp-3) 0 var(--sp-2);
+  padding-block-start: var(--sp-3);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   letter-spacing: 0;
@@ -240,70 +301,113 @@
 
 /* ---------- the list of pull requests waiting on you ---------- */
 
+/* An inbox uses the whole body column. Dates are a quiet rail beside each
+   day's rows, so an older request does not need its own large card. */
 .on-pr-feed {
   display: grid;
-  gap: var(--sp-6);
   min-width: 0;
-  max-width: 55rem;
+  border-top: var(--bd);
 }
 .on-pr-day {
   display: grid;
-  gap: var(--sp-3);
+  align-items: baseline;
+  grid-template-columns: calc(var(--sp-8) * 2) minmax(0, 1fr);
+  gap: var(--sp-5);
   min-width: 0;
+  border-bottom: var(--bd);
 }
 .on-pr-day > h2 {
   margin: 0;
+  padding-block: var(--sp-4);
   font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
   letter-spacing: 0;
   color: var(--ink-3);
 }
 .on-pr-list {
   display: grid;
-  gap: var(--sp-4);
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.on-pr-list .on-prcard h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--fs-lg);
-  line-height: 1.25;
-  color: var(--ink-strong);
-  overflow-wrap: anywhere;
+.on-pr-list > li {
+  min-width: 0;
 }
-.on-pr-list .on-prcard > header {
-  padding-bottom: var(--sp-4);
+.on-pr-list > li + li {
+  border-top: var(--bd);
 }
-.on-pr-cardfoot {
-  display: flex;
-  flex-wrap: wrap;
+.on-pr-inbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 0 var(--sp-4);
+  gap: var(--sp-2) var(--sp-5);
+  min-width: 0;
+  padding-block: var(--sp-4);
 }
-.on-pr-cardhead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
+.on-pr-inbox-main {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.on-pr-inbox-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--sp-8) * 2);
+  align-items: baseline;
   gap: var(--sp-2) var(--sp-3);
   min-width: 0;
 }
-.on-pr-cardhead h3 {
+.on-pr-inbox-heading > .on-tag { justify-self: start; }
+.on-pr-inbox-heading h3 {
   display: flex;
-  align-items: center;
-  gap: calc(var(--sp-2) + 2px);
+  align-items: baseline;
+  gap: var(--sp-2);
   min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-body);
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
 }
-.on-pr-cardhead h3 svg {
+.on-pr-inbox-heading h3 svg {
   flex: none;
-  width: var(--ic-lg);
-  height: var(--ic-lg);
+  align-self: center;
+  width: var(--ic-md);
+  height: var(--ic-md);
   color: var(--ink-3);
+}
+.on-pr-inbox-row .on-prcard-meta {
+  margin: 0;
+}
+.on-pr-inbox-row .on-pr-gh {
+  justify-self: end;
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .on-pr-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .on-pr-day > h2 {
+    padding-block: var(--sp-4) 0;
+  }
+  .on-pr-inbox-row {
+    grid-template-columns: minmax(0, 1fr) calc(var(--sp-8) * 2);
+    padding-block: var(--sp-3);
+  }
+  .on-pr-inbox-main, .on-pr-inbox-heading { display: contents; }
+  .on-pr-inbox-heading h3 { grid-column: 1 / -1; grid-row: 1; }
+  .on-pr-inbox-row .on-prcard-meta { grid-column: 1; grid-row: 2; }
+  .on-pr-inbox-heading > .on-tag { grid-column: 2; grid-row: 2; align-self: start; }
+  .on-pr-inbox-row .on-pr-gh {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+  }
 }
 .on-pr-open {
   color: var(--ink-strong);
@@ -321,9 +425,12 @@
 }
 .on-pr-skeleton {
   display: grid;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
 }
 .on-pr-skeleton > div {
-  height: calc(var(--sp-8) * 2 + var(--sp-4));
-  border: 1px solid var(--rule);
+  height: calc(var(--sp-8) + var(--sp-5));
 }
+
+/* A refusal is a short explanation and a way back, not a page-wide panel. */
+.on-pr-empty { max-inline-size: var(--measure-prose); padding: var(--sp-5); gap: var(--sp-3); }
+.on-pr-empty .on-ico-tile { inline-size: var(--control-h); block-size: var(--control-h); }

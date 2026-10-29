@@ -112,25 +112,25 @@ describe("mounted sidebar: the person's collectives", () => {
 });
 
 describe("mounted sidebar: the other apps", () => {
-  it("offers the docs in a new tab and the community as soon, never this app or the local one", async () => {
+  it("offers docs in a new tab without community or duplicate app links", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
 
-    // The other apps sit among the shortcuts at the top, with the search.
+    // Search and docs share the shortcuts near the sidebar footer.
     const apps = screen.getByRole("navigation", { name: "shortcuts" });
     // The sidebar is this app, so the switcher does not name it, and the local
     // app runs on the person's own computer, so it is not offered from here.
     expect(within(apps).queryByText("online")).toBeNull();
     expect(within(apps).queryByText("local")).toBeNull();
-    // The docs are the one way out; the community is named but not open yet.
+    // The docs are the one way out; community is intentionally absent.
     expect(within(apps).getAllByRole("link")).toHaveLength(1);
     const docs = within(apps).getByRole("link", { name: /^docs/ });
     expect(docs).toHaveAttribute("href", DOCS_URL);
     expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
     expect(docs).toHaveAttribute("target", "_blank");
     expect(docs).toHaveTextContent("opens in a new tab");
-    expect(apps).toHaveTextContent(/community\s*soon/);
+    expect(screen.queryByText(/community/i)).not.toBeInTheDocument();
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });
@@ -143,23 +143,23 @@ describe("mounted sidebar: the search", () => {
 
   // The app's search is /explore's transcript search: the sidebar item and
   // the keyboard both go there, and its box takes the cursor on arrival.
-  it("opens explore from the sidebar's search item", async () => {
+  it("opens discover from the sidebar's search item", async () => {
     resetNextNavigation();
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
     fireEvent.click(screen.getByRole("button", { name: /^search/ }));
-    expect(pushedRoutes).toEqual(["/explore"]);
+    expect(pushedRoutes).toEqual(["/discover?view=transcripts"]);
   });
 
-  it("opens explore with command or control and k", async () => {
+  it("opens discover with command or control and k", async () => {
     resetNextNavigation();
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/collectives");
     await chromeSettled("sections");
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     fireEvent.keyDown(window, { key: "K", ctrlKey: true });
-    expect(pushedRoutes).toEqual(["/explore", "/explore"]);
+    expect(pushedRoutes).toEqual(["/discover?view=transcripts", "/discover?view=transcripts"]);
   });
 
   it("puts the cursor in explore's search box when it arrives there", async () => {

@@ -136,7 +136,13 @@ function WaitingPullRequests({ handle }: { handle: string }) {
   // One clock for every row, read once per mount.
   const [now] = useState(() => Date.now());
 
-  const head = <OnHead title="pull requests" />;
+  const head = (
+    <OnHead
+      title="pull requests"
+      lede="waiting for your transcripts"
+      actions={<DocsLink href={DOCS_PULL_REQUESTS_URL}>how pull requests get transcripts</DocsLink>}
+    />
+  );
   const retry = (
     <RetryButton
       label={requests.isFetching ? "retrying" : "retry"}
@@ -217,7 +223,7 @@ function DaySection({ group, now }: { group: DayGroup; now: number }) {
       <ul className="on-pr-list">
         {group.requests.map((request) => (
           <li key={`${request.owner}/${request.name}#${request.number}`}>
-            <RequestCard request={request} now={now} />
+            <RequestRow request={request} now={now} />
           </li>
         ))}
       </ul>
@@ -227,10 +233,10 @@ function DaySection({ group, now }: { group: DayGroup; now: number }) {
 
 /**
  * One pull request waiting on you. The wire carries its repository, number,
- * state and when it was asked for, but no title, so the card is named by its
+ * state and when it was asked for, but no title, so the row is named by its
  * repository and number, and links to its prompts page.
  */
-function RequestCard({ request, now }: { request: VillagePromptRequest; now: number }) {
+function RequestRow({ request, now }: { request: VillagePromptRequest; now: number }) {
   const titleId = useId();
   const repo = `${request.owner}/${request.name}`;
   const asked = formatRelativeTime(request.requested_at, now);
@@ -241,9 +247,9 @@ function RequestCard({ request, now }: { request: VillagePromptRequest; now: num
       : null;
   const githubHref = `${GITHUB_HOST}/${encodeURIComponent(request.owner)}/${encodeURIComponent(request.name)}/pull/${request.number}`;
   return (
-    <article className="on-prcard" aria-labelledby={titleId} data-testid="pulls-request">
-      <header>
-        <div className="on-pr-cardhead">
+    <article className="on-pr-inbox-row" aria-labelledby={titleId} data-testid="pulls-request">
+      <div className="on-pr-inbox-main">
+        <div className="on-pr-inbox-heading">
           <h3 id={titleId} className="on-pr-title">
             <GitPullRequest aria-hidden="true" />
             <Link className="on-pr-open" href={pullPath(request.owner, request.name, request.number)}>
@@ -252,17 +258,15 @@ function RequestCard({ request, now }: { request: VillagePromptRequest; now: num
           </h3>
           <PullStateTag state={request.state} />
         </div>
-        <div className="on-pr-cardfoot">
-          <p className="on-prcard-meta">
-            {asked && <span>asked {asked}</span>}{" "}
-            {fork && <span className="on-pr-repo-name">from {fork}</span>}
-          </p>
-          <a className="on-pr-gh" href={githubHref} target="_blank" rel="noreferrer">
-            view on github
-            <ExternalLink aria-hidden="true" />
-          </a>
-        </div>
-      </header>
+        <p className="on-prcard-meta">
+          {asked && <span>asked {asked}</span>}{" "}
+          {fork && <span className="on-pr-repo-name">from {fork}</span>}
+        </p>
+      </div>
+      <a className="on-pr-gh" href={githubHref} target="_blank" rel="noreferrer">
+        view on github
+        <ExternalLink aria-hidden="true" />
+      </a>
     </article>
   );
 }

@@ -1,0 +1,167 @@
+id: 5d625d28-937e-4d9f-bd1a-1a44890d6112
+alias: long-demo
+title: Build a resumable activity export
+project: activity-export-demo
+branch: feature/resumable-export
+model: claude-sonnet-4
+start: '2026-10-29T07:00:00Z'
+steps:
+  - name: establish-scope
+    prompt: Build a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.
+    plan: I will inspect the export path and tests before changing the cursor or streaming behavior.
+    tool: { name: Glob, input: { pattern: 'src/export/**/*' }, result: "src/export/types.ts\nsrc/export/cursor.ts\nsrc/export/repository.ts\nsrc/export/service.ts\nsrc/export/csv.ts" }
+    conclusion: The work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.
+  - name: read-overview
+    prompt: Check the current export instructions and document the existing behavior before choosing an implementation.
+    plan: Reading the README to understand the public interface and expected CSV format.
+    tool: { name: Read, input: { file_path: README.md }, result: "# Activity export\nGET /exports/activity returns CSV.\nColumns: id, occurred_at, actor, action.\nThe current implementation loads every activity into memory." }
+    conclusion: The CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.
+  - name: inspect-service
+    prompt: Locate the unbounded read and trace how the response gets written.
+    plan: I will read the export service and identify the allocation that grows with the entire dataset.
+    tool: { name: Read, input: { file_path: src/export/service.ts }, result: "export async function exportActivity(store) {\n  const rows = await store.allActivity();\n  return rows.map(toCsv).join('\n');\n}" }
+    conclusion: The service materializes both the rows and the complete CSV. An async page iterator can keep only one page in memory.
+  - name: inspect-storage
+    prompt: Check the repository query and find a stable ordering key for equal timestamps.
+    plan: Reading the repository to verify its ordering and available indexes.
+    tool: { name: Read, input: { file_path: src/export/repository.ts }, result: "SELECT id, occurred_at, actor, action\nFROM activity\nORDER BY occurred_at ASC, id ASC;\n-- index: activity_occurred_at_id" }
+    conclusion: The existing composite order provides a deterministic tie-breaker. The cursor must carry both occurred_at and id.
+  - name: inspect-route
+    prompt: Review the route and cancellation mechanism. Do not keep writing after the client disconnects.
+    plan: Reading the route before choosing how to propagate AbortSignal into the export service.
+    tool: { name: Read, input: { file_path: src/routes/export.ts }, result: "router.get('/exports/activity', async (req, res) => {\n  res.type('text/csv');\n  res.send(await exportActivity(store));\n});" }
+    conclusion: The route does not currently forward cancellation. I will connect response-close to an AbortController and dispose the listener afterward.
+  - name: establish-test-baseline
+    prompt: Run the current tests and keep their baseline separate from the new boundary tests.
+    plan: Running the existing export tests before adding the resumable iterator.
+    tool: { name: Bash, input: { command: pnpm test export --run }, result: "PASS export/csv.test.ts (6 tests)\nPASS export/service.test.ts (3 tests)\n9 tests passed", kind: execute }
+    conclusion: The existing nine tests pass. They cover CSV shape but do not exercise pagination, duplicate timestamps, or disconnects.
+  - name: define-page-contract
+    prompt: Add explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.
+    plan: I will define one cursor shape shared by the encoder and repository query.
+    tool: { name: Edit, input: { file_path: src/export/types.ts, old_string: 'export type ExportOptions = {};', new_string: "export type Cursor = { occurredAt: string; id: string };\nexport type ExportOptions = { cursor?: Cursor; limit: number; signal: AbortSignal };" }, result: Updated src/export/types.ts, kind: edit }
+    conclusion: The options now carry a single cursor, a bounded limit, and the caller's AbortSignal.
+  - name: encode-cursor
+    prompt: Implement a versioned cursor decoder that rejects malformed input without leaking implementation errors.
+    plan: Adding a compact encoder and decoder with explicit shape validation.
+    tool: { name: Edit, input: { file_path: src/export/cursor.ts, old_string: 'export const decodeCursor = () => undefined;', new_string: "export function decodeCursor(value: string): Cursor {\n  const parsed = JSON.parse(Buffer.from(value, 'base64url').toString());\n  if (parsed.version !== 1 || !isCursor(parsed.cursor)) throw new InvalidCursor();\n  return parsed.cursor;\n}" }, result: Updated src/export/cursor.ts, kind: edit }
+    conclusion: Cursor decoding accepts only the documented version and both ordering keys. Invalid input becomes a controlled client error.
+  - name: add-page-query
+    prompt: Add the bounded repository query using the composite cursor and the existing index.
+    plan: Replacing the unbounded scan with a page-sized keyset query.
+    tool: { name: Edit, input: { file_path: src/export/repository.ts, old_string: 'ORDER BY occurred_at ASC, id ASC;', new_string: "WHERE occurred_at >= :occurredAt\nORDER BY occurred_at ASC, id ASC\nLIMIT :limit;" }, result: Updated src/export/repository.ts, kind: edit }
+    conclusion: The query is bounded. I will verify the inclusive timestamp boundary with equal-time rows before treating this predicate as complete.
+  - name: stream-pages
+    prompt: Implement the async iterator and advance the cursor from the last row actually emitted.
+    plan: The service will read a page, yield its records, then advance from the last emitted record.
+    tool: { name: Edit, input: { file_path: src/export/service.ts, old_string: "const rows = await store.allActivity();\nreturn rows.map(toCsv).join('\n');", new_string: "while (!options.signal.aborted) {\n  const rows = await store.page({ ...options, cursor });\n  if (!rows.length) return;\n  for (const row of rows) yield toCsv(row);\n  cursor = cursorOf(rows.at(-1));\n}" }, result: Updated src/export/service.ts, kind: edit }
+    conclusion: The service retains only the current page. The last emitted row determines the next cursor.
+  - name: escape-csv
+    prompt: Preserve quoted fields and embedded newlines while writing records incrementally.
+    plan: Updating the CSV encoder so streaming does not change escaping behavior.
+    tool: { name: Edit, input: { file_path: src/export/csv.ts, old_string: "return values.join(',');", new_string: "return values.map(value => {\n  const text = String(value);\n  return /[\",\n]/.test(text) ? '\"' + text.replaceAll('\"', '\"\"') + '\"' : text;\n}).join(',');" }, result: Updated src/export/csv.ts, kind: edit }
+    conclusion: Fields containing quotes, commas, or newlines stay valid CSV records. The existing column order is unchanged.
+  - name: connect-http-stream
+    prompt: Wire the route to the iterator and respect backpressure rather than buffering the full response.
+    plan: The HTTP route will await drain when the response buffer is full.
+    tool: { name: Edit, input: { file_path: src/routes/export.ts, old_string: 'res.send(await exportActivity(store));', new_string: "for await (const record of exportActivity(store, options)) {\n  if (!res.write(record + '\n')) await once(res, 'drain', { signal });\n}\nres.end();" }, result: Updated src/routes/export.ts, kind: edit }
+    conclusion: A slow client now limits the producer. The route ends the response after the iterator completes.
+  - name: prevent-formula-injection
+    prompt: Protect exported actor and action fields from spreadsheet formulas. Include adversarial examples in the tests.
+    plan: Prefixing user-controlled formula-looking cells before applying ordinary CSV escaping.
+    tool: { name: Edit, input: { file_path: src/export/csv.ts, old_string: 'const text = String(value);', new_string: "const raw = String(value);\nconst text = /^[=+@-]/.test(raw) ? \"'\" + raw : raw;" }, result: Updated src/export/csv.ts, kind: edit }
+    conclusion: Spreadsheet formula prefixes are neutralized in the CSV representation. The underlying stored values remain unchanged.
+  - name: handle-invalid-cursor
+    prompt: Return a clear validation error for a malformed cursor before starting the CSV response.
+    plan: Moving cursor validation ahead of response headers and mapping InvalidCursor to a client error.
+    tool: { name: Edit, input: { file_path: src/routes/export.ts, old_string: "res.type('text/csv');", new_string: "const cursor = req.query.cursor ? decodeCursor(req.query.cursor) : undefined;\nres.type('text/csv');" }, result: Updated src/routes/export.ts, kind: edit }
+    conclusion: The route validates the resume point before writing headers, so malformed cursors can return structured errors.
+  - name: cancel-disconnected-client
+    prompt: Finish cancellation and ensure a disconnected client cannot leave a drain listener waiting forever.
+    plan: Tying response-close to the iterator's AbortSignal and cleaning up in a finally block.
+    tool: { name: Edit, input: { file_path: src/routes/export.ts, old_string: 'const signal = controller.signal;', new_string: "const signal = controller.signal;\nconst abort = () => controller.abort();\nres.once('close', abort);\ntry { await streamExport(); }\nfinally { res.off('close', abort); }" }, result: Updated src/routes/export.ts, kind: edit }
+    conclusion: Disconnects interrupt both repository paging and drain waits. The route removes its own close listener on completion.
+  - name: inspect-boundary-fixtures
+    prompt: Review the test helpers before adding duplicate-timestamp and cancellation cases.
+    plan: Reading the seeded activity records and fake response used by the test suite.
+    tool: { name: Read, input: { file_path: test/export-fixtures.ts }, result: "export const activities = [\n  { id: 'a', occurredAt: '2026-10-01T10:00:00Z' },\n  { id: 'b', occurredAt: '2026-10-01T10:00:00Z' },\n  { id: 'c', occurredAt: '2026-10-01T10:01:00Z' },\n];" }
+    conclusion: The fixtures already contain equal timestamps, so a one-record page can expose the exact resume boundary defect.
+  - name: add-boundary-tests
+    prompt: Add tests for duplicate timestamps, empty exports, malformed cursors, backpressure, and abort cleanup.
+    plan: Exercising the iterator with page size one and asserting each row is emitted once.
+    tool: { name: Edit, input: { file_path: test/export.test.ts, old_string: "describe('export', () => {});", new_string: "describe('export', () => {\n  test.each(exportCases)('streams $name', verifyExport);\n  test('aborts a pending drain', verifyAbort);\n  test('rejects invalid cursors before headers', verifyInvalidCursor);\n});" }, result: Updated test/export.test.ts, kind: edit }
+    conclusion: The new cases target the real iterator and route boundaries, including the equal-time records that must not repeat.
+  - name: reproduce-resume-failure
+    prompt: Run the new boundary tests. Show any failure before changing the query again.
+    plan: Running the focused suite to verify the cursor predicate under page size one.
+    tool: { name: Bash, input: { command: pnpm test export --run }, result: "FAIL test/export.test.ts > resumes after duplicate timestamps\nExpected ids: [a, b, c]\nReceived ids: [a, a, a]\n1 failed, 22 passed", error: true, kind: execute }
+    conclusion: The timestamp-only inclusive predicate repeats the previous row. The next query must compare both ordered columns strictly.
+  - name: repair-composite-boundary
+    prompt: Fix the cursor predicate using both keys. Keep the index-compatible stable order.
+    plan: Replacing the inclusive timestamp test with a strict lexicographic comparison.
+    tool: { name: Edit, input: { file_path: src/export/repository.ts, old_string: 'WHERE occurred_at >= :occurredAt', new_string: "WHERE occurred_at > :occurredAt\n   OR (occurred_at = :occurredAt AND id > :id)" }, result: Updated src/export/repository.ts, kind: edit }
+    conclusion: Equal-time rows now resume after the prior id, while newer timestamps still follow the existing composite order.
+  - name: verify-boundary-fix
+    prompt: Rerun the export suite and confirm the duplicate-timestamp case passes.
+    plan: Repeating the focused tests after changing only the cursor predicate.
+    tool: { name: Bash, input: { command: pnpm test export --run }, result: "PASS test/export.test.ts (17 tests)\nPASS export/csv.test.ts (6 tests)\n23 tests passed", kind: execute }
+    conclusion: All 23 export tests pass, including page-size-one resume, escaping, empty results, and cancellation.
+  - name: check-static-analysis
+    prompt: Run lint and type checking before the integration tests.
+    plan: Checking the route and service for unused state or incomplete types.
+    tool: { name: Bash, input: { command: pnpm lint && pnpm typecheck }, result: "src/routes/export.ts:18:9 error 'previousCursor' is assigned a value but never used\n1 error", error: true, kind: execute }
+    conclusion: The old cursor variable survived the refactor. I will remove it rather than suppress the lint rule.
+  - name: remove-unused-state
+    prompt: Remove the unused state and keep cursor ownership inside the iterator.
+    plan: Deleting the stale route variable left from the initial buffering implementation.
+    tool: { name: Edit, input: { file_path: src/routes/export.ts, old_string: 'const previousCursor = cursor;', new_string: '// Cursor advancement belongs to the export iterator.' }, result: Updated src/routes/export.ts, kind: edit }
+    conclusion: The route now only parses the incoming cursor and forwards it. It no longer keeps a redundant mutable copy.
+  - name: confirm-static-checks
+    prompt: Run the static checks again and keep the output for the final handoff.
+    plan: Rechecking lint and the TypeScript build after removing the unused variable.
+    tool: { name: Bash, input: { command: pnpm lint && pnpm typecheck }, result: "eslint: no errors\ntsc --noEmit: passed", kind: execute }
+    conclusion: Lint and type checking pass with no suppressions added.
+  - name: exercise-http-integration
+    prompt: Test the real HTTP export with a slow client, a resume request, and an early disconnect.
+    plan: Running the integration cases against the disposable test server and database.
+    tool: { name: Bash, input: { command: pnpm test:integration export --run }, result: "PASS resumes from the last emitted cursor\nPASS waits for drain under backpressure\nPASS closes iterator on disconnect\nPASS rejects a malformed cursor before CSV headers\n4 integration tests passed", kind: execute }
+    conclusion: The real route preserves ordering and handles slow or disconnected clients without buffering the full export.
+  - name: document-resume
+    prompt: Document the resume token and limits with a small request example. Mention that cursors are opaque.
+    plan: Updating the README to explain bounded pages and safe restart behavior.
+    tool: { name: Edit, input: { file_path: README.md, old_string: 'The current implementation loads every activity into memory.', new_string: "Exports stream bounded pages in occurred_at/id order.\nResume with the opaque cursor returned for the last emitted record.\nDo not edit or decode cursors in clients.\nDisconnecting cancels the active export." }, result: Updated README.md, kind: edit }
+    conclusion: The documentation names the ordering and cancellation guarantees without exposing the cursor's internal encoding as a client API.
+  - name: inspect-final-diff
+    prompt: Check the complete diff for unrelated changes and whitespace errors.
+    plan: Reviewing the final file list and diff summary before the last test run.
+    tool: { name: Bash, input: { command: git diff --check && git diff --stat }, result: "README.md | 5 ++++-\nsrc/export/types.ts | 2 ++\nsrc/export/cursor.ts | 6 ++++++\nsrc/export/repository.ts | 5 +++--\nsrc/export/service.ts | 8 +++++---\nsrc/export/csv.ts | 7 ++++++-\nsrc/routes/export.ts | 12 +++++++++---\ntest/export.test.ts | 9 +++++++++\n8 files changed; no whitespace errors", kind: execute }
+    conclusion: The diff is limited to the export path, its tests, and its documentation. No unrelated files changed.
+  - name: review-final-query
+    prompt: Read the final query one more time and verify it still matches the cursor encoder's two fields.
+    plan: Checking the storage predicate and ordering against the cursor type.
+    tool: { name: Read, input: { file_path: src/export/repository.ts }, result: "SELECT id, occurred_at, actor, action\nFROM activity\nWHERE occurred_at > :occurredAt\n   OR (occurred_at = :occurredAt AND id > :id)\nORDER BY occurred_at ASC, id ASC\nLIMIT :limit;" }
+    conclusion: The predicate, stable order, and encoded cursor use the same two keys. The bounded limit is applied on every page.
+  - name: final-verification
+    prompt: Finish with a concise summary and the exact validation results, including the failure that was fixed.
+    plan: Running the final focused and integration checks once more for the handoff.
+    tool: { name: Bash, input: { command: pnpm test export --run && pnpm test:integration export --run && pnpm lint && pnpm typecheck }, result: "23 export tests passed\n4 HTTP integration tests passed\neslint passed\nTypeScript passed", kind: execute }
+    conclusion: |
+      Implemented bounded CSV streaming, opaque resume cursors, stable duplicate-timestamp handling, escaping, backpressure, and cancellation. Fixed the initially failing inclusive cursor predicate. Validation: 23 export tests, 4 integration tests, lint, and TypeScript all passed. These are simulated outputs from this synthetic demonstration.
+
+      The export keeps one bounded page in memory and stops work when the client disconnects:
+
+      ```mermaid
+      flowchart TD
+        A[Validate resume cursor] --> B[Read bounded page]
+        B --> C[Escape and stream CSV]
+        C --> D[Advance composite cursor]
+        D --> E{More rows?}
+        E -->|yes| B
+        E -->|no| F[Finish response]
+        B -. disconnect .-> G[Cancel work]
+        C -. disconnect .-> G
+      ```
+annotations:
+  - { id: long-demo-highlight, index: 55, typeId: turn_flag, value: highlight, reason: Strict composite cursor fixes the reproduced duplicate-row defect. }
+  - { id: long-demo-retry, index: 52, typeId: turn_flag, value: error, reason: The intentionally failing boundary test explains why the first query was revised. }
+  - { id: long-demo-outcome, index: 83, typeId: turn_outcome, value: good, reason: Final verification summarizes focused tests, integration tests, and static checks. }

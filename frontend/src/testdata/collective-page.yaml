@@ -50,13 +50,13 @@ pending:
 
 # `signedIn: false` reads the page with no account (`/auth/me` answers 401).
 # `actions` are the controls in the head's action row, in order, by name.
-# `tabs` are the tabs offered, in order. `orgLine` is the stats tab's github
+# `tabs` are the tabs offered, in order. `orgLine` is the repositories tab's github
 # org line; `memberBreakdown: null` is a member list the owner keeps private.
 cases:
   - name: the-owner-sees-the-chips-the-org-total-and-both-overflow-items
     why: >-
       the owner of a curated collective linked to acme: the chips say they
-      approve each session, members read and they are the owner; the stats tab
+      approve each session, members read and they are the owner; the repositories tab
       counts the linked repositories against what the App offers; publish and
       review both move into more; the waiting tab is theirs; the members
       summary leaves out the pending request.
@@ -73,7 +73,7 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
         - { label: review transcripts, route: "/collectives/{id}/review" }
-      tabs: [transcripts, waiting for approval, members, stats]
+      tabs: [transcripts, waiting for approval, members, repositories, stats]
       transcriptRows: 2
       orgLine: "acme: 2 of 4 repos linked"
       manage: true
@@ -98,7 +98,7 @@ cases:
       actions: [more, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: "acme: 3 of 5 repos linked"
       manage: true
@@ -122,7 +122,7 @@ cases:
       actions: [more, connect github, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
@@ -146,7 +146,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -170,7 +170,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -192,7 +192,7 @@ cases:
       yourRole: you are not a member
       actions: [join]
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -215,7 +215,7 @@ cases:
       yourRole: the owner invites members
       actions: []
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: nothing linked
       manage: false
@@ -238,7 +238,7 @@ cases:
       yourRole: you are not a member
       actions: [sign in to join]
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -261,7 +261,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
@@ -333,7 +333,7 @@ tabCases:
     acceptance_mode: open
     withPending: false
     search: ""
-    keys: [ArrowRight, ArrowRight]
+    keys: [ArrowRight, ArrowRight, ArrowRight]
     expectSelected: stats
     expectSearch: "?tab=stats"
 
@@ -428,3 +428,60 @@ pullRequestCases:
     expect:
       - { id: t1, labels: [], repo: null }
     hrefs: {}
+
+
+waitingDecisionCases:
+  - name: owner-approves-one-waiting-session
+    why: approval from the waiting tab names only the clicked submission and retains the deeper review link
+    role: owner
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: true
+  - name: owner-rejects-one-waiting-session
+    why: rejection from the waiting tab names only the clicked submission
+    role: owner
+    acceptance_mode: curated
+    decision: rejected
+    targetIndex: 1
+    fail: null
+    hold: false
+    expectControls: true
+  - name: waiting-decision-failure-keeps-the-row-for-retry
+    why: a failed mutation keeps its row and error next to the same decision controls
+    role: owner
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: { status: 500, error: the review service is temporarily unavailable }
+    hold: false
+    expectControls: true
+  - name: pending-decision-disables-other-row-actions
+    why: only the clicked action is busy while every row waits for the same outstanding decision
+    role: owner
+    acceptance_mode: curated
+    decision: rejected
+    targetIndex: 1
+    fail: null
+    hold: true
+    expectControls: true
+  - name: member-is-not-offered-waiting-decisions
+    why: membership does not grant the owner-only pending queue or its actions
+    role: member
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: false
+  - name: open-owner-is-not-offered-waiting-decisions
+    why: an open collective has no pending-approval workflow
+    role: owner
+    acceptance_mode: open
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: false

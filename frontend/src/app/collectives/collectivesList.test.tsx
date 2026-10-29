@@ -50,8 +50,7 @@ describe("the collectives list", () => {
     await renderCollectivesPage();
 
     if (c.expect.rows) {
-      // The contribution counters arrive after the rows; wait for the row
-      // that must say "contributed" so a page that never reads them fails.
+      // Wait for the real rows; role remains visible without contribution tags.
       await waitFor(() => expect(tableRows(), c.why).toEqual(c.expect.rows!.map((row) => ({ ...row, href: expect.any(String) }))));
       for (const row of tableRows()) {
         const id = visible.find((v) => v.name === row.name)?.id;

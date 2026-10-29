@@ -17,6 +17,7 @@ export default function NotFound() {
   return (
     <OnPage testId="not-found">
       <OnEmpty
+        headingLevel={1}
         icon={<MapPinOff aria-hidden="true" />}
         title="page not found"
         body="nothing lives at this address. the link may be mistyped, or the page may have moved."

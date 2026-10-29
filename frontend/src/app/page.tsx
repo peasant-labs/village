@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import HomePage from "./HomePage";
+import { OnPage } from "@/components/online/Page";
 
 /**
  * The root route: the signed-in person's own home, their transcripts and who
@@ -20,10 +21,10 @@ export default function RootPage() {
 
   if (isLoading) {
     return (
-      <div className="on-page" data-testid="root-route-pending" aria-hidden="true">
+      <OnPage testId="root-route-pending">
         <div className="h-10 w-72 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
-      </div>
+      </OnPage>
     );
   }
 

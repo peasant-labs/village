@@ -1,0 +1,20 @@
+corpus:
+  total: 45
+  titlePrefix: recorded session
+  idPrefix: '99000000-0000-4000-8000-'
+cases:
+  - name: numbered-pages-read-bounded-offsets-and-can-return-to-the-first-page
+    kind: navigation
+    steps:
+      - { page: 2, first: 21, last: 40, range: 'showing 21 to 40 of 45', query: '?limit=20&offset=20' }
+      - { page: 3, first: 41, last: 45, range: 'showing 41 to 45 of 45', query: '?limit=20&offset=40' }
+      - { page: 1, first: 1, last: 20, range: 'showing 1 to 20 of 45', query: '' }
+  - name: a-delayed-page-never-labels-previous-rows-as-the-new-page
+    kind: delayed
+    heldPage: 2
+    final: { page: 3, first: 41, last: 45, range: 'showing 41 to 45 of 45', query: '?limit=20&offset=40' }
+  - name: a-failed-page-can-retry-its-own-offset-without-showing-old-rows
+    kind: failure
+    status: 503
+    error: this page is temporarily unavailable
+    target: { page: 2, first: 21, last: 40, range: 'showing 21 to 40 of 45', query: '?limit=20&offset=20' }

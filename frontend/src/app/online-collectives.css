@@ -82,7 +82,7 @@
   color: var(--ink-2);
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -208,4 +208,104 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
+}
+
+/* The discovery views share one page inset; panels only add internal rhythm. */
+.on-discover-views,
+.on-discover-views .tabpanel > div {
+  min-width: 0;
+}
+.on-discover-views .tabpanel > div {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.on-discover-views > .tabpanel {
+  max-width: none;
+  min-width: 0;
+  padding: var(--sp-5) 0 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Each collective is one complete comparison unit. Card width follows the
+   available page body, and height follows real text rather than a fixed box. */
+.on-discover-views {
+  container-type: inline-size;
+}
+.on-discover-collectives {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--sp-4);
+}
+.on-discover-collective {
+  height: 100%;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: var(--bd);
+}
+.on-discover-identity {
+  display: grid;
+  grid-template-rows: auto minmax(calc(var(--fs-body) * var(--lh-body) * 2), auto);
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.on-discover-collective h2 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-body);
+}
+.on-discover-collective .on-card-desc {
+  -webkit-line-clamp: 2;
+}
+.on-discover-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+}
+.on-discover-collective .on-card-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0 0;
+}
+.on-discover-collective .on-card-foot > .btn {
+  grid-column: 2;
+}
+.on-discover-collective .on-card-who {
+  align-items: flex-start;
+  min-width: 0;
+  gap: var(--sp-2);
+}
+.on-discover-collective .on-card-who svg {
+  width: var(--ic-md);
+  height: var(--ic-md);
+  margin-top: var(--sp-1);
+}
+.on-discover-search {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+.on-discover-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+@container (min-width: 768px) {
+  .on-discover-collectives {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (min-width: 1440px) {
+  .on-discover-collectives {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.on-discover-collective .on-card-foot { margin-block-start: auto; }
+.on-discover-facts { min-block-size: var(--target-min); }
+@media (width < 768px) {
+  .on-discover-identity { grid-template-rows: auto; }
+  .on-discover-collective .on-card-desc { -webkit-line-clamp: unset; }
 }

@@ -20,8 +20,7 @@ import {
  *     neither. The list used to hold every visible collective; splitting it
  *     must not lose one.
  *  2. A collective they belong to says so on the list, with their role.
- *  3. A collective that currently holds or is still reviewing something of
- *     theirs says "contributed", on whichever page lists it.
+ *  3. Contribution history does not add a badge to either listing surface.
  *  4. A collective they merely see claims nothing about them.
  *
  * Nothing here is stubbed above the network: the pages, their hooks and the
@@ -69,11 +68,7 @@ describe("the mounted collectives and discover routes", () => {
       expect(standing, `${row.name} must show the caller's role: ${row.why}`).toContain(row.expect.member_badge);
     }
 
-    if (row.expect.contributed_badge) {
-      expect(standing, `${row.name} must say it holds a contribution: ${row.why}`).toContain("contributed");
-    } else {
-      expect(standing, `${row.name} must not claim a contribution: ${row.why}`).not.toContain("contributed");
-    }
+    expect(standing, `${row.name} must omit the contribution badge: ${row.why}`).not.toContain("contributed");
   });
 
   it("says nothing at all about a collective the caller only sees", async () => {

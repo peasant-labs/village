@@ -41,7 +41,7 @@ listCases:
       cards:
         - { name: Open Evals 2026, href: /collectives/d1000000-0000-4000-8000-000000000002, members: 12 members, who: anyone can join and publish, tags: [], transcripts: "1,940 transcripts", action: { label: join, href: null, primary: true } }
         - { name: Rust Review Club, href: /collectives/d1000000-0000-4000-8000-000000000003, members: 4 members, who: members of the rust-club github org, tags: [], transcripts: 310 transcripts, action: { label: join, href: null, primary: false } }
-        - { name: Agents In Class, href: /collectives/d1000000-0000-4000-8000-000000000004, members: 1 member, who: invite only; each session approved, tags: [contributed], transcripts: 1 transcript, action: { label: view, href: /collectives/d1000000-0000-4000-8000-000000000004, primary: false } }
+        - { name: Agents In Class, href: /collectives/d1000000-0000-4000-8000-000000000004, members: 1 member, who: invite only; each session approved, tags: [], transcripts: 1 transcript, action: { label: view, href: /collectives/d1000000-0000-4000-8000-000000000004, primary: false } }
         - { name: Any Org Guild, href: /collectives/d1000000-0000-4000-8000-000000000005, members: 9 members, who: members of any github org, tags: [], transcripts: 0 transcripts, action: { label: join, href: null, primary: false } }
 
   - name: a-search-shows-what-the-server-matched
@@ -105,3 +105,11 @@ joinCases:
       tags: [joined]
       action: { label: open, href: /collectives/d1000000-0000-4000-8000-000000000002, primary: true }
       message: ""
+
+# Both result kinds live at Discover and keep their own in-progress search.
+navigation:
+  path: /discover
+  transcriptQuery: retry budget
+  collectiveQuery: acme
+  transcriptPath: /discover?view=transcripts
+  collectivePath: /discover?view=collectives

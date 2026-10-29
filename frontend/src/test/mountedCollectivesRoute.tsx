@@ -27,7 +27,7 @@ import { profileOwner } from "@/test/publicOwnerFixture";
 export interface CollectiveBadgeExpectation {
   /** The role the row must show, or null when the row must show no member badge. */
   member_badge: string | null;
-  /** Whether the row must say "contributed". */
+  /** Always false: contribution badges are no longer part of these lists. */
   contributed_badge: boolean;
 }
 
@@ -55,8 +55,8 @@ export interface CollectiveBadgeFixtures {
  * Required-NAME manifest (never a bare count): the fixture must carry exactly
  * these rows. Four are the combinations of the two independent axes; the fifth
  * is the collective whose every attempt ended in a refusal or a withdrawal,
- * which is the only case that can catch a badge rule widened to count past
- * events. Deleting one, or adding an unlisted one, fails the load rather than
+ * so past attempts are covered alongside live contributions. Deleting one,
+ * or adding an unlisted one, fails the load rather than
  * silently changing which cases run.
  */
 const requiredRowNames = [
@@ -125,18 +125,17 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     if (typeof rawExpect.contributed_badge !== "boolean") {
       throw new Error(`rows[${index}] ("${name}").expect.contributed_badge must be a boolean`);
     }
-    // The expectation must follow from the row's own facts, so a case cannot
-    // declare an outcome its inputs could never produce and then pass.
+    // Membership still follows the server role. Contribution history must
+    // never create a badge on these listing surfaces.
     if (memberBadge !== role) {
       throw new Error(
         `rows[${index}] ("${name}") reports role ${JSON.stringify(role)} but expects member badge ` +
           `${JSON.stringify(memberBadge)}; the member badge IS the role the row carries`,
       );
     }
-    if (rawExpect.contributed_badge !== approved + pending > 0) {
+    if (rawExpect.contributed_badge !== false) {
       throw new Error(
-        `rows[${index}] ("${name}") has ${approved} approved and ${pending} pending contributions but expects ` +
-          `contributed_badge ${rawExpect.contributed_badge}; a live contribution is approved or pending`,
+        `rows[${index}] ("${name}") expects a contribution badge; these listing surfaces no longer show one`,
       );
     }
     return {
@@ -177,8 +176,8 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     throw new Error(
       `case "${pastEventsOnly.name}" is named for a contribution history of only refusals and withdrawals, ` +
         `but carries approved ${pastEventsOnly.approved}, pending ${pastEventsOnly.pending}, rejected ` +
-        `${pastEventsOnly.rejected}, withdrawn ${pastEventsOnly.withdrawn}. It is the only case that can catch a ` +
-        "badge rule widened to count past events, so it must have some and no live contribution.",
+        `${pastEventsOnly.rejected}, withdrawn ${pastEventsOnly.withdrawn}. ` +
+        "The historical-only case must have past events and no live contribution.",
     );
   }
   const unexpected = names.filter((n) => !(requiredRowNames as readonly string[]).includes(n));
@@ -317,10 +316,7 @@ export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[])
   vi.stubGlobal("fetch", fetchMock);
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function Providers({ children, client }: { children: ReactNode; client: QueryClient }) {
   return (
     <QueryClientProvider client={client}>
       <AuthProvider>
@@ -372,7 +368,7 @@ export function drawnFor(row: CollectiveBadgeRow, page: CollectivePage): HTMLEle
 
 /**
  * What the page claims about the caller's standing in one collective: on the
- * list, the "your role" cell (the role, then "contributed" when it holds one);
+ * list, the "your role" cell;
  * on discover, the card's standing tags.
  *
  * Read from that place alone rather than the whole row or card, because the
@@ -391,49 +387,26 @@ export function standingTextFor(row: CollectiveBadgeRow, page: CollectivePage = 
   return [...drawn.querySelectorAll(".on-card-tags .on-tag")].map((tag) => tag.textContent?.trim()).join(" ");
 }
 
-/**
- * Renders one of the two real routes and waits until BOTH of its requests have
- * landed and been rendered.
- *
- * The viewer's identity and the contribution counters arrive over the same
- * stubbed `fetch` as everything else, and the rows render as soon as the
- * collectives answer, before the counters do. A test that asserted then would
- * find every "shows no contributed badge" expectation true merely because the
- * counters had not arrived, and would pass against a page that never reads them
- * at all.
- *
- * So the wait is on a POSITIVE signal that can only be true after the counters
- * are rendered: a row the corpus guarantees must say "contributed" on this
- * page. A page that never asks for the counters, or ignores them, times out
- * here rather than passing.
+/** Mounts the real route, waits for its visible rows and lets all reads settle.
+ * Contribution badges are absent, so their appearance is no longer a readiness
+ * signal. Settling the query client avoids asserting absence before a late
+ * contribution response could render a regression.
  */
 export async function renderCollectivePage(page: CollectivePage): Promise<void> {
-  const contributing = servedRows.find((row) => row.expect.contributed_badge && pageFor(row) === page);
-  if (!contributing) {
-    throw new Error(
-      `the served corpus has no row on the ${page} page expecting a contributed badge, so there is no signal ` +
-        "that the contribution counters were ever rendered; restore that case rather than waiting on nothing",
-    );
-  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const Page = page === "collectives" ? CollectivesPage : DiscoverPage;
   await act(async () => {
     render(
-      <Providers>
+      <Providers client={client}>
         <Page />
       </Providers>,
     );
   });
   await waitFor(() => {
-    // standingTextFor throws while the row is absent, which waitFor treats as
-    // "not ready yet" and retries.
-    const standing = standingTextFor(contributing, page);
-    if (!standing.includes("contributed")) {
-      throw new Error(
-        `the contribution counters have not reached the ${page} page: "${collectiveNameFor(contributing)}" ` +
-          `has ${contributing.approved} approved and ${contributing.pending} pending contributions but its ` +
-          `standing reads "${standing}"`,
-      );
-    }
+    for (const row of servedRows.filter((row) => pageFor(row) === page)) drawnFor(row, page);
+    if (client.isFetching() !== 0) throw new Error("collective reads are still pending");
   });
 }
 

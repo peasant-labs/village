@@ -16,8 +16,8 @@ import {
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
+import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import HomeTable from "@/components/home/HomeTable";
-import HomeRecent from "@/components/home/HomeRecent";
 import HomeWaiting from "@/components/home/HomeWaiting";
 import DocsLink from "@/components/online/DocsLink";
 import { DOCS_PUBLISH_URL } from "@/lib/appLinks";
@@ -245,6 +245,7 @@ function HomeBody({ username }: { username: string }) {
   const pages = list.data?.pages ?? [];
   const loaded = pages.flatMap((page) => page.transcripts);
   const total = pages[0]?.total ?? 0;
+  const agentTotal = pages[0]?.agent_total ?? 0;
   const searching = list.isPlaceholderData;
 
   // Grouped BEFORE ranking, so a row is a session the viewer ran rather than a
@@ -291,7 +292,7 @@ function HomeBody({ username }: { username: string }) {
           counted(stats.data.pull_request_count, "pull request linked", "pull requests linked"),
           { label: "tokens recorded", value: formatCount(stats.data.total_tokens) },
         ];
-  const libraryEmpty = own != null && total === 0 && query === "";
+  const libraryEmpty = own != null && total === 0 && agentTotal === 0 && query === "";
   const showStats = statItems.length > 0 && stats.data!.total_transcripts > 0;
 
   const toggleGroup = (id: string) => {
@@ -341,12 +342,19 @@ function HomeBody({ username }: { username: string }) {
         <div className="h-14 animate-shimmer" />
       </div>
     );
+  } else if (total === 0 && agentTotal > 0 && query === "") {
+    listRegion = (
+      <div className="on-notice" data-testid="home-agent-only">
+        <p>your published agent sessions are grouped below. sessions with your own prompts appear in the main library.</p>
+      </div>
+    );
   } else if (libraryEmpty) {
     listRegion = (
       <div className="on-section" data-testid="home-empty-state">
         <OnEmpty
           icon={<Terminal />}
-          title="nothing published yet"
+          title="publish the session behind your next change"
+          body="open a session in peasant, review what will leave your machine, then choose the collectives that can read it."
           actions={<DocsLink href={DOCS_PUBLISH_URL}>how to publish</DocsLink>}
         />
         {collectives.data != null && collectives.data.length === 0 && (
@@ -493,8 +501,9 @@ function HomeBody({ username }: { username: string }) {
         }}
       />
 
-      {query === "" && !searching && own != null && <HomeRecent rows={rows} now={now} />}
 
+      <section className="on-home-library" aria-labelledby="home-library-title">
+      <h2 id="home-library-title" className="on-h2">library</h2>
       {showTools && (
         <div className="on-tools" role="toolbar" aria-label="view">
           <div className="on-search" role="search">
@@ -577,6 +586,10 @@ function HomeBody({ username }: { username: string }) {
       )}
 
       {listRegion}
+      {list.data != null && (
+        <AgentSessionGroup agentTotal={agentTotal} baseParams={listParams} showOwnerActions />
+      )}
+      </section>
     </OnPage>
   );
 }

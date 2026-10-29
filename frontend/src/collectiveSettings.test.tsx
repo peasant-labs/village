@@ -48,7 +48,9 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
       });
       return;
     case "remove": {
-      fireEvent.click(screen.getByRole("button", { name: `remove @${action.member}` }));
+      const remove = screen.getByRole("button", { name: `remove @${action.member}` });
+      expect(remove).toHaveClass("btn-secondary");
+      fireEvent.click(remove);
       const dialog = await screen.findByRole("dialog");
       fireEvent.click(within(dialog).getByRole("button", { name: "remove" }));
       return;
@@ -98,6 +100,13 @@ describe("the collective settings", () => {
 
     for (const text of expected.shows) {
       await waitFor(() => expect(document.body.textContent).toContain(text));
+    }
+    if (screen.getByRole("heading", { level: 1 }).textContent === "github") {
+      const picker = await screen.findByRole("region", { name: "repositories" });
+      expect(within(picker).getByRole("searchbox", { name: "search repos" })).toBeInTheDocument();
+      expect(within(picker).getByRole("checkbox", { name: /ingest-api/ })).toBeChecked();
+      expect(screen.queryByRole("button", { name: "manage repositories" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     }
     if (expected.alert) {
       await waitFor(() => expect(screen.getAllByRole("alert").map((el) => textOf(el))).toContain(expected.alert));

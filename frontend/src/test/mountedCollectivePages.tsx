@@ -71,6 +71,8 @@ export interface CollectiveWorld {
   searchable?: VillageCollectiveSearchResult[];
   /** `GET /collectives/{id}/pending`: what waits for the owner's approval. */
   pending?: PendingShare[];
+  /** Controlled response lifetime for a mounted pending-decision fixture. */
+  reviewGate?: Promise<void>;
   /** `GET /collectives/{id}/invitations`: the open invitations the owner sees. */
   invitations?: VillageCollectiveInvitationSent[];
   /** `GET /users/me/invitations`: the viewer's own pending invitations. */
@@ -246,6 +248,15 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
     if (path === `${base}/pending` && method === "GET") {
       if (world.role !== "owner") return json({ error: "Owner access required" }, 403);
       return json(world.pending ?? []);
+    }
+    if (path === `${base}/shares` && method === "PATCH") {
+      if (world.role !== "owner") return json({ error: "Owner access required" }, 403);
+      await world.reviewGate;
+      const asked = (body as { transcript_ids: string[] }).transcript_ids;
+      const queued = new Set((world.pending ?? []).map((row) => row.transcript_id));
+      const decided = asked.filter((id) => queued.has(id));
+      world.pending = (world.pending ?? []).filter((row) => !decided.includes(row.transcript_id));
+      return json({ decided, already_decided: asked.filter((id) => !queued.has(id)) });
     }
     if (path === `${base}/repositories` && method === "GET") {
       return json({ repositories: world.linked.map((repo) => linkedRow(world, repo)) });

@@ -37,9 +37,9 @@ import "@/app/online-pulls.css";
  *
  * It is where the pull request's comment and check lead, and it reads signed
  * out as well as signed in: a public repository's attachment is anyone's to
- * read. The pull request is one card (its repository, title and branch, the
- * transcripts behind it as rows, and the way back to GitHub); the prompts sit
- * under it in the design system's digest, in its split layout (the transcripts
+ * read. The pull request's title, state and source lead a compact overview;
+ * linked transcripts follow as rows. The prompts sit under it in the design
+ * system's digest, in its split layout (the transcripts
  * on the left, the selected one's prompts on the right, `j` and `k` to move).
  * This page owns where each item links, the author's attach, decline and
  * detach, and plain words about the state the attachment is in.
@@ -142,7 +142,7 @@ interface TranscriptAudience {
   audience: string;
 }
 
-/** One transcript row on the card: what the digest says about one session. */
+/** One transcript row in the overview: what the digest says about one session. */
 interface TranscriptRowData {
   transcriptId: string;
   label: string;
@@ -154,7 +154,7 @@ interface TranscriptRowData {
 }
 
 /**
- * The rows the card lists: one per session the digest names, in its order, with
+ * The rows the overview lists: one per session the digest names, in its order, with
  * the split-list position each one is selected by. A chain that opens before
  * its first session gets a leading entry in the split list, so the positions
  * shift by one.
@@ -259,7 +259,7 @@ export default function PullRequestPage({
         return title ? { ...item, text: title } : item;
       }),
     };
-    // The card's rows are the same sessions under the same names.
+    // The overview's rows are the same sessions under the same names.
     return { titledDigest: titled, rows: transcriptRows(titled) };
   }, [digest, titleKey]);
   // What the author's own reads say about each session, as each one answers.
@@ -288,6 +288,7 @@ export default function PullRequestPage({
         <OnEmpty
           icon={<GitPullRequest aria-hidden="true" />}
           title="no attachment here"
+          className="on-pr-empty"
           headingLevel={1}
           body={
             signedOut
@@ -408,8 +409,8 @@ export default function PullRequestPage({
 
   return (
     <OnPage tight testId="pull-request-page">
-      <article className="on-prcard on-pr-card" aria-labelledby={titleId}>
-        <header>
+      <article className="on-pr-detail on-pr-card" aria-labelledby={titleId}>
+        <header className="on-pr-detail-head">
           <div className="on-prcard-repo">
             <GitPullRequest aria-hidden="true" />
             <span className="on-pr-repo-name">{repoLabel}</span>{" "}
@@ -424,9 +425,15 @@ export default function PullRequestPage({
               )}
             </span>
           </div>
-          <h1 className="on-pr-title" id={titleId} data-testid="pull-request-title">
-            {pullTitle ?? `${repoLabel} #${data.attachment.number}`}
-          </h1>
+          <div className="on-pr-titlebar">
+            <h1 className="on-pr-title" id={titleId} data-testid="pull-request-title">
+              {pullTitle ?? `${repoLabel} #${data.attachment.number}`}
+            </h1>
+            <a className="btn btn-secondary on-pr-source" href={githubHref} target="_blank" rel="noreferrer">
+              view on github
+              <ExternalLink aria-hidden="true" />
+            </a>
+          </div>
           {(data.attachment.head_ref || digest) && (
             <p className="on-prcard-meta" data-testid="pull-request-sub">
               {data.attachment.head_ref && (
@@ -454,7 +461,7 @@ export default function PullRequestPage({
           />
         )}
 
-        <div className="on-prcard-body">
+        <div className="on-pr-detail-transcripts">
           {rows.length > 0 ? (
             <ul className="on-pr-rows" aria-label="transcripts behind this pull request">
               {rows.map((row) => (
@@ -502,12 +509,8 @@ export default function PullRequestPage({
           )}
         </div>
 
-        <footer>
-          <a className="on-pr-gh" href={githubHref} target="_blank" rel="noreferrer">
-            view on github
-            <ExternalLink aria-hidden="true" />
-          </a>
-          {(actions || actionError) && (
+        {(actions || actionError) && (
+          <footer className="on-pr-detail-actions">
             <div className="on-pr-acts">
               {actionError && (
                 <p className="on-pr-error" role="alert" data-testid="attachment-action-error">
@@ -517,8 +520,8 @@ export default function PullRequestPage({
               )}
               {actions}
             </div>
-          )}
-        </footer>
+          </footer>
+        )}
       </article>
 
       {hasSplit && (
@@ -532,7 +535,6 @@ export default function PullRequestPage({
             selected={selected}
             onSelect={(index) => setSelected(index)}
             itemHref={(item) => itemHref(item, data.attachment.owner, data.attachment.name, data.attachment.number)}
-            className="border border-rule"
           />
         </section>
       )}
@@ -602,8 +604,7 @@ function TranscriptRow({
   if (started) parts.push(<span key="when">{started}</span>);
 
   return (
-    <li className="on-trow2" data-testid="pull-request-transcript" data-transcript-id={row.transcriptId}>
-      <span className="on-rail" aria-hidden="true" />
+    <li className="on-pr-transcript-row" data-testid="pull-request-transcript" data-transcript-id={row.transcriptId}>
       <div className="on-pr-rowmain">
         <Link className="is-title" id={titleId} href={href}>
           {row.label}
@@ -622,7 +623,7 @@ function TranscriptRow({
       {onJump && row.promptCount != null && row.promptCount > 0 && (
         <button
           type="button"
-          className="btn btn-ghost btn-sm on-pr-jump"
+          className="btn btn-ghost on-pr-jump"
           aria-describedby={titleId}
           onClick={onJump}
           data-testid="pull-request-jump"
@@ -639,7 +640,7 @@ function TranscriptRow({
 /**
  * The author's band: one plain line about the state the attachment is in and,
  * while there is something to attach or attached, who can read it. The actions
- * it allows sit at the foot of the card, after the rows they act on.
+ * it allows sit after the rows they act on.
  */
 function AuthorBand({
   state,
@@ -755,7 +756,6 @@ function AuthorActions({
         <>
           <Button
             variant="ghost"
-            size="sm"
             onClick={onDetach}
             disabled={pending}
             data-testid="not-now-attachment"
@@ -764,7 +764,6 @@ function AuthorActions({
           </Button>
           <Button
             variant="primary"
-            size="sm"
             onClick={onAttach}
             disabled={pending}
             data-testid="confirm-attachment"
@@ -778,7 +777,6 @@ function AuthorActions({
       return (
         <Button
           variant="secondary"
-          size="sm"
           onClick={onDetach}
           disabled={pending}
           data-testid="detach-attachment"

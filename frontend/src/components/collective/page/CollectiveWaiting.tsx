@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { Button } from "@/lib/ft-ui";
+import { useBatchReview } from "@/lib/queries/groupReview";
+import type { ReviewDecision } from "@/lib/review/types";
 import { CircleCheck, ClipboardCheck } from "lucide-react";
 import { OnEmpty } from "@/components/online/Page";
 import { relativeWhen } from "@/lib/adapters/collective";
@@ -9,18 +13,14 @@ import type { PendingShare } from "@/lib/review/types";
 import { AgentCell } from "./CollectiveTranscriptsTable";
 import { transcriptHref } from "@/lib/transcriptContext";
 
-/**
- * What waits for the owner's approval in a curated collective, read-only: the
- * same queue the review page decides, read under the same key, so a decision
- * there refreshes this list. Deciding happens on the review page, which this
- * panel links to; each title opens the transcript, where the owner can also
- * approve or reject it.
- */
+/** The curated owner's queue, with direct decisions and a deeper review exit. */
 export default function CollectiveWaiting({
   collectiveId,
   pending,
+  canReview,
 }: {
   collectiveId: string;
+  canReview: boolean;
   pending: {
     data: PendingShare[] | undefined;
     isLoading: boolean;
@@ -31,6 +31,18 @@ export default function CollectiveWaiting({
   };
 }) {
   const reviewHref = `/collectives/${collectiveId}/review`;
+  const review = useBatchReview(collectiveId);
+  const [stale, setStale] = useState<ReadonlySet<string>>(new Set());
+  const touchedID = review.variables?.transcript_ids[0];
+  async function decide(transcriptID: string, status: ReviewDecision) {
+    if (!canReview || review.isPending || stale.has(transcriptID)) return;
+    try {
+      const outcome = await review.mutateAsync({ transcript_ids: [transcriptID], status });
+      setStale(new Set(outcome.already_decided));
+    } catch {
+      // Keep the failed row and put the mutation error beside its retry action.
+    }
+  }
 
   if (pending.isLoading) {
     return (
@@ -83,7 +95,7 @@ export default function CollectiveWaiting({
         </Link>
       </div>
       <div className="on-tbl">
-        <table className="on-ctable">
+        <table className="on-ctable on-waiting-table">
           <caption>waiting for approval {rows.length}</caption>
           <thead>
             <tr>
@@ -95,7 +107,7 @@ export default function CollectiveWaiting({
                 agent
               </th>
               <th scope="col" className="is-wide">
-                status
+                review
               </th>
               <th scope="col" className="is-n">
                 when
@@ -105,8 +117,9 @@ export default function CollectiveWaiting({
           <tbody>
             {rows.map((row) => {
               const who = resolveAttribution(row.owner);
+              const isStale = stale.has(row.transcript_id);
               return (
-                <tr key={row.transcript_id}>
+                <tr key={row.transcript_id} data-testid={`waiting-row-${row.transcript_id}`}>
                   <td className="on-ctable-title">
                     <Link className="is-title" href={transcriptHref(row.transcript_id, { kind: "collective", id: collectiveId })}>
                       {row.title || "untitled"}
@@ -121,8 +134,8 @@ export default function CollectiveWaiting({
                       <span className="on-agent">
                         <AgentCell provider={row.model_provider} />
                       </span>
-                      <span className="on-tag" data-tone="wait">
-                        waiting
+                      <span className="on-tag" data-tone={isStale ? undefined : "wait"}>
+                        {isStale ? "already decided" : "waiting"}
                       </span>
                     </span>
                   </td>
@@ -132,10 +145,23 @@ export default function CollectiveWaiting({
                       <AgentCell provider={row.model_provider} />
                     </span>
                   </td>
-                  <td className="is-wide">
-                    <span className="on-tag" data-tone="wait">
-                      waiting
-                    </span>
+                  <td className="is-wide on-waiting-decision">
+                    <div className="on-waiting-actions">
+                      <span className="on-tag on-waiting-status" data-tone={isStale ? undefined : "wait"}>{isStale ? "already decided" : "waiting"}</span>
+                      {canReview && <>
+                        <Button size="sm" variant="secondary" aria-label={`approve ${row.title || "untitled"}`}
+                          disabled={review.isPending || pending.isFetching || isStale}
+                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === "approved"}
+                          onClick={() => void decide(row.transcript_id, "approved")}>approve</Button>
+                        <Button size="sm" variant="ghost" aria-label={`reject ${row.title || "untitled"}`}
+                          disabled={review.isPending || pending.isFetching || isStale}
+                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === "rejected"}
+                          onClick={() => void decide(row.transcript_id, "rejected")}>reject</Button>
+                      </>}
+                    </div>
+                    {review.isError && touchedID === row.transcript_id && <p role="alert" className="on-waiting-error">
+                      {review.error instanceof Error ? review.error.message : "the decision could not be applied. try again."}
+                    </p>}
                   </td>
                   <td className="is-n on-when">{relativeWhen(row.shared_at, now) ?? ""}</td>
                 </tr>
