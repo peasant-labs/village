@@ -89,6 +89,7 @@ export default function UserProfilePage({
       <OnPage tight={isLoggedIn}>
         <ProfileCrumb username={username} signedIn={isLoggedIn} />
         <OnEmpty
+          headingLevel={1}
           icon={<EyeOff aria-hidden="true" />}
           title="user not found"
           body="there is no profile here that you can open."

@@ -328,6 +328,8 @@ describe("mounted routes: the way back never leads to the hidden discovery list"
         );
       }
 
+      expect(document.querySelectorAll("h1")).toHaveLength(1);
+
       const links = (root: Element | null) =>
         [...(root?.querySelectorAll("a") ?? [])].map((a) => ({
           label: (a.textContent ?? "").trim(),

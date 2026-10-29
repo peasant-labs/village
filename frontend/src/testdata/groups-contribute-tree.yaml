@@ -422,3 +422,21 @@ cases:
     expect:
       previewedId: s-preview-full
       openFullLinkHref: /transcripts/s-preview-full
+
+  - name: failed_contributable_read_can_retry_to_real_rows
+    kind: page
+    why: a failed listing and a failed retry must remain actionable until real transcripts are loaded
+    rows:
+      - {id: retry-session, local_id: retry-session, project_hash: retry-project, project_display_name: retry project}
+    readFailures: [500, 500]
+    expect:
+      sessionIds: [retry-session]
+
+  - name: refused_contributable_read_is_not_empty_success
+    kind: page
+    why: a refused listing must never claim that all transcripts are already shared
+    rows:
+      - {id: retry-session, local_id: retry-session, project_hash: retry-project, project_display_name: retry project}
+    readFailures: [403]
+    expect:
+      sessionIds: [retry-session]

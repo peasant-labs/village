@@ -74,6 +74,8 @@ export interface PostCase extends BaseCase {
 
 export interface PageCase extends BaseCase {
   kind: "page";
+  /** Failed HTTP reads, in order, before a successful transcript response. */
+  readFailures?: number[];
 }
 
 export interface PreviewCase extends BaseCase {
@@ -85,7 +87,7 @@ export type ContributeTreeCase = TreeCase | PostCase | PageCase | PreviewCase;
 const KIND_KEYS: Record<ContributeTreeCaseKind, string[]> = {
   tree: ["name", "kind", "why", "rows", "expect"],
   post: ["name", "kind", "why", "rows", "selectionIds", "failing", "failureMessage", "expect"],
-  page: ["name", "kind", "why", "rows", "expect"],
+  page: ["name", "kind", "why", "rows", "readFailures", "expect"],
   preview: ["name", "kind", "why", "rows", "expect"],
 };
 
@@ -108,6 +110,8 @@ const requiredCaseNames = [
   "starter_selection_takes_its_started_session",
   "preview_renders_on_click",
   "preview_hides_graph_and_owner_actions",
+  "failed_contributable_read_can_retry_to_real_rows",
+  "refused_contributable_read_is_not_empty_success",
 ] as const;
 
 export function loadGroupsContributeTreeFixtures(): ContributeTreeCase[] {
@@ -132,11 +136,9 @@ export function loadGroupsContributeTreeFixtures(): ContributeTreeCase[] {
     if (!keys) {
       throw new Error(`case ${c.name}: unknown kind ${String(c.kind)}`);
     }
-    // failureMessage is optional: only a "post" case whose `failing` list is
-    // non-empty carries it. Its presence/absence must still be EXACT (an
-    // unexpected extra or missing field fails loudly), so the wanted key set
-    // is computed per-case rather than allowing it unconditionally.
-    const wantedKeys = keys.filter((k) => k !== "failureMessage" || "failureMessage" in c);
+    // Optional mutation messages and failed read sequences belong only to
+    // cases exercising those responses; all other fields stay exact.
+    const wantedKeys = keys.filter((k) => !["failureMessage", "readFailures"].includes(k) || k in c);
     assertExactKeys(c as unknown as object, wantedKeys, `case ${c.name}`);
     if (c.why.trim() === "") {
       throw new Error(`case ${c.name}: "why" must be a non-empty justification -- a row nobody can justify cannot be maintained`);

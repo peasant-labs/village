@@ -43,8 +43,9 @@ function makeGroup(id: string): Group {
  *  group detail, the contributable listing, and the batch-share POST. Records
  *  every request so a test asserts the parsed BODY, never a call count
  *  alone. */
-function installContributeRouteREST(groupId: string, contributable: ContributableResponse): RecordedRequest[] {
+function installContributeRouteREST(groupId: string, contributable: ContributableResponse, readFailures: number[] = []): RecordedRequest[] {
   const requests: RecordedRequest[] = [];
+  let reads = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = (init?.method ?? "GET").toUpperCase();
@@ -68,6 +69,8 @@ function installContributeRouteREST(groupId: string, contributable: Contributabl
       );
     }
     if (url.endsWith(`/collectives/${groupId}/contributable`)) {
+      const failedStatus = readFailures[reads++];
+      if (failedStatus) return new Response(JSON.stringify({ error: "the listing could not be read" }), { status: failedStatus });
       return new Response(JSON.stringify(contributable), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -283,5 +286,37 @@ describe("a session started by another session (starter_selection_takes_its_star
       (startedRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked,
       "the started session is selected with the session that started it",
     ).toBe(true);
+  });
+});
+
+
+describe("contributable transcript read failures", () => {
+  const failures = cases.filter((c) => c.kind === "page" && c.readFailures != null);
+  it.each(failures)("$name", async (testCase) => {
+    if (testCase.kind !== "page") throw new Error("expected a page fixture");
+    const groupId = "retry-collective";
+    const requests = installContributeRouteREST(groupId, {
+      group_id: groupId,
+      transcripts: testCase.rows.map(toContributableTranscript),
+    }, testCase.readFailures);
+    await act(async () => { renderRoute(groupId); });
+    const retry = await screen.findByRole("button", { name: "retry your transcripts" });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    for (let read = 1; read <= testCase.readFailures!.length; read += 1) {
+      expect(screen.getByRole("alert")).toHaveTextContent("your transcripts could not load");
+      expect(screen.queryByText(/all your transcripts are already shared/)).not.toBeInTheDocument();
+      retry.focus();
+      fireEvent.click(retry);
+      await waitFor(() => expect(requests.filter((r) => r.url.endsWith("/contributable"))).toHaveLength(read + 1));
+      if (read < testCase.readFailures!.length) {
+        await waitFor(() => expect(retry).not.toHaveAttribute("aria-disabled", "true"));
+        expect(retry).toHaveFocus();
+      }
+    }
+    for (const id of testCase.expect.sessionIds as string[]) {
+      expect(await screen.findByTestId(`contribute-session-row-${id}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
   });
 });

@@ -27,6 +27,7 @@ import {
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { Button } from "@/lib/ft-ui";
+import RequestFailureState from "@/components/RequestFailureState";
 
 /**
  * The owner's review route for a collective: `/collectives/{id}/review`.
@@ -52,7 +53,11 @@ export default function GroupReviewPage({
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   const isOwner = group?.your_role === "owner";
-  const { data: pending, isLoading: pendingLoading } = usePendingShares(id, isOwner);
+  const listing = usePendingShares(id, isOwner);
+  const { data: pending, isLoading: pendingLoading } = listing;
+  // Keep the failed read and its retry control mounted while that retry runs.
+  const [retryingListing, setRetryingListing] = useState(false);
+  const listingFailed = listing.isError || retryingListing;
   const review = useBatchReview(id);
 
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -119,6 +124,7 @@ export default function GroupReviewPage({
   // Grouped content the flat queue did not carry, plus the way to any grouped
   // page not read yet. Either one is enough that the queue is not empty.
   const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
+  const listingUnavailable = listingFailed && (pending == null || (tree.length === 0 && !hasGroupedExit));
 
   /**
    * The selection, narrowed to the rows the QUEUE still holds.
@@ -157,7 +163,7 @@ export default function GroupReviewPage({
   );
   const selectedCount = new Set([...selected, ...queuedHelperIds]).size;
 
-  if (groupLoading || (isOwner && pendingLoading)) {
+  if (groupLoading || (isOwner && pendingLoading && !retryingListing)) {
     return (
       <OnPage tight>
         <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
@@ -183,6 +189,7 @@ export default function GroupReviewPage({
           />
         )}
         <OnEmpty
+          headingLevel={1}
           icon={<Lock aria-hidden="true" />}
           title={
             signedOut
@@ -264,7 +271,19 @@ export default function GroupReviewPage({
         }
       />
 
-      {tree.length === 0 && !hasGroupedExit ? (
+      {listingFailed && (
+        <RequestFailureState
+          title="the review queue could not load"
+          message="the pending contributions could not be read. retry to load the queue before making a decision."
+          retryLabel="retry review queue"
+          retryDisabled={listing.isFetching || retryingListing}
+          onRetry={() => {
+            setRetryingListing(true);
+            void listing.refetch().finally(() => setRetryingListing(false));
+          }}
+        />
+      )}
+      {listingUnavailable ? null : tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="review-empty-queue">
           <p className="text-sm text-ink-3">nothing is waiting for review in this collective.</p>
         </div>

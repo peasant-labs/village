@@ -27,6 +27,7 @@ import {
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button } from "@/lib/ft-ui";
+import RequestFailureState from "@/components/RequestFailureState";
 
 /**
  * Dedicated contribute route for a collective: `/collectives/{id}/contribute`.
@@ -46,7 +47,11 @@ export default function GroupContributePage({
   const { id } = use(params);
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
-  const { data: contributable, isLoading: contributableLoading } = useContributable(id);
+  const listing = useContributable(id);
+  const { data: contributable, isLoading: contributableLoading } = listing;
+  // Keep the failed read and its retry control mounted while that retry runs.
+  const [retryingListing, setRetryingListing] = useState(false);
+  const listingFailed = listing.isError || retryingListing;
   const run = useContributeRun(id);
 
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -84,6 +89,7 @@ export default function GroupContributePage({
   // Grouped content the flat tree did not carry, plus the way to any grouped
   // page not read yet. Either one is enough that the page is not empty.
   const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
+  const listingUnavailable = listingFailed && (contributable == null || (tree.length === 0 && !hasGroupedExit));
   // A member is selectable only while the row it was served with is still a
   // live contributable submission: an already-shared row stays visible in the
   // group but can never re-enter a contribution batch.
@@ -110,7 +116,7 @@ export default function GroupContributePage({
   );
   const selectedCount = selection.size;
 
-  if (groupLoading || contributableLoading) {
+  if (groupLoading || (contributableLoading && !retryingListing)) {
     return (
       <OnPage tight>
         <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
@@ -136,6 +142,7 @@ export default function GroupContributePage({
           />
         )}
         <OnEmpty
+          headingLevel={1}
           icon={<Lock aria-hidden="true" />}
           title={
             signedOut
@@ -251,7 +258,19 @@ export default function GroupContributePage({
           shell); kept on the tree+preview composition that replaces that
           panel's body so a caller keyed on "the member sees SOME contribute
           UI" does not need to know which body variant is mounted. */}
-      {tree.length === 0 && !hasGroupedExit ? (
+      {listingFailed && (
+        <RequestFailureState
+          title="your transcripts could not load"
+          message="your available transcripts could not be read. retry to find out which transcripts you can contribute."
+          retryLabel="retry your transcripts"
+          retryDisabled={listing.isFetching || retryingListing}
+          onRetry={() => {
+            setRetryingListing(true);
+            void listing.refetch().finally(() => setRetryingListing(false));
+          }}
+        />
+      )}
+      {listingUnavailable ? null : tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="contribute-member-panel">
           <p className="mx-auto text-sm text-ink-3">
             all your transcripts are already shared with this collective, or you have no

@@ -63,7 +63,10 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
       });
     }
     if (url.includes(`/collectives/${GROUP_ID}/pending`)) {
+      if (!url.endsWith(`/collectives/${GROUP_ID}/pending`)) return json([]);
       pendingReads += 1;
+      const failedStatus = testCase.readFailures?.[pendingReads - 1];
+      if (failedStatus) return json({ error: "the queue could not be read" }, failedStatus);
       return json(afterRefetch != null && pendingReads > 1 ? afterRefetch : pending);
     }
     if (url.endsWith(`/collectives/${GROUP_ID}/shares`) && method === "PATCH") {
@@ -339,6 +342,7 @@ describe("/collectives/{id}/review", () => {
     await mountReviewRoute(testCase);
 
     await screen.findByTestId("review-non-owner-notice");
+    await waitFor(() => expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1));
     expect(screen.queryByTestId("review-panel")).toBeNull();
     expect(screen.queryByRole("button", { name: "approve selected" })).toBeNull();
   });
@@ -349,5 +353,29 @@ describe("/collectives/{id}/review", () => {
 
     await screen.findByTestId("review-empty-queue");
     expect(screen.queryByTestId("review-panel")).toBeNull();
+  });
+});
+
+
+describe("review queue read failures", () => {
+  it.each(cases.filter((c) => c.readFailures != null))("$name", async (testCase) => {
+    const { requests } = await mountReviewRoute(testCase);
+    const retry = await screen.findByRole("button", { name: "retry review queue" });
+    await waitFor(() => expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1));
+    for (let read = 1; read <= testCase.readFailures!.length; read += 1) {
+      expect(screen.getByRole("alert")).toHaveTextContent("the review queue could not load");
+      expect(screen.queryByTestId("review-empty-queue")).not.toBeInTheDocument();
+      retry.focus();
+      fireEvent.click(retry);
+      await waitFor(() => expect(requests.filter((r) => r.url.endsWith("/pending"))).toHaveLength(read + 1));
+      if (read < testCase.readFailures!.length) {
+        await waitFor(() => expect(retry).not.toHaveAttribute("aria-disabled", "true"));
+        expect(retry).toHaveFocus();
+      }
+    }
+    for (const id of testCase.expect.sessionIds as string[]) {
+      expect(await screen.findByTestId(`contribute-session-row-${id}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

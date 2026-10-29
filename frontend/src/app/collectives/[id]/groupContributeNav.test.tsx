@@ -56,6 +56,7 @@ describe("groups contribute navigation", () => {
     await renderGroupContributeRoute("grp-nav-4");
 
     expect(await screen.findByTestId("contribute-non-member-notice")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("link", { name: /back to acme collective/ })).toHaveAttribute(
       "href",
       "/collectives/grp-nav-4",
