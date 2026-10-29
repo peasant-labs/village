@@ -91,6 +91,7 @@ export function OnEmpty({
   actions,
   testId,
   headingLevel = 2,
+  className = "",
 }: {
   icon: ReactNode;
   title: ReactNode;
@@ -102,10 +103,11 @@ export function OnEmpty({
   /** 1 where the state is the whole page (not found, a failed read), so its
    *  title is the page's heading. */
   headingLevel?: 1 | 2 | 3;
+  className?: string;
 }) {
   const Heading = headingLevel === 1 ? "h1" : headingLevel === 2 ? "h2" : "h3";
   return (
-    <div className="on-empty" data-testid={testId}>
+    <div className={`on-empty ${className}`.trim()} data-testid={testId}>
       <span className="on-ico-tile" aria-hidden="true">
         {icon}
       </span>

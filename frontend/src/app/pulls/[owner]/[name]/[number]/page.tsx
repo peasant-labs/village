@@ -288,6 +288,7 @@ export default function PullRequestPage({
         <OnEmpty
           icon={<GitPullRequest aria-hidden="true" />}
           title="no attachment here"
+          className="on-pr-empty"
           headingLevel={1}
           body={
             signedOut

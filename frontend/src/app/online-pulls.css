@@ -430,3 +430,7 @@
 .on-pr-skeleton > div {
   height: calc(var(--sp-8) + var(--sp-5));
 }
+
+/* A refusal is a short explanation and a way back, not a page-wide panel. */
+.on-pr-empty { max-inline-size: var(--measure-prose); padding: var(--sp-5); gap: var(--sp-3); }
+.on-pr-empty .on-ico-tile { inline-size: var(--control-h); block-size: var(--control-h); }
