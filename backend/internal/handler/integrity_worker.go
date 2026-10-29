@@ -65,6 +65,9 @@ const (
 	// the service refused the shared secret, so the attempt is given back
 	// uncounted and the pass ends.
 	outcomeSecretRefused = "secret_refused"
+	// outcomeStoreFailed is an answer village could not store. It counts as a
+	// failed attempt with no last_error class: the content was not at fault.
+	outcomeStoreFailed = "store_failed"
 )
 
 // checkOutcome is how one transcript's check ended: checked, skipped as
@@ -176,7 +179,7 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 	s.setVersion(health.ScryVersion)
 	version := health.ScryVersion
 
-	rows, err := h.queries.ListIntegrityCandidates(ctx, sqlc.ListIntegrityCandidatesParams{ScryVersion: version, Batch: integrityBatchSize})
+	rows, err := h.queries.ListIntegrityCandidates(ctx, sqlc.ListIntegrityCandidatesParams{ScryVersion: version, MaxAttempts: maxIntegrityAttempts, Batch: integrityBatchSize})
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
@@ -228,6 +231,7 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 		ContentHash:  hash,
 		ScryVersion:  version,
 		HoldSeconds:  integrityAttemptHold.Seconds(),
+		MaxAttempts:  maxIntegrityAttempts,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Another instance holds it, or it finished since the listing.
@@ -244,8 +248,15 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 
 	resp, outcome, err := h.checkTranscript(ctx, row)
 	if err != nil {
-		// The attempt stays held until its hold passes, then it is due again.
-		return outcome.sent(), false, fmt.Errorf("integrity check of transcript %s: %w", uuidFromPg(row.ID), err)
+		// A failure inside village after the attempt was taken still counts
+		// toward the cap and backs off, so the content is not resent every
+		// hold.
+		slog.Warn("integrity check could not finish", "transcript_id", uuidFromPg(row.ID).String(), "scry_version", version, "consequence", "the attempt backs off and counts toward the attempt cap", "error", err.Error())
+		if outcome.Class == outcomeChecked {
+			outcome.Class = outcomeStoreFailed
+		} else {
+			outcome = checkOutcome{Class: outcomeReadFailed}
+		}
 	}
 	slog.Info("integrity check", "transcript_id", uuidFromPg(row.ID).String(), "scry_version", version, "verdict", string(resp.Verdict), "outcome", outcome.Class, "status", outcome.Status)
 
@@ -274,10 +285,14 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 	case string(scry.ClassTooLarge):
 		completion = key("skipped", outcome.Class, 0)
 	default:
+		lastError := outcome.Class
+		if lastError == outcomeStoreFailed {
+			lastError = ""
+		}
 		if attempts >= maxIntegrityAttempts {
-			completion = key("failed", outcome.Class, 0)
+			completion = key("failed", lastError, 0)
 		} else {
-			completion = key("pending", outcome.Class, integrityBackoff(attempts))
+			completion = key("pending", lastError, integrityBackoff(attempts))
 		}
 	}
 	if err := h.queries.CompleteIntegrityAttempt(ctx, completion); err != nil {
@@ -301,21 +316,21 @@ func (h *Handler) checkTranscript(ctx context.Context, row sqlc.Transcript) (sch
 		return none, checkOutcome{Class: outcomeNotCandidate}, nil
 	}
 	if err != nil {
-		return none, checkOutcome{}, fmt.Errorf("reload the transcript: %w", err)
+		return none, checkOutcome{Class: outcomeReadFailed}, fmt.Errorf("reload the transcript: %w", err)
 	}
 	if !fresh.ContentHash.Valid || fresh.ContentHash.String != hash {
 		return none, checkOutcome{Class: outcomeNotCandidate}, nil
 	}
 	inSet, err := h.queries.IsInIntegrityCheckedSet(ctx, row.ID)
 	if err != nil {
-		return none, checkOutcome{}, fmt.Errorf("test the checked set: %w", err)
+		return none, checkOutcome{Class: outcomeReadFailed}, fmt.Errorf("test the checked set: %w", err)
 	}
 	if !inSet {
 		return none, checkOutcome{Class: outcomeNotCandidate}, nil
 	}
 	legacy, err := h.queries.IsLegacyLineageContent(ctx, sqlc.IsLegacyLineageContentParams{TranscriptID: row.ID, ContentHash: hash})
 	if err != nil {
-		return none, checkOutcome{}, fmt.Errorf("read the content's rewrite lineage: %w", err)
+		return none, checkOutcome{Class: outcomeReadFailed}, fmt.Errorf("read the content's rewrite lineage: %w", err)
 	}
 	if legacy {
 		return none, checkOutcome{Class: outcomeLegacy}, nil

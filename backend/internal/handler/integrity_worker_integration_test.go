@@ -7,6 +7,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -40,6 +41,7 @@ type integrityTriggerStep struct {
 	Version           string `yaml:"version"`
 	Status            int    `yaml:"status"`
 	Count             *int   `yaml:"count"`
+	On                bool   `yaml:"on"`
 	WithdrawAfterList bool   `yaml:"withdraw_after_list"`
 }
 
@@ -82,6 +84,9 @@ var requiredIntegrityTriggerCases = []string{
 	"approval_of_checked_hash_sends_nothing",
 	"rejected_share_edit_is_checked",
 	"rejected_secret_burns_no_attempts",
+	"store_failure_backs_off_and_caps",
+	"database_failure_before_the_call_backs_off",
+	"claim_refuses_past_the_cap",
 	"withdrawn_share_stops_checks",
 	"reshare_of_checked_hash_sends_nothing",
 	"public_publish_is_checked_once",
@@ -183,6 +188,8 @@ func TestIntegrityTriggers(t *testing.T) {
 
 			fake := scry.NewFake(t, "1.0.0")
 			h := NewWithTitlePipeline(minimalConfig(), pool, blobs, titles)
+			faults := &integrityFaultQuerier{Querier: h.queries}
+			h.queries = faults
 			checker := &countingChecker{inner: scry.NewHTTPClient(fake.Settings())}
 			service := newIntegrityServiceFor(checker)
 			service.callSpacing = 0
@@ -406,6 +413,18 @@ func TestIntegrityTriggers(t *testing.T) {
 					if checker.checks != *step.Count {
 						t.Fatalf("step %d: the worker made %d check calls, want %d (%s)", index, checker.checks, *step.Count, c.Why)
 					}
+				case "fail_store":
+					faults.failStore = step.On
+				case "fail_lineage":
+					faults.failLineage = step.On
+				case "seed_attempts":
+					row, err := queries.GetTranscriptByID(ctx, current(step))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := pool.Exec(ctx, `INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status, attempts, next_attempt_at) VALUES ($1, $2, '1.0.0', 'pending', $3, now() - interval '1 second')`, row.ID, row.ContentHash.String, *step.Count); err != nil {
+						t.Fatalf("seed the attempts: %v", err)
+					}
 				case "launch":
 					h.integrity = service
 				case "tick":
@@ -606,4 +625,26 @@ func (c *countingChecker) Health(ctx context.Context) (schema.ScryHealthResponse
 func (c *countingChecker) Check(ctx context.Context, req schema.ScryCheckRequest) (schema.ScryCheckResponse, error) {
 	c.checks++
 	return c.inner.Check(ctx, req)
+}
+
+// integrityFaultQuerier fails one database call on demand and passes every
+// other through.
+type integrityFaultQuerier struct {
+	Querier
+	failStore   bool
+	failLineage bool
+}
+
+func (q *integrityFaultQuerier) InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error {
+	if q.failStore {
+		return errors.New("injected result store failure")
+	}
+	return q.Querier.InsertIntegrityResult(ctx, arg)
+}
+
+func (q *integrityFaultQuerier) IsLegacyLineageContent(ctx context.Context, arg sqlc.IsLegacyLineageContentParams) (bool, error) {
+	if q.failLineage {
+		return false, errors.New("injected lineage read failure")
+	}
+	return q.Querier.IsLegacyLineageContent(ctx, arg)
 }

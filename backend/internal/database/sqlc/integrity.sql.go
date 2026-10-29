@@ -25,6 +25,7 @@ SET attempts = transcript_integrity_attempts.attempts + 1,
     updated_at = now()
 WHERE transcript_integrity_attempts.status = 'pending'
   AND transcript_integrity_attempts.next_attempt_at <= now()
+  AND transcript_integrity_attempts.attempts < $5::int
 RETURNING attempts
 `
 
@@ -33,11 +34,13 @@ type ClaimIntegrityAttemptParams struct {
 	ContentHash  string      `db:"content_hash" json:"content_hash"`
 	ScryVersion  string      `db:"scry_version" json:"scry_version"`
 	HoldSeconds  float64     `db:"hold_seconds" json:"hold_seconds"`
+	MaxAttempts  int32       `db:"max_attempts" json:"max_attempts"`
 }
 
 // Takes one check attempt for (transcript, content, version) and holds it
 // for hold_seconds. It returns the attempt count after taking it, or no row
-// when the attempt is finished or another holder's time has not passed; the
+// when the attempt is finished, at the cap, or another holder's time has not
+// passed; the
 // conditional upsert locks the row, so two instances cannot both take it.
 // Every time is the database's own now(), so an application clock can never
 // shorten a hold.
@@ -47,6 +50,7 @@ func (q *Queries) ClaimIntegrityAttempt(ctx context.Context, arg ClaimIntegrityA
 		arg.ContentHash,
 		arg.ScryVersion,
 		arg.HoldSeconds,
+		arg.MaxAttempts,
 	)
 	var attempts int32
 	err := row.Scan(&attempts)
@@ -213,28 +217,29 @@ WHERE (t.visibility = 'public' OR EXISTS (SELECT 1 FROM transcript_shares s WHER
   AND NOT EXISTS (
       SELECT 1 FROM transcript_integrity_attempts a
       WHERE a.transcript_id = t.id AND a.content_hash = t.content_hash AND a.scry_version = $1
-        AND (a.status IN ('done', 'skipped', 'failed') OR a.next_attempt_at > now())
+        AND (a.status IN ('done', 'skipped', 'failed') OR a.next_attempt_at > now() OR a.attempts >= $2::int)
   )
 ORDER BY EXISTS (
       SELECT 1 FROM transcript_integrity_results r
       WHERE r.transcript_id = t.id AND r.content_hash = t.content_hash
   ) ASC, t.updated_at DESC
-LIMIT $2::int
+LIMIT $3::int
 `
 
 type ListIntegrityCandidatesParams struct {
 	ScryVersion string `db:"scry_version" json:"scry_version"`
+	MaxAttempts int32  `db:"max_attempts" json:"max_attempts"`
 	Batch       int32  `db:"batch" json:"batch"`
 }
 
 // The transcripts the background check owes an answer under one checker
 // version: in the checked set (public, or shared to any collective in any
 // share status), with a known content hash, no result for that content under
-// this version, and no attempt for it that is finished or waiting out its
-// backoff. Content with no result under any version comes first, so new
+// this version, and no attempt for it that is finished, waiting out its
+// backoff, or already at the attempt cap. Content with no result under any version comes first, so new
 // content is checked before a version sweep; then the most recently updated.
 func (q *Queries) ListIntegrityCandidates(ctx context.Context, arg ListIntegrityCandidatesParams) ([]Transcript, error) {
-	rows, err := q.db.Query(ctx, listIntegrityCandidates, arg.ScryVersion, arg.Batch)
+	rows, err := q.db.Query(ctx, listIntegrityCandidates, arg.ScryVersion, arg.MaxAttempts, arg.Batch)
 	if err != nil {
 		return nil, err
 	}

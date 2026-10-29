@@ -715,7 +715,12 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   check that answers ends `done`; legacy content and content the service
   refuses as too large end `skipped` (no retry); every other failure stays
   `pending` with `next_attempt_at` pushed back by `min(1 minute << attempts,
-  6 hours)` until the sixth attempt, which ends `failed`. An attempt that sent
+  6 hours)` until the sixth attempt, which ends `failed`. A failure inside
+  village after the attempt was taken counts the same way: a database error
+  while preparing the check is `read_failed`, and an answer that could not be
+  stored is a failure with no `last_error` class. The cap is also enforced
+  where attempts are listed and taken: neither returns an attempt already at
+  six, even one whose end could not be recorded. An attempt that sent
   nothing because the transcript left the set or changed content before the
   read is given back by `ReleaseIntegrityAttempt` (a first attempt leaves no
   row, a later one is due again with its earlier count), so coming back into

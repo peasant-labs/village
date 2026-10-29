@@ -35,6 +35,13 @@
 #     the real service, so only the check calls are refused.
 #   expect_calls: the worker has made exactly count check calls so far,
 #     refused ones included.
+#   fail_store: storing a result fails (on: true) or works again (on:
+#     false), as when the database refuses the write after the service
+#     answered. fail_lineage does the same for the legacy-lineage read, a
+#     database failure before any call.
+#   seed_attempts: t's current content already has a pending attempt under
+#     1.0.0 that is due now with count attempts, as when completing the last
+#     allowed attempt itself failed.
 #   launch: the worker comes into being (cases with unlaunched start without
 #     one, as rows published before it existed).
 #   tick: one pass of the worker. withdraw_after_list withdraws t's share to
@@ -482,3 +489,57 @@
     sent: [a, b]
     ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
     results: [{ref: a}, {ref: b}]
+
+- name: store_failure_backs_off_and_caps
+  why: an answer that cannot be stored still counts as a failed attempt with backoff, so the content is not resent every hold and stops after six
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_store, on: true}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: fail_store, on: false}
+    - {do: make_due}
+    - {do: tick}
+  want:
+    sent: [a, a, a, a, a, a]
+    ledger: [{ref: a, status: failed, attempts: 6}]
+    results: []
+
+- name: database_failure_before_the_call_backs_off
+  why: a database failure while preparing the check is a read failure with the normal backoff, and nothing is sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_lineage, on: true}
+    - {do: tick}
+    - {do: fail_lineage, on: false}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, error: read_failed, attempts: 1, due_in: 120}]
+    results: []
+
+- name: claim_refuses_past_the_cap
+  why: an attempt left pending at the cap, because recording its end failed, is never taken again
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: seed_attempts, count: 6}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, attempts: 6}]
+    results: []

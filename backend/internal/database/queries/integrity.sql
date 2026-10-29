@@ -51,8 +51,8 @@ ON CONFLICT DO NOTHING;
 -- The transcripts the background check owes an answer under one checker
 -- version: in the checked set (public, or shared to any collective in any
 -- share status), with a known content hash, no result for that content under
--- this version, and no attempt for it that is finished or waiting out its
--- backoff. Content with no result under any version comes first, so new
+-- this version, and no attempt for it that is finished, waiting out its
+-- backoff, or already at the attempt cap. Content with no result under any version comes first, so new
 -- content is checked before a version sweep; then the most recently updated.
 SELECT t.*
 FROM transcripts t
@@ -65,7 +65,7 @@ WHERE (t.visibility = 'public' OR EXISTS (SELECT 1 FROM transcript_shares s WHER
   AND NOT EXISTS (
       SELECT 1 FROM transcript_integrity_attempts a
       WHERE a.transcript_id = t.id AND a.content_hash = t.content_hash AND a.scry_version = @scry_version
-        AND (a.status IN ('done', 'skipped', 'failed') OR a.next_attempt_at > now())
+        AND (a.status IN ('done', 'skipped', 'failed') OR a.next_attempt_at > now() OR a.attempts >= @max_attempts::int)
   )
 ORDER BY EXISTS (
       SELECT 1 FROM transcript_integrity_results r
@@ -85,7 +85,8 @@ SELECT EXISTS (
 -- name: ClaimIntegrityAttempt :one
 -- Takes one check attempt for (transcript, content, version) and holds it
 -- for hold_seconds. It returns the attempt count after taking it, or no row
--- when the attempt is finished or another holder's time has not passed; the
+-- when the attempt is finished, at the cap, or another holder's time has not
+-- passed; the
 -- conditional upsert locks the row, so two instances cannot both take it.
 -- Every time is the database's own now(), so an application clock can never
 -- shorten a hold.
@@ -102,6 +103,7 @@ SET attempts = transcript_integrity_attempts.attempts + 1,
     updated_at = now()
 WHERE transcript_integrity_attempts.status = 'pending'
   AND transcript_integrity_attempts.next_attempt_at <= now()
+  AND transcript_integrity_attempts.attempts < @max_attempts::int
 RETURNING attempts;
 
 -- name: CompleteIntegrityAttempt :exec
