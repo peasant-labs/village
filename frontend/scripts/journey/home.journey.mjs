@@ -149,7 +149,8 @@ test.describe('home', () => {
       const empty = page.getByTestId('home-empty-state')
       await expect(empty).toBeVisible()
       await expectTheme(page, theme)
-      await expect(empty).toContainText('nothing published yet')
+      await expect(empty.getByRole('heading', { name: 'publish the session behind your next change', exact: true })).toBeVisible()
+      await expect(empty).toContainText('open a session in peasant, review what will leave your machine, then choose the collectives that can read it.')
       // How to publish lives in the docs; the app links there instead of
       // restating the command.
       const publish = empty.getByRole('link', { name: /how to publish/ })

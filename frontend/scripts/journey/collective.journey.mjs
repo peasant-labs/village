@@ -304,7 +304,7 @@ test.describe('collectives', () => {
     await record(page, testInfo, picker, 'repo-picker')
 
     await picker.getByRole('button', { name: 'save: link 1 repository' }).click()
-    await expect(page.getByRole('status').filter({ hasText: 'repositories saved' })).toContainText('linked acme/cli.')
+    await expect(page.getByTestId('collective-notice').getByRole('status').filter({ hasText: 'repositories saved' })).toContainText('linked acme/cli.')
     await expect(repositories.getByTestId('collective-org-line')).toContainText('acme: 3 of 14 repos linked')
   })
 })
