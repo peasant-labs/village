@@ -58,6 +58,7 @@ const REQUIRED_PRIVACY = [
   "says_servers_decrypt_for_every_read",
   "says_pending_submissions_are_covered",
   "says_editing_does_not_clear_a_flag",
+  "says_recheck_when_the_check_is_updated",
   "says_checks_stop_only_when_nobody_else_can_read",
   "never_claims_no_access",
   "notice_date_bumped",

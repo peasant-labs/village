@@ -42,6 +42,10 @@ cases:
       - Once nobody but you can read it (private, and not submitted to any collective, including a submission that was declined), no further checks run, but the flag stays.
     absent:
       - stops further checks
+  - name: says_recheck_when_the_check_is_updated
+    contains:
+      - while others can read it, or when the check itself is updated.
+    absent: []
   - name: says_servers_decrypt_for_every_read
     contains:
       - Its servers decrypt a transcript every time an authorised reader opens it
