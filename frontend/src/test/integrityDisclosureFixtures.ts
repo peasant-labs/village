@@ -7,7 +7,7 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 export type DisclosureCase = {
   name: string;
-  surface: "manage_access" | "contribute_confirm" | "make_public";
+  surface: "manage_access" | "contribute_confirm" | "make_public" | "share_choice" | "already_public";
   visibility: "private" | "public";
   check: "shown" | "link" | "no_middle_dot" | "no_access_claim";
 };
@@ -28,6 +28,8 @@ const REQUIRED_DISCLOSURE = [
   "copy_never_claims_no_access",
   "disclosure_on_contribute_confirm",
   "disclosure_on_make_public",
+  "disclosure_on_share_choice",
+  "disclosure_on_already_public",
 ] as const;
 
 export function loadDisclosureFixtures(): DisclosureFixtures {
@@ -54,6 +56,8 @@ const REQUIRED_PRIVACY = [
   "says_stores_nothing_logs_no_content",
   "says_only_the_result_is_kept",
   "says_servers_decrypt_for_every_read",
+  "says_pending_submissions_are_covered",
+  "says_editing_does_not_clear_a_flag",
   "never_claims_no_access",
   "notice_date_bumped",
 ] as const;

@@ -26,8 +26,16 @@ cases:
     absent: []
   - name: says_only_the_result_is_kept
     contains:
-      - Village keeps only the result
-      - whether the transcript was flagged, and the positions of any flagged turns
+      - Village keeps the result (whether the transcript was flagged, and the positions of any flagged turns)
+      - a record of when the check ran and whether it succeeded
+    absent: []
+  - name: says_pending_submissions_are_covered
+    contains:
+      - a collective’s owners can read a submission while they review it
+    absent: []
+  - name: says_editing_does_not_clear_a_flag
+    contains:
+      - Editing the transcript does not remove an existing flag either.
     absent: []
   - name: says_servers_decrypt_for_every_read
     contains:

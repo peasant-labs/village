@@ -34,6 +34,14 @@ async function mountSurface(c: DisclosureCase): Promise<HTMLElement> {
     );
     return screen.findByRole("dialog");
   }
+  if (c.surface === "share_choice" || c.surface === "already_public") {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TranscriptEditDialog open onClose={() => {}} transcriptId="t1" initialTitle="a session" initialVisibility={c.surface === "share_choice" ? "shared" : "public"} />
+      </QueryClientProvider>,
+    );
+    return screen.findByRole("dialog");
+  }
   if (c.surface === "make_public") {
     render(
       <QueryClientProvider client={new QueryClient()}>

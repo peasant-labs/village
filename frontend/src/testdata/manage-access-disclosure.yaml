@@ -6,10 +6,10 @@
 # wording as rendered, ending at the link; `linkLabel` is the link text.
 #
 # Cases are guarded by a required-NAME manifest in the loader, never by a count.
-# `surface` is one of manage_access, contribute_confirm, make_public; `check` is
+# `surface` is one of manage_access, contribute_confirm, make_public, share_choice, already_public; `check` is
 # one of shown, link, no_middle_dot, no_access_claim.
 
-line: "once anyone besides you can read this transcript, an automated check reads it for signs it was edited after it was recorded. no person reads it for this. the check stores nothing and logs no content; village keeps only the result. see the"
+line: "once anyone besides you can read this transcript, including a collective's owners reviewing your submission, an automated check reads it for signs it was edited after it was recorded. no person reads it for this. the check stores nothing and logs no content; village keeps only the result and when the check ran. see the"
 linkLabel: privacy notice
 href: /privacy#privacy-integrity
 
@@ -48,4 +48,12 @@ cases:
   - name: disclosure_on_make_public
     surface: make_public
     visibility: private
+    check: shown
+  - name: disclosure_on_share_choice
+    surface: share_choice
+    visibility: private
+    check: shown
+  - name: disclosure_on_already_public
+    surface: already_public
+    visibility: public
     check: shown
