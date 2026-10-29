@@ -1,0 +1,50 @@
+expected:
+  turnCount: 84
+  toolCallCount: 28
+  sourceRecordCount: 112
+  annotationCount: 3
+  phaseLabels: [Planning, Implementation, Retry loop]
+  diffPaths: [src/export/types.ts, src/export/cursor.ts, src/export/repository.ts, src/export/service.ts, src/export/csv.ts, src/routes/export.ts, test/export.test.ts, README.md]
+cases:
+  - name: disabled-demo-does-not-claim-the-production-route
+    enabled: false
+    method: GET
+    suffix: /content
+    handled: false
+  - name: named-demo-serves-schema-validated-metadata
+    enabled: true
+    method: GET
+    suffix: ''
+    status: 200
+    schema: metadata
+  - name: named-demo-serves-the-complete-long-content
+    enabled: true
+    method: GET
+    suffix: /content
+    status: 200
+    schema: content
+  - name: demo-keeps-the-mounted-pull-request-read-available
+    enabled: true
+    method: GET
+    suffix: /pulls
+    status: 200
+    schema: pulls
+  - name: demo-serves-in-range-review-labels
+    enabled: true
+    method: GET
+    suffix: /annotations
+    status: 200
+    schema: annotations
+  - name: demo-records-a-new-review-label
+    enabled: true
+    method: POST
+    suffix: /annotations
+    body: { typeId: turn_flag, value: highlight, entryIndex: 19 }
+    status: 201
+    schema: annotation
+  - name: demo-refuses-a-label-outside-the-transcript
+    enabled: true
+    method: POST
+    suffix: /annotations
+    body: { typeId: turn_flag, value: highlight, entryIndex: 999 }
+    status: 400

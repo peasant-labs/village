@@ -58,6 +58,43 @@ Chrome is the NixOS-packaged browser: set `CHROME_PATH`, or accept the default
 profile path. No Playwright browser download is required, which is why this works
 on NixOS without `playwright install`.
 
+## Long transcript preview
+
+For a hands-on preview, start the composed mock with `MOCK_DEMO_ATTACHMENTS=1`
+and point the frontend at that mock's `/api/v1` address. Open
+`/transcripts/long-demo` (or `/transcripts/5d625d28-937e-4d9f-bd1a-1a44890d6112`).
+The regular production transcript route renders an 84-turn synthetic export
+implementation with 28 tool calls, edit diffs, touched files, a reproduced cursor
+failure, and saved review labels. Labels added in the preview live in memory;
+changing the mock scenario restores the initial labels. The endpoint is absent
+when the opt-in flag is off. The landing example stays separate.
+
+The narrative lives in `testdata/long-transcript-demo.yaml`. Its fixtures pass
+through the schema parser and the existing transcript/owner fixture makers.
+Fairtrade derives phases, diffs and files from the actual tools rather than
+from a second presentation model.
+
+`longDemoClaudeRecords(cwd)`, exported by `lib/long-transcript-demo.mjs`, produces
+the same narrative as 112 native Claude Code JSONL records for a disposable
+Peasant database. The local producer determines how those records fold into
+rendered turns:
+
+```sh
+mkdir -p /tmp/long-demo-recordings /tmp/activity-export-demo
+node --input-type=module <<'JS' > /tmp/long-demo-recordings/5d625d28-937e-4d9f-bd1a-1a44890d6112.jsonl
+import { longDemoClaudeRecords } from './scripts/journey/lib/long-transcript-demo.mjs'
+for (const row of longDemoClaudeRecords('/tmp/activity-export-demo')) console.log(JSON.stringify(row))
+JS
+```
+
+Ingest only that session with Peasant's `harvest --source-harness claude-code
+--source-path /tmp/long-demo-recordings --session
+5d625d28-937e-4d9f-bd1a-1a44890d6112 --detect-commits=false`, using explicit disposable
+`--data-dir`, `--config-dir`, `--state-dir`, and a config with `selection.mode: all`.
+Do not point a preview generator or ingestion run at a personal recording tree.
+The displayed command outputs are synthetic fixture content, not evidence that
+this sample project was built or tested.
+
 ## Artifacts
 
 | Path | What |

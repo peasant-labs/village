@@ -58,6 +58,7 @@ import {
 } from './lib/transcript-fixtures.mjs'
 import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
 import { demoContributionContentPath, handleDemoContributionRequest, resetDemoContributions } from './lib/demo-contribution-fixtures.mjs'
+import { handleLongDemoRequest, resetLongDemo } from './lib/long-transcript-demo.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -152,6 +153,7 @@ const server = createServer(async (req, res) => {
       // links and settings writes never reach the next.
       resetCollectiveWorld()
       resetDemoContributions()
+      resetLongDemo()
       applyCollectivePageScenario(process.env.MOCK_DEMO_ATTACHMENTS === '1' && scenario === 'default' ? 'curated-owner' : scenario)
       return send(res, 200, { scenario })
     }
@@ -164,6 +166,8 @@ const server = createServer(async (req, res) => {
   // This scenario owns the transcript owner's membership list as well as the
   // transcript routes. Resolve it before the generic home membership fixture.
   if (scenario === 'transcript-owner' && handleOwnedTranscriptRequest(req, res, { ownerGroups: true })) return
+
+  if (await handleLongDemoRequest(req, res)) return
 
   const demoContent = demoContributionContentPath(path)
   if (demoContent && req.method === 'GET') return proxyToTranscript(req, res, demoContent)
