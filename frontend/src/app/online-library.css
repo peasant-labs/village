@@ -128,3 +128,24 @@
   .on-transcript-list-row.is-selectable > .on-transcript-attribution { grid-column: 2; }
   .on-transcript-list-row.is-selectable > .on-transcript-row-actions { grid-column: 3; }
 }
+
+
+/* Form explanations precede the aligned field and action row. */
+.on-email-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+.srow.on-email-form > .on-email-controls { grid-column: 1 / -1; justify-self: stretch; }
+.on-email-controls, .on-email-actions { display: flex; align-items: stretch; gap: var(--sp-3); min-width: 0; }
+.on-email-controls > .input { flex: 1; min-width: 0; }
+.on-email-actions { flex: none; }
+.on-email-controls .btn { white-space: nowrap; }
+@media (max-width: 559px) {
+  .on-email-controls { flex-direction: column; }
+  .on-email-controls > .input { flex: none; }
+  .on-email-actions > .btn { flex: 1; }
+}
+
+.on-contribute-tree { container-type: inline-size; }
+@container (max-width: 40rem) {
+  .contribute-session-heading { flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+  .contribute-session-heading > button { flex: none; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: var(--lh-body); }
+  .contribute-session-mark { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+}

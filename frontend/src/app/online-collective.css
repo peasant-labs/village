@@ -207,6 +207,7 @@ section.on-choices {
   .on-mem .select-wrap {
     min-width: 0;
   }
+  .on-mem .select { min-height: var(--target-comfortable); }
   .on-mem-remove {
     width: var(--target-comfortable);
     min-height: var(--target-comfortable);

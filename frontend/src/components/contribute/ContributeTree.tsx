@@ -194,12 +194,10 @@ function SessionRow({
         onChange={() => onToggleNode(session)}
         label={`select session ${session.label}`}
       />
-      {/* Title and its row-level marks share ONE line; the metadata line owns
-          the full width below them. Keeping the marks out of the metadata
-          line is what stops a narrow column from truncating (or wrapping)
-          the very facts the row exists to state. */}
+      {/* A narrow pane puts marks below the title so they cannot consume its
+          reading space. Metadata keeps its own line in either presentation. */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-3">
+        <div className="contribute-session-heading flex items-center gap-3">
           <button
             type="button"
             aria-pressed={isActive}
@@ -208,7 +206,7 @@ function SessionRow({
           >
             {session.label}
           </button>
-          {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
+          {session.mark != null && <Tag className="contribute-session-mark shrink-0">{session.mark}</Tag>}
         </div>
         <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionFacts?.(session) ?? session.meta}</div>
         {sessionActions?.(session)}

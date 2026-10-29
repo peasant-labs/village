@@ -48,7 +48,9 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
       });
       return;
     case "remove": {
-      fireEvent.click(screen.getByRole("button", { name: `remove @${action.member}` }));
+      const remove = screen.getByRole("button", { name: `remove @${action.member}` });
+      expect(remove).toHaveClass("btn-secondary");
+      fireEvent.click(remove);
       const dialog = await screen.findByRole("dialog");
       fireEvent.click(within(dialog).getByRole("button", { name: "remove" }));
       return;

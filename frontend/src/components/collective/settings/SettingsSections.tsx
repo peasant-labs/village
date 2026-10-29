@@ -190,7 +190,7 @@ export function MembersSection({
               ) : (
                 <button
                   type="button"
-                  className="btn btn-ghost on-mem-remove"
+                  className="btn btn-secondary on-mem-remove"
                   aria-label={`remove ${at}`}
                   title={`remove ${at}`}
                   onClick={() => onRemove(member)}
