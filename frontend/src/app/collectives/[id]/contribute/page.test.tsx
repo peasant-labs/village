@@ -119,6 +119,7 @@ describe("the real /collectives/{id}/contribute route (private_selection_opens_c
 
     await waitFor(() => expect(screen.getByTestId(`contribute-session-row-${c.expect.privateSelectionId}`)).toBeInTheDocument());
 
+    expect(screen.getByRole("textbox", { name: "search sessions" })).toHaveClass("input", "is-input");
     const privateRow = screen.getByTestId(`contribute-session-row-${c.expect.privateSelectionId}`);
     const checkbox = privateRow.querySelector('input[type="checkbox"]')!;
     act(() => {

@@ -428,3 +428,60 @@ pullRequestCases:
     expect:
       - { id: t1, labels: [], repo: null }
     hrefs: {}
+
+
+waitingDecisionCases:
+  - name: owner-approves-one-waiting-session
+    why: approval from the waiting tab names only the clicked submission and retains the deeper review link
+    role: owner
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: true
+  - name: owner-rejects-one-waiting-session
+    why: rejection from the waiting tab names only the clicked submission
+    role: owner
+    acceptance_mode: curated
+    decision: rejected
+    targetIndex: 1
+    fail: null
+    hold: false
+    expectControls: true
+  - name: waiting-decision-failure-keeps-the-row-for-retry
+    why: a failed mutation keeps its row and error next to the same decision controls
+    role: owner
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: { status: 500, error: the review service is temporarily unavailable }
+    hold: false
+    expectControls: true
+  - name: pending-decision-disables-other-row-actions
+    why: only the clicked action is busy while every row waits for the same outstanding decision
+    role: owner
+    acceptance_mode: curated
+    decision: rejected
+    targetIndex: 1
+    fail: null
+    hold: true
+    expectControls: true
+  - name: member-is-not-offered-waiting-decisions
+    why: membership does not grant the owner-only pending queue or its actions
+    role: member
+    acceptance_mode: curated
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: false
+  - name: open-owner-is-not-offered-waiting-decisions
+    why: an open collective has no pending-approval workflow
+    role: owner
+    acceptance_mode: open
+    decision: approved
+    targetIndex: 0
+    fail: null
+    hold: false
+    expectControls: false

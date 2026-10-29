@@ -165,6 +165,7 @@ describe("/collectives/{id}/review", () => {
     await mountReviewRoute(testCase);
 
     await screen.findByTestId("review-panel");
+    expect(screen.getByRole("textbox", { name: "search sessions" })).toHaveClass("input", "is-input");
     for (const label of testCase.expect.projectLabels as string[]) {
       expect(screen.getByText(label)).toBeTruthy();
     }

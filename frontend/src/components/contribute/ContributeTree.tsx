@@ -578,7 +578,6 @@ export default function ContributeTree({
           onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
           placeholder="search sessions"
           aria-label="search sessions"
-          className="flex-1"
         />
         <Select
           value={filters.harness ?? ""}

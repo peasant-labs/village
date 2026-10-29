@@ -322,7 +322,7 @@ export default function GroupDetailPage({
           id: def.id,
           label: def.label,
           count: pending.data?.length,
-          panel: <CollectiveWaiting collectiveId={id} pending={pending} />,
+          panel: <CollectiveWaiting collectiveId={id} pending={pending} canReview={isOwner} />,
         };
       case "members":
         return {
