@@ -107,7 +107,8 @@ func (f *Fake) Requests() []schema.ScryCheckRequest {
 	return append([]schema.ScryCheckRequest(nil), f.requests...)
 }
 
-// gate answers the bearer check and any forced failure; true means handled.
+// gate answers the bearer check and any forced failure for the check route;
+// true means handled.
 func (f *Fake) gate(w http.ResponseWriter, r *http.Request) bool {
 	if r.Header.Get("Authorization") != "Bearer "+FakeSecret {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -123,8 +124,14 @@ func (f *Fake) gate(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
+// health needs no secret, like the real service's /healthz; only a forced
+// failure stops it.
 func (f *Fake) health(w http.ResponseWriter, r *http.Request) {
-	if f.gate(w, r) {
+	f.mu.Lock()
+	status := f.failWith
+	f.mu.Unlock()
+	if status != 0 {
+		w.WriteHeader(status)
 		return
 	}
 	f.mu.Lock()

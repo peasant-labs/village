@@ -81,6 +81,7 @@ var requiredIntegrityTriggerCases = []string{
 	"pending_share_is_checked",
 	"approval_of_checked_hash_sends_nothing",
 	"rejected_share_edit_is_checked",
+	"rejected_secret_burns_no_attempts",
 	"withdrawn_share_stops_checks",
 	"reshare_of_checked_hash_sends_nothing",
 	"public_publish_is_checked_once",
@@ -182,7 +183,8 @@ func TestIntegrityTriggers(t *testing.T) {
 
 			fake := scry.NewFake(t, "1.0.0")
 			h := NewWithTitlePipeline(minimalConfig(), pool, blobs, titles)
-			service := newIntegrityServiceFor(scry.NewHTTPClient(fake.Settings()))
+			checker := &countingChecker{inner: scry.NewHTTPClient(fake.Settings())}
+			service := newIntegrityServiceFor(checker)
 			service.callSpacing = 0
 			if !c.Unlaunched {
 				h.integrity = service
@@ -393,6 +395,17 @@ func TestIntegrityTriggers(t *testing.T) {
 					if got := len(fake.Requests()); got != *step.Count {
 						t.Fatalf("step %d: the service has received %d checks, want %d (%s)", index, got, *step.Count, c.Why)
 					}
+				case "wrong_secret":
+					checker.inner = scry.NewHTTPClient(scry.Settings{URL: fake.URL(), SharedSecret: "refused-secret-0123456789abcdef0123456789"})
+				case "right_secret":
+					checker.inner = scry.NewHTTPClient(fake.Settings())
+				case "expect_calls":
+					if step.Count == nil {
+						t.Fatalf("step %d: expect_calls needs a count", index)
+					}
+					if checker.checks != *step.Count {
+						t.Fatalf("step %d: the worker made %d check calls, want %d (%s)", index, checker.checks, *step.Count, c.Why)
+					}
 				case "launch":
 					h.integrity = service
 				case "tick":
@@ -577,4 +590,20 @@ func integrityHashes(m map[string]string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+// countingChecker counts check calls, refused ones included, and lets a case
+// swap the client it calls through.
+type countingChecker struct {
+	inner  scry.Checker
+	checks int
+}
+
+func (c *countingChecker) Health(ctx context.Context) (schema.ScryHealthResponse, error) {
+	return c.inner.Health(ctx)
+}
+
+func (c *countingChecker) Check(ctx context.Context, req schema.ScryCheckRequest) (schema.ScryCheckResponse, error) {
+	c.checks++
+	return c.inner.Check(ctx, req)
 }

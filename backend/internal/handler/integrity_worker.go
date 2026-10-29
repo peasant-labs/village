@@ -61,6 +61,10 @@ const (
 	outcomeLegacy       = "legacy_content"
 	outcomeReadFailed   = "read_failed"
 	outcomeNotCandidate = "not_candidate"
+	// outcomeSecretRefused is a configuration failure, not the content's:
+	// the service refused the shared secret, so the attempt is given back
+	// uncounted and the pass ends.
+	outcomeSecretRefused = "secret_refused"
 )
 
 // checkOutcome is how one transcript's check ended: checked, skipped as
@@ -75,7 +79,7 @@ type checkOutcome struct {
 // sent reports whether the outcome followed a call to the service.
 func (o checkOutcome) sent() bool {
 	switch o.Class {
-	case outcomeLegacy, outcomeReadFailed, outcomeNotCandidate, "":
+	case outcomeLegacy, outcomeReadFailed, outcomeNotCandidate, outcomeSecretRefused, "":
 		return false
 	default:
 		return true
@@ -166,11 +170,9 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		status := s.noteFailure(err)
-		slog.Info("integrity check service did not answer health", "outcome", string(scry.Classify(err)), "status", status)
+		slog.Info("integrity check service did not answer health", "outcome", string(scry.Classify(err)), "status", scryStatus(err))
 		return nil
 	}
-	s.secretRejected.Store(false)
 	s.setVersion(health.ScryVersion)
 	version := health.ScryVersion
 
@@ -199,10 +201,15 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 			case <-timer.C:
 			}
 		}
-		sent, err := h.checkCandidate(ctx, version, row)
+		sent, stop, err := h.checkCandidate(ctx, version, row)
 		pause = sent
 		if err != nil {
 			errs = append(errs, err)
+		}
+		if stop {
+			// The service refused the secret; every other check would be
+			// refused too, and none of them says anything about content.
+			break
 		}
 	}
 	return errors.Join(errs...)
@@ -211,8 +218,8 @@ func (h *Handler) integrityTick(ctx context.Context) error {
 // checkCandidate takes the attempt for one listed transcript, checks it and
 // records how it ended. The work runs on a context the shutdown does not
 // cancel, bounded by the attempt's hold, so a check in flight finishes and is
-// recorded while the drain waits for it.
-func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.Transcript) (bool, error) {
+// recorded while the drain waits for it. stop reports that the pass must end.
+func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.Transcript) (sent, stop bool, err error) {
 	s := h.integrity
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), integrityAttemptHold)
 	defer cancel()
@@ -225,21 +232,21 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Another instance holds it, or it finished since the listing.
-		return false, nil
+		return false, false, nil
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 		// The transcript was deleted since the listing.
-		return false, nil
+		return false, false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("take the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
+		return false, false, fmt.Errorf("take the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
 	}
 
 	resp, outcome, err := h.checkTranscript(ctx, row)
 	if err != nil {
 		// The attempt stays held until its hold passes, then it is due again.
-		return outcome.sent(), fmt.Errorf("integrity check of transcript %s: %w", uuidFromPg(row.ID), err)
+		return outcome.sent(), false, fmt.Errorf("integrity check of transcript %s: %w", uuidFromPg(row.ID), err)
 	}
 	slog.Info("integrity check", "transcript_id", uuidFromPg(row.ID).String(), "scry_version", version, "verdict", string(resp.Verdict), "outcome", outcome.Class, "status", outcome.Status)
 
@@ -256,11 +263,12 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 	now := s.now()
 	var completion sqlc.CompleteIntegrityAttemptParams
 	switch outcome.Class {
-	case outcomeNotCandidate:
+	case outcomeNotCandidate, outcomeSecretRefused:
+		stop := outcome.Class == outcomeSecretRefused
 		if err := h.queries.ReleaseIntegrityAttempt(ctx, sqlc.ReleaseIntegrityAttemptParams{TranscriptID: row.ID, ContentHash: hash, ScryVersion: version}); err != nil {
-			return false, fmt.Errorf("release the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
+			return false, stop, fmt.Errorf("release the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
 		}
-		return false, nil
+		return false, stop, nil
 	case outcomeChecked:
 		completion = key("done", "", now)
 	case outcomeLegacy:
@@ -275,9 +283,9 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 		}
 	}
 	if err := h.queries.CompleteIntegrityAttempt(ctx, completion); err != nil {
-		return outcome.sent(), fmt.Errorf("record the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
+		return outcome.sent(), false, fmt.Errorf("record the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
 	}
-	return outcome.sent(), nil
+	return outcome.sent(), false, nil
 }
 
 // checkTranscript checks one listed transcript's current content. It sends
@@ -345,9 +353,17 @@ func (h *Handler) checkTranscript(ctx context.Context, row sqlc.Transcript) (sch
 	resp, err := h.integrity.checker.Check(checkCtx, req)
 	cancel()
 	if err != nil {
-		status := h.integrity.noteFailure(err)
+		status := scryStatus(err)
+		if h.integrity.noteFailure(err) {
+			return none, checkOutcome{Class: outcomeSecretRefused, Status: status}, nil
+		}
+		if status != 0 {
+			// The service answered past the secret check.
+			h.integrity.notePassedSecret()
+		}
 		return none, checkOutcome{Class: string(scry.Classify(err)), Status: status}, nil
 	}
+	h.integrity.notePassedSecret()
 	h.integrity.observeVersion(resp.ScryVersion)
 	if err := recordIntegrityResult(ctx, h.queries, row.ID, hash, resp); err != nil {
 		return resp, checkOutcome{Class: outcomeChecked}, err
@@ -377,16 +393,31 @@ func (h *Handler) readPublishMetadata(ctx context.Context, row sqlc.Transcript) 
 	return &decoded, nil
 }
 
-// noteFailure returns the HTTP status of a failed call, and warns once when
-// the service refuses the shared secret, so an operator sees it without a
-// line per call.
-func (s *integrityService) noteFailure(err error) int {
+// scryStatus is the HTTP status of a failed call, 0 when there was none.
+func scryStatus(err error) int {
 	var e *scry.Error
-	if !errors.As(err, &e) {
-		return 0
+	if errors.As(err, &e) {
+		return e.Status
 	}
-	if (e.Status == http.StatusUnauthorized || e.Status == http.StatusForbidden) && s.secretRejected.CompareAndSwap(false, true) {
-		slog.Warn("integrity check service rejected the shared secret", "status", e.Status, "consequence", "no transcript is checked until SCRY_SHARED_SECRET matches the service")
+	return 0
+}
+
+// noteFailure reports whether a failed check was the service refusing the
+// shared secret, and warns once about it, so an operator sees it without a
+// line per pass. Health needs no secret, so only a check that got past the
+// secret re-arms the warning (notePassedSecret).
+func (s *integrityService) noteFailure(err error) bool {
+	status := scryStatus(err)
+	if status != http.StatusUnauthorized && status != http.StatusForbidden {
+		return false
 	}
-	return e.Status
+	if s.secretRejected.CompareAndSwap(false, true) {
+		slog.Warn("integrity check service rejected the shared secret", "status", status, "consequence", "no transcript is checked until SCRY_SHARED_SECRET matches the service")
+	}
+	return true
+}
+
+// notePassedSecret records that a check got past the service's secret check.
+func (s *integrityService) notePassedSecret() {
+	s.secretRejected.Store(false)
 }

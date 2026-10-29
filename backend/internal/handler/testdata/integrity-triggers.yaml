@@ -30,6 +30,11 @@
 #     village rewriting legacy raw lines, as the content route records such
 #     a rewrite. The route cannot re-encode the sparse raw lines a fixture can
 #     publish, so the record is written directly.
+#   wrong_secret: the worker now sends a shared secret the service refuses;
+#     right_secret restores the correct one. Health needs no secret, as on
+#     the real service, so only the check calls are refused.
+#   expect_calls: the worker has made exactly count check calls so far,
+#     refused ones included.
 #   launch: the worker comes into being (cases with unlaunched start without
 #     one, as rows published before it existed).
 #   tick: one pass of the worker. withdraw_after_list withdraws t's share to
@@ -458,3 +463,22 @@
     absent: [p]
     ledger: [{ref: a, status: done, attempts: 1}]
     results: [{ref: a}]
+
+- name: rejected_secret_burns_no_attempts
+  why: a refused secret is a configuration failure, so a pass ends at the first refusal, counts no attempt, and the backlog checks normally once the secret is fixed
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: publish, ref: b, t: t2}
+    - {do: make_public, t: t2}
+    - {do: wrong_secret}
+    - {do: tick}
+    - {do: tick}
+    - {do: expect_calls, count: 2}
+    - {do: expect_sent, count: 0}
+    - {do: right_secret}
+    - {do: tick}
+  want:
+    sent: [a, b]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: b}]

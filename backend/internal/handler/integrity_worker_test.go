@@ -1,11 +1,16 @@
 package handler
 
 import (
+	"bytes"
 	_ "embed"
+	"log/slog"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/peasant-labs/village/backend/internal/scry"
 )
 
 //go:embed testdata/integrity-versions.yaml
@@ -79,5 +84,39 @@ func TestCheckedSetPredicateIsShared(t *testing.T) {
 		if strings.Count(body, predicate) != 1 {
 			t.Fatalf("query %s does not carry the checked-set predicate exactly once", name)
 		}
+	}
+}
+
+// TestRejectedSecretWarnsOnce: a refused secret warns once, a healthy health
+// call does not re-arm the warning (health needs no secret), and only a check
+// that got past the secret does.
+func TestRejectedSecretWarnsOnce(t *testing.T) {
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	warnings := func() int { return strings.Count(logged.String(), "rejected the shared secret") }
+
+	s := newIntegrityServiceFor(nil)
+	refused := &scry.Error{Class: scry.ClassRejected, Status: http.StatusUnauthorized}
+	forbidden := &scry.Error{Class: scry.ClassRejected, Status: http.StatusForbidden}
+	if !s.noteFailure(refused) || !s.noteFailure(forbidden) || warnings() != 1 {
+		t.Fatalf("two refusals logged %d warnings, want 1, and both must count as refusals", warnings())
+	}
+	healthy := newTestHandler(&mockQuerier{}, nil)
+	healthy.integrity = s
+	s.checker = &blockingChecker{}
+	if err := healthy.integrityTick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !s.noteFailure(refused) || warnings() != 1 {
+		t.Fatalf("a healthy health call re-armed the warning: %d warnings", warnings())
+	}
+	if s.noteFailure(&scry.Error{Class: scry.ClassUnavailable, Status: http.StatusServiceUnavailable}) {
+		t.Fatal("a 503 counted as a refused secret")
+	}
+	s.notePassedSecret()
+	if !s.noteFailure(refused) || warnings() != 2 {
+		t.Fatalf("a refusal after a check passed the secret logged %d warnings in all, want 2", warnings())
 	}
 }

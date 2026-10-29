@@ -257,6 +257,15 @@ func TestFake(t *testing.T) {
 	if _, err = c.Check(context.Background(), req); err != nil || f.Unanswered() != 1 {
 		t.Fatalf("an answered request must not count: %v, %d", err, f.Unanswered())
 	}
+	// Like the real service, health needs no secret and check does.
+	wrong := NewHTTPClient(Settings{URL: f.URL(), SharedSecret: "wrong-secret-0123456789abcdef0123456789"})
+	if h, err := wrong.Health(context.Background()); err != nil || h.ScryVersion != "1.2.3" {
+		t.Fatalf("health with a wrong secret = %+v, %v; want the version, as the real service answers unauthenticated", h, err)
+	}
+	var rejected *Error
+	if _, err := wrong.Check(context.Background(), req); !errors.As(err, &rejected) || rejected.Status != 401 {
+		t.Fatalf("check with a wrong secret = %v, want a 401", err)
+	}
 	if len(f.Requests()) != 3 {
 		t.Fatalf("recorded %d requests", len(f.Requests()))
 	}

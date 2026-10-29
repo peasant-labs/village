@@ -719,7 +719,10 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   nothing because the transcript left the set or changed content before the
   read is given back by `ReleaseIntegrityAttempt` (a first attempt leaves no
   row, a later one is due again with its earlier count), so coming back into
-  the set still checks it. An attempt interrupted by a shutdown is never
+  the set still checks it. A check the service refuses for its shared secret
+  (401 or 403) is a configuration failure, not the content's: the attempt is
+  given back the same way and the pass ends, so a wrong secret burns no
+  attempts. An attempt interrupted by a shutdown is never
   ended, and is due again once its hold passes. A new content hash or checker
   version is a new key with fresh attempts.
 
