@@ -50,13 +50,13 @@ pending:
 
 # `signedIn: false` reads the page with no account (`/auth/me` answers 401).
 # `actions` are the controls in the head's action row, in order, by name.
-# `tabs` are the tabs offered, in order. `orgLine` is the stats tab's github
+# `tabs` are the tabs offered, in order. `orgLine` is the repositories tab's github
 # org line; `memberBreakdown: null` is a member list the owner keeps private.
 cases:
   - name: the-owner-sees-the-chips-the-org-total-and-both-overflow-items
     why: >-
       the owner of a curated collective linked to acme: the chips say they
-      approve each session, members read and they are the owner; the stats tab
+      approve each session, members read and they are the owner; the repositories tab
       counts the linked repositories against what the App offers; publish and
       review both move into more; the waiting tab is theirs; the members
       summary leaves out the pending request.

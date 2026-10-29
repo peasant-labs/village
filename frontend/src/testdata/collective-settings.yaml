@@ -271,14 +271,14 @@ cases:
 
   - name: the-github-section-counts-the-linked-repositories
     why: >-
-      the github section names the linked org and how many of the
-      repositories the App offers are linked.
+      the github section names the linked org and shows its repository picker
+      inline, with the saved repository already selected.
     search: "?section=github"
     fail: null
     action: { kind: none }
     expect:
       writes: []
-      shows: [acme, 1 of 1 repositories linked.]
+      shows: [acme, "acme: 1 of 1 repos linked"]
       alert: null
       switchOn: null
       pressed: null
@@ -296,7 +296,7 @@ cases:
     action: { kind: none }
     expect:
       writes: []
-      shows: [1 of 1 repositories linked.]
+      shows: ["acme: 1 of 1 repos linked"]
       alert: null
       switchOn: null
       pressed: null

@@ -1,5 +1,5 @@
-# Case corpus for `src/repoPicker.test.tsx`: the repo picker opened from the
-# collective page's stats tab (its github org line), mounted through the real route.
+# Case corpus for `src/repoPicker.test.tsx`: inline repository pickers in the
+# collective repository view and github settings, mounted through both real routes.
 #
 # Save sends one call per repository, one after another, links first:
 # `POST /collectives/{id}/repositories` and

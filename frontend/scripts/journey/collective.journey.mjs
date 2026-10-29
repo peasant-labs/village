@@ -3,7 +3,7 @@
  * Opens the collectives list (the collectives the viewer belongs to), a
  * collective as its owner, as a member, as the owner of a curated collective
  * with sessions waiting, and as a signed-out reader of a public one, and the
- * repo picker the owner opens from the stats tab, all through the real routes
+ * inline repo picker in the repositories tab, all through the real routes
  * against the composed mock's collective fixtures (lib/collective-fixtures.mjs).
  * It asserts roles, names and computed tokens rather than class strings,
  * records the accessible tree and the axe report, and attaches the still a
@@ -99,7 +99,7 @@ test.describe('collectives', () => {
       /your role:\s*you are the owner/,
     ])
     // An invite in an earlier journey adds to the member list the mock's reset starts from, so the tab counts whoever is there.
-    await expect(page.getByRole('tab')).toHaveText(['transcripts 248', /^members \d+$/, 'stats'])
+    await expect(page.getByRole('tab')).toHaveText(['transcripts 248', /^members \d+$/, 'repositories', 'stats'])
     await expect(page.getByRole('table', { name: 'transcripts 248' })).toContainText('Fix flaky ingest test')
     // The app sidebar carries a settings gear of its own, so the collective's
     // own control is read inside the collective's header actions.
@@ -126,9 +126,11 @@ test.describe('collectives', () => {
     await expect(page.getByRole('list', { name: 'members' })).toContainText('@bob-ai')
 
     const stats = await openTab(page, 'stats')
-    await expect(stats.getByTestId('collective-org-line')).toContainText('acme: 2 of 14 repos linked')
-    await expect(stats.getByRole('button', { name: 'manage repositories' })).toBeVisible()
+    await expect(stats.getByTestId('collective-org-line')).toHaveCount(0)
     await still(page, testInfo, 'collective-owner-stats')
+    const repositories = await openTab(page, 'repositories')
+    await expect(repositories.getByTestId('collective-org-line')).toContainText('acme: 2 of 14 repos linked')
+    await expect(repositories.getByRole('region', { name: 'repositories' })).toBeVisible()
   })
 
   test('shows the owner of a curated collective what waits for approval', async ({ page, request, theme }, testInfo) => {
@@ -244,9 +246,9 @@ test.describe('collectives', () => {
     await still(page, testInfo, 'collective-member')
     await record(page, testInfo, page.getByRole('main'), 'collective-member')
 
-    const stats = await openTab(page, 'stats')
-    await expect(stats.getByTestId('collective-org-line')).toHaveText('acme')
-    await expect(stats.getByRole('button', { name: 'manage repositories' })).toHaveCount(0)
+    const repositories = await openTab(page, 'repositories')
+    await expect(repositories.locator('.on-orgline-text')).toHaveText('acme')
+    await expect(repositories.getByRole('region', { name: 'repositories' })).toHaveCount(0)
 
     await page.getByRole('button', { name: 'leave' }).click()
     const dialog = page.getByRole('dialog')
@@ -280,19 +282,19 @@ test.describe('collectives', () => {
     }
   })
 
-  test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
-    await page.goto(`/collectives/${OWNER.id}?tab=stats`)
+  test('uses the inline repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
+    await page.goto(`/collectives/${OWNER.id}?tab=repositories`)
     await expectTheme(page, theme)
 
-    const stats = page.getByRole('tabpanel')
-    await stats.getByRole('button', { name: 'manage repositories' }).click()
-    const picker = page.getByRole('dialog', { name: 'link repositories from acme' })
+    const repositories = page.getByRole('tabpanel')
+    const picker = repositories.getByRole('region', { name: 'repositories' })
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(picker).toBeVisible()
     await expect(picker).toContainText('2 of 14 selected')
     await expect(picker).toContainText('3 members publish from it')
 
     // The row sits under its owner's heading, so it names the repository alone.
-    // The inner locator is re-rooted into each row; naming the dialog again
+    // The inner locator is re-rooted into each row; naming the picker again
     // would nest it inside the row and never match.
     const cliRow = picker.locator('.rpk-repo-row').filter({ has: page.locator('.rpk-repo-name', { hasText: /^cli$/ }) })
     await cliRow.getByRole('checkbox').check()
@@ -303,6 +305,6 @@ test.describe('collectives', () => {
 
     await picker.getByRole('button', { name: 'save: link 1 repository' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'repositories saved' })).toContainText('linked acme/cli.')
-    await expect(stats.getByTestId('collective-org-line')).toContainText('acme: 3 of 14 repos linked')
+    await expect(repositories.getByTestId('collective-org-line')).toContainText('acme: 3 of 14 repos linked')
   })
 })

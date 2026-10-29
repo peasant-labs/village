@@ -5,13 +5,14 @@ import {
   installCollectivePagesTeardown,
   installCollectiveREST,
   renderCollectivePage,
+  renderCollectiveSettings,
   textOf,
   type RecordedRequest,
 } from "@/test/mountedCollectivePages";
 
 /**
- * The repo picker opened from the github org line on the collective page's
- * stats tab, through the real route and fairtrade's real `RepoPicker`, driven by
+ * The inline repository pickers in the collective repository view and its
+ * github settings section, through the real routes and fairtrade, driven by
  * `src/testdata/repo-picker.yaml`. Each case asserts the calls the save made,
  * in order, and the message the owner is shown.
  */
@@ -61,7 +62,7 @@ function repositoryWrites(requests: RecordedRequest[]): { method: string; repo: 
     });
 }
 
-/** The org line's words on the stats tab, without its manage button. */
+/** The repository connection summary, updated after saving. */
 function orgLine(): string {
   return textOf(screen.getByTestId("collective-org-line").querySelector(".on-orgline-text"));
 }
@@ -73,13 +74,36 @@ describe("the repo picker", () => {
     await renderCollectivePage(world);
 
     fireEvent.click(screen.getByRole("tab", { name: /^repositories/ }));
-    const dialog = await screen.findByRole("region", { name: "repositories" });
-    for (const step of pickerCase.steps) perform(dialog, step);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^save/ }));
+    const picker = await screen.findByRole("region", { name: "repositories" });
+    for (const step of pickerCase.steps) perform(picker, step);
+    fireEvent.click(within(picker).getByRole("button", { name: /^save/ }));
 
     const notice = await screen.findByTestId("collective-notice");
     await waitFor(() => expect(textOf(notice.querySelector(".fb-toast-title"))).toBe(pickerCase.expect.title));
     expect(textOf(notice.querySelector(".fb-toast-msg")), pickerCase.why).toBe(pickerCase.expect.message);
+    expect(repositoryWrites(requests)).toEqual(pickerCase.expect.calls);
+    await waitFor(() => expect(orgLine()).toBe(pickerCase.expect.orgLine));
+  });
+});
+
+describe("the inline repo picker in collective github settings", () => {
+  it.each(fixtures.cases.map((c) => [c.name, c] as const))("%s", async (_name, pickerCase) => {
+    const world = fixtures.worldFor(pickerCase);
+    window.history.replaceState(null, "", `/collectives/${world.group.id}/settings?section=github`);
+    const requests = installCollectiveREST(world);
+    await renderCollectiveSettings(world);
+
+    const picker = await screen.findByRole("region", { name: "repositories" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "manage repositories" })).not.toBeInTheDocument();
+    for (const step of pickerCase.steps) perform(picker, step);
+    fireEvent.click(within(picker).getByRole("button", { name: /^save/ }));
+
+    if (pickerCase.failOn) {
+      expect(await within(picker).findByRole("alert")).toHaveTextContent(`${pickerCase.expect.title}: ${pickerCase.expect.message}`);
+    } else {
+      expect(await screen.findByRole("status")).toHaveTextContent(pickerCase.expect.title);
+    }
     expect(repositoryWrites(requests)).toEqual(pickerCase.expect.calls);
     await waitFor(() => expect(orgLine()).toBe(pickerCase.expect.orgLine));
   });

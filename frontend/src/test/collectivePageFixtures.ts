@@ -32,7 +32,7 @@ export interface PageCaseExpect {
   /** The tabs offered, in order, by label. */
   tabs: string[];
   transcriptRows: number;
-  /** The stats tab's github org line. */
+  /** The repositories tab's github org line. */
   orgLine: string;
   manage: boolean;
   /** The members tab's summary, or null when the owner keeps the list private. */
