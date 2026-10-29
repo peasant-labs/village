@@ -1276,6 +1276,10 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(response)
 }
 
+// errRewriteRaceLost rolls back a rewrite transaction whose compare-and-swap
+// matched no row; it never leaves rewriteCanonicalTranscript.
+var errRewriteRaceLost = errors.New("canonical transcript rewrite lost the compare-and-swap to another writer")
+
 // rewriteCanonicalTranscript installs canonical as the transcript's new
 // generation when the row still holds the generation the caller read. The
 // metadata object, when the row has one, is decrypted under the old data key
@@ -1332,9 +1336,9 @@ func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Trans
 	if err != nil {
 		return nil, fmt.Errorf("canonical transcript rewrite failed because the reserved system actor could not be parsed in handler.rewriteCanonicalTranscript before database installation; the candidate ciphertext may require reconciliation and no response was served; correct database.SystemActorID and retry: %w", err)
 	}
-	// lost is a compare-and-swap that matched no row: another writer moved the
-	// descriptor after the reload. Nothing else runs in that transaction.
-	lost := false
+	// A compare-and-swap that matches no row means another writer moved the
+	// descriptor after the reload. The transaction rolls back at once, so
+	// nothing else runs in it and the candidate is a known rollback.
 	result := h.inEncryptedTx(ctx, toPgUUID(systemID), func(q Querier) error {
 		_, err := q.CompareAndSwapTranscriptBlob(ctx, sqlc.CompareAndSwapTranscriptBlobParams{
 			BlobKey: string(newDescriptor.ObjectKey()), WrappedDataKey: newDescriptor.WrappedDEK(), EncryptionAlgorithm: string(newDescriptor.Algorithm()), KeyVersion: int32(newDescriptor.KeyVersion()),
@@ -1342,8 +1346,7 @@ func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Trans
 			ExpectedBlobKey: string(oldDescriptor.ObjectKey()), ExpectedWrappedDataKey: oldDescriptor.WrappedDEK(), ExpectedEncryptionAlgorithm: string(oldDescriptor.Algorithm()), ExpectedKeyVersion: int32(oldDescriptor.KeyVersion()),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
-			lost = true
-			return nil
+			return errRewriteRaceLost
 		}
 		if err != nil {
 			return err
@@ -1372,6 +1375,10 @@ func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Trans
 		}
 		return nil
 	})
+	lost := errors.Is(result.Err, errRewriteRaceLost)
+	if lost {
+		result.Err = nil
+	}
 	installed := result.Err == nil && !lost
 	decision := cleanupDecision("rewrite", result.Completion, installed)
 	if decision.DeleteSuperseded {
