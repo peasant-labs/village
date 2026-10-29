@@ -209,3 +209,21 @@
   gap: var(--sp-2);
   justify-content: flex-end;
 }
+
+/* The discovery views share one page inset; panels only add internal rhythm. */
+.on-discover-views,
+.on-discover-views .tabpanel > div {
+  min-width: 0;
+}
+.on-discover-views .tabpanel > div {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.on-discover-views > .tabpanel {
+  max-width: none;
+  min-width: 0;
+  padding: var(--sp-5) 0 0;
+  font: inherit;
+  color: inherit;
+}

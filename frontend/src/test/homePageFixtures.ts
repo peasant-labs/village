@@ -221,7 +221,7 @@ const requiredNavCaseNames = [
   "a-transcript-opened-from-home-highlights-home",
   "a-pull-request-page-highlights-pull-requests",
   "discover-highlights-discover",
-  "signed-in-visitor-at-explore-highlights-nothing",
+  "signed-in-visitor-at-explore-highlights-discover",
   "signed-in-visitor-at-publish-highlights-nothing",
   "a-collectives-settings-page-keeps-the-sections",
   "signed-out-visitor-at-the-root-is-offered-no-entries",

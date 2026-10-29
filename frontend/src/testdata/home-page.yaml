@@ -123,12 +123,12 @@ navCases:
     expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: discover
     expectBackHref: null
-  - name: signed-in-visitor-at-explore-highlights-nothing
+  - name: signed-in-visitor-at-explore-highlights-discover
     isLoggedIn: true
     pathname: "/explore"
     expectNav: sections
     expectLabels: [home, discover, pull requests, collectives, Acme Platform]
-    expectActiveLabel: null
+    expectActiveLabel: discover
     expectBackHref: null
   - name: signed-in-visitor-at-publish-highlights-nothing
     isLoggedIn: true

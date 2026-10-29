@@ -15,8 +15,7 @@ import { CONTEXT_PARAM, parseTranscriptContext, type TranscriptContext } from "@
 import type { User } from "@/lib/types";
 
 /**
- * The app switcher: the docs, which open in a new tab. fairtrade adds the
- * community, not open yet, as "soon". The app does not list itself (the
+ * The app switcher: the docs, which open in a new tab. The app does not list itself (the
  * sidebar already is this app), and the local app is not offered from here:
  * it runs on the person's own computer and is reached from there.
  */
@@ -31,7 +30,7 @@ export function currentItemFor(
   context: TranscriptContext | null = null,
 ): string | undefined {
   if (pathname === "/") return "home";
-  if (pathname === "/discover") return "discover";
+  if (pathname === "/discover" || pathname === "/explore") return "discover";
   if (pathname === "/pulls" || pathname.startsWith("/pulls/")) return "pulls";
   if (pathname.startsWith("/transcripts/")) {
     if (context?.kind === "collective") return collectiveIds.has(context.id) ? `collective:${context.id}` : "collectives";
@@ -47,8 +46,8 @@ export function currentItemFor(
 
 /**
  * The signed-in app's sidebar, from fairtrade, in its one order: the
- * shortcuts (the search, the docs and the community), the sections and the
- * collectives the person belongs to (each with its colour), then the footer:
+ * sections and the collectives the person belongs to (each with its colour),
+ * then the search and docs shortcuts near the footer:
  * the person's own corner, the settings gear and the theme switch. It is the
  * same on every page: a settings page keeps its sections in a bar of its own
  * inside the page body, as `/settings` does.
@@ -67,7 +66,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
   const { theme, setTheme } = useTheme();
   const collectives = useGroups();
   const mine = collectives.data ?? [];
-  // The search is /explore's transcript search, its box taking the cursor.
+  // Search and its keyboard shortcut open Discover with the cursor in the active view.
   const router = useRouter();
   const openSearch = useCallback(() => openExploreSearch(router.push, pathname), [router, pathname]);
   useSearchShortcut(openSearch);

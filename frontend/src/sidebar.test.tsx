@@ -143,23 +143,23 @@ describe("mounted sidebar: the search", () => {
 
   // The app's search is /explore's transcript search: the sidebar item and
   // the keyboard both go there, and its box takes the cursor on arrival.
-  it("opens explore from the sidebar's search item", async () => {
+  it("opens discover from the sidebar's search item", async () => {
     resetNextNavigation();
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
     fireEvent.click(screen.getByRole("button", { name: /^search/ }));
-    expect(pushedRoutes).toEqual(["/explore"]);
+    expect(pushedRoutes).toEqual(["/discover?view=transcripts"]);
   });
 
-  it("opens explore with command or control and k", async () => {
+  it("opens discover with command or control and k", async () => {
     resetNextNavigation();
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/collectives");
     await chromeSettled("sections");
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     fireEvent.keyDown(window, { key: "K", ctrlKey: true });
-    expect(pushedRoutes).toEqual(["/explore", "/explore"]);
+    expect(pushedRoutes).toEqual(["/discover?view=transcripts", "/discover?view=transcripts"]);
   });
 
   it("puts the cursor in explore's search box when it arrives there", async () => {

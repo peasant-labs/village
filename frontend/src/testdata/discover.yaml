@@ -105,3 +105,11 @@ joinCases:
       tags: [joined]
       action: { label: open, href: /collectives/d1000000-0000-4000-8000-000000000002, primary: true }
       message: ""
+
+# Both result kinds live at Discover and keep their own in-progress search.
+navigation:
+  path: /discover
+  transcriptQuery: retry budget
+  collectiveQuery: acme
+  transcriptPath: /discover?view=transcripts
+  collectivePath: /discover?view=collectives

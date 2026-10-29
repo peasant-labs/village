@@ -35,7 +35,7 @@ const DEFAULT_FILTERS: ExploreFilters = {
   page: 1,
 };
 
-export default function ExplorePage() {
+export default function ExplorePage({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
   // The app's search lands here: its box takes the cursor when asked.
@@ -216,7 +216,7 @@ export default function ExplorePage() {
     // different words.
     content = (
       <>
-        <OnHead title={EXPLORE_TITLE} />
+        {embedded ? <h2 className="on-h2">transcripts</h2> : <OnHead title={EXPLORE_TITLE} />}
         <RequestFailureState
           title="the transcripts could not be loaded"
           message={failureMessage}
@@ -229,7 +229,7 @@ export default function ExplorePage() {
   } else if ((isLoading && failureMessage == null) || !payload) {
     content = (
       <div className="flex flex-col gap-6 animate-fade-up">
-        <OnHead title={EXPLORE_TITLE} />
+        {embedded ? <h2 className="on-h2">transcripts</h2> : <OnHead title={EXPLORE_TITLE} />}
         <div className="h-4 w-96 max-w-full animate-shimmer" aria-hidden="true" />
         <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-6">
           <div className="h-[420px] animate-shimmer" />
@@ -277,7 +277,7 @@ export default function ExplorePage() {
         )}
         <div ref={resultsRef} aria-busy={busy} data-testid="session-list-results">
           <Explore
-            headingLevel={1}
+            headingLevel={embedded ? 2 : 1}
             data={payload}
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
@@ -314,8 +314,9 @@ export default function ExplorePage() {
   // The polite status region is mounted persistently across every render branch
   // (loading, error, and results) so a live region always exists before its
   // content changes, which reliable announcement requires.
+  const Frame = embedded ? "div" : OnPage;
   return (
-    <OnPage>
+    <Frame>
       <p
         role="status"
         aria-live="polite"
@@ -325,6 +326,6 @@ export default function ExplorePage() {
         {statusMessage}
       </p>
       {content}
-    </OnPage>
+    </Frame>
   );
 }
