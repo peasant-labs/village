@@ -298,6 +298,18 @@ FROM transcript_shares ts
 JOIN group_members gm ON gm.group_id = ts.group_id
 WHERE ts.transcript_id = $1 AND gm.role = 'owner';
 
+-- name: ListSubmittedCollectiveOwnersForTranscript :many
+-- Returns the owner user_ids of every collective the transcript is submitted
+-- to and not decided against: a share row whose status is pending or approved.
+-- Unlike ListGroupOwnersForTranscript, a rejected share does not count. It
+-- decides who may read the transcript's stored publish metadata.
+SELECT DISTINCT gm.user_id
+FROM transcript_shares ts
+JOIN group_members gm ON gm.group_id = ts.group_id
+WHERE ts.transcript_id = $1
+  AND ts.status IN ('pending', 'approved')
+  AND gm.role = 'owner';
+
 -- name: ListLiveShareAttemptsForGroup :many
 -- Which of the named transcripts are ALREADY live in one collective. Live means
 -- the latest event of the (transcript, collective) pair is pending or approved,

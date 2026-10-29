@@ -29,6 +29,7 @@
 - {name: ListGroupContributors, file: shares.sql, kind: read}
 - {name: ListUserSharesInGroup, file: shares.sql, kind: read}
 - {name: ListGroupOwnersForTranscript, file: shares.sql, kind: read}
+- {name: ListSubmittedCollectiveOwnersForTranscript, file: shares.sql, kind: read}
 
 - {name: ListApprovedTranscriptShareGroups, file: shares_pull.sql, kind: read}
 

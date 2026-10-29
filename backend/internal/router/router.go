@@ -240,6 +240,9 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Post("/pull/transcripts/skip-gate", h.PullSkipGate)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}", h.GetPullTranscript)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/content", h.GetPullTranscriptContent)
+		// The stored publish metadata: the owner and the owners of collectives
+		// reviewing or holding the transcript only; every other caller gets 404.
+		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/publish-metadata", h.GetPullTranscriptPublishMetadata)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/annotations", h.GetPullTranscriptAnnotations)
 
 		// Pull request prompt attachment. The served contract declares these

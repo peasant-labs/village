@@ -186,6 +186,7 @@ type Querier interface {
 	ListUserSharesInGroup(ctx context.Context, arg sqlc.ListUserSharesInGroupParams) ([]sqlc.ListUserSharesInGroupRow, error)
 	RetractUserSharesInGroup(ctx context.Context, arg sqlc.RetractUserSharesInGroupParams) error
 	ListGroupOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
+	ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 	GetGroupTranscriptStats(ctx context.Context, groupID pgtype.UUID) (sqlc.GetGroupTranscriptStatsRow, error)
 	ListGroupModelBreakdown(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupModelBreakdownRow, error)
 	ListGroupContributors(ctx context.Context, arg sqlc.ListGroupContributorsParams) ([]sqlc.ListGroupContributorsRow, error)

@@ -731,6 +731,39 @@ func (q *Queries) ListSharesByTranscriptIDs(ctx context.Context, dollar_1 []pgty
 	return items, nil
 }
 
+const listSubmittedCollectiveOwnersForTranscript = `-- name: ListSubmittedCollectiveOwnersForTranscript :many
+SELECT DISTINCT gm.user_id
+FROM transcript_shares ts
+JOIN group_members gm ON gm.group_id = ts.group_id
+WHERE ts.transcript_id = $1
+  AND ts.status IN ('pending', 'approved')
+  AND gm.role = 'owner'
+`
+
+// Returns the owner user_ids of every collective the transcript is submitted
+// to and not decided against: a share row whose status is pending or approved.
+// Unlike ListGroupOwnersForTranscript, a rejected share does not count. It
+// decides who may read the transcript's stored publish metadata.
+func (q *Queries) ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSubmittedCollectiveOwnersForTranscript, transcriptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var user_id pgtype.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptShares = `-- name: ListTranscriptShares :many
 SELECT ts.group_id, g.name as group_name, ts.shared_at
 FROM transcript_shares ts

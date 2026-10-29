@@ -1018,6 +1018,9 @@ func (m *mockQuerier) RetractUserSharesInGroup(ctx context.Context, arg sqlc.Ret
 func (m *mockQuerier) ListGroupOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
 	return nil, nil
 }
+func (m *mockQuerier) ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
+	return nil, nil
+}
 
 // ---- Collective repository / GitHub App methods --------------------------
 

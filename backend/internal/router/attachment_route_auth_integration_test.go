@@ -32,6 +32,7 @@ var requiredAttachmentRouteAuthNames = []string{
 	"personal totals require a session",
 	"prompt requests require a session",
 	"reading settings requires a session",
+	"stored publish metadata requires a session",
 	"updating settings requires a session",
 }
 

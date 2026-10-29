@@ -50,3 +50,10 @@ routes:
     method: GET
     path: /api/v1/users/me/stats
     anonymous: 401
+
+  # The handler would answer 404 for this id; 401 shows the session check runs
+  # first, which an unmounted route (404) could not show.
+  - name: stored publish metadata requires a session
+    method: GET
+    path: /api/v1/pull/transcripts/00000000-0000-4000-8000-000000000257/publish-metadata
+    anonymous: 401
