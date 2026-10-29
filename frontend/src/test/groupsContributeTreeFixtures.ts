@@ -80,6 +80,7 @@ export interface PageCase extends BaseCase {
 
 export interface PreviewCase extends BaseCase {
   kind: "preview";
+  readFailures?: number[];
 }
 
 export type ContributeTreeCase = TreeCase | PostCase | PageCase | PreviewCase;
@@ -88,7 +89,7 @@ const KIND_KEYS: Record<ContributeTreeCaseKind, string[]> = {
   tree: ["name", "kind", "why", "rows", "expect"],
   post: ["name", "kind", "why", "rows", "selectionIds", "failing", "failureMessage", "expect"],
   page: ["name", "kind", "why", "rows", "readFailures", "expect"],
-  preview: ["name", "kind", "why", "rows", "expect"],
+  preview: ["name", "kind", "why", "rows", "readFailures", "expect"],
 };
 
 /** Deletion guard: every row this slice's spec names must be present, by
@@ -110,6 +111,9 @@ const requiredCaseNames = [
   "starter_selection_takes_its_started_session",
   "preview_renders_on_click",
   "preview_hides_graph_and_owner_actions",
+  "failed_preview_metadata_retries_the_same_transcript",
+  "refused_preview_metadata_is_not_not_found",
+  "missing_preview_metadata_stays_not_found",
   "failed_contributable_read_can_retry_to_real_rows",
   "refused_contributable_read_is_not_empty_success",
 ] as const;

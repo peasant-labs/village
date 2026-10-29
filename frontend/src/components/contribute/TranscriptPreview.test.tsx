@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   caseByName,
@@ -17,6 +17,7 @@ const cases = loadGroupsContributeTreeFixtures();
 // rendering -- the same idiom `sessionPageOrchestration.test.tsx` uses for
 // the Explore composite.
 const h = vi.hoisted(() => ({
+  realMetadata: false,
   viewerProps: { current: null as Record<string, unknown> | null },
   transcriptQuery: {
     current: (id: string): { data: unknown; isLoading: boolean } => {
@@ -47,13 +48,16 @@ vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({ user: null, isLoading: false, isLoggedIn: false }),
 }));
 
-vi.mock("@/lib/queries/transcripts", () => ({
-  useTranscript: (id: string) => h.transcriptQuery.current(id),
+vi.mock("@/lib/queries/transcripts", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/queries/transcripts")>("@/lib/queries/transcripts");
+  return {
+  useTranscript: (id: string) => h.realMetadata ? actual.useTranscript(id) : h.transcriptQuery.current(id),
   useTranscriptContent: (id: string) => h.contentQuery.current(id),
   useUpdateTranscript: () => ({ mutate: vi.fn() }),
   useTranscriptAnnotations: () => ({ data: { annotations: [] } }),
   useCreateTranscriptAnnotation: () => ({ mutateAsync: vi.fn() }),
-}));
+};
+});
 
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 
@@ -65,6 +69,8 @@ function wrap(children: React.ReactNode) {
 afterEach(() => {
   cleanup();
   h.viewerProps.current = null;
+  h.realMetadata = false;
+  vi.unstubAllGlobals();
 });
 
 describe("TranscriptPreview (preview_renders_on_click)", () => {
@@ -150,4 +156,47 @@ describe("SessionDetailV2 preview variant (preview_hides_graph_and_owner_actions
     const link = screen.getByTestId("preview-open-full-link");
     expect(link.getAttribute("href")).toBe(c.expect.openFullLinkHref);
   });
+});
+
+
+describe("TranscriptPreview metadata read failures", () => {
+  for (const fixture of cases.filter((c) => c.kind === "preview" && c.readFailures)) {
+    it(fixture.name, async () => {
+      if (fixture.kind !== "preview" || !fixture.readFailures) throw new Error("missing preview failures");
+      const row = toContributableTranscript(fixture.rows[0]);
+      h.realMetadata = true;
+      h.contentQuery.current = () => ({ data: { turns: [] }, isLoading: false, error: null });
+      let releaseRetry: (() => void) | undefined;
+      let calls = 0;
+      const fetchMock = vi.fn(async (url: string) => {
+        expect(url).toMatch(new RegExp(`/transcripts/${row.id}$`));
+        calls += 1;
+        if (calls === 1) return new Response(JSON.stringify({ error: fixture.expect.message }), { status: fixture.readFailures![0] });
+        await new Promise<void>((resolve) => { releaseRetry = resolve; });
+        return new Response(JSON.stringify({ transcript: row, owner: { id: "owner-1", github_username: "owner" } }), { status: 200 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      render(wrap(<TranscriptPreview transcriptId={row.id} />));
+      if (!fixture.expect.retry) {
+        expect(await screen.findByText("transcript not found")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "retry transcript preview" })).not.toBeInTheDocument();
+        expect(calls).toBe(1);
+        return;
+      }
+      expect(await screen.findByRole("alert")).toHaveTextContent(String(fixture.expect.message));
+      expect(screen.queryByText("transcript not found")).not.toBeInTheDocument();
+      const retry = screen.getByRole("button", { name: "retry transcript preview" });
+      retry.focus();
+      fireEvent.click(retry);
+      await waitFor(() => expect(releaseRetry).toBeDefined());
+      expect(retry).toHaveAttribute("aria-disabled", "true");
+      expect(retry).toHaveFocus();
+      fireEvent.click(retry);
+      expect(calls).toBe(2);
+      releaseRetry!();
+      expect(await screen.findByTestId("transcript-viewer")).toBeInTheDocument();
+      expect(screen.getByTestId("preview-header")).toHaveTextContent(row.title!);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  }
 });

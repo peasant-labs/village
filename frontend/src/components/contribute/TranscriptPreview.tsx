@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import RequestFailureState from "@/components/RequestFailureState";
+import { isApiErrorStatus } from "@/lib/api";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
@@ -22,7 +25,10 @@ interface TranscriptPreviewProps {
  * every owner action and the trajectory graph hidden.
  */
 export default function TranscriptPreview({ transcriptId }: TranscriptPreviewProps) {
-  const { data, isLoading } = useTranscript(transcriptId ?? "");
+  const metadata = useTranscript(transcriptId ?? "");
+  const { data, isLoading } = metadata;
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const retrying = transcriptId != null && retryingId === transcriptId;
   const {
     data: content,
     isLoading: contentLoading,
@@ -39,6 +45,24 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
         <h2>preview a transcript</h2>
         <p>select a session to preview it</p>
         <p className="on-muted">previewing a session does not select it. use its checkbox to add it to the selection.</p>
+      </div>
+    );
+  }
+
+  if (!isApiErrorStatus(metadata.error, 404) && (metadata.isError || retrying)) {
+    return (
+      <div className="on-preview-state">
+        <RequestFailureState
+          title="the transcript preview could not load"
+          message={metadata.error instanceof Error ? metadata.error.message : "the transcript details could not be read. retry to load the preview."}
+          retryLabel="retry transcript preview"
+          retryDisabled={metadata.isFetching || retrying}
+          onRetry={() => {
+            const id = transcriptId;
+            setRetryingId(id);
+            void metadata.refetch().finally(() => setRetryingId((current) => current === id ? null : current));
+          }}
+        />
       </div>
     );
   }
