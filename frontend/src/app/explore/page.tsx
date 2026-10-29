@@ -3,4 +3,8 @@
  * the same body in its transcripts view, so filters, pagination and result
  * actions remain identical whichever address brought the reader here.
  */
-export { default } from "./ExplorePage";
+import ExplorePage from "./ExplorePage";
+
+export default function LegacyExplorePage() {
+  return <ExplorePage />;
+}
