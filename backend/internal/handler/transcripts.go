@@ -1534,6 +1534,8 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	// logged and the next refresh retries, which is the publish hook's
 	// discipline too.
 	if patch.Visibility != nil && updated.Visibility != lockedVisibility {
+		// The change committed; going public enters the checked set.
+		h.nudgeIntegrity()
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
 		}
@@ -1832,6 +1834,8 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 		}
 		return false
 	}
+	// The share committed, so the transcript may have entered the checked set.
+	h.nudgeIntegrity()
 	writeJSON(w, http.StatusOK, shares)
 	return widened
 }

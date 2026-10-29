@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -32,7 +33,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 }
 
 // NewWithDrain is New plus the work a shutdown waits for after the server
-// stops: the invitation emails still being sent after their responses.
+// stops: the invitation emails still being sent after their responses, and
+// an integrity check still in flight. It starts the background integrity
+// check when that is configured.
 func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	r := chi.NewRouter()
 
@@ -260,5 +263,17 @@ func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.Transcri
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
-	return r, h.DrainNotices
+	h.StartIntegrityWorker()
+	return r, func(ctx context.Context) error {
+		// Both drains share the shutdown's one deadline.
+		var integrityErr error
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			integrityErr = h.DrainIntegrity(ctx)
+		}()
+		noticesErr := h.DrainNotices(ctx)
+		<-done
+		return errors.Join(noticesErr, integrityErr)
+	}
 }

@@ -202,7 +202,7 @@ func withTranscriptStorage(cfg *config.Config, keyring *config.TranscriptKeyring
 }
 
 func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) error {
-	routes, drainNotices := router.NewWithDrain(cfg, pool, blobs, titles)
+	routes, drain := router.NewWithDrain(cfg, pool, blobs, titles)
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: routes, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
@@ -222,17 +222,21 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs st
 	defer cancel()
 	shutdownErr := srv.Shutdown(shutdownCtx)
 	// No request runs any more, so no new invitation email can start. Give
-	// the ones already sending one delivery's time to finish.
+	// the ones already sending one delivery's time to finish, and stop the
+	// integrity check, waiting the same time for a check in flight. A check
+	// can take longer than this; one cut off here was never recorded, so its
+	// attempt is due again once its hold passes and the next start retries it.
 	drainCtx, cancelDrain := context.WithTimeout(context.Background(), noticeDrainTimeout)
 	defer cancelDrain()
-	if err := drainNotices(drainCtx); err != nil {
-		slog.Warn("shutdown did not wait for every invitation email", "operation", "invitation_notice_drain", "consequence", "an invitation may have no email; it is still shown in the app", "error", err.Error())
+	if err := drain(drainCtx); err != nil {
+		slog.Warn("shutdown did not finish the invitation email and integrity check drains", "operation", "invitation_notice_drain,integrity_check_drain", "consequence", "an invitation may have no email, and it is still shown in the app; an interrupted integrity check is retried after its next attempt time", "error", err.Error())
 	}
 	return shutdownErr
 }
 
 // noticeDrainTimeout bounds how long a shutdown waits for invitation emails
-// still being sent; one delivery is bounded at 15 seconds.
+// still being sent (one delivery is bounded at 15 seconds) and for an
+// integrity check in flight.
 const noticeDrainTimeout = 20 * time.Second
 
 // reportShareStateConsistency compares the derived transcript_shares projection
