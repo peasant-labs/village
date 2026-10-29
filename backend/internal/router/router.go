@@ -27,16 +27,35 @@ const (
 	unsubscribeRateLimitRequests = 60
 )
 
+// New builds the routes. It starts no background work: it hands back no
+// drain, so nothing it started could be stopped.
 func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) http.Handler {
-	routes, _ := NewWithDrain(cfg, pool, blobs, titles)
+	routes, _ := build(cfg, pool, blobs, titles)
 	return routes
 }
 
-// NewWithDrain is New plus the work a shutdown waits for after the server
-// stops: the invitation emails still being sent after their responses, and
-// an integrity check still in flight. It starts the background integrity
-// check when that is configured.
+// NewWithDrain is New plus the background integrity check, started when it
+// is configured, and the work a shutdown waits for after the server stops:
+// the invitation emails still being sent after their responses, and an
+// integrity check still in flight.
 func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
+	routes, h := build(cfg, pool, blobs, titles)
+	h.StartIntegrityWorker()
+	return routes, func(ctx context.Context) error {
+		// Both drains share the shutdown's one deadline.
+		var integrityErr error
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			integrityErr = h.DrainIntegrity(ctx)
+		}()
+		noticesErr := h.DrainNotices(ctx)
+		<-done
+		return errors.Join(noticesErr, integrityErr)
+	}
+}
+
+func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, *handler.Handler) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -263,17 +282,5 @@ func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.Transcri
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
-	h.StartIntegrityWorker()
-	return r, func(ctx context.Context) error {
-		// Both drains share the shutdown's one deadline.
-		var integrityErr error
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			integrityErr = h.DrainIntegrity(ctx)
-		}()
-		noticesErr := h.DrainNotices(ctx)
-		<-done
-		return errors.Join(noticesErr, integrityErr)
-	}
+	return r, h
 }
