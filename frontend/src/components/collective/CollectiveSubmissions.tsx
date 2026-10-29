@@ -62,7 +62,7 @@ export default function CollectiveSubmissions({
         </p>
       }
     >
-      <ul data-testid="collective-submissions" className="flex flex-col gap-2">
+      <ul data-testid="collective-submissions" className="on-submissions-list">
         {pairs.map((pair) => {
           const open = openTranscriptId === pair.transcript_id;
           return (
@@ -79,7 +79,7 @@ export default function CollectiveSubmissions({
                   the chip+button wrap onto their own line when they don't
                   fit beside it, is the same pattern already used for the
                   collective name column and the counters cluster above. */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border border-rule bg-surface px-4 py-2.5">
+              <div className="on-submission-row">
                 <Link
                   href={`/transcripts/${pair.transcript_id}`}
                   className="min-w-[8rem] flex-1 truncate text-[length:var(--fs-body)] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
@@ -110,8 +110,8 @@ export default function CollectiveSubmissions({
                 </button>
               </div>
               {open && (
-                <div className="mt-2">
-                  <p className="mb-2 font-mono text-[length:var(--fs-label)] text-ink-3">
+                <div className="on-submission-history">
+                  <p className="on-history-caption">
                     every recorded event for this submission in {groupName}, oldest first
                   </p>
                   <ShareEventLog groupId={groupId} transcriptId={pair.transcript_id} />

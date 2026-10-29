@@ -83,7 +83,7 @@ export default function ShareEventLog({
     >
       <ol
         data-testid="share-event-log"
-        className="divide-y divide-rule border border-rule bg-surface"
+        className="on-history-events"
       >
         {events.map((event) => {
           const Icon = eventIcon(event.status);
@@ -94,7 +94,7 @@ export default function ShareEventLog({
               data-testid="share-event"
               data-event-num={event.event_num}
               data-event-status={event.status}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 leading-relaxed"
+              className="on-history-event"
             >
               <span className="font-mono text-[length:var(--fs-label)] text-ink-4 tabular-nums shrink-0">
                 event {event.event_num}

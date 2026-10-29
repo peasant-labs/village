@@ -29,7 +29,7 @@ describe("the explore search box on arrival", () => {
     trigger.focus();
     const push = vi.fn();
     openExploreSearch(push, "/collectives");
-    expect(push).toHaveBeenCalledWith("/explore");
+    expect(push).toHaveBeenCalledWith("/discover?view=transcripts");
     const { getByRole } = render(<Explore />);
     expect(document.activeElement).toBe(getByRole("textbox"));
   });
@@ -51,12 +51,12 @@ describe("the explore search box on arrival", () => {
     expect(document.activeElement).not.toBe(getByRole("textbox"));
   });
 
-  it("takes the cursor at once when explore is already open", async () => {
+  it("takes the cursor at once when discover is already open", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 120_000);
     const push = vi.fn();
     const { getByRole } = render(<Explore />);
-    act(() => openExploreSearch(push, "/explore"));
+    act(() => openExploreSearch(push, "/discover"));
     expect(push).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(getByRole("textbox"));
   });

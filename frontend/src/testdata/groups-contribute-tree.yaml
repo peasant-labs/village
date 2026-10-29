@@ -422,3 +422,45 @@ cases:
     expect:
       previewedId: s-preview-full
       openFullLinkHref: /transcripts/s-preview-full
+
+  - name: failed_contributable_read_can_retry_to_real_rows
+    kind: page
+    why: a failed listing and a failed retry must remain actionable until real transcripts are loaded
+    rows:
+      - {id: retry-session, local_id: retry-session, project_hash: retry-project, project_display_name: retry project}
+    readFailures: [500, 500]
+    expect:
+      sessionIds: [retry-session]
+
+  - name: refused_contributable_read_is_not_empty_success
+    kind: page
+    why: a refused listing must never claim that all transcripts are already shared
+    rows:
+      - {id: retry-session, local_id: retry-session, project_hash: retry-project, project_display_name: retry project}
+    readFailures: [403]
+    expect:
+      sessionIds: [retry-session]
+
+  - name: failed_preview_metadata_retries_the_same_transcript
+    kind: preview
+    why: a temporary metadata failure must retry the same transcript and then render its canonical preview
+    rows:
+      - { id: preview-retry, local_id: local-preview-retry, title: recover this preview, project_hash: preview-project, project_display_name: preview project }
+    readFailures: [503]
+    expect: { retry: true, message: metadata temporarily unavailable }
+
+  - name: refused_preview_metadata_is_not_not_found
+    kind: preview
+    why: a refused metadata request is a failed read rather than a claim that the transcript does not exist
+    rows:
+      - { id: preview-refused, local_id: local-preview-refused, project_hash: preview-project, project_display_name: preview project }
+    readFailures: [403]
+    expect: { retry: true, message: transcript access refused }
+
+  - name: missing_preview_metadata_stays_not_found
+    kind: preview
+    why: the server's explicit not-found response retains the existing not-found state
+    rows:
+      - { id: preview-missing, local_id: local-preview-missing, project_hash: preview-project, project_display_name: preview project }
+    readFailures: [404]
+    expect: { retry: false, message: transcript not found }

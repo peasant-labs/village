@@ -1,7 +1,8 @@
 # One shell header height. The public bar sizes itself from it, the signed-in
 # shell sets it to the bar above the page (none beside the desktop sidebar, the
 # sidebar's own top bar on a phone), and the transcript mount bounds its column
-# by it, so the transcript always fills exactly the viewport under the chrome.
+# by it. Transcript pages now fill the canonical bounded shell instead of
+# subtracting header height again inside the sidebar.
 variable: --app-header-height
 value: 4rem
 consumers:
@@ -10,9 +11,19 @@ consumers:
   - path: src/app/online.css
     token: "--app-header-height: var(--nav-h);"
   - path: src/components/session-detail/v2/SessionDetailV2.tsx
-    token: h-[calc(100dvh-var(--app-header-height))]
+    token: flex flex-col h-full min-h-0 min-w-0
 forbidden:
   - calc(100vh - 64px)
   - calc(100dvh - 64px)
   - h-16
   - pt-16
+
+boundedShell:
+  pathname: /transcripts/geometry-fixture
+  selector: .asb-layout-viewport
+  mainSelector: .asb-main
+  rules:
+    - selector: .asb-layout-viewport
+      properties: { height: 100dvh, min-height: 0px, overflow: hidden }
+    - selector: .asb-layout-viewport>.asb-main
+      properties: { min-height: 0px, overflow: hidden }

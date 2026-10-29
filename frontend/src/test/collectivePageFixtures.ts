@@ -32,7 +32,7 @@ export interface PageCaseExpect {
   /** The tabs offered, in order, by label. */
   tabs: string[];
   transcriptRows: number;
-  /** The stats tab's github org line. */
+  /** The repositories tab's github org line. */
   orgLine: string;
   manage: boolean;
   /** The members tab's summary, or null when the owner keeps the list private. */
@@ -73,11 +73,24 @@ export interface PullRequestCase {
   hrefs: Record<string, string>;
 }
 
+export interface WaitingDecisionCase {
+  name: string;
+  why: string;
+  role: string;
+  acceptance_mode: string;
+  decision: "approved" | "rejected";
+  targetIndex: number;
+  fail: { status: number; error: string } | null;
+  hold: boolean;
+  expectControls: boolean;
+}
+
 export interface CollectivePageFixtures {
   cases: PageCase[];
   tabCases: TabCase[];
   /** What waits for the owner's approval, as the queue route answers it. */
   pending: PendingShare[];
+  waitingDecisionCases: WaitingDecisionCase[];
   pullRequestCases: PullRequestCase[];
   /** A fresh world for one page case: every case gets its own copy to change. */
   worldFor(pageCase: PageCase): CollectiveWorld;
@@ -135,7 +148,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
   const root = readYAML("collective-page.yaml") as Record<string, never>;
   assertExactKeys(
     root,
-    ["collective", "viewer", "members", "transcripts", "available", "pending", "cases", "tabCases", "visible", "searchable", "pullRequestCases"],
+    ["collective", "viewer", "members", "transcripts", "available", "pending", "cases", "tabCases", "visible", "searchable", "pullRequestCases", "waitingDecisionCases"],
     "collective-page root",
   );
   const collective = root.collective as { id: string; name: string; description: string };
@@ -196,6 +209,16 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
       fail(`tab case "${c.name}"`, "selects the waiting tab for somebody it is not offered to");
     }
     if (c.withPending && c.role !== "owner") fail(`tab case "${c.name}"`, "serves the queue to somebody who cannot read it");
+  }
+  const waitingDecisionCases = root.waitingDecisionCases as WaitingDecisionCase[];
+  assertNamesMatch(waitingDecisionCases.map((c) => c.name), [
+    "owner-approves-one-waiting-session", "owner-rejects-one-waiting-session",
+    "waiting-decision-failure-keeps-the-row-for-retry", "pending-decision-disables-other-row-actions",
+    "member-is-not-offered-waiting-decisions", "open-owner-is-not-offered-waiting-decisions",
+  ], "waiting decisions");
+  for (const c of waitingDecisionCases) {
+    assertExactKeys(c, ["name", "why", "role", "acceptance_mode", "decision", "targetIndex", "fail", "hold", "expectControls"], `waiting decision ${c.name}`);
+    if (!c.why.trim() || !["approved", "rejected"].includes(c.decision) || c.expectControls !== (c.role === "owner" && c.acceptance_mode === "curated")) fail(`waiting decision ${c.name}`, "does not describe an owner-only queue decision");
   }
   const pending = (root.pending as { transcript_id: string; title: string; owner: string; provider: string; project: string; branch: string }[]).map(
     (row): PendingShare => {
@@ -260,6 +283,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
     cases,
     tabCases,
     pending,
+    waitingDecisionCases,
     pullRequestCases,
     worldFor: (c) => ({
       ...baseWorld(),

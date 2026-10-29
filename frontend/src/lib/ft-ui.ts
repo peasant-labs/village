@@ -445,7 +445,7 @@ export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fair
  *   that reports what to link and unlink as `{ add, remove }`. Re-exported as
  *   shipped (its published type is precise).
  */
-export { RepoPicker } from "@peasant-labs/fairtrade/ui";
+export { BrandMark, RepoPicker } from "@peasant-labs/fairtrade/ui";
 
 /**
  * fairtrade's number formatters: the one rule every count in the app reads by.

@@ -409,10 +409,10 @@ function cardRead(card: HTMLElement): CardRead {
   return {
     name: textOf(card.querySelector("h2")),
     href: card.querySelector("h2 a")?.getAttribute("href") ?? null,
-    members: textOf(card.querySelector(".on-card-head .on-chrome")),
+    members: textOf(card.querySelector(".on-card-members")),
     who: textOf(card.querySelector(".on-card-who")),
     tags: [...card.querySelectorAll(".on-card-tags .on-tag")].map(textOf),
-    transcripts: textOf(foot?.querySelector(".on-chrome")),
+    transcripts: textOf(card.querySelector(".on-card-transcripts")),
     action: action
       ? {
           label: textOf(action),

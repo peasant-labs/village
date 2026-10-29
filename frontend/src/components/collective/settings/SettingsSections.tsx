@@ -27,6 +27,7 @@ import { invitedByLabel } from "@/lib/invitationCopy";
 import { publicProfile } from "@/lib/publicOwner";
 import type { Group, GroupMember } from "@/lib/types";
 import type { CollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
+import CollectiveRepositories from "@/components/collective/page/CollectiveRepositories";
 import ChoiceCards from "./ChoiceCards";
 
 /** The one write per change; a rejection tells the control to put the old value back. */
@@ -189,7 +190,7 @@ export function MembersSection({
               ) : (
                 <button
                   type="button"
-                  className="btn btn-ghost on-mem-remove"
+                  className="btn btn-secondary on-mem-remove"
                   aria-label={`remove ${at}`}
                   title={`remove ${at}`}
                   onClick={() => onRemove(member)}
@@ -304,6 +305,7 @@ export function GithubSection({
       </Panel>
     );
   }
+  if (onManage) return <div data-testid="settings-github"><CollectiveRepositories github={github} /></div>;
   const org = github.org;
   return (
     <Panel testId="settings-github">

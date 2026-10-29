@@ -89,6 +89,9 @@ export interface ReviewPageCase {
    *  under the reviewer. Omitted means the queue answers the same rows every
    *  time. */
   pendingAfterRefetch?: string[];
+  /** Failed HTTP reads, in order, before a successful queue response. */
+  readFailures?: number[];
+  decisionFailures?: number[];
   /** The transcript ids the reviewer ticks before acting. */
   select: string[];
   /** What the batch endpoint answers. */
@@ -104,6 +107,8 @@ const CASE_KEYS = [
   "role",
   "pending",
   "pendingAfterRefetch",
+  "readFailures",
+  "decisionFailures",
   "select",
   "decided",
   "alreadyDecided",
@@ -121,7 +126,7 @@ const CASE_KEYS = [
  * failed load.
  */
 const requiredCaseNames = [
-  "owner_reads_the_queue_grouped_by_project",
+  "owner_reads_sessions_with_inline_project_context",
   "child_session_folds_under_its_parent",
   "two_publishers_sharing_a_session_id_do_not_fold",
   "hidden_child_selection_is_never_invisible",
@@ -132,6 +137,11 @@ const requiredCaseNames = [
   "already_decided_row_is_marked_stale",
   "non_owner_sees_the_owner_only_notice",
   "empty_queue_says_nothing_is_waiting",
+  "failed_queue_read_can_retry_to_real_rows",
+  "refused_queue_read_is_not_empty_success",
+  "quick_approve_decides_only_the_clicked_session",
+  "quick_reject_decides_only_the_clicked_session",
+  "quick_failure_keeps_selection_and_can_retry",
 ] as const;
 
 export function loadGroupsReviewPageFixtures(): ReviewPageCase[] {
@@ -152,11 +162,10 @@ export function loadGroupsReviewPageFixtures(): ReviewPageCase[] {
   }
 
   for (const testCase of cases) {
-    // pendingAfterRefetch is optional: only a case that needs the queue to
-    // change under the reviewer carries it. Its presence must still be EXACT,
-    // so the wanted key set is computed per case rather than allowed blindly.
+    // Optional response changes and read failures are present only in cases
+    // exercising them. Keep the exact-key check for the chosen response shape.
     const wantedKeys = CASE_KEYS.filter(
-      (key) => key !== "pendingAfterRefetch" || "pendingAfterRefetch" in testCase,
+      (key) => !["pendingAfterRefetch", "readFailures", "decisionFailures"].includes(key) || key in testCase,
     );
     assertExactKeys(testCase as unknown as object, wantedKeys, `case ${testCase.name}`);
     if (testCase.why.trim() === "") {

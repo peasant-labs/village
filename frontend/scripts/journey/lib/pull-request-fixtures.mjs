@@ -17,6 +17,8 @@
  * `handleProjectRequest` does: it returns true when it served the request.
  */
 
+import { PROMPT_REQUESTS } from './home-fixtures.mjs'
+
 export const JOURNEY_PULL = {
   owner: 'acme',
   name: 'ingest-api',
@@ -154,6 +156,17 @@ export function handlePullRequestRequest(req, res, scenario) {
 
   if (path === JOURNEY_PULL_PATH) {
     send(res, 200, attachmentResponse(scenario))
+    return true
+  }
+  // A hands-on local preview can open every inbox example as a filled review.
+  // Ordinary journey scenarios retain their waiting/preview distinctions.
+  const inboxExample = process.env.MOCK_DEMO_ATTACHMENTS === '1' && PROMPT_REQUESTS.find((request) =>
+    path === `/pulls/${request.owner}/${request.name}/${request.number}`)
+  if (inboxExample) {
+    const response = attachmentResponse('pull-request-reader')
+    response.attachment = { ...response.attachment, owner: inboxExample.owner, name: inboxExample.name, number: inboxExample.number }
+    response.digest = { ...response.digest, metadata: { ...response.digest.metadata, villageUrl: `http://localhost:${process.env.JOURNEY_APP_PORT || 3310}${path}` } }
+    send(res, 200, response)
     return true
   }
   for (const row of JOURNEY_PULL.transcripts) {

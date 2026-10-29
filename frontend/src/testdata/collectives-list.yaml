@@ -33,7 +33,7 @@ cases:
       rows:
         - { name: Acme Platform, role: owner, contributed: false, publish: sessions you approve, members: "6", transcripts: "248" }
         - { name: Acme Company, role: member, contributed: false, publish: acme org members, members: "3", transcripts: "1,904" }
-        - { name: Night Shift, role: contributor, contributed: true, publish: anyone who joins, members: "31", transcripts: "460" }
+        - { name: Night Shift, role: contributor, contributed: false, publish: anyone who joins, members: "31", transcripts: "460" }
         - { name: Unlinked Guild, role: member, contributed: false, publish: github org members, members: "1", transcripts: "0" }
         - { name: Other Lab, role: pending, contributed: false, publish: sessions the owner approves, members: "12", transcripts: "30" }
 

@@ -207,6 +207,7 @@ section.on-choices {
   .on-mem .select-wrap {
     min-width: 0;
   }
+  .on-mem .select { min-height: var(--target-comfortable); }
   .on-mem-remove {
     width: var(--target-comfortable);
     min-height: var(--target-comfortable);
@@ -449,4 +450,23 @@ section.on-choices {
 /* a retained list with nothing to show for this viewer takes no room */
 .on-cpanel > :empty {
   display: none;
+}
+
+/* Repository settings are part of the repository view, rather than floating beneath statistics. */
+.on-repositories { gap: var(--sp-5); }
+.on-repository-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.on-repository-list > li { padding-block: var(--sp-3); border-bottom: var(--bd); overflow-wrap: anywhere; }
+
+
+.on-waiting-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.on-waiting-error { margin: var(--sp-2) 0 0; font-size: var(--fs-body); color: var(--danger); }
+@media (max-width: 767px) {
+  .on-waiting-table thead { display: none; }
+  .on-waiting-table tbody { display: block; }
+  .on-waiting-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: var(--bd); padding-block: var(--sp-2); }
+  .on-waiting-table tbody td { padding: var(--sp-2) 0; border: 0; }
+  .on-waiting-table .on-ctable-title { grid-column: 1 / -1; }
+  .on-waiting-table td.on-waiting-decision { display: block; grid-column: 1; grid-row: 2; }
+  .on-waiting-table .on-waiting-status { display: none; }
+  .on-waiting-table .on-when { grid-column: 2; grid-row: 2; }
 }

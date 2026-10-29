@@ -61,7 +61,7 @@ cases:
     navCurrent: Acme Platform
     assertions:
       - { testId: review-empty-queue, text: nothing is waiting for review in this collective. }
-      - { role: button, name: reject selected, disabled: true }
-      - { role: button, name: approve selected, disabled: true }
-      - { testId: review-selection-count, text: 0 selected }
+      - { role: button, name: reject selected, visible: false }
+      - { role: button, name: approve selected, visible: false }
+      - { testId: review-selection-count, visible: false }
     back: { name: Acme Platform, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }

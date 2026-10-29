@@ -1,0 +1,28 @@
+# The pending count describes the caller's submissions. Review authority
+# comes only from the existing membership read, never from that count.
+collective:
+  id: 33333333-3333-4333-8333-333333333333
+  name: ML Reading Group
+  pending: 1
+viewer: alice-dev
+cases:
+  - name: an-owner-opens-the-real-review-queue
+    role: owner
+    label: review submissions for ML Reading Group
+    href: /collectives/33333333-3333-4333-8333-333333333333/review
+    copy: your approval
+  - name: a-member-opens-their-own-submission-ledger
+    role: member
+    label: view submissions for ML Reading Group
+    href: /users/alice-dev?collective=33333333-3333-4333-8333-333333333333#contributions
+    copy: the collective owner's approval
+  - name: a-contributor-does-not-gain-review-authority
+    role: contributor
+    label: view submissions for ML Reading Group
+    href: /users/alice-dev?collective=33333333-3333-4333-8333-333333333333#contributions
+    copy: the collective owner's approval
+  - name: a-former-member-can-still-find-their-own-submission
+    role: null
+    label: view submissions for ML Reading Group
+    href: /users/alice-dev?collective=33333333-3333-4333-8333-333333333333#contributions
+    copy: the collective owner's approval

@@ -33,6 +33,15 @@ test('built collective navigation and every legacy inbound link', async ({ page,
   await nav.getByRole('link', { name: 'home', exact: true }).click()
   await link.click()
   await expect(page).toHaveURL(/\/collectives$/)
+  // The dialog's portal mounts after its caller: step focus must reach the
+  // actual input, and Escape must still return to the control that opened it.
+  const create = main.getByRole('button', { name: 'new collective', exact: true })
+  await create.click()
+  const dialog = page.getByRole('dialog', { name: 'new collective' })
+  await expect(dialog.getByRole('textbox', { name: 'name', exact: true })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(create).toBeFocused()
   for (const row of loadLegacyCollectiveFixtures()) {
     const target = `/collectives${row.suffix}?${new URLSearchParams(row.query)}`
     // A legacy address is a page load, so the probe sends the context's own
@@ -61,6 +70,10 @@ test('built collective navigation and every legacy inbound link', async ({ page,
     }
     for (const assertion of row.assertions) {
       const locator = assertion.testId ? main.getByTestId(assertion.testId) : main.getByRole(assertion.role, { name: assertion.name, exact: true })
+      if (assertion.visible === false) {
+        await expect(locator).toHaveCount(0)
+        continue
+      }
       await expect(locator).toBeVisible()
       if (assertion.text) await expect(locator).toContainText(assertion.text)
       if (assertion.disabled === true) await expect(locator).toBeDisabled()

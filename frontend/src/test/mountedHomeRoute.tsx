@@ -34,6 +34,7 @@ import { withResolvedParents } from "@/test/parentTranscriptFixture";
  */
 
 export interface MountedHomeFixture {
+  agentTotal?: number;
   /** The signed-in visitor, or null for an anonymous one (`/auth/me` 401s). */
   viewerUsername: string | null;
   /** The rows `GET /transcripts?owner=…` serves for the viewer. */
@@ -292,7 +293,7 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       return json({
         transcripts: rows,
         total: matching.length,
-        agent_total: 0,
+        agent_total: fixture.agentTotal ?? 0,
         page,
         limit,
       });

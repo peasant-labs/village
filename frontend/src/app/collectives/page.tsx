@@ -68,6 +68,7 @@ export default function CollectivesPage() {
   );
 
   return (
+    <>
     <OnPage testId="collectives-page">
       <OnHead
         title="collectives"
@@ -153,7 +154,6 @@ export default function CollectivesPage() {
                   <td data-cell="standing">
                     <span className="on-standing">
                       <span>{standing.memberRole}</span>
-                      {standing.hasContributed ? <span className="on-tag">contributed</span> : null}
                     </span>
                   </td>
                   <td className="is-policy">
@@ -168,7 +168,9 @@ export default function CollectivesPage() {
         </div>
       )}
 
-      {creating && user ? <NewCollectiveDialog onClose={() => setCreating(false)} /> : null}
     </OnPage>
+
+      {creating && user ? <NewCollectiveDialog onClose={() => setCreating(false)} /> : null}
+    </>
   );
 }

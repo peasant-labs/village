@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ProviderName } from "@/lib/ft-ui";
+import { Pagination, ProviderName, formatInteger } from "@/lib/ft-ui";
+import RetryButton from "@/components/RetryButton";
 import { isHarness } from "@/lib/harness";
 import type { CollectiveTranscriptRow } from "@/lib/adapters/collective";
 import { transcriptHref } from "@/lib/transcriptContext";
@@ -24,7 +25,13 @@ export default function CollectiveTranscriptsTable({
   rows,
   pullRequestHref,
   total,
-  onShowMore,
+  page,
+  pageSize,
+  onPageChange,
+  loading = false,
+  error,
+  retrying = false,
+  onRetry,
 }: {
   /** The collective listing them: each title opens its transcript from here. */
   collectiveId: string;
@@ -32,12 +39,20 @@ export default function CollectiveTranscriptsTable({
   /** Where a pull request label leads. */
   pullRequestHref: (label: string) => string | undefined;
   total: number;
-  /** Shows the next page; left out, no button is drawn. */
-  onShowMore?: () => void;
+  /** The current page, starting at one. */
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  loading?: boolean;
+  error?: string;
+  retrying?: boolean;
+  onRetry?: () => void;
 }) {
+  const first = rows.length ? (page - 1) * pageSize + 1 : 0;
+  const last = rows.length ? first + rows.length - 1 : 0;
   return (
     <div className="on-section">
-      <div className="on-tbl">
+      <div className="on-tbl" aria-busy={loading}>
         <table className="on-ctable">
           <caption>transcripts {total}</caption>
           <thead>
@@ -58,7 +73,18 @@ export default function CollectiveTranscriptsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {error ? (
+              <tr>
+                <td colSpan={5}>
+                  <div role="alert">could not load this page: {error}</div>
+                  {onRetry && <RetryButton label={retrying ? "retrying" : "retry"} busy={retrying} onRetry={onRetry} />}
+                </td>
+              </tr>
+            ) : loading ? (
+              <tr><td colSpan={5}>loading transcripts</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={5}>no transcripts on this page</td></tr>
+            ) : rows.map((row) => (
               <tr key={row.id}>
                 <td className="on-ctable-title">
                   <Link className="is-title" href={transcriptHref(row.id, { kind: "collective", id: collectiveId })}>
@@ -106,18 +132,23 @@ export default function CollectiveTranscriptsTable({
           </tbody>
         </table>
       </div>
-      {total > rows.length && (
-        <div className="on-pager">
-          <span>
-            showing <span className="on-n">{rows.length}</span> of <span className="on-n">{total}</span>
-          </span>
-          {onShowMore && (
-            <button type="button" className="btn btn-secondary" onClick={onShowMore}>
-              show more
-            </button>
-          )}
-        </div>
-      )}
+      <div className="on-pager">
+        <span role="status" aria-live="polite">
+          {error ? `page ${formatInteger(page)} could not be loaded`
+            : loading ? `loading page ${formatInteger(page)}`
+              : `showing ${formatInteger(first)} to ${formatInteger(last)} of ${formatInteger(total)}`}
+        </span>
+        {total > pageSize && (
+          <Pagination
+            label="transcript pages"
+            page={page}
+            totalItems={total}
+            pageSize={pageSize}
+            siblingCount={0}
+            onChange={onPageChange}
+          />
+        )}
+      </div>
     </div>
   );
 }

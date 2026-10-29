@@ -17,6 +17,7 @@ export interface LegacyCollectiveCase {
     testId?: string;
     text?: string;
     disabled?: boolean;
+    visible?: boolean;
   }>;
   back?: { name: string; href: string; role: "table" | "heading"; body: string };
 }
@@ -45,7 +46,7 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
       );
     }
     if (!Array.isArray(row.assertions) || row.assertions.length === 0 || row.assertions.some((assertion) =>
-      assertion.testId ? typeof assertion.testId !== "string" || typeof assertion.text !== "string" :
+      assertion.testId ? typeof assertion.testId !== "string" || (assertion.visible !== false && typeof assertion.text !== "string") :
         !["table", "button", "searchbox", "combobox", "link", "tab", "navigation"].includes(assertion.role ?? "") || typeof assertion.name !== "string")) {
       throw new Error(`Missing meaningful mounted body/control expectations for ${row.name}`);
     }

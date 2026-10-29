@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import RetryButton from "@/components/RetryButton";
+import { useAuth } from "@/providers/AuthProvider";
+import { useGroups } from "@/lib/queries/groups";
+import { formatInteger } from "@/lib/ft-ui";
 import type { ContributedCollective } from "@/lib/types";
 
 interface Read<T> {
@@ -12,7 +15,7 @@ interface Read<T> {
 }
 
 function plural(n: number, one: string, many: string): string {
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+  return `${formatInteger(n)} ${n === 1 ? one : many}`;
 }
 
 /**
@@ -25,6 +28,13 @@ function plural(n: number, one: string, many: string): string {
  * Nothing waiting draws nothing.
  */
 export default function HomeWaiting({ contributions }: { contributions: Read<ContributedCollective[]> }) {
+  const { user, isLoggedIn } = useAuth();
+  // This is the membership read the sidebar and home totals already share.
+  // A pending contribution alone never grants permission to decide it.
+  const memberships = useGroups({ enabled: isLoggedIn });
+  const owned = new Set(!memberships.isError
+    ? (memberships.data ?? []).filter((c) => c.role === "owner").map((c) => c.id)
+    : []);
   const waiting = (contributions.data ?? []).filter((c) => c.pending_count > 0);
 
   if (contributions.isError && contributions.data == null) {
@@ -48,15 +58,30 @@ export default function HomeWaiting({ contributions }: { contributions: Read<Con
         waiting for approval
       </h2>
       <ul>
-        {waiting.map((c) => (
-          <li key={c.id} data-testid="home-waiting-collective">
-            <Link href={`/collectives/${c.id}`} className="on-link">
-              {c.name}
-            </Link>
-            : <span className="tabular-nums">{plural(c.pending_count, "transcript", "transcripts")}</span> waiting for
-            its owner&apos;s approval.
-          </li>
-        ))}
+        {waiting.map((c) => {
+          const canReview = owned.has(c.id);
+          const profile = user?.github_username;
+          const actionHref = canReview
+            ? `/collectives/${encodeURIComponent(c.id)}/review`
+            : profile
+              ? `/users/${encodeURIComponent(profile)}?collective=${encodeURIComponent(c.id)}#contributions`
+              : `/collectives/${encodeURIComponent(c.id)}`;
+          const actionLabel = canReview ? "review submissions" : profile ? "view submissions" : "view collective";
+          return (
+            <li key={c.id} data-testid="home-waiting-collective" className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <Link href={`/collectives/${encodeURIComponent(c.id)}`} className="on-link">
+                  {c.name}
+                </Link>
+                : <span className="tabular-nums">{plural(c.pending_count, "transcript", "transcripts")}</span> waiting for
+                {canReview ? " your approval." : " the collective owner's approval."}
+              </div>
+              <Link href={actionHref} className="btn btn-secondary" aria-label={`${actionLabel} for ${c.name}`}>
+                {actionLabel}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

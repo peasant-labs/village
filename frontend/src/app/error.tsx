@@ -16,6 +16,7 @@ export default function RouteError({ reset }: { error: Error & { digest?: string
     <OnPage testId="route-error">
       <title>this page could not load | peasant</title>
       <OnEmpty
+        headingLevel={1}
         icon={<AlertTriangle aria-hidden="true" />}
         title="this page could not load"
         body="something went wrong while drawing it. try again, or go back to home."

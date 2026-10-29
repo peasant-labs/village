@@ -13,6 +13,7 @@ export const RECENT_SHOWN = 3;
  * The newest few transcripts as cards above the table, so the session a person
  * just published is one click away however the table below is grouped.
  */
+// Retained as a deprecation candidate; Home now lists each transcript once.
 export default function HomeRecent({ rows, now }: { rows: TranscriptListItem[]; now: number }) {
   if (rows.length === 0) return null;
   return (

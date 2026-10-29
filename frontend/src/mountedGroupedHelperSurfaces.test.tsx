@@ -6,6 +6,7 @@ import {
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import HomePage from "@/app/HomePage";
+import { showHomeAsFlatList } from "@/test/mountedHomeRoute";
 import ExplorePage from "@/app/explore/ExplorePage";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { renderProfileRoute } from "@/test/mountedProfileRoute";
@@ -222,6 +223,7 @@ for (const testCase of fixtures.continuationCases) {
   it(testCase.name, async () => {
     const calls = installContinuationREST(testCase);
     if (testCase.route === "home") {
+      showHomeAsFlatList();
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       await act(async () => { render(
         <QueryClientProvider client={client}>

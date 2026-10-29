@@ -100,6 +100,7 @@ export default function UserProjectPage({
         {/* One zero state for every refusal, with the way back in its action
             slot. Its wording says nothing about WHICH refusal produced it. */}
         <OnEmpty
+          headingLevel={1}
           icon={<EyeOff aria-hidden="true" />}
           title="project not found"
           body="peasant has no project page here that you can open."

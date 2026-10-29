@@ -173,23 +173,16 @@ export default function EmailSettings({ handle, settings }: { handle: string; se
           ) : null}
 
           {current && !current.verified && !editing ? (
-            <form className="srow" onSubmit={confirm} data-testid="settings-email-verify">
-              <span className="srow-text-col">
-                <label className="srow-label" htmlFor={`${ids}-code`}>
-                  verification code
-                </label>
-                <input
-                  id={`${ids}-code`}
-                  className="on-input"
-                  value={code}
-                  autoComplete="one-time-code"
-                  spellCheck={false}
-                  onChange={(event) => setCode(event.target.value)}
-                />
-              </span>
-              <button type="submit" className="btn btn-secondary btn-sm" disabled={!code.trim() || verify.isPending}>
-                {verify.isPending ? "verifying" : "verify"}
-              </button>
+            <form className="srow on-email-form" onSubmit={confirm} data-testid="settings-email-verify">
+              <label className="srow-label" htmlFor={`${ids}-code`}>verification code</label>
+              <div className="on-email-controls">
+                <input id={`${ids}-code`} className="input is-input" value={code}
+                  autoComplete="one-time-code" spellCheck={false}
+                  onChange={(event) => setCode(event.target.value)} />
+                <button type="submit" className="btn btn-secondary" disabled={!code.trim() || verify.isPending}>
+                  {verify.isPending ? "verifying" : "verify"}
+                </button>
+              </div>
             </form>
           ) : null}
 
@@ -198,34 +191,24 @@ export default function EmailSettings({ handle, settings }: { handle: string; se
               <span className="srow-help">{NO_EMAIL}</span>
             </div>
           ) : showForm ? (
-            <form className="srow" onSubmit={send} data-testid="settings-email-form">
+            <form className="srow on-email-form" onSubmit={send} data-testid="settings-email-form">
               <span className="srow-text-col">
-                <label className="srow-label" htmlFor={`${ids}-address`}>
-                  {current ? "new email address" : "email address"}
-                </label>
-                <span className="srow-help">
+                <label className="srow-label" htmlFor={`${ids}-address`}>{current ? "new email address" : "email address"}</label>
+                <span className="srow-help" id={`${ids}-email-help`}>
                   only for invitations from collectives. we email you a code to check it&apos;s yours.
                 </span>
-                <input
-                  id={`${ids}-address`}
-                  className="on-input"
-                  type="email"
-                  value={address}
-                  autoComplete="email"
-                  spellCheck={false}
-                  onChange={(event) => setAddress(event.target.value)}
-                />
               </span>
-              <span className="on-row">
-                {editing ? (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>
-                    cancel
+              <div className="on-email-controls">
+                <input id={`${ids}-address`} className="input is-input" type="email" value={address}
+                  aria-describedby={`${ids}-email-help`} autoComplete="email" spellCheck={false}
+                  onChange={(event) => setAddress(event.target.value)} />
+                <span className="on-email-actions">
+                  {editing ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)}>cancel</button> : null}
+                  <button type="submit" className="btn btn-secondary" disabled={!address.trim() || setEmail.isPending}>
+                    {setEmail.isPending ? "sending" : "send code"}
                   </button>
-                ) : null}
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={!address.trim() || setEmail.isPending}>
-                  {setEmail.isPending ? "sending" : "send code"}
-                </button>
-              </span>
+                </span>
+              </div>
             </form>
           ) : null}
 

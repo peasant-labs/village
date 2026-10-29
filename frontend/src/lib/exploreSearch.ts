@@ -1,14 +1,14 @@
 import { useEffect, type RefObject } from "react";
 
 /**
- * The app's search is /explore's transcript search: the sidebar's search item
+ * The app's search lives in Discover: the sidebar's search item
  * and ⌘K / Ctrl+K open it with the cursor in its search box. Opened from
- * another page, the request waits until /explore has drawn its box; opened on
- * /explore itself, the box takes the cursor at once.
+ * another page, the request waits until Discover has drawn its box; opened on
+ * Discover itself, the box takes the cursor at once.
  */
-export const EXPLORE_HREF = "/explore";
+export const EXPLORE_HREF = "/discover?view=transcripts";
 const FOCUS_EVENT = "peasant-online:focus-explore-search";
-/** How long a request to focus the box waits for /explore to draw it. */
+/** How long a request to focus the box waits for Discover to draw it. */
 const ARRIVAL_MS = 3000;
 let pendingUntil = 0;
 /** What had the cursor when the search was asked for: the sidebar's search
@@ -16,9 +16,9 @@ let pendingUntil = 0;
  *  person putting the cursor somewhere else. */
 let askedFrom: Element | null = null;
 
-/** Opens /explore with the cursor in its search box. */
+/** Opens Discover with the cursor in its search box. */
 export function openExploreSearch(push: (href: string) => void, pathname: string): void {
-  if (pathname === EXPLORE_HREF) {
+  if (pathname === "/discover" || pathname === "/explore") {
     window.dispatchEvent(new Event(FOCUS_EVENT));
     return;
   }
@@ -52,7 +52,7 @@ export function useExploreSearchFocus(root: RefObject<HTMLElement | null>): void
 }
 
 function focusSearch(root: HTMLElement | null): boolean {
-  const input = root?.querySelector<HTMLInputElement>('input[type="text"], input[type="search"]');
+  const input = [...(root?.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="search"]') ?? [])].find((box) => !box.closest("[hidden]"));
   if (!input) return false;
   input.focus();
   input.select();

@@ -129,7 +129,7 @@ describe("the collective page", () => {
       expect(textOf(screen.getByRole("tab", { name: /^members/ }))).toBe(`members ${expected.memberCount}`);
     }
 
-    // The stats tab: the numbers, and the github org line.
+    // Stats contain only numbers; repository controls live with repositories.
     const stats = openTab("stats");
     const numbers = within(stats).getByLabelText(`${world.group.name} in numbers`);
     const stat = Object.fromEntries([...numbers.querySelectorAll(".on-stat")].map((row) => [textOf(row.querySelector("dt")), textOf(row.querySelector("dd"))]));
@@ -139,8 +139,9 @@ describe("the collective page", () => {
       tokens: "1.2M",
       "pull requests linked": "7",
     });
-    await waitFor(() => expect(textOf(within(stats).getByTestId("collective-org-line").querySelector(".on-orgline-text"))).toBe(expected.orgLine));
-    expect(within(stats).queryByRole("button", { name: "manage repositories" }) !== null, "manage").toBe(expected.manage);
+    const repositories = openTab("repositories");
+    await waitFor(() => expect(textOf(within(repositories).getByTestId("collective-org-line").querySelector(".on-orgline-text"))).toBe(expected.orgLine));
+    expect(within(repositories).queryByRole("searchbox", { name: "search repos" }) !== null, "manage").toBe(expected.manage);
 
     const more = screen.queryByRole("button", { name: "more" });
     if (expected.overflow.length === 0) {
@@ -188,19 +189,19 @@ describe("the collective page", () => {
     expect(textOf(notice.querySelector(".fb-toast-msg"))).toBe("joining is closed");
   });
 
-  it("shows more transcripts by asking for a longer first page", async () => {
+  it("reads the next transcript page with a bounded offset", async () => {
     const pageCase = fixtures.cases.find((c) => c.role === "owner" && c.canRead);
     if (!pageCase) throw new Error("the corpus no longer carries an owner who can read");
     const world = { ...fixtures.worldFor(pageCase), totalTranscripts: 30 };
     const requests = installCollectiveREST(world);
     await renderCollectivePage(world);
 
-    expect(textOf(document.querySelector(".on-pager > span"))).toBe(`showing ${world.transcripts.length} of 30`);
+    expect(textOf(document.querySelector(".on-pager > span"))).toBe(`showing 1 to ${world.transcripts.length} of 30`);
     expect(textOf(screen.getByRole("tab", { name: /^transcripts/ }))).toBe("transcripts 30");
-    fireEvent.click(screen.getByRole("button", { name: "show more" }));
+    fireEvent.click(screen.getByRole("button", { name: "next page" }));
 
     await waitFor(() => {
-      expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=40&offset=0`);
+      expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=20&offset=20`);
     });
   });
 
@@ -395,5 +396,50 @@ describe("collective read and create recovery", () => {
     const writes = requests.filter((r) => r.method === "POST" && r.path === "/collectives");
     expect(writes).toHaveLength(c.operation === "create-retry" ? 2 : 1);
     expect(writes[0].body).toMatchObject({ name: world.group.name });
+  });
+});
+
+
+describe("direct decisions on the collective waiting tab", () => {
+  it.each(fixtures.waitingDecisionCases)("$name", async (c) => {
+    const ownerCase = fixtures.tabCases.find((row) => row.name === "the-curated-owner-opens-waiting-from-the-address")!;
+    const world = fixtures.tabWorld({ ...ownerCase, role: c.role, acceptance_mode: c.acceptance_mode });
+    let release = () => {};
+    if (c.hold) world.reviewGate = new Promise<void>((resolve) => { release = resolve; });
+    if (c.fail) world.failures = [{ method: "PATCH", path: `/collectives/${world.group.id}/shares`, write: 1, ...c.fail }];
+    window.history.replaceState(null, "", `/collectives/${world.group.id}?tab=waiting`);
+    const requests = installCollectiveREST(world);
+    try {
+      await renderCollectivePage(world);
+      if (!c.expectControls) {
+        expect(screen.queryByRole("tab", { name: /^waiting/ })).toBeNull();
+        expect(screen.queryByRole("button", { name: /^(approve|reject) / })).toBeNull();
+        expect(requests.filter((r) => r.path.endsWith("/pending"))).toEqual([]);
+        return;
+      }
+      const queue = await screen.findByRole("table", { name: /^waiting for approval/ });
+      const target = fixtures.pending[c.targetIndex];
+      const row = within(queue).getByTestId(`waiting-row-${target.transcript_id}`);
+      const action = within(row).getByRole("button", { name: `${c.decision === "approved" ? "approve" : "reject"} ${target.title}` });
+      expect(within(row).getByRole("link", { name: target.title! })).toHaveAttribute("href", `/transcripts/${target.transcript_id}?in=collective:${world.group.id}`);
+      expect(screen.getByRole("link", { name: "review transcripts" })).toHaveAttribute("href", `/collectives/${world.group.id}/review`);
+      await act(async () => { fireEvent.click(action); });
+      if (c.hold) {
+        await waitFor(() => expect(action).toHaveAttribute("aria-busy", "true"));
+        for (const button of within(queue).getAllByRole("button")) expect(button).toBeDisabled();
+        expect(within(queue).getAllByRole("button").filter((button) => button.getAttribute("aria-busy") === "true")).toEqual([action]);
+        await act(async () => { release(); });
+      }
+      if (c.fail) {
+        expect(await within(row).findByRole("alert")).toHaveTextContent(c.fail.error);
+        expect(row).toBeInTheDocument();
+        await act(async () => { fireEvent.click(action); });
+      }
+      await waitFor(() => expect(screen.queryByTestId(`waiting-row-${target.transcript_id}`)).toBeNull());
+      for (const other of fixtures.pending.filter((item) => item.transcript_id !== target.transcript_id)) {
+        expect(screen.getByTestId(`waiting-row-${other.transcript_id}`)).toBeInTheDocument();
+      }
+      expect(requests.filter((r) => r.method === "PATCH").at(-1)?.body).toEqual({ transcript_ids: [target.transcript_id], status: c.decision });
+    } finally { release(); }
   });
 });

@@ -1,0 +1,39 @@
+requiredFileNames:
+  - assertions.mjs
+  - determinism-constants.mjs
+  - determinism.mjs
+  - fixtures.mjs
+  - project-fixtures.mjs
+  - scenario.mjs
+  - vendor-digests.testdata.manifest.yaml
+  - vendor-digests.testdata.yaml
+  - vendor-guard.mjs
+  - vendor-guard.test.mjs
+  - built-lifecycle.mjs
+  - built-support-fixtures.ts
+  - built-support.test.mjs
+  - collective-fixtures.mjs
+  - collectives-built-auth.mjs
+  - collectives-built-fixtures.mjs
+  - demo-contribution-fixtures.mjs
+  - demo-contribution-fixtures.test.mjs
+  - home-fixtures.mjs
+  - lifecycle-disposable.mjs
+  - long-transcript-demo.mjs
+  - long-transcript-demo.test.mjs
+  - pull-request-fixtures.mjs
+  - transcript-fixtures.mjs
+requiredVendoredNames:
+  - assertions.mjs
+  - determinism-constants.mjs
+  - determinism.mjs
+requiredCaseNames:
+  - changed canonical body is refused
+  - unclassified helper is refused
+  - wrong body pin is refused
+  - malformed body pin is refused
+  - unknown file kind is refused
+  - relabeling a shared helper cannot remove its pin
+  - unsafe inventory path is refused
+  - changed upstream is distinguished from the pinned copy
+  - rewording the banner preserves the canonical body pin

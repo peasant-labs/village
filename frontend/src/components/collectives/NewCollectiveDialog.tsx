@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { Building2, Check, CircleAlert, DoorOpen, Eye, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import type { VillageCollective } from "@peasant-labs/schema";
@@ -121,15 +121,16 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
   // until they pick another.
   const chosenOrg = org && visibleOrgs.includes(org) ? org : (visibleOrgs[0] ?? "");
 
-  // Each step starts with its first control focused. The dialog focuses its
-  // own first control after this effect runs, so the move waits a frame.
-  const bodyRef = useRef<HTMLDivElement>(null);
+  // The shared dialog mounts its body through a portal. Wait for that actual
+  // body before scheduling step focus, after the dialog's own initial focus.
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
+    if (!body) return;
     const frame = requestAnimationFrame(() => {
-      bodyRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+      body.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     });
     return () => cancelAnimationFrame(frame);
-  }, [step]);
+  }, [body, step]);
 
   const nextFromName = () => {
     if (!name.trim()) {
@@ -266,7 +267,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
       dismissible={busy === null}
       footer={footer}
     >
-      <div ref={bodyRef} style={{ display: "contents" }}>
+      <div ref={setBody} style={{ display: "contents" }}>
         <ol className="on-stepper" aria-label="steps">
           {STEPS.map((label, index) => {
             const n = index + 1;
@@ -392,7 +393,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
           <form id={formId} onSubmit={onSubmit} noValidate className="on-section" style={{ gap: "var(--sp-5)" }}>
             <div className="on-field">
               <label htmlFor={inviteId}>invite by username</label>
-              <div className="on-row">
+              <div className="on-row on-invite-row">
                 <input
                   id={inviteId}
                   data-autofocus

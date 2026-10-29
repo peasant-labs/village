@@ -27,6 +27,7 @@ import {
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button } from "@/lib/ft-ui";
+import RequestFailureState from "@/components/RequestFailureState";
 
 /**
  * Dedicated contribute route for a collective: `/collectives/{id}/contribute`.
@@ -46,7 +47,11 @@ export default function GroupContributePage({
   const { id } = use(params);
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
-  const { data: contributable, isLoading: contributableLoading } = useContributable(id);
+  const listing = useContributable(id);
+  const { data: contributable, isLoading: contributableLoading } = listing;
+  // Keep the failed read and its retry control mounted while that retry runs.
+  const [retryingListing, setRetryingListing] = useState(false);
+  const listingFailed = listing.isError || retryingListing;
   const run = useContributeRun(id);
 
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -84,6 +89,7 @@ export default function GroupContributePage({
   // Grouped content the flat tree did not carry, plus the way to any grouped
   // page not read yet. Either one is enough that the page is not empty.
   const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
+  const listingUnavailable = listingFailed && (contributable == null || (tree.length === 0 && !hasGroupedExit));
   // A member is selectable only while the row it was served with is still a
   // live contributable submission: an already-shared row stays visible in the
   // group but can never re-enter a contribution batch.
@@ -110,7 +116,7 @@ export default function GroupContributePage({
   );
   const selectedCount = selection.size;
 
-  if (groupLoading || contributableLoading) {
+  if (groupLoading || (contributableLoading && !retryingListing)) {
     return (
       <OnPage tight>
         <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
@@ -136,6 +142,7 @@ export default function GroupContributePage({
           />
         )}
         <OnEmpty
+          headingLevel={1}
           icon={<Lock aria-hidden="true" />}
           title={
             signedOut
@@ -227,6 +234,7 @@ export default function GroupContributePage({
   })();
 
   return (
+    <>
     <OnPage tight>
       <OnCrumb
         items={[
@@ -250,7 +258,19 @@ export default function GroupContributePage({
           shell); kept on the tree+preview composition that replaces that
           panel's body so a caller keyed on "the member sees SOME contribute
           UI" does not need to know which body variant is mounted. */}
-      {tree.length === 0 && !hasGroupedExit ? (
+      {listingFailed && (
+        <RequestFailureState
+          title="your transcripts could not load"
+          message="your available transcripts could not be read. retry to find out which transcripts you can contribute."
+          retryLabel="retry your transcripts"
+          retryDisabled={listing.isFetching || retryingListing}
+          onRetry={() => {
+            setRetryingListing(true);
+            void listing.refetch().finally(() => setRetryingListing(false));
+          }}
+        />
+      )}
+      {listingUnavailable ? null : tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="contribute-member-panel">
           <p className="mx-auto text-sm text-ink-3">
             all your transcripts are already shared with this collective, or you have no
@@ -260,9 +280,9 @@ export default function GroupContributePage({
       ) : (
         <>
           {tree.length > 0 && (
-            <div className="@container" data-testid="contribute-member-panel">
-              <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
-                <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
+            <div className="on-contribute-workspace" data-testid="contribute-member-panel">
+              <div className="on-contribute-columns">
+                <div className="on-contribute-browser">
                   <ContributeTree
                     tree={tree}
                     selection={selection}
@@ -289,7 +309,7 @@ export default function GroupContributePage({
                     }}
                   />
                 </div>
-                <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
+                <div className="on-contribute-preview">
                   <TranscriptPreview transcriptId={previewId} />
                 </div>
               </div>
@@ -319,8 +339,8 @@ export default function GroupContributePage({
         </>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
-        <div className="max-w-[var(--on-page-max)] mx-auto px-6 max-sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div className="on-contribute-footer">
+        <div className="on-contribute-footer-inner">
         <div className="flex flex-col gap-1 min-w-0">
           <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
           {run.state.running && (
@@ -362,6 +382,8 @@ export default function GroupContributePage({
         </div>
       </div>
 
+    </OnPage>
+
       <ConfirmContributeDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -376,6 +398,6 @@ export default function GroupContributePage({
         ]}
         isSubmitting={run.state.running}
       />
-    </OnPage>
+    </>
   );
 }
