@@ -68,6 +68,7 @@ export default function CollectivesPage() {
   );
 
   return (
+    <>
     <OnPage testId="collectives-page">
       <OnHead
         title="collectives"
@@ -168,7 +169,9 @@ export default function CollectivesPage() {
         </div>
       )}
 
-      {creating && user ? <NewCollectiveDialog onClose={() => setCreating(false)} /> : null}
     </OnPage>
+
+      {creating && user ? <NewCollectiveDialog onClose={() => setCreating(false)} /> : null}
+    </>
   );
 }

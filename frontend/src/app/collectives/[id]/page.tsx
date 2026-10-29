@@ -203,7 +203,7 @@ export default function GroupDetailPage({
       </button>
     ) : null,
     canLeave ? (
-      <button key="leave" type="button" className="btn btn-ghost" onClick={() => setConfirmingLeave(true)}>
+      <button key="leave" type="button" className="btn btn-secondary" onClick={() => setConfirmingLeave(true)}>
         <LogOut size={16} aria-hidden="true" /> leave
       </button>
     ) : null,
@@ -337,6 +337,7 @@ export default function GroupDetailPage({
   });
 
   return (
+    <>
     <OnPage tight testId="collective-page">
       <OnCrumb items={[CRUMB_ROOT, { label: group.name }]} />
       <OnHead
@@ -359,6 +360,8 @@ export default function GroupDetailPage({
       )}
       <PolicyChips policy={policy} />
       <CollectiveTabs tabs={tabs} selected={tab} onSelect={selectTab} label="collective sections" />
+
+    </OnPage>
 
       {github.canManage && (
         <RepoPicker
@@ -413,6 +416,6 @@ export default function GroupDetailPage({
         collectiveName={group.name}
         isSubmitting={joinGroup.isPending}
       />
-    </OnPage>
+    </>
   );
 }

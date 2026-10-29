@@ -4,7 +4,7 @@ import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
-import { FileX2 } from "lucide-react";
+import { FileText, FileX2 } from "lucide-react";
 
 interface TranscriptPreviewProps {
   /** The clicked session's transcript id, or `null` before any row has been
@@ -32,10 +32,13 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
   if (transcriptId == null) {
     return (
       <div
-        className="h-full flex items-center justify-center border border-rule bg-surface"
+        className="on-preview-state"
         data-testid="transcript-preview-empty"
       >
-        <p className="text-[length:var(--fs-body)] text-ink-3">select a session to preview it</p>
+        <FileText aria-hidden="true" />
+        <h2>preview a transcript</h2>
+        <p>select a session to preview it</p>
+        <p className="on-muted">previewing a session does not select it for publishing. use its checkbox to add it.</p>
       </div>
     );
   }
@@ -52,7 +55,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
 
   if (!data) {
     return (
-      <div className="h-full flex items-center justify-center border border-rule bg-surface">
+      <div className="on-preview-state">
         <p className="text-[length:var(--fs-body)] text-ink-3">transcript not found</p>
       </div>
     );

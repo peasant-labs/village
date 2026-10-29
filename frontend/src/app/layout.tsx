@@ -29,6 +29,7 @@ import "@peasant-labs/fairtrade/graph.css";
 import "./globals.css";
 // The online page patterns (on-*): layout only, every value a fairtrade token.
 import "./online.css";
+import "./online-library.css";
 
 // The public origin, when configured, makes link-preview image URLs absolute.
 export const metadata: Metadata = rootMetadata();

@@ -392,7 +392,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
           <form id={formId} onSubmit={onSubmit} noValidate className="on-section" style={{ gap: "var(--sp-5)" }}>
             <div className="on-field">
               <label htmlFor={inviteId}>invite by username</label>
-              <div className="on-row">
+              <div className="on-row on-invite-row">
                 <input
                   id={inviteId}
                   data-autofocus

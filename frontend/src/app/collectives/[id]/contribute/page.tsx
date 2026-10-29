@@ -227,6 +227,7 @@ export default function GroupContributePage({
   })();
 
   return (
+    <>
     <OnPage tight>
       <OnCrumb
         items={[
@@ -260,9 +261,9 @@ export default function GroupContributePage({
       ) : (
         <>
           {tree.length > 0 && (
-            <div className="@container" data-testid="contribute-member-panel">
-              <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
-                <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
+            <div className="on-contribute-workspace" data-testid="contribute-member-panel">
+              <div className="on-contribute-columns">
+                <div className="on-contribute-browser">
                   <ContributeTree
                     tree={tree}
                     selection={selection}
@@ -289,7 +290,7 @@ export default function GroupContributePage({
                     }}
                   />
                 </div>
-                <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
+                <div className="on-contribute-preview">
                   <TranscriptPreview transcriptId={previewId} />
                 </div>
               </div>
@@ -319,8 +320,8 @@ export default function GroupContributePage({
         </>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
-        <div className="max-w-[var(--on-page-max)] mx-auto px-6 max-sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div className="on-contribute-footer">
+        <div className="on-contribute-footer-inner">
         <div className="flex flex-col gap-1 min-w-0">
           <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
           {run.state.running && (
@@ -362,6 +363,8 @@ export default function GroupContributePage({
         </div>
       </div>
 
+    </OnPage>
+
       <ConfirmContributeDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -376,6 +379,6 @@ export default function GroupContributePage({
         ]}
         isSubmitting={run.state.running}
       />
-    </OnPage>
+    </>
   );
 }

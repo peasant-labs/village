@@ -73,7 +73,8 @@ describe("TranscriptPreview (preview_renders_on_click)", () => {
     const row = toContributableTranscript(c.rows[0]);
 
     render(wrap(<TranscriptPreview transcriptId={null} />));
-    expect(screen.getByTestId("transcript-preview-empty").textContent).toBe(c.expect.emptyStateText);
+    expect(screen.getByTestId("transcript-preview-empty").textContent).toContain(c.expect.emptyStateText);
+    expect(screen.getByRole("heading", { name: "preview a transcript" })).toBeInTheDocument();
     cleanup();
 
     h.transcriptQuery.current = (id: string) =>

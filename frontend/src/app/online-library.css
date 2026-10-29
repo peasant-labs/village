@@ -1,0 +1,75 @@
+/* Library composition: quiet separators and a shared page inset, without nested cards. */
+.on-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.on-profile-collectives { width: 100%; min-width: 0; }
+.on-library-heading { display: flex; align-items: center; gap: var(--sp-2); padding-block: var(--sp-3); }
+.on-contribution-list { display: grid; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.on-contribution-row { border-top: var(--bd); min-width: 0; }
+.on-contribution-summary { display: grid; gap: var(--sp-4); padding-block: var(--sp-5); }
+.on-contribution-name { display: grid; gap: var(--sp-1); min-width: 0; }
+.on-contribution-name p { max-width: var(--measure-prose); margin: 0; }
+.on-contribution-link { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 600; color: var(--ink); width: fit-content; overflow-wrap: anywhere; }
+.on-contribution-link:hover { text-decoration: underline; }
+.on-contribution-facts { display: flex; align-items: end; gap: var(--sp-5); min-width: 0; }
+.on-contribution-counters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); flex: 1; min-width: 0; }
+.on-contribution-counters > div > span:last-child { order: -1; font-size: var(--fs-body); }
+.on-contribution-toggle { flex: none; }
+.on-contribution-submissions { padding-block-end: var(--sp-5); min-width: 0; }
+.on-submissions-list { display: grid; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.on-submission-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding-block: var(--sp-3); border-top: var(--bd); min-width: 0; }
+.on-submission-row > a { min-width: 0; flex-basis: 50%; }
+.on-submission-history { padding-block: var(--sp-3); min-width: 0; }
+.on-history-caption { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--ink-3); margin: 0 0 var(--sp-2); }
+.on-history-events { display: grid; list-style: none; margin: 0; padding: 0; }
+.on-history-event { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding-block: var(--sp-2); line-height: var(--lh-body); }
+.on-collective-library-panel { min-width: 0; border-block: var(--bd); }
+.on-collective-library-panel .on-lib-tools { padding-inline: 0; padding-block: var(--sp-4); }
+.on-lib-tools-view .is-field { flex: 1; }
+
+/* A preview is constrained by its column, including unbroken tool output and code. */
+.on-contribute-workspace { min-width: 0; container-type: inline-size; }
+.on-contribute-columns { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; border-block: var(--bd); }
+.on-contribute-browser, .on-contribute-preview { min-width: 0; overflow: hidden; }
+.on-contribute-browser { border-bottom: var(--bd); }
+.on-contribute-preview { min-block-size: calc(var(--sp-8) * 5); }
+.on-contribute-preview > * { min-width: 0; max-width: 100%; }
+.on-contribute-preview .txn-app { width: 100%; min-width: 0; max-width: 100%; }
+.on-contribute-tree { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.on-contribute-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); padding: var(--sp-4); border-bottom: var(--bd); }
+.on-contribute-filters .is-field { min-width: 0; margin: 0; }
+.on-contribute-filters :is(input, select) { width: 100%; min-width: 0; height: var(--control-h); }
+.on-contribute-selection { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: var(--bd); }
+.on-contribute-rows { min-width: 0; min-height: 0; flex: 1; overflow: auto; }
+.on-preview-state { min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--sp-3); padding: var(--sp-6); }
+.on-preview-state > svg { width: var(--ic-lg); height: var(--ic-lg); color: var(--ink-3); }
+.on-preview-state > h2 { font-size: var(--fs-lg); margin: 0; }
+.on-preview-state > p { margin: 0; max-width: var(--measure-prose); }
+.on-contribute-footer { position: sticky; bottom: 0; z-index: 10; min-width: 0; background: var(--surface); border-top: var(--bd); }
+.on-contribute-footer-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-4); padding-block: var(--sp-4); }
+@container (min-width: 880px) {
+  .on-contribute-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .on-contribute-browser { border-bottom: 0; border-right: var(--bd); }
+  .on-contribute-preview { block-size: min(75dvh, calc(var(--sp-8) * 14)); overflow: auto; }
+  .on-contribute-browser { max-block-size: min(75dvh, calc(var(--sp-8) * 14)); }
+}
+@media (max-width: 767px) {
+  .on-contribution-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .on-contribution-facts { flex-wrap: wrap; }
+  .on-contribution-counters { flex-basis: 100%; }
+  .on-contribute-filters { grid-template-columns: minmax(0, 1fr); }
+}
+
+.on-transcript-preview { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 0; height: 100%; }
+.on-invite-row { align-items: stretch; }
+.on-invite-row :is(.on-input, .btn) { height: var(--control-h); min-height: var(--control-h); padding-block: 0; }
+
+/* The dashboard's overview, recent items and working library have distinct rhythms. */
+.on-home-library { display: grid; gap: var(--sp-4); min-width: 0; border-top: var(--bd); padding-block-start: var(--sp-6); }
+.on-home-library > .on-h2 { margin: 0; }
+.on-page > .on-recent { padding-block: var(--sp-3); }
+.on-page > .on-recent .on-rcard { border: var(--bd); background: var(--surface-2); }
+.on-home-library .on-table-box { max-width: 100%; border-top: var(--bd); }
+.on-home-library .on-table { table-layout: auto; }
+.on-home-library .on-table tr.is-in > td:first-child { padding-inline-start: var(--sp-5); background-image: none; }
+.on-home-library .on-table tbody tr.is-row > td { height: auto; vertical-align: top; padding-block: var(--sp-4); }
+.on-home-library .on-table td:first-child { min-width: 16ch; }
+.on-home-library .on-gtog { gap: var(--sp-2); }

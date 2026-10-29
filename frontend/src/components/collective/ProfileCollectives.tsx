@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Boxes, ChevronDown } from "lucide-react";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
@@ -36,7 +36,7 @@ function ContributionCounter({
   );
 }
 
-/** One collective row: its name, its three counters, and its openable history. */
+/** One collective row: its name, its four counters, and its openable history. */
 function ContributedCollectiveRow({
   collective,
   open,
@@ -50,21 +50,13 @@ function ContributedCollectiveRow({
     <li
       data-testid="contributed-collective"
       data-collective-id={collective.id}
-      className="border border-rule bg-surface"
+      className="on-contribution-row"
     >
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4 px-5 py-4">
-        {/* min-w guarantees this column real space before it ever gives any
-            up: the four counters + toggle button are `shrink-0` below, so
-            they wrap onto their OWN line as a unit rather than being allowed
-            to crush the name down to an unreadable "AI…" fragment. A name
-            longer than this column can hold still truncates (`truncate`
-            below) — that is a deliberate fallback for pathological input,
-            not the routine case, which is why the acceptance bar is "every
-            fixture name renders in full", not "no name ever truncates". */}
-        <div className="min-w-[12rem] flex-1 flex flex-col gap-1">
+      <div className="on-contribution-summary">
+        <div className="on-contribution-name">
           <Link
             href={`/collectives/${collective.id}`}
-            className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate hover:text-ink-2 transition-colors focus-mono cursor-pointer"
+            className="on-contribution-link"
           >
             {collective.name}
           </Link>
@@ -74,24 +66,8 @@ function ContributedCollectiveRow({
             </p>
           )}
         </div>
-        {/* sm:shrink-0: at sm and above, this cluster never gets crushed to
-            make room for the name column above. When it cannot sit beside
-            the name at the name's guaranteed minimum width, flex-wrap moves
-            the WHOLE cluster to its own line instead — the name is never the
-            one that gives.
-
-            Below sm (added at a ~390px narrow-viewport pass): shrink-0 with
-            no width constraint sizes the cluster to its UNWRAPPED
-            max-content width even once it is alone on its own line, which
-            left no room for the nested counters' own flex-wrap (below) to
-            ever engage — the cluster simply overflowed the card instead,
-            clipping the last counter and the toggle button entirely off
-            screen. w-full at this width caps the cluster at the row's
-            actual width so the counters wrap onto their own lines within
-            it, the same fix shape as the name-crushing defect above, one
-            level down. */}
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 w-full sm:w-auto sm:shrink-0">
-          <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+        <div className="on-contribution-facts">
+          <div className="on-contribution-counters">
             <ContributionCounter
               testId="counter-approved"
               label={CONTRIBUTION_COUNTER_LABELS.approved}
@@ -118,9 +94,7 @@ function ContributedCollectiveRow({
             aria-expanded={open}
             onClick={onToggle}
             className={cn(
-              "inline-flex items-center gap-1.5 h-8 px-2.5 shrink-0 self-center",
-              "border border-rule bg-surface font-mono text-[length:var(--fs-label)] text-ink-3",
-              "hover:bg-surface-hover hover:text-ink transition-colors focus-mono cursor-pointer",
+              "btn btn-ghost btn-sm on-contribution-toggle",
             )}
           >
             <ChevronDown className={cn("size-3.5", open && "rotate-180")} />
@@ -129,7 +103,7 @@ function ContributedCollectiveRow({
         </div>
       </div>
       {open && (
-        <div className="border-t border-rule px-5 py-4">
+        <div className="on-contribution-submissions">
           <CollectiveSubmissions groupId={collective.id} groupName={collective.name} />
         </div>
       )}
@@ -154,29 +128,22 @@ function ContributedCollectiveRow({
 export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boolean }) {
   const { data, isLoading, isError, error } = useMyCollectiveContributions(isOwnProfile);
   const [openCollectiveId, setOpenCollectiveId] = useState<string | null>(null);
+  useEffect(() => {
+    const collective = new URLSearchParams(window.location.search).get("collective");
+    if (collective) setOpenCollectiveId(collective);
+  }, []);
 
   if (!isOwnProfile) return null;
 
   const collectives = data ?? [];
 
   return (
-    // w-full sm:w-auto (added at a ~390px narrow-viewport pass): the design
-    // system sizes a bare <section> to its own content and centres it (a
-    // deliberate "collapse to content width" panel style, capped by
-    // max-width) rather than stretching it to fill its flex-column parent.
-    // At sm and above this is what the section is meant to look like and is
-    // left unchanged. Below sm, once a collective's opened submissions panel
-    // needed more width than the ~390px viewport, that same content-width
-    // sizing let the section grow PAST the viewport instead of wrapping its
-    // content to fit, pushing the whole page into horizontal overflow.
-    // w-full pins the section to its actual available width below sm, the
-    // same shape of fix as the counters cluster above and the toggle-visible
-    // wrap it depends on.
     <section
+      id="contributions"
       data-testid="profile-collectives"
-      className="w-full sm:w-auto border border-rule bg-surface"
+      className="on-profile-collectives"
     >
-      <div className="flex flex-col gap-1 border-b border-rule px-5 py-3">
+      <div className="on-library-heading">
         {/* Lowercase because this is UI chrome, not user content. The
             neighbouring library card's title-case header predates this
             section and is out of scope here. */}
@@ -193,7 +160,7 @@ export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boo
           unchanged and nothing was written. retry, or reload this page.
         </p>
       ) : (
-        <div className="px-5 py-4">
+        <div className="on-contribution-list">
           <DataState
             loading={isLoading}
             empty={collectives.length === 0}
@@ -207,7 +174,7 @@ export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boo
               />
             }
           >
-            <ul className="flex flex-col gap-3">
+            <ul className="on-contribution-list">
               {collectives.map((collective) => (
                 <ContributedCollectiveRow
                   key={collective.id}

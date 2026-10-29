@@ -219,7 +219,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
         return <div role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3"><p>could not read saved transcript groups: {query.error?.message}</p><button type="button" className="btn btn-secondary btn-sm" disabled={query.isFetching} onClick={() => void query.refetch()}>try again</button></div>;
     }
     return <div className="flex flex-col gap-4 min-w-0" data-testid="collective-transcript-library">
-    {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
+    {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="on-collective-library-panel">
       <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
         <div id={`collective-library-${groupID}`}>
           {transcripts.length > 0 && <div className="on-lib-tools" role="group" aria-label="view and select transcripts">
@@ -245,7 +245,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
         </div>
       </SessionGroupDisclosure>
     </div>}
-    {user && (shares.length > 0 || myFallback.length > 0 || groupedMine.remainingItems > 0 || myShares.isError || groupedMine.isError) && <div className="border border-rule bg-surface" data-testid="my-contributions-panel">
+    {user && (shares.length > 0 || myFallback.length > 0 || groupedMine.remainingItems > 0 || myShares.isError || groupedMine.isError) && <div className="on-collective-library-panel" data-testid="my-contributions-panel">
       <div className="flex justify-between px-5 py-3 border-b border-rule"><span className="text-[length:var(--fs-body)] text-ink">your contributions</span><span className="font-mono text-sm text-ink-3 tabular-nums">{shares.length}</span></div>
       {myShares.isError && retry(myShares)}
       {withdraw.isError && <p role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3">could not withdraw the contribution: {withdraw.error.message}. try again.</p>}

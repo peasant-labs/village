@@ -552,8 +552,8 @@ export default function ContributeTree({
   }, [orderedRows, selection, previewId]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-2 p-4 border-b border-rule shrink-0">
+    <div className="on-contribute-tree">
+      <div className="on-contribute-filters">
         <Input
           value={filters.search}
           onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
@@ -576,7 +576,7 @@ export default function ContributeTree({
           ))}
         </Select>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-rule shrink-0">
+      <div className="on-contribute-selection">
         <div className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid="contribute-selection-tally">
           {selectedVisibleCount} selected · {selectableIds.length} {countNoun}
           {selectableIds.length !== 1 ? "s" : ""}
@@ -591,7 +591,7 @@ export default function ContributeTree({
           {allSelected ? "deselect all" : "select all"}
         </Button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="on-contribute-rows">
         {tree.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-ink-3">{emptyLabel}</p>
         ) : (

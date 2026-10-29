@@ -21,7 +21,6 @@ import {
   DataState,
   RailSection,
   RailShell,
-  StatGrid,
   TeachingEmptyState,
 } from "@/lib/ft-ui";
 import DocsLink from "@/components/online/DocsLink";
@@ -34,7 +33,6 @@ import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   EyeOff,
-  FileText,
   FolderOpen,
   Library,
   Trash2,
@@ -336,6 +334,7 @@ export default function UserProfilePage({
     ) : null;
 
   return (
+    <>
     <OnPage tight={isLoggedIn} testId="profile-page">
       <ProfileCrumb username={username} signedIn={isLoggedIn} />
 
@@ -409,24 +408,11 @@ export default function UserProfilePage({
         </section>
       )}
 
-      {/* KPI tiles — StatGrid (transcripts + projects), shown once data lands */}
       {data && !isLoading && (
-        <StatGrid
-          tiles={[
-            {
-              key: "transcripts",
-              label: "transcripts",
-              value: data.total.toLocaleString(),
-              icon: FileText,
-            },
-            {
-              key: "projects",
-              label: "projects",
-              value: groups.length.toLocaleString(),
-              icon: FolderOpen,
-            },
-          ]}
-        />
+        <dl className="on-stats on-profile-stats" aria-label="published library in numbers">
+          <div className="on-stat"><dt>transcripts</dt><dd>{(data.total + agentTotal).toLocaleString()}</dd></div>
+          <div className="on-stat"><dt>projects in the main library</dt><dd>{groups.length.toLocaleString()}</dd></div>
+        </dl>
       )}
 
       {/* Contributed collectives — own profile only. The section itself owns
@@ -455,6 +441,8 @@ export default function UserProfilePage({
       ) : (
         libraryPanel
       )}
+    </OnPage>
+
       {isOwnProfile && (
         <ConsentDialog
           open={confirmingDelete}
@@ -477,6 +465,6 @@ export default function UserProfilePage({
           }
         />
       )}
-    </OnPage>
+    </>
   );
 }
