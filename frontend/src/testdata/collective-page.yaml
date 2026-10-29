@@ -73,7 +73,7 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
         - { label: review transcripts, route: "/collectives/{id}/review" }
-      tabs: [transcripts, waiting for approval, members, stats]
+      tabs: [transcripts, waiting for approval, members, repositories, stats]
       transcriptRows: 2
       orgLine: "acme: 2 of 4 repos linked"
       manage: true
@@ -98,7 +98,7 @@ cases:
       actions: [more, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: "acme: 3 of 5 repos linked"
       manage: true
@@ -122,7 +122,7 @@ cases:
       actions: [more, connect github, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
@@ -146,7 +146,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -170,7 +170,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -192,7 +192,7 @@ cases:
       yourRole: you are not a member
       actions: [join]
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -215,7 +215,7 @@ cases:
       yourRole: the owner invites members
       actions: []
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 0
       orgLine: nothing linked
       manage: false
@@ -238,7 +238,7 @@ cases:
       yourRole: you are not a member
       actions: [sign in to join]
       overflow: []
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -261,7 +261,7 @@ cases:
       actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      tabs: [transcripts, members, stats]
+      tabs: [transcripts, members, repositories, stats]
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
@@ -333,7 +333,7 @@ tabCases:
     acceptance_mode: open
     withPending: false
     search: ""
-    keys: [ArrowRight, ArrowRight]
+    keys: [ArrowRight, ArrowRight, ArrowRight]
     expectSelected: stats
     expectSearch: "?tab=stats"
 

@@ -72,9 +72,8 @@ describe("the repo picker", () => {
     const requests = installCollectiveREST(world);
     await renderCollectivePage(world);
 
-    fireEvent.click(screen.getByRole("tab", { name: /^stats/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "manage repositories" }));
-    const dialog = await screen.findByRole("dialog", { name: "link repositories from acme" });
+    fireEvent.click(screen.getByRole("tab", { name: /^repositories/ }));
+    const dialog = await screen.findByRole("region", { name: "repositories" });
     for (const step of pickerCase.steps) perform(dialog, step);
     fireEvent.click(within(dialog).getByRole("button", { name: /^save/ }));
 

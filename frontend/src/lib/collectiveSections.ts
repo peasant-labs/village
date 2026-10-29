@@ -9,7 +9,7 @@
 
 // ── the collective page's tabs ───────────────────────────────────────────────
 
-export type CollectiveTabId = "transcripts" | "waiting" | "members" | "stats";
+export type CollectiveTabId = "transcripts" | "waiting" | "members" | "repositories" | "stats";
 
 /** The query parameter that names the open tab. */
 export const TAB_PARAM = "tab";
@@ -24,6 +24,7 @@ export const COLLECTIVE_TABS: readonly CollectiveTabDef[] = [
   { id: "transcripts", label: "transcripts" },
   { id: "waiting", label: "waiting for approval" },
   { id: "members", label: "members" },
+  { id: "repositories", label: "repositories" },
   { id: "stats", label: "stats" },
 ];
 

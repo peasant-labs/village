@@ -129,7 +129,7 @@ describe("the collective page", () => {
       expect(textOf(screen.getByRole("tab", { name: /^members/ }))).toBe(`members ${expected.memberCount}`);
     }
 
-    // The stats tab: the numbers, and the github org line.
+    // Stats contain only numbers; repository controls live with repositories.
     const stats = openTab("stats");
     const numbers = within(stats).getByLabelText(`${world.group.name} in numbers`);
     const stat = Object.fromEntries([...numbers.querySelectorAll(".on-stat")].map((row) => [textOf(row.querySelector("dt")), textOf(row.querySelector("dd"))]));
@@ -139,8 +139,9 @@ describe("the collective page", () => {
       tokens: "1.2M",
       "pull requests linked": "7",
     });
-    await waitFor(() => expect(textOf(within(stats).getByTestId("collective-org-line").querySelector(".on-orgline-text"))).toBe(expected.orgLine));
-    expect(within(stats).queryByRole("button", { name: "manage repositories" }) !== null, "manage").toBe(expected.manage);
+    const repositories = openTab("repositories");
+    await waitFor(() => expect(textOf(within(repositories).getByTestId("collective-org-line").querySelector(".on-orgline-text"))).toBe(expected.orgLine));
+    expect(within(repositories).queryByRole("searchbox", { name: "search repos" }) !== null, "manage").toBe(expected.manage);
 
     const more = screen.queryByRole("button", { name: "more" });
     if (expected.overflow.length === 0) {

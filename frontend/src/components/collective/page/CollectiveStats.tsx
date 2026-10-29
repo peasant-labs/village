@@ -1,6 +1,5 @@
 "use client";
 
-import { Github, SlidersHorizontal } from "lucide-react";
 import type { CollectiveGithub } from "./useCollectiveGithub";
 import { formatInteger } from "@/lib/ft-ui";
 
@@ -18,8 +17,6 @@ export function orgLineText(org: CollectiveGithub["org"]): string {
 export default function CollectiveStats({
   name,
   stats,
-  github,
-  onManage,
 }: {
   name: string;
   stats: { value: number | string; label: string }[];
@@ -38,33 +35,7 @@ export default function CollectiveStats({
         ))}
       </dl>
 
-      <section className="on-section" aria-labelledby="collective-github-heading">
-          <h3 className="on-h2" id="collective-github-heading">
-            github org
-          </h3>
-          {github.configured ? (
-            <div className="on-orgline" data-testid="collective-org-line">
-              <Github aria-hidden="true" />
-              <span className="on-orgline-text">{orgLineText(github.org)}</span>
-              {onManage && (
-                <button
-                  type="button"
-                  className="btn btn-secondary on-orgline-manage"
-                  aria-label="manage repositories"
-                  title="manage repositories"
-                  onClick={onManage}
-                >
-                  <SlidersHorizontal aria-hidden="true" />
-                  <span className="on-orgline-manage-word">manage repositories</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="on-notice" data-testid="collective-github-not-configured">
-              <p>github connection isn&apos;t set up on this server.</p>
-            </div>
-          )}
-        </section>
+
     </div>
   );
 }

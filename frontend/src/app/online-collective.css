@@ -450,3 +450,8 @@ section.on-choices {
 .on-cpanel > :empty {
   display: none;
 }
+
+/* Repository settings are part of the repository view, rather than floating beneath statistics. */
+.on-repositories { gap: var(--sp-5); }
+.on-repository-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.on-repository-list > li { padding-block: var(--sp-3); border-bottom: var(--bd); overflow-wrap: anywhere; }

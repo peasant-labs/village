@@ -34,6 +34,7 @@ import CollectiveTabs, { type CollectiveTab } from "@/components/collective/page
 import CollectiveTranscriptsTable from "@/components/collective/page/CollectiveTranscriptsTable";
 import CollectiveWaiting from "@/components/collective/page/CollectiveWaiting";
 import CollectiveMembers from "@/components/collective/page/CollectiveMembers";
+import CollectiveRepositories from "@/components/collective/page/CollectiveRepositories";
 import CollectiveStats from "@/components/collective/page/CollectiveStats";
 import PolicyChips from "@/components/collective/page/PolicyChips";
 import {
@@ -320,6 +321,8 @@ export default function GroupDetailPage({
             />
           ),
         };
+      case "repositories":
+        return { id: def.id, label: def.label, panel: <CollectiveRepositories github={github} onResult={setNotice} /> };
       case "stats":
         return {
           id: def.id,
