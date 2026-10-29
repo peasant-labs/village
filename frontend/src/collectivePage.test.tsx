@@ -189,19 +189,19 @@ describe("the collective page", () => {
     expect(textOf(notice.querySelector(".fb-toast-msg"))).toBe("joining is closed");
   });
 
-  it("shows more transcripts by asking for a longer first page", async () => {
+  it("reads the next transcript page with a bounded offset", async () => {
     const pageCase = fixtures.cases.find((c) => c.role === "owner" && c.canRead);
     if (!pageCase) throw new Error("the corpus no longer carries an owner who can read");
     const world = { ...fixtures.worldFor(pageCase), totalTranscripts: 30 };
     const requests = installCollectiveREST(world);
     await renderCollectivePage(world);
 
-    expect(textOf(document.querySelector(".on-pager > span"))).toBe(`showing ${world.transcripts.length} of 30`);
+    expect(textOf(document.querySelector(".on-pager > span"))).toBe(`showing 1 to ${world.transcripts.length} of 30`);
     expect(textOf(screen.getByRole("tab", { name: /^transcripts/ }))).toBe("transcripts 30");
-    fireEvent.click(screen.getByRole("button", { name: "show more" }));
+    fireEvent.click(screen.getByRole("button", { name: "next page" }));
 
     await waitFor(() => {
-      expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=40&offset=0`);
+      expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=20&offset=20`);
     });
   });
 

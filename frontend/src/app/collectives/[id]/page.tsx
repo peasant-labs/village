@@ -46,7 +46,7 @@ import {
 import { useCollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
 import "@/app/online-collective.css";
 
-/** How many transcripts the table shows first, and how many more each `show more` adds. */
+/** How many transcripts the table reads per page. */
 const PAGE_SIZE = 20;
 
 /** One line the page tells the viewer after an action: saved, or what went wrong. */
@@ -79,10 +79,14 @@ export default function GroupDetailPage({
   const acceptanceMode = data?.group.acceptance_mode ?? "open";
   const reviews = isOwner && acceptanceMode === "curated";
 
-  // The first page arrives with the collective; `show more` asks for a longer
-  // first page, so the rows already shown stay in place.
-  const [shown, setShown] = useState(PAGE_SIZE);
-  const longer = useGroupTranscripts(id, 0, shown, canRead && shown > PAGE_SIZE);
+  // The collective response already holds page one. Later pages read bounded
+  // offsets, and a new account or collective always starts at page one.
+  const pageScope = `${id}:${user?.id ?? "anonymous"}`;
+  const [pagination, setPagination] = useState({ scope: pageScope, page: 0 });
+  const requestedPage = pagination.scope === pageScope ? pagination.page : 0;
+  const pageCount = Math.max(1, Math.ceil((data?.stats?.total_transcripts ?? 0) / PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount - 1);
+  const transcriptPage = useGroupTranscripts(id, page, PAGE_SIZE, canRead && page > 0);
 
   // Linked repositories are readable by members; what the App offers is the owner's alone.
   const github = useCollectiveGithub(id, { isOwner, canReadLinks: isMember, linkedOrg });
@@ -147,7 +151,13 @@ export default function GroupDetailPage({
   const members = collectiveMembers(data.members ?? []);
   const membersVisible = group.display_members || isOwner;
 
-  const readable = shown > PAGE_SIZE && longer.data ? longer.data : (data.transcripts ?? []);
+  // A placeholder belongs to the previous page. Never label those rows as the
+  // newly selected page, including while its request is delayed or fails.
+  const pageLoading = page > 0 && (transcriptPage.isPending || transcriptPage.isPlaceholderData);
+  const pageError = page > 0 && transcriptPage.isError ? transcriptPage.error.message : undefined;
+  const readable = page === 0
+    ? (data.transcripts ?? [])
+    : !transcriptPage.isPlaceholderData && !pageError ? (transcriptPage.data ?? []) : [];
   const cells = pullRequestCells(readable);
   const rows = readable.map((t) => collectiveTranscriptRow(t, cells, now));
   const total = stats?.total_transcripts ?? rows.length;
@@ -270,7 +280,7 @@ export default function GroupDetailPage({
     <div className="on-section on-cpanel">
       {!canRead ? (
         restricted
-      ) : rows.length === 0 ? (
+      ) : total === 0 ? (
         <OnEmpty
           icon={<FileStack />}
           title="no transcripts yet"
@@ -284,13 +294,19 @@ export default function GroupDetailPage({
           rows={rows}
           pullRequestHref={(label) => cells.hrefs.get(label)}
           total={total}
-          onShowMore={canRead && total > rows.length ? () => setShown((count) => count + PAGE_SIZE) : undefined}
+          page={page + 1}
+          pageSize={PAGE_SIZE}
+          onPageChange={(next) => setPagination({ scope: pageScope, page: next - 1 })}
+          loading={pageLoading}
+          error={pageError}
+          retrying={transcriptPage.isFetching}
+          onRetry={() => void transcriptPage.refetch()}
         />
       )}
       <CollectiveTranscriptLibrary
         key={user?.id ?? "anonymous"}
         groupID={id}
-        transcripts={readable}
+        transcripts={data.transcripts ?? []}
         canRead={canRead}
         isOwner={isOwner}
       />
