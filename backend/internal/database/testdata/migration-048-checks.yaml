@@ -26,6 +26,10 @@
   writer_marker: true
   statement: UPDATE transcripts SET publish_metadata_key = 'transcripts/00000000-0000-0000-0000-000000000001.bin', publish_metadata_hash = '{hash}', publish_metadata_size = -1 WHERE id = '{transcript_id}'
   expect: transcripts_publish_metadata_size_nonnegative
+- name: metadata_key_equal_to_blob_key_refused
+  writer_marker: true
+  statement: UPDATE transcripts SET publish_metadata_key = blob_key, publish_metadata_hash = '{hash}', publish_metadata_size = 1 WHERE id = '{transcript_id}'
+  expect: transcripts_publish_metadata_key_not_blob_key
 - name: metadata_update_without_writer_marker_refused
   writer_marker: false
   statement: UPDATE transcripts SET publish_metadata_key = 'transcripts/00000000-0000-0000-0000-000000000001.bin', publish_metadata_hash = '{hash}', publish_metadata_size = 1 WHERE id = '{transcript_id}'

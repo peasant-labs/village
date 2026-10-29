@@ -40,6 +40,7 @@ var requiredMigration048Checks = []string{
 	"metadata_key_without_hash_refused",
 	"metadata_key_bad_shape_refused",
 	"metadata_negative_size_refused",
+	"metadata_key_equal_to_blob_key_refused",
 	"metadata_update_without_writer_marker_refused",
 	"rewrite_row_cascades_with_transcript",
 	"rewrite_bad_hash_refused",

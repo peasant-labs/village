@@ -13,6 +13,7 @@ EXECUTE FUNCTION enforce_transcript_writer_version();
 ALTER TABLE transcripts
     DROP CONSTRAINT IF EXISTS transcripts_publish_metadata_size_nonnegative,
     DROP CONSTRAINT IF EXISTS transcripts_publish_metadata_hash_shape,
+    DROP CONSTRAINT IF EXISTS transcripts_publish_metadata_key_not_blob_key,
     DROP CONSTRAINT IF EXISTS transcripts_publish_metadata_key_shape,
     DROP CONSTRAINT IF EXISTS transcripts_publish_metadata_complete,
     DROP COLUMN IF EXISTS publish_metadata_size,

@@ -13,6 +13,7 @@ ALTER TABLE transcripts
         OR (publish_metadata_key IS NOT NULL AND publish_metadata_hash IS NOT NULL AND publish_metadata_size IS NOT NULL)
     ),
     ADD CONSTRAINT transcripts_publish_metadata_key_shape CHECK (publish_metadata_key ~ '^transcripts/[0-9a-f-]{36}\.bin$'),
+    ADD CONSTRAINT transcripts_publish_metadata_key_not_blob_key CHECK (publish_metadata_key IS DISTINCT FROM blob_key),
     ADD CONSTRAINT transcripts_publish_metadata_hash_shape CHECK (publish_metadata_hash ~ '^[0-9a-f]{64}$'),
     ADD CONSTRAINT transcripts_publish_metadata_size_nonnegative CHECK (publish_metadata_size >= 0);
 

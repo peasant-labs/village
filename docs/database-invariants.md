@@ -266,11 +266,15 @@ boundary are documented in
   validated publish metadata, the way `blob_key`, `content_hash` and
   `blob_size_bytes` describe the content. They are all NULL or all set
   (`transcripts_publish_metadata_complete`); the key has the opaque
-  `transcripts/<uuid>.bin` shape, the hash is 64 lowercase hex digits and the
+  `transcripts/<uuid>.bin` shape and never equals `blob_key`
+  (`transcripts_publish_metadata_key_not_blob_key`), so a writer bug cannot let
+  the metadata object overwrite the content object; the hash is 64 lowercase hex digits and the
   size is not negative. They are not derivable: the hash and size authenticate
   the decrypted object before anything reads it, so they cannot be recomputed
   without decrypting the object they validate. The client name and version have
   no columns; they live inside the stored object and no query filters on them.
+  Setting or replacing the metadata object does not touch `updated_at`: it always
+  runs in the same transaction as the content write that does.
   **The writer fence now covers the object too.** `trg_transcript_writer_version`
   is recreated to fire on `UPDATE OF` these three columns as well as the
   six it already watched, so a write to any of the nine needs
@@ -279,7 +283,9 @@ boundary are documented in
   stored content by village's own rewrite, keyed `(transcript_id,
   installed_content_hash)` and deleted with the transcript. It records only the
   raw fact `replaced_was_legacy` (the replaced content was legacy JSONL), which
-  cannot be recovered once the rewrite has replaced it. Lineage is derived,
+  cannot be recovered once the rewrite has replaced it. Re-recording an
+  installed hash keeps the first row (`ON CONFLICT DO NOTHING`), so
+  `replaced_was_legacy` sticks once true. Lineage is derived,
   never stored: `IsLegacyLineageContent` walks installed to replaced hash and
   answers true when any step was legacy, so a chain that began from legacy JSONL
   stays legacy. The table has no trigger and no `app.actor_id` requirement; it
