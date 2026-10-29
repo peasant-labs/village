@@ -79,9 +79,9 @@ function JoinIcon({ mode }: { mode: string }) {
 
 function SkeletonCards() {
   return (
-    <ul className="on-cards" aria-busy="true" aria-label="loading collectives">
+    <ul className="on-cards on-discover-collectives" aria-busy="true" aria-label="loading collectives">
       {[0, 1, 2].map((n) => (
-        <li key={n} className="on-skel is-card" />
+        <li key={n} className="on-skel is-row" />
       ))}
     </ul>
   );
@@ -239,7 +239,7 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
     );
   } else {
     body = (
-      <ul className="on-cards is-collectives" aria-label={searching ? `collectives matching ${query}` : "collectives you can join"}>
+      <ul className="on-cards is-collectives on-discover-collectives" aria-label={searching ? `collectives matching ${query}` : "collectives you can join"}>
         {cards.map((card) => {
           const titleId = `discover-${card.id}`;
           const justJoined = joined.has(card.id);
@@ -280,31 +280,35 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
           const role = justJoined ? null : card.role;
           return (
             <li key={card.id}>
-              <article className="on-card" aria-labelledby={titleId} data-collective-id={card.id}>
-                <div className="on-card-head">
-                  <h2 id={titleId}>
-                    <Link href={`/collectives/${card.id}`}>{card.name}</Link>
-                  </h2>
-                  <span className="on-chrome is-n">{counted(card.memberCount, "member")}</span>
+              <article className="on-card on-discover-collective" aria-labelledby={titleId} data-collective-id={card.id}>
+                <div className="on-discover-identity">
+                  <div className="on-card-head">
+                    <h2 id={titleId}>
+                      <Link href={`/collectives/${card.id}`}>{card.name}</Link>
+                    </h2>
+                    <span className="on-chrome is-n">{counted(card.memberCount, "member")}</span>
+                  </div>
+                  {card.description ? <p className="on-card-desc">{card.description}</p> : null}
                 </div>
-                {card.description ? <p className="on-card-desc">{card.description}</p> : null}
-                {who && card.mode ? (
-                  <div className="on-card-who">
-                    <JoinIcon mode={card.mode} />
-                    {who}
-                  </div>
-                ) : null}
-                {role || justJoined || card.contributed ? (
-                  <div className="on-card-tags" data-card="standing">
-                    {justJoined ? (
-                      <span className="on-tag" data-tone="ok">
-                        joined
-                      </span>
-                    ) : null}
-                    {role ? <span className="on-tag">{role}</span> : null}
-                    {card.contributed ? <span className="on-tag">contributed</span> : null}
-                  </div>
-                ) : null}
+                <div className="on-discover-policy">
+                  {who && card.mode ? (
+                    <div className="on-card-who">
+                      <JoinIcon mode={card.mode} />
+                      {who}
+                    </div>
+                  ) : null}
+                  {role || justJoined || card.contributed ? (
+                    <div className="on-card-tags" data-card="standing">
+                      {justJoined ? (
+                        <span className="on-tag" data-tone="ok">
+                          joined
+                        </span>
+                      ) : null}
+                      {role ? <span className="on-tag">{role}</span> : null}
+                      {card.contributed ? <span className="on-tag">contributed</span> : null}
+                    </div>
+                  ) : null}
+                </div>
                 {error ? (
                   <p className="on-card-msg" role="alert">
                     <CircleAlert aria-hidden="true" />
@@ -327,9 +331,10 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
     <Frame {...(embedded ? {} : { testId: "discover-page" })}>
       {head}
       <div className="on-tools" role="search">
-        <div className="on-search is-wide is-clearable">
+        <div className="input-ico cex-searchbar on-discover-search">
           <Search aria-hidden="true" />
           <input
+            className="input"
             type="search"
             aria-label="find a collective"
             placeholder="collective name or github org"
@@ -346,7 +351,7 @@ export default function CollectivesDiscovery({ embedded = false }: { embedded?: 
             }}
           />
           {text ? (
-            <button type="button" className="on-icon-btn" aria-label="clear search" onClick={clearSearch}>
+            <button type="button" className="cex-clear" aria-label="clear search" onClick={clearSearch}>
               <X aria-hidden="true" />
             </button>
           ) : null}

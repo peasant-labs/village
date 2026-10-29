@@ -278,6 +278,14 @@ export default function ExplorePage({ embedded = false }: { embedded?: boolean }
         <div ref={resultsRef} aria-busy={busy} data-testid="session-list-results">
           <Explore
             headingLevel={embedded ? 2 : 1}
+            title={embedded ? null : undefined}
+            defaultLayout={embedded ? "list" : "grid"}
+            resultsFooter={
+              <>
+                <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
+                <ScopedGroupedHelperSection params={params} />
+              </>
+            }
             data={payload}
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
@@ -291,21 +299,6 @@ export default function ExplorePage({ embedded = false }: { embedded?: boolean }
             }}
             onOpenCollective={(collective) => router.push(`/collectives/${collective.id}`)}
           />
-          {/* Agent-driven sessions are excluded from the rows above by the
-              server, which reports how many the same filters matched. The
-              group sits at the end of the list so the browse results stay the
-              sessions people wrote, with the rest one click away. */}
-          {/* The group reuses the Explore surface's own body grid and results
-              column rather than a copied width, so it lines up with the cards
-              above it at every breakpoint and follows that layout if it ever
-              changes. The first cell is the empty facet rail. */}
-          <div className="cex-explore-body mt-4">
-            <div aria-hidden="true" />
-            <div className="cex-results">
-              <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
-              <ScopedGroupedHelperSection params={params} />
-            </div>
-          </div>
         </div>
       </>
     );
