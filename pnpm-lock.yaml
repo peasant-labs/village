@@ -11,8 +11,8 @@ importers:
   frontend:
     dependencies:
       '@peasant-labs/fairtrade':
-        specifier: 0.0.50
-        version: 0.0.50(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)
+        specifier: 0.0.51
+        version: 0.0.51(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)
       '@peasant-labs/schema':
         specifier: 0.38.0
         version: 0.38.0
@@ -628,8 +628,8 @@ packages:
   '@oxc-project/types@0.142.0':
     resolution: {integrity: sha512-7W+2q5AKQVU36fkaryontrHn3YDt1RyUYXatw9i5H8ocYe2sPKSFB6eS8WNPeRKiN1qAWWZUPm7gwFzJGrccqQ==}
 
-  '@peasant-labs/fairtrade@0.0.50':
-    resolution: {integrity: sha512-vYp22Y9q9zV5+XPSEL8edS8ezgVcmnpyS2E515+bty+LgXLBYDi9JwywuXKyO9JKmzP3Z4zOaoQnBy0BLoub/Q==}
+  '@peasant-labs/fairtrade@0.0.51':
+    resolution: {integrity: sha512-YWi7ZpDPK6U2twlCd2BfDSlcapReyAs1Jb63B+96D9DsU5n/l8W4HHdlvLEeup7PCnK5vjC8GbkpPDzlNPJazA==}
     engines: {node: '>=26'}
     peerDependencies:
       '@xyflow/react': ^12.0.0
@@ -639,8 +639,8 @@ packages:
       '@xyflow/react':
         optional: true
 
-  '@peasant-labs/schema@0.36.0':
-    resolution: {integrity: sha512-9vx3YiUuxkqqR9ED7cybQ5KTkZNo8M9co6EvT4sqMLsq8DF0k9cIyL2I2HEsq8/EVdBPSYdP2lkOa+prLKN2RQ==}
+  '@peasant-labs/schema@0.37.0':
+    resolution: {integrity: sha512-BS0MiSltWF/Y1z9ZTCUi0kZ3VbtxHQhZCeCn+A8GNrHAXphlqZSHOVsI34rELzmc9hjOtz9iGL15FPDoQ0h/rQ==}
     engines: {node: '>=26'}
 
   '@peasant-labs/schema@0.38.0':
@@ -4224,9 +4224,9 @@ snapshots:
 
   '@oxc-project/types@0.142.0': {}
 
-  '@peasant-labs/fairtrade@0.0.50(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)':
+  '@peasant-labs/fairtrade@0.0.51(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)':
     dependencies:
-      '@peasant-labs/schema': 0.36.0
+      '@peasant-labs/schema': 0.37.0
       '@tanstack/react-table': 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       lucide-react: 1.22.0(react@19.2.3)
       mermaid: 12.2.0
@@ -4244,7 +4244,7 @@ snapshots:
       - redux
       - supports-color
 
-  '@peasant-labs/schema@0.36.0':
+  '@peasant-labs/schema@0.37.0':
     dependencies:
       yaml: 2.9.0
       zod: 4.4.3

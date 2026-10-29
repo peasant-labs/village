@@ -1,0 +1,25 @@
+cases:
+  - name: bare_hash
+    why: a well-formed header value is handed through unchanged
+    header: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    want: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  - name: surrounding_space_trimmed
+    why: header values may carry optional whitespace that is not part of the value
+    header: "  0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \t"
+    want: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  - name: missing_header
+    why: an older server or a stripped header leaves the rendered hash unknown
+    header: null
+    want: null
+  - name: quoted_refused
+    why: the server sends the bare digest, so a quoted value is not the digest
+    header: "\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
+    want: null
+  - name: uppercase_refused
+    why: the digest is lowercase hex, and the comparison downstream is exact
+    header: "0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef"
+    want: null
+  - name: short_refused
+    why: anything but 64 characters is not a digest
+    header: "0123456789abcdef"
+    want: null

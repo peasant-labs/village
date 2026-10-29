@@ -25,6 +25,7 @@
     "shoot:child-sessions": "node scripts/visual/child-session-shoot.mjs",
     "shoot:village": "node scripts/visual/village-shoot.mjs",
     "shoot:manage": "node scripts/visual/manage-shoot.mjs",
+    "shoot:integrity": "node scripts/visual/integrity-shoot.mjs",
     "sxs": "node scripts/visual/stitch-sxs.mjs",
     "sxs:manage": "node scripts/visual/manage-stitch-sxs.mjs",
     "sxs:collective": "node scripts/visual/collective-stitch-sxs.mjs",
@@ -47,7 +48,7 @@
     "shoot:profile-prompt-settings": "node scripts/visual/profile-prompt-settings-shoot.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.50",
+    "@peasant-labs/fairtrade": "0.0.51",
     "@peasant-labs/schema": "0.38.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",

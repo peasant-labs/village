@@ -75,6 +75,7 @@ import type {
   VillageShareEventActor,
   VillageShareStatus,
   VillageTranscriptCollective,
+  VillageTranscriptIntegrity,
   VillageUserCollective,
   VillageUserCollectiveShare,
   VillageVisibleCollective,
@@ -457,6 +458,9 @@ export interface TranscriptDetailResponse {
    * `adaptTranscript` cooks it into the view.
    */
   relationshipNavigation?: SessionRelationshipNavigation[];
+  /** Present only when the server flagged this transcript and the viewer may
+   *  see the flag. */
+  integrity?: VillageTranscriptIntegrity;
 }
 
 /**
