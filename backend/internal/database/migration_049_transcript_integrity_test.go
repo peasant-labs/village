@@ -22,6 +22,8 @@ func TestMigration049_Structure(t *testing.T) {
 		"CREATE TABLE transcript_integrity_inherited_flags",
 		"CREATE TABLE integrity_flag_tombstones",
 		"CREATE TABLE transcript_integrity_attempts",
+		"CREATE VIEW transcript_integrity_open_flags",
+		"string_to_array(v.scry_version, '.')::numeric[] > string_to_array(r.scry_version, '.')::numeric[]",
 		"PRIMARY KEY (transcript_id, content_hash, scry_version)",
 		"PRIMARY KEY (owner_id, local_id)",
 		"REFERENCES transcripts(id) ON DELETE CASCADE",
@@ -49,6 +51,7 @@ func TestMigration049_Structure(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
+		"DROP VIEW IF EXISTS transcript_integrity_open_flags",
 		"DROP TABLE IF EXISTS transcript_integrity_attempts",
 		"DROP TABLE IF EXISTS integrity_flag_tombstones",
 		"DROP TABLE IF EXISTS transcript_integrity_inherited_flags",

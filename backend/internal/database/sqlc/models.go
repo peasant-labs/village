@@ -140,6 +140,13 @@ type GroupMember struct {
 	Origin   string             `db:"origin" json:"origin"`
 }
 
+type IntegrityFlagTombstone struct {
+	OwnerID    pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID    string             `db:"local_id" json:"local_id"`
+	FlaggedAt  pgtype.Timestamptz `db:"flagged_at" json:"flagged_at"`
+	RecordedAt pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+}
+
 type License struct {
 	ID                  string `db:"id" json:"id"`
 	Name                string `db:"name" json:"name"`
@@ -330,6 +337,36 @@ type TranscriptGovernanceEventsAudit struct {
 	Visibility   string             `db:"visibility" json:"visibility"`
 	ChangedBy    pgtype.UUID        `db:"changed_by" json:"changed_by"`
 	EffectiveAt  pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+}
+
+type TranscriptIntegrityAttempt struct {
+	TranscriptID  pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ContentHash   string             `db:"content_hash" json:"content_hash"`
+	ScryVersion   string             `db:"scry_version" json:"scry_version"`
+	Status        string             `db:"status" json:"status"`
+	Attempts      int32              `db:"attempts" json:"attempts"`
+	LastError     pgtype.Text        `db:"last_error" json:"last_error"`
+	NextAttemptAt pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type TranscriptIntegrityInheritedFlag struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	FlaggedAt    pgtype.Timestamptz `db:"flagged_at" json:"flagged_at"`
+}
+
+type TranscriptIntegrityOpenFlag struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	FlaggedAt    pgtype.Timestamptz `db:"flagged_at" json:"flagged_at"`
+}
+
+type TranscriptIntegrityResult struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ContentHash  string             `db:"content_hash" json:"content_hash"`
+	ScryVersion  string             `db:"scry_version" json:"scry_version"`
+	Verdict      string             `db:"verdict" json:"verdict"`
+	FlaggedTurns []int32            `db:"flagged_turns" json:"flagged_turns"`
+	CheckedAt    pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
 }
 
 // DERIVED current-state row, written only by trg_derive_transcript_share from transcript_share_attempts. Application code never writes it. Rebuild with rebuild_transcript_shares(); verify with check_transcript_shares_drift().

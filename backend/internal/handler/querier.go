@@ -87,6 +87,13 @@ type Querier interface {
 	ListTranscriptDescriptorsForRewrap(ctx context.Context, arg sqlc.ListTranscriptDescriptorsForRewrapParams) ([]sqlc.ListTranscriptDescriptorsForRewrapRow, error)
 	ListApprovedTranscriptShareGroups(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 
+	// Transcript integrity methods
+	InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
+	LatestIntegrityResultForContent(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error)
+	HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
+	RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error
+	InheritIntegrityTombstone(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
+
 	// Transcript commit methods
 	InsertTranscriptCommits(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
 	DeleteTranscriptCommits(ctx context.Context, transcriptID pgtype.UUID) error

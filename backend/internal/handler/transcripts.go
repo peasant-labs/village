@@ -762,6 +762,11 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				if txErr != nil {
 					return txErr
 				}
+				// A session whose flagged copy this publisher deleted starts out
+				// flagged. A republish keeps its own history instead.
+				if err := q.InheritIntegrityTombstone(r.Context(), sqlc.InheritIntegrityTombstoneParams{TranscriptID: transcript.ID, OwnerID: ownerPgID, LocalID: createParams.LocalID}); err != nil {
+					return fmt.Errorf("inherit the integrity flag of a deleted copy: %w", err)
+				}
 				if err := insertPublishedAssociationBindings(r.Context(), q, ownerPgID, transcript.ID, newAssociations); err != nil {
 					return err
 				}
@@ -1621,6 +1626,11 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 			if err := q.SetPullRequestAttachmentArtifacts(r.Context(), sqlc.SetPullRequestAttachmentArtifactsParams{ID: attachment.ID, HeadSha: attachment.HeadSha, CommentID: attachment.CommentID, CheckRunID: attachment.CheckRunID, Digest: encoded}); err != nil {
 				return err
 			}
+		}
+		// An open flag outlives the row as a content-free record, so a later
+		// publish of the same session starts out flagged.
+		if err := q.RecordIntegrityTombstone(r.Context(), pgID); err != nil {
+			return err
 		}
 		var deleteErr error
 		deleted, deleteErr = q.DeleteTranscriptReturningDescriptor(r.Context(), pgID)

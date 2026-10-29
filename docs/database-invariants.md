@@ -322,7 +322,8 @@ boundary are documented in
   post-deletion record and the check ledger.** Four tables, none a disclosure
   axis, so none carries a governance trigger or needs `app.actor_id`. Every
   closed set and shape is a named CHECK (hash, version, verdict, status, error
-  class). The down migration drops the four tables. Details: §3, "Transcript
+  class). The view `transcript_integrity_open_flags` holds the open-flag rule.
+  The down migration drops the view and the four tables. Details: §3, "Transcript
   integrity (migration 049)".
 
 ## 2. Licensing data model
@@ -659,10 +660,19 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   (`transcript_integrity_results_unchecked_has_no_turns`). `flagged_turns` are
   zero-based positions in the top-level turns of the content the hash names.
   A flag produced by a check is never stored.
-- **A transcript's open flag is one query.** It is open when an inherited row
-  exists, or a flagged result exists that no later version's `checked` result
-  with no turns on the same content voids. Inherited flags and flags on
-  replaced content are never void.
+- **A transcript's open flag is one view.** `transcript_integrity_open_flags`
+  has one row per open flag: every inherited row, and every flagged result that
+  no later version's `checked` result with no turns on the same content voids.
+  Inherited flags and flags on replaced content are never void. Versions are
+  compared as numeric arrays (`string_to_array(scry_version, '.')::numeric[]`),
+  never as text, so `1.10.0` is later than `1.9.0`; the latest result for a
+  content uses the same order and considers only `checked` rows, so an
+  `unchecked` answer never hides the turns of a flag that is still open. The
+  open-flag check and the post-deletion record both read the view, so the rule
+  has one definition.
+- **Storing an answer re-tests nothing.** A result is inserted as given
+  (`ON CONFLICT DO NOTHING`), whatever the transcript's visibility, shares or
+  current content are by then; a flagged answer always counts.
 - **`transcript_integrity_inherited_flags`** is the only stored flag: a later
   publish of a session whose flagged copy was deleted has no result behind it.
   `flagged_at` is copied from the record it was inherited from. It cascades
@@ -673,6 +683,12 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   id, which a republish carries. It holds no content, hash or turns, survives
   deleting the transcript, and goes with the account (`ON DELETE CASCADE` from
   `users`). Its `recorded_at` is when the deletion happened.
+  The delete transaction writes it before removing the row, and only when the
+  transcript has an open flag; its `flagged_at` is the earliest open flag's
+  date, and a second record for the same `(owner_id, local_id)` keeps the
+  earlier date. A first publish (never a republish) by the same owner of the
+  same local id inserts an inherited row carrying that date in its own
+  transaction.
 - **`transcript_integrity_attempts`** is the ledger of check attempts, keyed
   like the results. `status` is `pending`, `done`, `skipped` or `failed`.
   `last_error` is a closed set (`timeout`, `unavailable`, `rejected`,

@@ -98,6 +98,11 @@ type mockQuerier struct {
 	setTranscriptPublishMetadataObject     func(ctx context.Context, arg sqlc.SetTranscriptPublishMetadataObjectParams) error
 	replaceTranscriptPublishMetadataObject func(ctx context.Context, arg sqlc.ReplaceTranscriptPublishMetadataObjectParams) (int64, error)
 	recordTranscriptContentRewrite         func(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error
+	insertIntegrityResult                  func(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
+	latestIntegrityResultForContent        func(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error)
+	hasOpenIntegrityFlag                   func(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
+	recordIntegrityTombstone               func(ctx context.Context, transcriptID pgtype.UUID) error
+	inheritIntegrityTombstone              func(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
 	deleteTranscriptReturningDescriptor    func(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 
@@ -565,6 +570,36 @@ func (m *mockQuerier) ReplaceTranscriptPublishMetadataObject(ctx context.Context
 func (m *mockQuerier) RecordTranscriptContentRewrite(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error {
 	if m.recordTranscriptContentRewrite != nil {
 		return m.recordTranscriptContentRewrite(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error {
+	if m.insertIntegrityResult != nil {
+		return m.insertIntegrityResult(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) LatestIntegrityResultForContent(ctx context.Context, arg sqlc.LatestIntegrityResultForContentParams) (sqlc.TranscriptIntegrityResult, error) {
+	if m.latestIntegrityResultForContent != nil {
+		return m.latestIntegrityResultForContent(ctx, arg)
+	}
+	return sqlc.TranscriptIntegrityResult{}, pgx.ErrNoRows
+}
+func (m *mockQuerier) HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error) {
+	if m.hasOpenIntegrityFlag != nil {
+		return m.hasOpenIntegrityFlag(ctx, transcriptID)
+	}
+	return false, nil
+}
+func (m *mockQuerier) RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error {
+	if m.recordIntegrityTombstone != nil {
+		return m.recordIntegrityTombstone(ctx, transcriptID)
+	}
+	return nil
+}
+func (m *mockQuerier) InheritIntegrityTombstone(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error {
+	if m.inheritIntegrityTombstone != nil {
+		return m.inheritIntegrityTombstone(ctx, arg)
 	}
 	return nil
 }

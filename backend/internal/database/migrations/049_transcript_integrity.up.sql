@@ -41,6 +41,29 @@ CREATE TABLE integrity_flag_tombstones (
     CONSTRAINT integrity_flag_tombstones_local_id_nonempty CHECK (length(local_id) > 0)
 );
 
+-- The open flags, one row each: every inherited flag, and every flagged
+-- result that no later version's checked result with no turns on the same
+-- content voids. A transcript is flagged when it has a row here. Versions are
+-- compared as numbers ('1.10.0' is later than '1.9.0'), never as text.
+-- Inherited flags and flags on replaced content are never void.
+CREATE VIEW transcript_integrity_open_flags AS
+SELECT i.transcript_id, i.flagged_at
+FROM transcript_integrity_inherited_flags i
+UNION ALL
+SELECT r.transcript_id, r.checked_at AS flagged_at
+FROM transcript_integrity_results r
+WHERE r.verdict = 'checked'
+  AND cardinality(r.flagged_turns) > 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM transcript_integrity_results v
+      WHERE v.transcript_id = r.transcript_id
+        AND v.content_hash = r.content_hash
+        AND v.verdict = 'checked'
+        AND cardinality(v.flagged_turns) = 0
+        AND string_to_array(v.scry_version, '.')::numeric[] > string_to_array(r.scry_version, '.')::numeric[]
+  );
+
 -- The ledger of check attempts. last_error is a closed set so raw error text,
 -- and with it content, cannot be stored.
 CREATE TABLE transcript_integrity_attempts (
