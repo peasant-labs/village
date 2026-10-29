@@ -57,12 +57,14 @@ import {
   resetOwnedTranscript,
 } from './lib/transcript-fixtures.mjs'
 import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
+import { demoContributionContentPath, handleDemoContributionRequest, resetDemoContributions } from './lib/demo-contribution-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
 const TRANSCRIPT_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'visual', 'mock-rest.mjs')
 
 let scenario = 'default'
+if (process.env.MOCK_DEMO_ATTACHMENTS === '1') applyCollectivePageScenario('curated-owner')
 
 const send = (res, code, body) => {
   res.writeHead(code, {
@@ -149,7 +151,8 @@ const server = createServer(async (req, res) => {
       // Setting a scenario starts the collectives over, so one journey's
       // links and settings writes never reach the next.
       resetCollectiveWorld()
-      applyCollectivePageScenario(scenario)
+      resetDemoContributions()
+      applyCollectivePageScenario(process.env.MOCK_DEMO_ATTACHMENTS === '1' && scenario === 'default' ? 'curated-owner' : scenario)
       return send(res, 200, { scenario })
     }
   }
@@ -161,6 +164,10 @@ const server = createServer(async (req, res) => {
   // This scenario owns the transcript owner's membership list as well as the
   // transcript routes. Resolve it before the generic home membership fixture.
   if (scenario === 'transcript-owner' && handleOwnedTranscriptRequest(req, res, { ownerGroups: true })) return
+
+  const demoContent = demoContributionContentPath(path)
+  if (demoContent && req.method === 'GET') return proxyToTranscript(req, res, demoContent)
+  if (await handleDemoContributionRequest(req, res)) return
 
   // The signed-in person's own home and settings reads, including the
   // owner-scoped list, which answers its own `empty` scenario.

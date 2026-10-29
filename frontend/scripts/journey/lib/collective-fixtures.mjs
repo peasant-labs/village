@@ -29,7 +29,7 @@ export const RETAINED_GROUPED = retainedWorld.grouped
 if (Object.keys(RETAINED_GROUPED).sort().join() !== 'groupID,memberID,memberScope,pageSize,purpose,title,totalItems' || RETAINED_GROUPED.pageSize !== 100 || RETAINED_GROUPED.totalItems !== 101 || RETAINED_GROUPED.purpose !== 'helper_review' || !RETAINED_GROUPED.groupID || !RETAINED_GROUPED.memberScope || !RETAINED_GROUPED.memberID || !RETAINED_GROUPED.title) throw new Error('invalid retained grouped fixture')
 // Legacy mock IDs are aliases; grouped wire rows use deterministic real UUIDs.
 const validated = (schema, value) => { schema.parse(value); return value }
-const fixtureUUID = (id) => { const hex = createHash('sha256').update(id).digest('hex'); return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}` }
+export const fixtureUUID = (id) => { const hex = createHash('sha256').update(id).digest('hex'); return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}` }
 
 if (!Array.isArray(RETAINED_CONTRIBUTIONS) || JSON.stringify(RETAINED_CONTRIBUTIONS.map((row) => row.name).sort()) !== JSON.stringify(['approved-private-child', 'pending-private-parent'])) throw new Error('retained collective contribution fixtures are missing or duplicated')
 for (const row of RETAINED_CONTRIBUTIONS) {
