@@ -727,7 +727,10 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   the set still checks it. A check the service refuses for its shared secret
   (401 or 403) is a configuration failure, not the content's: the attempt is
   given back the same way and the pass ends, so a wrong secret burns no
-  attempts. An attempt interrupted by a shutdown is never
+  attempts. An answer from an older checker than the version the attempt
+  was taken under (during a rollout) is stored as its own result, and its
+  flag counts, but the attempt is given back too, so the newer version is
+  still owed an answer. An attempt interrupted by a shutdown is never
   ended, and is due again once its hold passes. A new content hash or checker
   version is a new key with fresh attempts. Every hold and backoff is
   computed in SQL from the database's own `now()`, so a skewed application

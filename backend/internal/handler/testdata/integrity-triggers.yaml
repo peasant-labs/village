@@ -567,3 +567,19 @@
       - {ref: b, status: done, attempts: 1}
       - {ref: a, version: 1.1.0, status: done, attempts: 1}
     results: [{ref: a}, {ref: b, version: 1.1.0}, {ref: a, version: 1.1.0}]
+
+- name: older_answer_leaves_the_newer_version_owed
+  why: an answer from an older checker is stored and its flag counts, but it does not settle what the newer held version owes, so the newer checker is still asked
+  steps:
+    - {do: set_version, version: 1.1.0}
+    - {do: answer_version, version: 1.0.0}
+    - {do: publish, ref: a, turns: [0]}
+    - {do: make_public}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: answer_version, version: 1.1.0}
+    - {do: tick}
+  want:
+    sent: [a, a]
+    ledger: [{ref: a, version: 1.1.0, status: done, attempts: 1}]
+    results: [{ref: a, turns: [0]}, {ref: a, version: 1.1.0, turns: [0]}]

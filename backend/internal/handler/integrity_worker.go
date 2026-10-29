@@ -296,6 +296,16 @@ func (h *Handler) checkCandidate(ctx context.Context, version string, row sqlc.T
 		}
 		return false, stop, nil
 	case outcomeChecked:
+		if compareScryVersions(resp.ScryVersion, version) < 0 {
+			// An older checker answered, during a rollout or after a
+			// rollback. Its result is stored and its flag counts, but it
+			// does not settle what the held version owes, so the attempt
+			// is given back and the newer checker is still asked.
+			if err := h.queries.ReleaseIntegrityAttempt(ctx, sqlc.ReleaseIntegrityAttemptParams{TranscriptID: row.ID, ContentHash: hash, ScryVersion: version}); err != nil {
+				return true, false, fmt.Errorf("release the integrity attempt for transcript %s: %w", uuidFromPg(row.ID), err)
+			}
+			return true, false, nil
+		}
 		completion = key("done", "", 0)
 	case outcomeLegacy:
 		completion = key("skipped", outcomeLegacy, 0)
@@ -382,18 +392,14 @@ func (h *Handler) checkTranscript(ctx context.Context, row sqlc.Transcript) (sch
 	checkCtx, cancel := context.WithTimeout(ctx, backgroundCheckTimeout)
 	resp, err := h.integrity.checker.Check(checkCtx, req)
 	cancel()
+	refused := h.integrity.noteCheckResult(err)
 	if err != nil {
 		status := scryStatus(err)
-		if h.integrity.noteFailure(err) {
+		if refused {
 			return none, checkOutcome{Class: outcomeSecretRefused, Status: status}, nil
-		}
-		if status != 0 {
-			// The service answered past the secret check.
-			h.integrity.notePassedSecret()
 		}
 		return none, checkOutcome{Class: string(scry.Classify(err)), Status: status}, nil
 	}
-	h.integrity.notePassedSecret()
 	h.integrity.observeVersion(resp.ScryVersion)
 	if err := recordIntegrityResult(ctx, h.queries, row.ID, hash, resp); err != nil {
 		return resp, checkOutcome{Class: outcomeChecked}, err
@@ -432,22 +438,23 @@ func scryStatus(err error) int {
 	return 0
 }
 
-// noteFailure reports whether a failed check was the service refusing the
-// shared secret, and warns once about it, so an operator sees it without a
-// line per pass. Health needs no secret, so only a check that got past the
-// secret re-arms the warning (notePassedSecret).
-func (s *integrityService) noteFailure(err error) bool {
+// noteCheckResult reports whether a check was refused for the shared secret,
+// and warns once about it, so an operator sees it without a line per pass.
+// Only a check the service itself answered with 200 re-arms the warning:
+// health needs no secret, and a 502 or 503 can come from a proxy in front of
+// the secret check, so neither shows the secret was accepted.
+func (s *integrityService) noteCheckResult(err error) bool {
 	status := scryStatus(err)
-	if status != http.StatusUnauthorized && status != http.StatusForbidden {
+	switch {
+	case err == nil || status == http.StatusOK:
+		s.secretRejected.Store(false)
+		return false
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		if s.secretRejected.CompareAndSwap(false, true) {
+			slog.Warn("integrity check service rejected the shared secret", "status", status, "consequence", "no transcript is checked until SCRY_SHARED_SECRET matches the service")
+		}
+		return true
+	default:
 		return false
 	}
-	if s.secretRejected.CompareAndSwap(false, true) {
-		slog.Warn("integrity check service rejected the shared secret", "status", status, "consequence", "no transcript is checked until SCRY_SHARED_SECRET matches the service")
-	}
-	return true
-}
-
-// notePassedSecret records that a check got past the service's secret check.
-func (s *integrityService) notePassedSecret() {
-	s.secretRejected.Store(false)
 }

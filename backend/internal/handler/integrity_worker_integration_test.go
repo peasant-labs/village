@@ -88,6 +88,7 @@ var requiredIntegrityTriggerCases = []string{
 	"database_failure_before_the_call_backs_off",
 	"claim_refuses_past_the_cap",
 	"newer_answer_starts_the_sweep",
+	"older_answer_leaves_the_newer_version_owed",
 	"withdrawn_share_stops_checks",
 	"reshare_of_checked_hash_sends_nothing",
 	"public_publish_is_checked_once",

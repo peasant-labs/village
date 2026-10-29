@@ -87,9 +87,10 @@ func TestCheckedSetPredicateIsShared(t *testing.T) {
 	}
 }
 
-// TestRejectedSecretWarnsOnce: a refused secret warns once, a healthy health
-// call does not re-arm the warning (health needs no secret), and only a check
-// that got past the secret does.
+// TestRejectedSecretWarnsOnce: a refused secret warns once. Neither a healthy
+// health call (health needs no secret) nor a failed check (a 502 or 503 can
+// come from a proxy in front of the secret check) re-arms the warning; only a
+// check the service answered does.
 func TestRejectedSecretWarnsOnce(t *testing.T) {
 	var logged bytes.Buffer
 	previous := slog.Default()
@@ -100,7 +101,7 @@ func TestRejectedSecretWarnsOnce(t *testing.T) {
 	s := newIntegrityServiceFor(nil)
 	refused := &scry.Error{Class: scry.ClassRejected, Status: http.StatusUnauthorized}
 	forbidden := &scry.Error{Class: scry.ClassRejected, Status: http.StatusForbidden}
-	if !s.noteFailure(refused) || !s.noteFailure(forbidden) || warnings() != 1 {
+	if !s.noteCheckResult(refused) || !s.noteCheckResult(forbidden) || warnings() != 1 {
 		t.Fatalf("two refusals logged %d warnings, want 1, and both must count as refusals", warnings())
 	}
 	healthy := newTestHandler(&mockQuerier{}, nil)
@@ -109,14 +110,21 @@ func TestRejectedSecretWarnsOnce(t *testing.T) {
 	if err := healthy.integrityTick(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if !s.noteFailure(refused) || warnings() != 1 {
+	if !s.noteCheckResult(refused) || warnings() != 1 {
 		t.Fatalf("a healthy health call re-armed the warning: %d warnings", warnings())
 	}
-	if s.noteFailure(&scry.Error{Class: scry.ClassUnavailable, Status: http.StatusServiceUnavailable}) {
-		t.Fatal("a 503 counted as a refused secret")
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable} {
+		if s.noteCheckResult(&scry.Error{Class: scry.ClassUnavailable, Status: status}) {
+			t.Fatalf("a %d counted as a refused secret", status)
+		}
 	}
-	s.notePassedSecret()
-	if !s.noteFailure(refused) || warnings() != 2 {
-		t.Fatalf("a refusal after a check passed the secret logged %d warnings in all, want 2", warnings())
+	if !s.noteCheckResult(refused) || warnings() != 1 {
+		t.Fatalf("a failed check re-armed the warning: %d warnings", warnings())
+	}
+	if s.noteCheckResult(nil) {
+		t.Fatal("an answered check counted as a refused secret")
+	}
+	if !s.noteCheckResult(refused) || warnings() != 2 {
+		t.Fatalf("a refusal after an answered check logged %d warnings in all, want 2", warnings())
 	}
 }
