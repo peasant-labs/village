@@ -22,7 +22,7 @@ export type LicenseChoice = License | typeof NO_LICENSE;
 export const LICENSE_CHOICES: readonly LicenseChoice[] = [...AllLicenses, NO_LICENSE];
 
 /** Date the notice text last changed, ISO calendar date. */
-export const NOTICE_UPDATED = "2026-09-10";
+export const NOTICE_UPDATED = "2026-10-29";
 
 export const OPERATOR = {
   name: "David Huu Pham",
@@ -94,4 +94,14 @@ export const LICENSE_ORDER: readonly LicenseChoice[] = [
   "CC-BY-SA-4.0",
   "CC0-1.0",
   NO_LICENSE,
+];
+
+/** "Automated integrity checks", after "public contributions". */
+export const INTEGRITY_HEADING = "automated integrity checks";
+
+export const INTEGRITY_PARAGRAPHS: readonly string[] = [
+  "When anyone other than you can read a transcript, because you made it public or shared it with a collective, an automated check reads it for signs that it was edited after it was recorded. The check runs again whenever the transcript’s content changes while others can read it. No person reads your transcript for this check.",
+  "The check runs on Village’s private network. It stores nothing and does not log transcript content. Village keeps only the result: whether the transcript was flagged, and the positions of any flagged turns.",
+  "If a transcript is flagged, everyone who can read it sees a warning, you included. Withdrawing a share or making the transcript private stops further checks but does not remove the flag. If you delete a flagged transcript, Village keeps a small record with no content (your account, the session’s identifier and the date of the flag), so the same session published again starts out flagged.",
+  "Village stores transcripts encrypted. Its servers decrypt a transcript every time an authorised reader opens it, and for this check. Encryption protects the stored copies; it does not stop Village’s servers from reading a transcript.",
 ];

@@ -1,5 +1,6 @@
 "use client";
 
+import IntegrityDisclosure from "./IntegrityDisclosure";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Globe, Lock, X } from "lucide-react";
@@ -127,6 +128,7 @@ function DialogBody({
                 desc="anyone with the link"
               />
             </div>
+            {visibility === "public" && <IntegrityDisclosure />}
             {initialVisibility === "shared" && visibility === "shared" && (
               <p className="mt-1.5 text-[11.5px] text-ink-3">
                 shared with one or more collectives. choose private or public to

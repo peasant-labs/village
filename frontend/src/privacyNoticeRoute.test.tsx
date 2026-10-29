@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import PrivacyPage, { metadata } from "@/app/privacy/page";
 import { NO_LICENSE } from "@/app/privacy/notice";
 import { loadPrivacyNoticeFixtures } from "@/test/privacyNoticeFixtures";
+import { loadPrivacyIntegrityFixtures } from "@/test/integrityDisclosureFixtures";
 
 // Mounts the REAL /privacy route. The notice is what every publish consent
 // control points at, so what matters is the rendered page: its title, its
@@ -11,6 +12,7 @@ import { loadPrivacyNoticeFixtures } from "@/test/privacyNoticeFixtures";
 // no fewer.
 
 const fixtures = loadPrivacyNoticeFixtures();
+const integrity = loadPrivacyIntegrityFixtures();
 
 afterEach(() => cleanup());
 
@@ -72,5 +74,37 @@ describe("the /privacy route", () => {
     render(<PrivacyPage />);
     const matches = noticeSurface().textContent?.match(/You confirm that you have the rights/g) ?? [];
     expect(matches).toHaveLength(1);
+  });
+});
+
+describe("the automated integrity checks section", () => {
+  function region(): HTMLElement {
+    render(<PrivacyPage />);
+    return within(noticeSurface()).getByRole("region", { name: integrity.heading });
+  }
+
+  for (const c of integrity.cases) {
+    it(c.name, () => {
+      const section = region();
+      const heading = within(section).getByRole("heading", { level: 2 });
+      expect(heading).toHaveAttribute("id", "privacy-integrity");
+      if (c.name === "heading_is_lowercase") {
+        expect(heading.textContent).toBe(integrity.heading);
+        expect(heading.textContent).toBe(heading.textContent?.toLowerCase());
+      }
+      if (c.name === "notice_date_bumped") {
+        expect(noticeSurface().querySelector("time")).toHaveAttribute("datetime", integrity.noticeUpdated);
+      }
+      const text = section.textContent ?? "";
+      for (const phrase of c.contains) expect(text).toContain(phrase);
+      const page = noticeSurface().textContent ?? "";
+      for (const phrase of c.absent) expect(page).not.toContain(phrase);
+    });
+  }
+
+  it("follows public contributions", () => {
+    render(<PrivacyPage />);
+    const ids = Array.from(noticeSurface().querySelectorAll("h2")).map((h) => h.id);
+    expect(ids.indexOf("privacy-integrity")).toBe(ids.indexOf("privacy-contributions") + 1);
   });
 });

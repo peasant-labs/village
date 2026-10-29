@@ -1,0 +1,45 @@
+# Cases behind the automated integrity checks section of
+# src/privacyNoticeRoute.test.tsx, on the mounted /privacy page.
+#
+# `contains` phrases must appear in the section's text; `absent` phrases must
+# appear nowhere on the page. Cases are guarded by a required-NAME manifest in
+# the loader, never by a count.
+
+heading: automated integrity checks
+noticeUpdated: "2026-10-29"
+
+cases:
+  - name: integrity_region_present
+    contains:
+      - an automated check reads it for signs that it was edited after it was recorded
+    absent: []
+  - name: heading_is_lowercase
+    contains: []
+    absent: []
+  - name: says_no_person_reads
+    contains:
+      - No person reads your transcript for this check.
+    absent: []
+  - name: says_stores_nothing_logs_no_content
+    contains:
+      - It stores nothing and does not log transcript content.
+    absent: []
+  - name: says_only_the_result_is_kept
+    contains:
+      - Village keeps only the result
+      - whether the transcript was flagged, and the positions of any flagged turns
+    absent: []
+  - name: says_servers_decrypt_for_every_read
+    contains:
+      - Its servers decrypt a transcript every time an authorised reader opens it
+    absent: []
+  - name: never_claims_no_access
+    contains: []
+    absent:
+      - don't look
+      - don’t look
+      - do not look
+      - never see
+  - name: notice_date_bumped
+    contains: []
+    absent: []
