@@ -1,5 +1,7 @@
-import { fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import {
   installProfileRouteREST,
   installProjectRouteREST,
@@ -350,6 +352,58 @@ describe("mounted routes: the way back never leads to the hidden discovery list"
         expect(a.getAttribute("href") ?? "").not.toMatch(/^\/explore/);
         expect((a.textContent ?? "").trim().toLowerCase()).not.toContain("commons");
       }
+    });
+  }
+});
+
+const readErrors = parse(readFileSync("src/testdata/profile-project-read-errors.yaml", "utf8")) as Array<{
+  name: string; target: "profile" | "library" | "project"; status: number; title: string; retryLabel: string;
+}>;
+
+describe("mounted profile and project failed reads", () => {
+  it("retains the failed, refused and library read cases", () => {
+    expect(readErrors.map((fixture) => fixture.name)).toEqual(expect.arrayContaining([
+      "failed-profile-read-retries-before-showing-profile",
+      "refused-profile-read-is-not-not-found",
+      "failed-library-read-is-not-an-empty-library",
+      "failed-project-read-retries-in-place",
+    ]));
+  });
+  for (const row of readErrors) {
+    it(row.name, async () => {
+      const fixture = baseFixture({ viewer: "bob-reads" });
+      if (row.target === "project") installProjectRouteREST(fixture);
+      else installProfileRouteREST("alice-dev", "bob-reads", [{ projectHash: HASH, projectDisplayName: "village" }]);
+      const upstream = globalThis.fetch;
+      let reads = 0;
+      let releaseRetry: (() => void) | undefined;
+      vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        const matches = row.target === "project" ? url.pathname.endsWith(`/projects/${HASH}`)
+          : row.target === "profile" ? url.pathname.endsWith("/users/alice-dev")
+          : url.pathname.endsWith("/transcripts") && url.searchParams.get("owner") === "alice-dev" && url.searchParams.get("view") !== "grouped";
+        if (matches) {
+          reads += 1;
+          if (reads === 1) return new Response(JSON.stringify({ error: "read unavailable" }), { status: row.status });
+          await new Promise<void>((resolve) => { releaseRetry = resolve; });
+        }
+        return upstream(input, init);
+      }));
+      if (row.target === "project") await renderProjectRoute(fixture.ownerUsername, fixture.projectHash);
+      else await renderProfileRoute("alice-dev");
+      expect(await screen.findByRole("alert")).toHaveTextContent(row.title);
+      expect(screen.queryByText("user not found")).not.toBeInTheDocument();
+      expect(screen.queryByText("your library is empty")).not.toBeInTheDocument();
+      if (row.target !== "library") expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(row.title);
+      const retry = screen.getByRole("button", { name: row.retryLabel });
+      retry.focus();fireEvent.click(retry);
+      await waitFor(() => expect(releaseRetry).toBeDefined());
+      expect(retry).toHaveFocus();expect(retry).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(retry);expect(reads).toBe(2);releaseRetry!();
+      if (row.target === "project") await screen.findByTestId("project-display-name");
+      else await screen.findByText("session 0", { exact: true });
+      expect(reads).toBe(2);
+      expect(screen.queryByRole("button", { name: row.retryLabel })).not.toBeInTheDocument();
     });
   }
 });

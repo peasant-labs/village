@@ -4,7 +4,6 @@ import { use, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   EyeOff,
-  FileText,
   Library,
   Pencil,
   Users,
@@ -12,11 +11,9 @@ import {
 import {
   Button,
   DataState,
-  EmptyState,
   Input,
   RailSection,
   RailShell,
-  StatGrid,
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
@@ -37,6 +34,7 @@ import { describeNameSource } from "@/lib/format";
 import { isOwnedBy } from "@/lib/publicOwner";
 import { childSessionsByParentID, groupProjectSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
+import RequestFailureState from "@/components/RequestFailureState";
 import { HOME_SECTION } from "@/lib/nav/sections";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
 import type {
@@ -63,7 +61,9 @@ export default function UserProjectPage({
 }) {
   const { username, projectHash } = use(params);
   const { user, isLoggedIn } = useAuth();
-  const { data, isLoading, error } = useUserProject(username, projectHash);
+  const projectRead = useUserProject(username, projectHash);
+  const { data, isLoading, error } = projectRead;
+  const [retryingProject, setRetryingProject] = useState(false);
   // The server's own helper-group fold, scoped to this project and owner. It
   // rides beside the flat project list, whose rows, child chip and pagination
   // are unchanged; a grouped read that fails contributes no groups. The read
@@ -117,17 +117,21 @@ export default function UserProjectPage({
     );
   }
 
-  if (error) {
+  if (error || retryingProject) {
     return (
       <OnPage tight>
         <Crumbs username={username} current={null} signedIn={isLoggedIn} />
-        <div className="on-notice" data-tone="danger" role="alert">
-          <p>
-            <strong className="text-[color:var(--ink-strong)]">this project page could not be loaded.</strong>{" "}
-            The request to peasant failed before the project could be read, so nothing is
-            shown rather than a partial page. Reload to try again.
-          </p>
-        </div>
+        <RequestFailureState
+          headingLevel={1}
+          title="this project could not load"
+          message="the project could not be read. retry to load it before continuing."
+          retryLabel="retry project"
+          retryDisabled={projectRead.isFetching || retryingProject}
+          onRetry={() => {
+            setRetryingProject(true);
+            void projectRead.refetch().finally(() => setRetryingProject(false));
+          }}
+        />
       </OnPage>
     );
   }
@@ -191,12 +195,8 @@ export default function UserProjectPage({
         empty={data.transcripts.length === 0}
         emptyState={
           <div className="px-5 py-10">
-            <EmptyState
-              icon={Library}
-              as="h3"
-              title="no transcripts to show"
-              message="this project has no published sessions you can open."
-            />
+            <h3 className="on-h2">no transcripts to show</h3>
+            <p className="on-muted">this project has no published sessions you can open.</p>
           </div>
         }
       >
@@ -273,12 +273,8 @@ export default function UserProjectPage({
         empty={data.collectives.length === 0}
         emptyState={
           <div className="px-5 py-10">
-            <EmptyState
-              icon={Users}
-              as="h3"
-              title="no collectives to show"
-              message="no collective you can see holds a transcript from this project."
-            />
+            <h3 className="on-h2">no collectives to show</h3>
+            <p className="on-muted">no collective you can see holds a transcript from this project.</p>
           </div>
         }
       >
@@ -408,22 +404,10 @@ export default function UserProjectPage({
         </div>
       </header>
 
-      <StatGrid
-        tiles={[
-          {
-            key: "transcripts",
-            label: "transcripts",
-            value: data.transcripts.length.toLocaleString(),
-            icon: FileText,
-          },
-          {
-            key: "collectives",
-            label: "collectives",
-            value: data.collectives.length.toLocaleString(),
-            icon: Users,
-          },
-        ]}
-      />
+      <dl className="on-stats on-profile-stats" aria-label="project in numbers">
+        <div className="on-stat"><dt>transcripts</dt><dd>{data.transcripts.length.toLocaleString()}</dd></div>
+        <div className="on-stat"><dt>collectives</dt><dd>{data.collectives.length.toLocaleString()}</dd></div>
+      </dl>
 
       {ownerRail ? (
         <RailShell
@@ -435,12 +419,7 @@ export default function UserProjectPage({
           {canvas}
         </RailShell>
       ) : (
-        // No rail for a viewer who is not the owner, so the canvas would run the
-        // full page width. It is held to the design system's own content measure
-        // instead: the transcript rows carry a `group` class that the design
-        // system also styles as a capped layout group, so a wider container
-        // leaves the rows centred inside their own panel.
-        <div style={{ maxWidth: "var(--maxw)" }}>{canvas}</div>
+        canvas
       )}
     </OnPage>
   );

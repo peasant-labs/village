@@ -149,3 +149,6 @@
   .contribute-session-heading > button { flex: none; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: var(--lh-body); }
   .contribute-session-mark { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* The agent-only library explains two distinct things without a ragged shared line. */
+.on-agent-library-note { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; justify-content: stretch; gap: var(--sp-2); }

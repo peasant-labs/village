@@ -1,0 +1,20 @@
+- name: failed-profile-read-retries-before-showing-profile
+  target: profile
+  status: 503
+  title: this profile could not load
+  retryLabel: retry profile
+- name: refused-profile-read-is-not-not-found
+  target: profile
+  status: 403
+  title: this profile could not load
+  retryLabel: retry profile
+- name: failed-library-read-is-not-an-empty-library
+  target: library
+  status: 503
+  title: this library could not load
+  retryLabel: retry published library
+- name: failed-project-read-retries-in-place
+  target: project
+  status: 503
+  title: this project could not load
+  retryLabel: retry project

@@ -2,7 +2,7 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { FileText, Lock } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { loginHref } from "@/lib/signIn";
 import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
@@ -271,12 +271,12 @@ export default function GroupContributePage({
         />
       )}
       {listingUnavailable ? null : tree.length === 0 && !hasGroupedExit ? (
-        <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="contribute-member-panel">
-          <p className="mx-auto text-sm text-ink-3">
-            all your transcripts are already shared with this collective, or you have no
-            published transcripts.
-          </p>
-        </div>
+        <OnEmpty
+          icon={<FileText aria-hidden="true" />}
+          title="no transcripts to contribute"
+          body="all your transcripts are already shared with this collective, or you have no published transcripts."
+          testId="contribute-member-panel"
+        />
       ) : (
         <>
           {tree.length > 0 && (

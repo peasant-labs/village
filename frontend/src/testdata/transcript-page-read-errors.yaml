@@ -1,0 +1,9 @@
+- name: temporary-metadata-failure-retries-the-same-transcript
+  status: 503
+  retry: true
+- name: refused-metadata-is-not-an-empty-result
+  status: 403
+  retry: true
+- name: missing-transcript-retains-indistinguishable-not-found
+  status: 404
+  retry: false

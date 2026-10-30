@@ -28,6 +28,8 @@ import RetryButton from "@/components/RetryButton";
 export interface RequestFailureStateProps {
   /** The short headline: what could not be loaded. */
   title: ReactNode;
+  /** The page heading when this failure replaces the whole mounted page. */
+  headingLevel?: 1 | 2 | 3;
   /** The actionable body: what failed, what it means, and what retrying does. */
   message: ReactNode;
   /** Re-issues the failed request. */
@@ -45,11 +47,13 @@ export interface RequestFailureStateProps {
 
 export default function RequestFailureState({
   title,
+  headingLevel,
   message,
   onRetry,
   retryLabel,
   retryDisabled = false,
 }: RequestFailureStateProps) {
+  const Heading = headingLevel === 1 ? "h1" : headingLevel === 2 ? "h2" : headingLevel === 3 ? "h3" : "p";
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
       <div
@@ -63,7 +67,7 @@ export default function RequestFailureState({
             what a busy state does, and it would interrupt the polite region
             that already says the request is going out again. */}
         <div role="alert" className="flex flex-col items-center gap-3">
-          <p className="text-sm font-medium text-ink">{title}</p>
+          <Heading className={headingLevel ? "on-h2" : "text-sm font-medium text-ink"}>{title}</Heading>
           <p className="text-[length:var(--fs-body)] text-ink-3 max-w-sm">{message}</p>
         </div>
         <RetryButton label={retryLabel} busy={retryDisabled} onRetry={onRetry} />

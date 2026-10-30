@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
 import { useGroup, useGroups } from "@/lib/queries/groups";
@@ -13,10 +13,11 @@ import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
 import Link from "next/link";
 import { FileX2, SearchX } from "lucide-react";
-import { hasAuthTokenCookie } from "@/lib/api";
+import { hasAuthTokenCookie, isApiErrorStatus } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 import { loginHref } from "@/lib/signIn";
+import RequestFailureState from "@/components/RequestFailureState";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 
 export default function TranscriptDetailPage({
@@ -29,7 +30,9 @@ export default function TranscriptDetailPage({
 }) {
   const { id } = use(params);
   useDeclareSignedOutReadable(openSignedOut);
-  const { data, isLoading } = useTranscript(id);
+  const metadata = useTranscript(id);
+  const { data, isLoading, error: metadataError } = metadata;
+  const [retryingMetadata, setRetryingMetadata] = useState(false);
   const { data: contentRead, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
   const content = contentRead?.content;
@@ -79,6 +82,24 @@ export default function TranscriptDetailPage({
       .filter((s) => s.status === "pending" && ownedGroupIds.has(s.group_id))
       .map((s) => ({ groupId: s.group_id, groupName: s.group_name }));
   }, [data, myGroups]);
+
+  if (!data && ((metadataError && !isApiErrorStatus(metadataError, 404)) || retryingMetadata)) {
+    return (
+      <OnPage>
+        <RequestFailureState
+          headingLevel={1}
+          title="this transcript could not load"
+          message="the transcript could not be read. retry to load it before continuing."
+          retryLabel="retry transcript"
+          retryDisabled={metadata.isFetching || retryingMetadata}
+          onRetry={() => {
+            setRetryingMetadata(true);
+            void metadata.refetch().finally(() => setRetryingMetadata(false));
+          }}
+        />
+      </OnPage>
+    );
+  }
 
   // Transcript metadata still loading.
   // The title's place shimmers until the read names it.
