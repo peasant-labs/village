@@ -1,0 +1,27 @@
+{
+  "source": "a036154d2e33b5da4fa92040ca025c38fa16c647",
+  "fairtrade": "0.0.55",
+  "url": "http://localhost:3310/transcripts/long-demo?in=home",
+  "title": "Build a resumable activity export",
+  "turns": 84,
+  "phases": [
+    {
+      "label": " Planningturns 1–19",
+      "duplicateRules": 0
+    },
+    {
+      "label": " Implementationturns 20–52",
+      "duplicateRules": 0
+    },
+    {
+      "label": " Retry loopturns 53–65, 2 error",
+      "duplicateRules": 0
+    },
+    {
+      "label": " Planningturns 66–84",
+      "duplicateRules": 0
+    }
+  ],
+  "ordinaryRules": 53,
+  "errors": []
+}

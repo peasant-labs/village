@@ -1,0 +1,110 @@
+{
+  "headRefOid": "4ddf6f72bccd0eed2ead9223690836b6c1970b64",
+  "mergeCommit": {
+    "oid": "a036154d2e33b5da4fa92040ca025c38fa16c647"
+  },
+  "mergedAt": "2026-10-30T08:04:09Z",
+  "state": "MERGED",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:42:11Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690561/job/123950237040",
+      "name": "determine-runner / pick",
+      "startedAt": "2026-10-30T07:42:08Z",
+      "status": "COMPLETED",
+      "workflowName": "Backend Tests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:42:11Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021691206/job/123950240971",
+      "name": "notify / notify",
+      "startedAt": "2026-10-30T07:42:09Z",
+      "status": "COMPLETED",
+      "workflowName": "Notify Discord of pull requests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T08:04:20Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41023982910/job/123957626713",
+      "name": "notify / notify",
+      "startedAt": "2026-10-30T08:04:16Z",
+      "status": "COMPLETED",
+      "workflowName": "Notify Discord of pull requests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:42:13Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690575/job/123950237347",
+      "name": "determine-runner / pick",
+      "startedAt": "2026-10-30T07:42:08Z",
+      "status": "COMPLETED",
+      "workflowName": "journey"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T08:03:40Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690561/job/123950266962",
+      "name": "Backend, PostgreSQL, and RustFS",
+      "startedAt": "2026-10-30T07:42:13Z",
+      "status": "COMPLETED",
+      "workflowName": "Backend Tests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:52:03Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690575/job/123950275457",
+      "name": "journey",
+      "startedAt": "2026-10-30T07:44:37Z",
+      "status": "COMPLETED",
+      "workflowName": "journey"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:42:31Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690561/job/123950266939",
+      "name": "Third-party license notices",
+      "startedAt": "2026-10-30T07:42:13Z",
+      "status": "COMPLETED",
+      "workflowName": "Backend Tests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:58:26Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690575/job/123953511369",
+      "name": "evidence",
+      "startedAt": "2026-10-30T07:52:05Z",
+      "status": "COMPLETED",
+      "workflowName": "journey"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:44:36Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690561/job/123950267041",
+      "name": "Frontend frozen build",
+      "startedAt": "2026-10-30T07:42:13Z",
+      "status": "COMPLETED",
+      "workflowName": "Backend Tests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-30T07:45:03Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/peasant-labs/village/actions/runs/41021690561/job/123950267054",
+      "name": "Production artifact provenance",
+      "startedAt": "2026-10-30T07:42:32Z",
+      "status": "COMPLETED",
+      "workflowName": "Backend Tests"
+    }
+  ]
+}
