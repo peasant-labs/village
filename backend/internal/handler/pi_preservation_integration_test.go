@@ -31,6 +31,10 @@ func (s *countedPiBlobStore) Write(ctx context.Context, id uuid.UUID, raw []byte
 	s.writes++
 	return s.TranscriptBlobStore.Write(ctx, id, raw)
 }
+func (s *countedPiBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	s.writes++
+	return s.TranscriptBlobStore.WriteGeneration(ctx, id, body, metadata)
+}
 func (s *countedPiBlobStore) Delete(ctx context.Context, d storage.BlobDescriptor) error {
 	s.deletes++
 	return s.TranscriptBlobStore.Delete(ctx, d)

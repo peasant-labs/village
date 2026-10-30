@@ -1,0 +1,97 @@
+# Each case runs the client against an httptest server that behaves as
+# described. status 0 means 200. body is the raw response body; pad_bytes
+# appends that many spaces after it. Every case also asserts that the error
+# text never carries the secret, the server URL or the marker "BODYMARKER".
+- name: checked_empty_round_trips
+  op: check
+  turns: 3
+  server: {body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[]}'}
+  expect: {verdict: checked, flagged: [], scry_version: 1.2.3}
+- name: checked_with_turns_round_trips
+  op: check
+  turns: 3
+  server: {body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[0,2]}'}
+  expect: {verdict: checked, flagged: [0, 2], scry_version: 1.2.3}
+- name: unchecked_round_trips
+  op: check
+  turns: 2
+  server: {body: '{"scryVersion":"1.2.3","verdict":"unchecked","flaggedTurns":[]}'}
+  expect: {verdict: unchecked, flagged: [], scry_version: 1.2.3}
+- name: bearer_header_sent
+  op: check
+  turns: 1
+  server: {body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[]}'}
+  expect: {verdict: checked, flagged: [], scry_version: 1.2.3, bearer_seen: true}
+- name: redirect_not_followed
+  op: check
+  turns: 1
+  server: {status: 307, redirect_to: /elsewhere}
+  expect: {class: rejected, redirect_target_hits: 0}
+- name: turn_out_of_range_invalid
+  op: check
+  turns: 3
+  server: {body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[3]}'}
+  expect: {class: invalid_response}
+- name: unchecked_with_turns_invalid
+  op: check
+  turns: 3
+  server: {body: '{"scryVersion":"1.2.3","verdict":"unchecked","flaggedTurns":[1]}'}
+  expect: {class: invalid_response}
+- name: unknown_verdict_invalid
+  op: check
+  turns: 3
+  server: {body: '{"scryVersion":"1.2.3","verdict":"flagged","flaggedTurns":[1]}'}
+  expect: {class: invalid_response}
+- name: health_contract_mismatch_rejected
+  op: health
+  server: {body: '{"contractVersion":"9.9.9","scryVersion":"1.2.3"}'}
+  expect: {class: rejected}
+- name: health_reports_version
+  op: health
+  server: {body: '{"contractVersion":"{contract}","scryVersion":"1.2.3"}'}
+  expect: {scry_version: 1.2.3, bearer_seen: true}
+- name: html_200_invalid
+  op: check
+  turns: 1
+  server: {body: '<html>BODYMARKER</html>'}
+  expect: {class: invalid_response}
+- name: status_413_too_large
+  op: check
+  turns: 1
+  server: {status: 413, body: 'BODYMARKER'}
+  expect: {class: too_large}
+- name: status_401_rejected
+  op: check
+  turns: 1
+  server: {status: 401, body: 'BODYMARKER'}
+  expect: {class: rejected}
+- name: status_403_rejected
+  op: check
+  turns: 1
+  server: {status: 403, body: 'BODYMARKER'}
+  expect: {class: rejected}
+- name: status_503_unavailable
+  op: check
+  turns: 1
+  server: {status: 503, body: 'BODYMARKER'}
+  expect: {class: unavailable}
+- name: health_503_unavailable
+  op: health
+  server: {status: 503}
+  expect: {class: unavailable}
+- name: deadline_is_timeout
+  op: check
+  turns: 1
+  deadline_ms: 50
+  server: {delay_ms: 2000, body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[]}'}
+  expect: {class: timeout}
+- name: oversized_response_invalid
+  op: check
+  turns: 1
+  server: {body: '{"scryVersion":"1.2.3","verdict":"checked","flaggedTurns":[]}', pad_bytes: 1100000}
+  expect: {class: invalid_response}
+- name: error_text_has_no_secret_or_body
+  op: check
+  turns: 1
+  server: {status: 500, body: 'BODYMARKER {secret}'}
+  expect: {class: unavailable}

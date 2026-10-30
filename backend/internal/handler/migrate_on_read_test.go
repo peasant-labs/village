@@ -32,6 +32,7 @@ type fakeBlobStore struct {
 	uploads   int
 	lastBody  []byte
 	downloads int
+	metadata  fakeMetadataStore
 }
 
 func newFakeBlobStore() *fakeBlobStore {
@@ -76,6 +77,17 @@ func (*fakeBlobStore) Rewrap(context.Context, uuid.UUID, storage.BlobDescriptor)
 }
 func (*fakeBlobStore) Delete(context.Context, storage.BlobDescriptor) error { return nil }
 
+func (s *fakeBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+func (s *fakeBlobStore) ReadMetadata(_ context.Context, _ uuid.UUID, _ storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.metadata.read(m)
+}
+func (s *fakeBlobStore) DeleteMetadata(_ context.Context, m storage.MetadataObject) error {
+	s.metadata.delete(m)
+	return nil
+}
+
 func (f *fakeBlobStore) uploadCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -93,6 +105,10 @@ func publicTranscriptQuerier(blobKey string) *mockQuerier {
 }
 
 type generationTestBlobStore struct{ *fakeBlobStore }
+
+func (s generationTestBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
 
 func (s generationTestBlobStore) Write(ctx context.Context, _ uuid.UUID, content []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
 	descriptor, err := storage.NewBlobDescriptor(storage.ObjectKey("transcripts/20000000-0000-4000-8000-000000000002.bin"), []byte("test-wrapped-key"), storage.EncryptionAES256GCMRandomNonceV1, 1)

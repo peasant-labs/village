@@ -19,7 +19,7 @@ import {
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
-import type { SessionRelationshipNavigation, UnverifiedPullRequestSource } from '@peasant-labs/schema';
+import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
   readTranscriptReadState,
   writeTranscriptReadState,
@@ -101,6 +101,14 @@ interface SessionDetailV2Props {
    *  A carried exact branch anchor is applied only while it still matches this
    *  value, the same authority the server used to emit the anchor. */
   transcriptContentHash?: string | null;
+  /** The detail response's `integrity`, present only when the server flagged
+   *  this transcript for a reader allowed to see the flag. Handed to the
+   *  viewer as served. */
+  integrity?: VillageTranscriptIntegrity | null;
+  /** The content route's `Village-Content-Hash` for the rendered `detail`.
+   *  The viewer marks flagged turns only when it equals
+   *  `transcriptContentHash`; village never compares them. */
+  renderedContentHash?: string | null;
   error?: string | null;
   beforeHeader?: ReactNode;
   presentation?: 'ledger' | 'classic';
@@ -141,6 +149,8 @@ function SessionDetailV2Content({
   detail,
   relationshipNavigation,
   transcriptContentHash,
+  integrity,
+  renderedContentHash,
   error,
   beforeHeader,
   presentation,
@@ -404,6 +414,9 @@ function SessionDetailV2Content({
     <div className={isPreview ? 'on-transcript-preview' : 'flex flex-col h-full min-h-0 min-w-0'}>
       <div className="flex-1 min-h-0 min-w-0" ref={streamContainerRef}>
         <TranscriptViewer
+          integrity={integrity}
+          transcriptContentHash={transcriptContentHash}
+          contentHash={renderedContentHash}
           beforeHeader={<>
       {beforeHeader}
       {error != null && (

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Share2, Globe, FileText } from "lucide-react";
 import { ConsentDialog } from "@/lib/ft-ui";
+import IntegrityDisclosure from "./IntegrityDisclosure";
 
 interface CollectiveTarget {
   id: string;
@@ -110,6 +111,7 @@ export default function ConfirmContributeDialog({
           )}
         </ul>
       </div>
+      <IntegrityDisclosure />
     </ConsentDialog>
   );
 }

@@ -142,6 +142,16 @@ func (s *descriptorCheckingStore) Rewrap(ctx context.Context, id uuid.UUID, d st
 func (s *descriptorCheckingStore) Delete(ctx context.Context, d storage.BlobDescriptor) error {
 	return s.delegate.Delete(ctx, d)
 }
+
+func (s *descriptorCheckingStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.delegate.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+func (s *descriptorCheckingStore) ReadMetadata(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.delegate.ReadMetadata(ctx, id, d, m)
+}
+func (s *descriptorCheckingStore) DeleteMetadata(ctx context.Context, m storage.MetadataObject) error {
+	return s.delegate.DeleteMetadata(ctx, m)
+}
 func (s *descriptorCheckingStore) uploadCount() int { return s.delegate.uploadCount() }
 
 func TestObservedModelProductionPreservation(t *testing.T) {

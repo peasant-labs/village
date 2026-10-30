@@ -260,7 +260,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
-       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
@@ -348,6 +349,9 @@ type ListGroupTranscriptsRow struct {
 	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
 	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
 	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
+	PublishMetadataKey      pgtype.Text        `db:"publish_metadata_key" json:"publish_metadata_key"`
+	PublishMetadataHash     pgtype.Text        `db:"publish_metadata_hash" json:"publish_metadata_hash"`
+	PublishMetadataSize     pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
 }
 
 // The pull-share query ListApprovedTranscriptShareGroups lives in the sibling
@@ -437,6 +441,9 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 			&i.RootSessionID,
 			&i.SessionPurpose,
 			&i.SessionRelationships,
+			&i.PublishMetadataKey,
+			&i.PublishMetadataHash,
+			&i.PublishMetadataSize,
 		); err != nil {
 			return nil, err
 		}
@@ -717,6 +724,39 @@ func (q *Queries) ListSharesByTranscriptIDs(ctx context.Context, dollar_1 []pgty
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubmittedCollectiveOwnersForTranscript = `-- name: ListSubmittedCollectiveOwnersForTranscript :many
+SELECT DISTINCT gm.user_id
+FROM transcript_shares ts
+JOIN group_members gm ON gm.group_id = ts.group_id
+WHERE ts.transcript_id = $1
+  AND ts.status IN ('pending', 'approved')
+  AND gm.role = 'owner'
+`
+
+// Returns the owner user_ids of every collective the transcript is submitted
+// to and not decided against: a share row whose status is pending or approved.
+// Unlike ListGroupOwnersForTranscript, a rejected share does not count. It
+// decides who may read the transcript's stored publish metadata.
+func (q *Queries) ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSubmittedCollectiveOwnersForTranscript, transcriptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var user_id pgtype.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

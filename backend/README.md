@@ -89,6 +89,7 @@ Key environment variables:
 | `EMAIL_PROVIDER_API_KEY` | Resend API key for notification-address verification and invitation emails (optional; email is off unless all three `EMAIL_*` variables are set) |
 | `EMAIL_FROM` | Sender of Village's emails, for example `village <village@your-domain>` (optional) |
 | `EMAIL_LINK_SIGNING_KEY` | Signs the one-click unsubscribe link, 32+ characters (optional) |
+| `SCRY_URL` / `SCRY_SHARED_SECRET` | Integrity-check service and its shared secret (optional; the check is off unless both are set; see [`docs/environment.md`](../docs/environment.md)) |
 | `JWT_SECRET` | Secret for signing JWTs |
 | `PORT` | Server port (default 8080) |
 | `FRONTEND_URL` | Frontend origin for CORS |

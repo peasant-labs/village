@@ -65,6 +65,13 @@ type Config struct {
 	EmailProviderAPIKey string
 	EmailFrom           string
 	EmailLinkSigningKey string
+
+	// Scry: the private integrity-check service. The check is on only when
+	// both are set, SCRY_URL is an http or https URL and the secret is at
+	// least 32 characters (see scry.Settings). SCRY_SHARED_SECRET is a secret
+	// and is never logged.
+	ScryURL          string
+	ScrySharedSecret string
 }
 
 // Narrow S3 accessors let the raw object adapter depend on storage authority,
@@ -125,6 +132,8 @@ func Load() *Config {
 		EmailProviderAPIKey:     getEnv("EMAIL_PROVIDER_API_KEY", ""),
 		EmailFrom:               getEnv("EMAIL_FROM", ""),
 		EmailLinkSigningKey:     getEnv("EMAIL_LINK_SIGNING_KEY", ""),
+		ScryURL:                 getEnv("SCRY_URL", ""),
+		ScrySharedSecret:        getEnv("SCRY_SHARED_SECRET", ""),
 		// Default ON: only the explicit string "false" disables it, so an unset or
 		// malformed value fails safe to enabled (legacy NULLs still get backfilled).
 	}

@@ -1,0 +1,12 @@
+# Each row names one property of the publish metadata object, which is
+# encrypted under the same data key as the transcript content it describes.
+- name: metadata_round_trips
+- name: metadata_shares_the_body_wrapped_dek
+- name: metadata_as_body_fails_authentication
+- name: body_as_metadata_fails_authentication
+- name: metadata_of_another_transcript_fails
+- name: metadata_hash_mismatch_refused
+- name: nil_metadata_writes_one_object
+- name: metadata_upload_failure_removes_the_body
+- name: rewrap_keeps_metadata_readable_and_bytes_identical
+- name: metadata_upload_and_body_cleanup_both_fail_reports_the_key

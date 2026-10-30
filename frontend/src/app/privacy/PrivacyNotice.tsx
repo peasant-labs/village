@@ -1,6 +1,8 @@
 import { OnCrumb, OnHead, OnPage } from "@/components/online/Page";
 import {
   CONFIRMATION,
+  INTEGRITY_HEADING,
+  INTEGRITY_PARAGRAPHS,
   LICENSE_ORDER,
   LICENSE_TERMS,
   NOTICE_UPDATED,
@@ -103,6 +105,17 @@ export function PrivacyNotice() {
             </div>
           );
         })}
+      </div>
+
+      <div role="region" aria-labelledby="privacy-integrity" className="flex flex-col gap-3">
+        <h2 id="privacy-integrity" className={SECTION_HEADING}>
+          {INTEGRITY_HEADING}
+        </h2>
+        {INTEGRITY_PARAGRAPHS.map((text) => (
+          <p key={text} className={PROSE}>
+            {text}
+          </p>
+        ))}
       </div>
     </OnPage>
   );

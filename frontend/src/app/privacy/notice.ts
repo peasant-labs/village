@@ -22,7 +22,7 @@ export type LicenseChoice = License | typeof NO_LICENSE;
 export const LICENSE_CHOICES: readonly LicenseChoice[] = [...AllLicenses, NO_LICENSE];
 
 /** Date the notice text last changed, ISO calendar date. */
-export const NOTICE_UPDATED = "2026-09-10";
+export const NOTICE_UPDATED = "2026-10-29";
 
 export const OPERATOR = {
   name: "David Huu Pham",
@@ -94,4 +94,13 @@ export const LICENSE_ORDER: readonly LicenseChoice[] = [
   "CC-BY-SA-4.0",
   "CC0-1.0",
   NO_LICENSE,
+];
+
+/** "Automated integrity checks", after "public contributions". */
+export const INTEGRITY_HEADING = "automated integrity checks";
+
+export const INTEGRITY_PARAGRAPHS: readonly string[] = [
+  "When anyone other than you can read a transcript, because you made it public or submitted it to a collective, an automated check reads it for signs of modification. No person reads your transcript during this process.",
+  "This check runs on Village’s private network. It stores nothing and does not log transcript content. Village keeps the result (whether the transcript was flagged, and the positions of any flagged turns) and a record of when the check ran and whether it succeeded.",
+  "If a transcript is flagged, everyone who can read it sees a warning. Editing the transcript does not remove an existing flag. While we do our best to accommodate for third-party tools, custom harnesses or plugins can modify a transcript in ways that look like editing and raise false positives.",
 ];

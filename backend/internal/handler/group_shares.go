@@ -342,6 +342,9 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The contribution committed, so its transcripts may have entered the
+	// checked set.
+	h.nudgeIntegrity()
 	writeJSON(w, http.StatusOK, result)
 }
 

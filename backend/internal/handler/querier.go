@@ -81,8 +81,24 @@ type Querier interface {
 	CompareAndSwapTranscriptBlob(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
 	CompareAndSwapWrappedDataKey(ctx context.Context, arg sqlc.CompareAndSwapWrappedDataKeyParams) (int64, error)
 	DeleteTranscriptReturningDescriptor(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error)
+	SetTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.SetTranscriptPublishMetadataObjectParams) error
+	ReplaceTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.ReplaceTranscriptPublishMetadataObjectParams) (int64, error)
+	RecordTranscriptContentRewrite(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error
 	ListTranscriptDescriptorsForRewrap(ctx context.Context, arg sqlc.ListTranscriptDescriptorsForRewrapParams) ([]sqlc.ListTranscriptDescriptorsForRewrapRow, error)
 	ListApprovedTranscriptShareGroups(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
+
+	// Transcript integrity methods
+	InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
+	HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
+	ServedIntegrityForContent(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error)
+	RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error
+	InheritIntegrityTombstone(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
+	ListIntegrityCandidates(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error)
+	IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (bool, error)
+	ClaimIntegrityAttempt(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error)
+	CompleteIntegrityAttempt(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error
+	ReleaseIntegrityAttempt(ctx context.Context, arg sqlc.ReleaseIntegrityAttemptParams) error
+	IsLegacyLineageContent(ctx context.Context, arg sqlc.IsLegacyLineageContentParams) (bool, error)
 
 	// Transcript commit methods
 	InsertTranscriptCommits(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
@@ -170,6 +186,7 @@ type Querier interface {
 	ListUserSharesInGroup(ctx context.Context, arg sqlc.ListUserSharesInGroupParams) ([]sqlc.ListUserSharesInGroupRow, error)
 	RetractUserSharesInGroup(ctx context.Context, arg sqlc.RetractUserSharesInGroupParams) error
 	ListGroupOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
+	ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 	GetGroupTranscriptStats(ctx context.Context, groupID pgtype.UUID) (sqlc.GetGroupTranscriptStatsRow, error)
 	ListGroupModelBreakdown(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupModelBreakdownRow, error)
 	ListGroupContributors(ctx context.Context, arg sqlc.ListGroupContributorsParams) ([]sqlc.ListGroupContributorsRow, error)

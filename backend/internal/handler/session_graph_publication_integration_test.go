@@ -32,6 +32,11 @@ func (b *graphPublicationBlobObserver) Write(ctx context.Context, id uuid.UUID, 
 	return b.TranscriptBlobStore.Write(ctx, id, content)
 }
 
+func (b *graphPublicationBlobObserver) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	b.writes.Add(1)
+	return b.TranscriptBlobStore.WriteGeneration(ctx, id, body, metadata)
+}
+
 func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 	ctx := context.Background()
 	pool := govTestPool(t)
@@ -211,7 +216,8 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := h.rewriteCanonicalTranscript(ctx, row, canonical); err != nil {
+			// Setup only: the replaced generation's shape is not under test.
+			if _, err := h.rewriteCanonicalTranscript(ctx, row, canonical, ShapeUnknown); err != nil {
 				t.Fatal(err)
 			}
 			pull := httptest.NewRecorder()

@@ -1,0 +1,81 @@
+cases:
+  - name: flagged_public_passes_integrity_and_both_hashes
+    why: a public reader gets the badge and the flagged turn marked when the rendered hash is the row hash
+    surface: route
+    visibility: public
+    viewer: signed-out
+    integrity: [1]
+    rowHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    header: same
+    expectBadge: true
+    expectMarks: 1
+  - name: flagged_private_shared_shows_badge_to_owner
+    why: the owner of a private transcript shared to a collective sees the flag the server served them
+    surface: route
+    visibility: private
+    viewer: owner
+    integrity: [0, 2]
+    rowHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    header: same
+    expectBadge: true
+    expectMarks: 2
+  - name: flagged_shared_shows_badge_to_member
+    why: a collective member reading an approved share sees the flag
+    surface: route
+    visibility: private
+    viewer: member
+    integrity: [1]
+    rowHash: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    header: same
+    expectBadge: true
+    expectMarks: 1
+  - name: badge_visible_signed_out
+    why: nothing about the badge needs a session
+    surface: route
+    visibility: public
+    viewer: signed-out
+    integrity: [2]
+    rowHash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    header: same
+    expectBadge: true
+    expectMarks: 1
+  - name: no_integrity_draws_nothing
+    why: a transcript the server did not flag shows no badge and no mark
+    surface: route
+    visibility: public
+    viewer: signed-out
+    integrity: null
+    rowHash: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    header: same
+    expectBadge: false
+    expectMarks: 0
+  - name: header_differs_from_row_hash_shows_badge_without_highlights
+    why: positions refer to the content the row hash names, so a different rendered hash keeps the badge and drops the marks
+    surface: route
+    visibility: public
+    viewer: signed-out
+    integrity: [1]
+    rowHash: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    header: "1111111111111111111111111111111111111111111111111111111111111111"
+    expectBadge: true
+    expectMarks: 0
+  - name: missing_header_passes_null_hash
+    why: with no header the rendered hash is unknown, so the badge draws and nothing is marked
+    surface: route
+    visibility: public
+    viewer: signed-out
+    integrity: [1]
+    rowHash: "9999999999999999999999999999999999999999999999999999999999999999"
+    header: none
+    expectBadge: true
+    expectMarks: 0
+  - name: preview_variant_passes_integrity_to_reviewer
+    why: the review page previews a pending submission through the preview variant, and the owner decided flags help curation
+    surface: preview
+    visibility: private
+    viewer: owner
+    integrity: [1]
+    rowHash: "abababababababababababababababababababababababababababababababab"
+    header: same
+    expectBadge: true
+    expectMarks: 1

@@ -102,7 +102,7 @@ describe("TranscriptPreview (preview_renders_on_click)", () => {
             isLoading: false,
           }
         : { data: undefined, isLoading: true };
-    h.contentQuery.current = () => ({ data: { turns: [] }, isLoading: false, error: null });
+    h.contentQuery.current = () => ({ data: { content: { turns: [] }, contentHash: null }, isLoading: false, error: null });
 
     render(wrap(<TranscriptPreview transcriptId={c.expect.clickedId as string} />));
     expect(screen.getByTestId("transcript-viewer")).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe("SessionDetailV2 preview variant (preview_hides_graph_and_owner_actions
             isLoading: false,
           }
         : { data: undefined, isLoading: true };
-    h.contentQuery.current = () => ({ data: { turns: [] }, isLoading: false, error: null });
+    h.contentQuery.current = () => ({ data: { content: { turns: [] }, contentHash: null }, isLoading: false, error: null });
 
     render(wrap(<TranscriptPreview transcriptId={row.id} />));
 
@@ -156,6 +156,39 @@ describe("SessionDetailV2 preview variant (preview_hides_graph_and_owner_actions
     const link = screen.getByTestId("preview-open-full-link");
     expect(link.getAttribute("href")).toBe(c.expect.openFullLinkHref);
   });
+
+  it("hands the viewer the served integrity and both hashes, so a reviewing owner sees the flag", () => {
+    const c = caseByName(cases, "preview", "preview_hides_graph_and_owner_actions");
+    const row = toContributableTranscript(c.rows[0]);
+    const rowHash = "a".repeat(64);
+    const rendered = "b".repeat(64);
+    h.transcriptQuery.current = () => ({
+      data: {
+        transcript: {
+          id: row.id,
+          local_id: row.local_id,
+          title: row.title,
+          description: null,
+          visibility: row.visibility,
+          content_hash: rowHash,
+          project_hash: row.project_hash,
+          project_display_name: row.project_display_name,
+          session_origin: row.session_origin,
+        },
+        owner: { id: "someone-else", github_username: "owner" },
+        integrity: { flagged_turns: [1] },
+      },
+      isLoading: false,
+    });
+    h.contentQuery.current = () => ({ data: { content: { turns: [] }, contentHash: rendered }, isLoading: false, error: null });
+
+    render(wrap(<TranscriptPreview transcriptId={row.id} />));
+
+    const props = h.viewerProps.current!;
+    expect(props.integrity).toEqual({ flagged_turns: [1] });
+    expect(props.transcriptContentHash).toBe(rowHash);
+    expect(props.contentHash).toBe(rendered);
+  });
 });
 
 
@@ -165,7 +198,7 @@ describe("TranscriptPreview metadata read failures", () => {
       if (fixture.kind !== "preview" || !fixture.readFailures) throw new Error("missing preview failures");
       const row = toContributableTranscript(fixture.rows[0]);
       h.realMetadata = true;
-      h.contentQuery.current = () => ({ data: { turns: [] }, isLoading: false, error: null });
+      h.contentQuery.current = () => ({ data: { content: { turns: [] }, contentHash: null }, isLoading: false, error: null });
       let releaseRetry: (() => void) | undefined;
       let calls = 0;
       const fetchMock = vi.fn(async (url: string) => {

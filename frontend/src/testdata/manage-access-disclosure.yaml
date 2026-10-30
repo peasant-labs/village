@@ -1,0 +1,61 @@
+# Cases behind src/manageAccessDisclosure.test.tsx.
+#
+# The disclosure line is one shared copy, shown wherever a transcript becomes
+# readable by anyone besides its owner: the manage access dialog, the contribute
+# confirmation, and the public choice in the edit dialog. `line` is the exact
+# wording as rendered, ending at the link; `linkLabel` is the link text and
+# `lineEnd` the text after it.
+#
+# Cases are guarded by a required-NAME manifest in the loader, never by a count.
+# `surface` is one of manage_access, contribute_confirm, make_public, share_choice, already_public; `check` is
+# one of shown, link, no_middle_dot, no_access_claim.
+
+line: "once this transcript is shared, an automated check reads it for signs of editing. the check does not store any content; village only keeps metadata about the check result and timestamp (see the"
+linkLabel: privacy notice
+lineEnd: ")."
+href: /privacy#privacy-integrity
+
+# Phrases the rendered text must never contain.
+forbidden:
+  - don't look
+  - don’t look
+  - do not look
+  - never see
+
+cases:
+  - name: disclosure_line_shown_private
+    surface: manage_access
+    visibility: private
+    check: shown
+  - name: disclosure_line_shown_public
+    surface: manage_access
+    visibility: public
+    check: shown
+  - name: links_to_privacy_integrity
+    surface: manage_access
+    visibility: private
+    check: link
+  - name: copy_has_no_middle_dot
+    surface: manage_access
+    visibility: private
+    check: no_middle_dot
+  - name: copy_never_claims_no_access
+    surface: manage_access
+    visibility: private
+    check: no_access_claim
+  - name: disclosure_on_contribute_confirm
+    surface: contribute_confirm
+    visibility: private
+    check: shown
+  - name: disclosure_on_make_public
+    surface: make_public
+    visibility: private
+    check: shown
+  - name: disclosure_on_share_choice
+    surface: share_choice
+    visibility: private
+    check: shown
+  - name: disclosure_on_already_public
+    surface: already_public
+    visibility: public
+    check: shown

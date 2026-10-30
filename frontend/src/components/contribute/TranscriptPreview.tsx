@@ -30,10 +30,12 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const retrying = transcriptId != null && retryingId === transcriptId;
   const {
-    data: content,
+    data: contentRead,
     isLoading: contentLoading,
     error: contentError,
   } = useTranscriptContent(transcriptId ?? "", { knownHarness: data?.transcript.model_provider, enabled: !!data });
+
+  const content = contentRead?.content;
 
   if (transcriptId == null) {
     return (
@@ -113,6 +115,9 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       projectName={t.project_display_name}
       projectHash={t.project_hash}
       detail={detail}
+      transcriptContentHash={t.content_hash}
+      integrity={data.integrity}
+      renderedContentHash={contentRead?.contentHash ?? null}
       error={contentError ? String((contentError as Error).message ?? contentError) : null}
     />
   );

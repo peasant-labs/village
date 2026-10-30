@@ -1,0 +1,281 @@
+# A transcript's integrity flag through publish, republish, audience changes,
+# results and deletion, against real PostgreSQL and RustFS.
+#
+# Every case drives the production publish and delete handlers; audience
+# changes write the rows the share and visibility paths write (share attempts
+# and the transcript's visibility), and results go through the same function
+# the background check calls.
+#
+# steps:
+#   action: publish | republish | patch_visibility | share | withdraw_share |
+#     reject_share | delete | result
+#   publish creates a transcript for (publisher, session); republish replaces
+#     the current transcript's content in place. Both name the content they
+#     send with hash_ref, so a later result can name it.
+#   publisher: a (default) or b; session: s1 (default) or s2. They choose
+#     which owner and which publisher session id a publish uses.
+#   visibility: the visibility patch_visibility sets.
+#   share opens a pending share of the current transcript to one collective;
+#     withdraw_share retracts it and reject_share rejects it.
+#   delete deletes the current transcript through the delete route.
+#   seed_tombstone writes a post-deletion record for (publisher, session)
+#     directly, dated days_ago days before now. No route writes one while the
+#     transcript exists; it reaches the record's date merge, which a second
+#     copy of the same session never can, because that copy inherits the
+#     first record's date.
+#   result stores one answer for the current transcript: the content named by
+#     hash_ref (which may be replaced content: an answer that arrives after a
+#     republish), version, verdict (checked by default) and turns.
+#
+# want:
+#   open_flag: whether the current transcript has an open flag (left out
+#     when the last step deleted it).
+#   tombstone: whether a post-deletion record exists for publisher a's
+#     session s1.
+#   tombstone_flagged_at_step: the record's flag date is the checked_at of
+#     the result written at this step index.
+#   tombstone_flagged_at_seed: the record's flag date is the seeded one.
+#   latest_turns: the turns of the latest checked result for the current
+#     content (left out when none is wanted; [] means a checked result with
+#     no turns).
+#
+# When the current transcript has an inherited flag, its date must equal the
+# post-deletion record's.
+
+- name: public_flag_is_open
+  why: a flagged answer on a public transcript is an open flag
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: patch_visibility, visibility: public}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [2]}
+  want: {open_flag: true, tombstone: false, latest_turns: [2]}
+
+- name: shared_flag_is_open
+  why: a flagged answer on a shared transcript is an open flag
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [0]}
+  want: {open_flag: true, tombstone: false}
+
+- name: flag_written_after_share_withdrawn_mid_check
+  why: the check was asked for while the copy was shared, so its flag counts even though the share was withdrawn before the answer arrived
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: withdraw_share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+  want: {open_flag: true, tombstone: false}
+
+- name: flag_written_after_made_private_mid_check
+  why: the check was asked for while the copy was public, so its flag counts even though the transcript went private before the answer arrived
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: patch_visibility, visibility: public}
+    - {action: patch_visibility, visibility: private}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+  want: {open_flag: true, tombstone: false}
+
+- name: republish_mid_check_keeps_the_flag
+  why: an answer for content the publisher replaced while the check ran still flags the transcript
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: republish, hash_ref: b}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+  want: {open_flag: true, tombstone: false}
+
+- name: withdrawn_share_keeps_the_flag
+  why: a flag belongs to the transcript, never to a share
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: withdraw_share}
+  want: {open_flag: true, tombstone: false}
+
+- name: rejected_share_keeps_the_flag
+  why: rejecting a share does not reset the flag
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: reject_share}
+  want: {open_flag: true, tombstone: false}
+
+- name: republish_keeps_the_flag
+  why: replacing flagged content with content that checks clean keeps the flag; only the highlights follow the current copy
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: patch_visibility, visibility: public}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [3]}
+    - {action: republish, hash_ref: b}
+    - {action: result, hash_ref: b, version: 1.0.0, turns: []}
+  want: {open_flag: true, tombstone: false, latest_turns: []}
+
+- name: private_then_public_keeps_the_flag
+  why: leaving and re-entering the checked set keeps the history
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: patch_visibility, visibility: public}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: patch_visibility, visibility: private}
+    - {action: patch_visibility, visibility: public}
+  want: {open_flag: true, tombstone: false}
+
+- name: later_version_checked_empty_on_same_content_voids
+  why: a later checker version that examines the same content and finds nothing voids the earlier flag, with no write
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: result, hash_ref: a, version: 1.1.0, turns: []}
+  want: {open_flag: false, tombstone: false, latest_turns: []}
+
+- name: version_order_is_numeric
+  why: 1.10.0 is later than 1.9.0; compared as text it would sort first and leave the flag open
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.9.0, turns: [1]}
+    - {action: result, hash_ref: a, version: 1.10.0, turns: []}
+  want: {open_flag: false, tombstone: false, latest_turns: []}
+
+- name: later_version_checked_empty_on_other_content_does_not_void
+  why: a clean answer for different content says nothing about the flagged content
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: republish, hash_ref: b}
+    - {action: result, hash_ref: b, version: 2.0.0, turns: []}
+  want: {open_flag: true, tombstone: false}
+
+- name: earlier_version_checked_empty_does_not_void
+  why: 0.9.0 is earlier than 0.10.0, so its clean answer cannot void the 0.10.0 flag; compared as text it would sort later and void it
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 0.10.0, turns: [1]}
+    - {action: result, hash_ref: a, version: 0.9.0, turns: []}
+  want: {open_flag: true, tombstone: false, latest_turns: [1]}
+
+- name: later_version_unchecked_does_not_void
+  why: an unchecked answer examined nothing, so it voids nothing
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: result, hash_ref: a, version: 1.1.0, verdict: unchecked}
+  want: {open_flag: true, tombstone: false}
+
+- name: later_unchecked_keeps_turns
+  why: the latest result for the content is the latest checked one, so a later unchecked answer does not hide the highlights of a flag that is still open
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1, 3]}
+    - {action: result, hash_ref: a, version: 1.1.0, verdict: unchecked}
+  want: {open_flag: true, tombstone: false, latest_turns: [1, 3]}
+
+- name: clean_and_unchecked_answers_are_not_flags
+  why: a checked answer with no turns and an unchecked answer flag nothing
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: []}
+    - {action: result, hash_ref: a, version: 1.1.0, verdict: unchecked}
+  want: {open_flag: false, tombstone: false, latest_turns: []}
+
+- name: delete_of_flagged_writes_tombstone
+  why: deleting a flagged transcript leaves a content-free record dated by the flag
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+  want: {tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: delete_of_voided_writes_no_tombstone
+  why: a voided flag is not open, so deleting leaves no record
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: result, hash_ref: a, version: 1.1.0, turns: []}
+    - {action: delete}
+  want: {tombstone: false}
+
+- name: delete_of_unflagged_writes_no_tombstone
+  why: deleting a transcript that was never flagged leaves no record
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: []}
+    - {action: delete}
+  want: {tombstone: false}
+
+- name: republish_after_delete_same_session_inherits
+  why: the same publisher publishing the same session again after deleting a flagged copy starts out flagged
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+    - {action: publish, hash_ref: b}
+  want: {open_flag: true, tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: other_session_does_not_inherit
+  why: the record names one publisher session; another session starts unflagged
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+    - {action: publish, hash_ref: b, session: s2}
+  want: {open_flag: false, tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: other_publisher_does_not_inherit
+  why: the record names one publisher; another publisher with the same session id starts unflagged
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+    - {action: publish, hash_ref: b, publisher: b}
+  want: {open_flag: false, tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: inherited_flag_survives_a_checked_empty_result
+  why: an inherited flag has no result behind it, so no answer voids it
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 9.0.0, turns: []}
+  want: {open_flag: true, tombstone: true, tombstone_flagged_at_step: 2, latest_turns: []}
+
+- name: second_delete_keeps_earliest_flag_date
+  why: deleting an inherited and newly flagged copy keeps the date of the first flag
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: delete}
+    - {action: publish, hash_ref: b}
+    - {action: share}
+    - {action: result, hash_ref: b, version: 1.0.0, turns: [2]}
+    - {action: delete}
+  want: {tombstone: true, tombstone_flagged_at_step: 2}
+
+- name: record_over_an_earlier_record_keeps_its_date
+  why: recording over an existing record with a later flag date keeps the earlier date
+  steps:
+    - {action: publish, hash_ref: a}
+    - {action: share}
+    - {action: result, hash_ref: a, version: 1.0.0, turns: [1]}
+    - {action: seed_tombstone, days_ago: 30}
+    - {action: delete}
+  want: {tombstone: true, tombstone_flagged_at_seed: true}

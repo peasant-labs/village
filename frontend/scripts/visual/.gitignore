@@ -55,3 +55,5 @@
 !manage-README.md
 !baseline/
 !baseline/**
+!mock-rest-integrity.mjs
+!integrity-shoot.mjs

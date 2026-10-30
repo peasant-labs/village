@@ -1,0 +1,67 @@
+# The body village sends to the integrity-check service for one transcript.
+#
+# row: the transcript row the request is built from. published_at_ms and
+#   updated_at_ms are its village times (0 leaves the time unset); the
+#   other fields are row stats that must never reach the request.
+# payload: canonical (a stored canonical generation) or bare (a legacy bare
+#   payload); either is passed through the content route's migrator first.
+# metadata: present (the row holds a publish metadata object) or absent.
+#
+# want:
+#   error: a substring of the refusal when the request must not be built;
+#     every other want is then ignored.
+#   published_at_ms, updated_at_ms: the request's record.
+#   record_keys: the exact keys of the record object in the request JSON.
+#   metadata: present (the decoded metadata, unchanged) or nil.
+#   harness, schema_version: the session detail the request carries.
+#   validates: the request passes the contract's own validation and decodes
+#     back through the contract's strict decoder.
+
+- name: record_is_only_village_times
+  why: the record carries village's own publish and update times and nothing the row copied from the publisher
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000005000, turn_count: 99, model_name: row-model, duration_ms: 12345}
+  payload: canonical
+  metadata: present
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000005000, metadata: present}
+
+- name: metadata_passes_through
+  why: everything the publisher reported reaches the service inside the stored publish metadata, unchanged
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000}
+  payload: canonical
+  metadata: present
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000, metadata: present}
+
+- name: no_metadata_is_nil
+  why: a row with no publish metadata object sends none, rather than an empty object
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000}
+  payload: canonical
+  metadata: absent
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000, metadata: nil}
+
+- name: bare_payload_is_migrated
+  why: a legacy bare payload is sent as the content route serves it, after migration
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000}
+  payload: bare
+  metadata: absent
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000, metadata: nil, harness: claude-code, schema_version: current}
+
+- name: request_json_has_no_row_stats
+  why: the record object on the wire has exactly the two village times
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000009000, turn_count: 7, token_count: 4000, model_name: row-model, duration_ms: 99}
+  payload: canonical
+  metadata: present
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000009000, record_keys: [publishedAtMs, updatedAtMs], metadata: present}
+
+- name: request_validates
+  why: the built request passes the contract's validation and its strict decoder, so the service never refuses it as malformed
+  row: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000}
+  payload: canonical
+  metadata: present
+  want: {published_at_ms: 1700000000000, updated_at_ms: 1700000000000, metadata: present, validates: true}
+
+- name: missing_publish_time_is_refused
+  why: a row with no publish time cannot be described to the service, so nothing is sent
+  row: {published_at_ms: 0, updated_at_ms: 1700000000000}
+  payload: canonical
+  metadata: absent
+  want: {error: record.publishedAtMs}

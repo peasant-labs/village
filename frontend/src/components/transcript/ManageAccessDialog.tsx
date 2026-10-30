@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { VillageUserCollectiveShare } from "@peasant-labs/schema";
 import ConfirmContributeDialog from "./ConfirmContributeDialog";
+import IntegrityDisclosure from "./IntegrityDisclosure";
 import { AccessList, CollectivePicker, Dialog } from "@/lib/ft-ui";
 import { useTranscriptCollectives } from "@/lib/queries/collectives";
 import { useCollectiveReadBinding } from "@/lib/queries/groups";
@@ -240,7 +241,7 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
           onAdd={add}
           empty="none of your collectives matches that name."
         /> : null}
-        <p className="pub-hint">removing a collective takes the transcript back from it: its members lose access.</p>
+        <IntegrityDisclosure />
         {/* Always mounted, so a screen reader hears each change as it lands. */}
         <p className={status ? "pub-line" : "sr-only"} role="status" aria-live="polite">
           {status}

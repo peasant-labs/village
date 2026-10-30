@@ -260,6 +260,76 @@ boundary are documented in
   during a rolling deploy its create, join and add fail loudly until the
   rollout finishes.
 
+- **048 records the publish metadata object and village's own content
+  rewrites.** `transcripts.publish_metadata_key`, `publish_metadata_hash` and
+  `publish_metadata_size` describe a second encrypted object holding the
+  validated publish metadata, the way `blob_key`, `content_hash` and
+  `blob_size_bytes` describe the content. They are all NULL or all set
+  (`transcripts_publish_metadata_complete`); the key has the opaque
+  `transcripts/<uuid>.bin` shape and never equals `blob_key`
+  (`transcripts_publish_metadata_key_not_blob_key`), so a writer bug cannot let
+  the metadata object overwrite the content object; the hash is 64 lowercase hex digits and the
+  size is not negative. They are not derivable: the hash and size authenticate
+  the decrypted object before anything reads it, so they cannot be recomputed
+  without decrypting the object they validate. The client name and version have
+  no columns; they live inside the stored object and no query filters on them.
+  Setting or replacing the metadata object does not touch `updated_at`: it always
+  runs in the same transaction as the content write that does.
+  **The writer fence now covers the object too.** `trg_transcript_writer_version`
+  is recreated to fire on `UPDATE OF` these three columns as well as the
+  six it already watched, so a write to any of the nine needs
+  `app.transcript_writer_version=1`. The down migration recreates it with the
+  original six. The fence checks only the marker, which older binaries also
+  set, so it cannot stop them: an older instance's republish, rewrite or
+  delete during a rolling deploy leaves the metadata stale or orphaned, or
+  writes no tombstone, until the next republish. Drain older instances before
+  048 takes traffic. `transcript_content_rewrites` keeps one row per replacement of
+  stored content by village's own rewrite, keyed `(transcript_id,
+  installed_content_hash)` and deleted with the transcript. It records only the
+  raw fact `replaced_was_legacy` (the replaced content was legacy JSONL), which
+  cannot be recovered once the rewrite has replaced it. Re-recording an
+  installed hash keeps the first row (`ON CONFLICT DO NOTHING`), so
+  `replaced_was_legacy` sticks once true. Lineage is derived,
+  never stored: `IsLegacyLineageContent` walks installed to replaced hash and
+  answers true when any step was legacy, so a chain that began from legacy JSONL
+  stays legacy. The table has no trigger and no `app.actor_id` requirement; it
+  is not a disclosure axis. Every full-row transcript column list (the sqlc
+  queries and the handler's `transcriptSelectColumns`) ends with the three
+  columns, because rows scan into `sqlc.Transcript` by name.
+  **A rewrite moves both objects in one transaction.** Migrate-on-read writes
+  the canonical body and, when the row has a metadata object, the same
+  metadata again under the new generation's fresh data key. The transaction
+  that compare-and-swaps the content descriptor also replaces the metadata
+  columns, conditioned on the row still holding the metadata key the rewrite
+  read (zero rows fails the transaction), and records the rewrite. A
+  compare-and-swap that matches no row means another writer moved the row
+  first: nothing else runs, the candidate objects are deleted, and nothing is
+  recorded. Only Village's own rewrite records a row, so every
+  `installed_content_hash` is content Village produced, never bytes a
+  publisher supplied. A replaced generation whose identity is pending names no
+  hash, so its rewrite records nothing.
+  **Publish sets the object in the row's own transaction.** An authoritative
+  publish or republish writes the metadata object with the body and sets the
+  three columns in the transaction that creates or updates the row; a legacy
+  publish sets all three NULL. An exact fingerprint replay writes nothing and
+  keeps the stored object, and since the client is outside the fingerprint, a
+  republish that changes only the client is such a replay. Every cleanup
+  decision that deletes or retains a body generation (candidate, superseded,
+  or delete target) applies to its metadata object too, so a republish that
+  switches to legacy deletes the old metadata object with the old body.
+  A committed delete removes the body and metadata objects that
+  `DeleteTranscriptReturningDescriptor` returned, never the handler's earlier
+  read, which a rewrite or republish can replace in between; returned columns
+  that do not map delete nothing and answer 500 with reconciliation evidence.
+
+- **049 stores transcript integrity results, inherited flags, a content-free
+  post-deletion record and the check ledger.** Four tables, none a disclosure
+  axis, so none carries a governance trigger or needs `app.actor_id`. Every
+  closed set and shape is a named CHECK (hash, version, verdict, status, error
+  class). The view `transcript_integrity_open_flags` holds the open-flag rule.
+  The down migration drops the view and the four tables. Details: §3, "Transcript
+  integrity (migration 049)".
+
 ## 2. Licensing data model
 
 ### Private organization snapshot issuance
@@ -579,6 +649,96 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   per day (429). The one-click unsubscribe link is an HMAC under
   `EMAIL_LINK_SIGNING_KEY` over the account and an expiry; it can only turn
   `email_invitations` off.
+
+### Transcript integrity (migration 049)
+
+- **Results are a per-version history and a cache.** `transcript_integrity_results`
+  holds one row per `(transcript_id, content_hash, scry_version)`, kept on
+  republish and deleted only with the transcript. Every row is an automatic
+  check asked for while the content was in the checked set (public, or any
+  `transcript_shares` row). Leaving the checked set removes no result and no
+  flag: the check was asked for while the copy was readable by others, and an
+  answer that arrives after the transcript left the set is still stored.
+- **Flagged is derived.** A result is flagged when `verdict = 'checked'` and
+  `cardinality(flagged_turns) > 0`; `unchecked` never carries turns
+  (`transcript_integrity_results_unchecked_has_no_turns`). `flagged_turns` are
+  zero-based positions in the top-level turns of the content the hash names.
+  A flag produced by a check is never stored.
+- **A transcript's open flag is one view.** `transcript_integrity_open_flags`
+  has one row per open flag: every inherited row, and every flagged result that
+  no later version's `checked` result with no turns on the same content voids.
+  Inherited flags and flags on replaced content are never void. Versions are
+  compared as numeric arrays (`string_to_array(scry_version, '.')::numeric[]`),
+  never as text, so `1.10.0` is later than `1.9.0`; the latest result for a
+  content uses the same order and considers only `checked` rows, so an
+  `unchecked` answer never hides the turns of a flag that is still open. The
+  open-flag check and the post-deletion record both read the view, so the rule
+  has one definition.
+- **Storing an answer re-tests nothing.** A result is inserted as given
+  (`ON CONFLICT DO NOTHING`), whatever the transcript's visibility, shares or
+  current content are by then; a flagged answer always counts.
+- **`transcript_integrity_inherited_flags`** is the only stored flag: a later
+  publish of a session whose flagged copy was deleted has no result behind it.
+  `flagged_at` is copied from the record it was inherited from. It cascades
+  with the transcript.
+- **`integrity_flag_tombstones` is the post-deletion record**, keyed on
+  `(owner_id, local_id)` because the transcript row, and with it its id, is
+  gone when the record is needed; the local id is the publisher's own session
+  id, which a republish carries. It holds no content, hash or turns, survives
+  deleting the transcript, and goes with the account (`ON DELETE CASCADE` from
+  `users`). Its `recorded_at` is when the deletion happened.
+  The delete transaction writes it before removing the row, and only when the
+  transcript has an open flag; its `flagged_at` is the earliest open flag's
+  date, and a second record for the same `(owner_id, local_id)` keeps the
+  earlier date. A first publish (never a republish) by the same owner of the
+  same local id inserts an inherited row carrying that date in its own
+  transaction.
+- **`transcript_integrity_attempts`** is the ledger of check attempts, keyed
+  like the results. `status` is `pending`, `done`, `skipped` or `failed`.
+  `last_error` is a closed set (`timeout`, `unavailable`, `rejected`,
+  `invalid_response`, `too_large`, `read_failed`, `legacy_content`), so no raw
+  error text, and therefore no content, can be stored; `read_failed` covers a
+  failure to read, migrate or decode the content or metadata. The partial
+  index `transcript_integrity_attempts_due_idx` serves the scan for due
+  pending attempts; every other lookup leads with the primary key.
+- Which transcripts need a check is a query over `transcripts`,
+  `transcript_shares` and the results, not a stored list.
+  `ListIntegrityCandidates` returns the rows in the checked set
+  (`visibility = 'public'` or any `transcript_shares` row) with a known
+  `content_hash`, no result for that content under the current checker
+  version, and no attempt for that key that is `done`, `skipped`, `failed` or
+  not yet due. Content with no result under any version comes first, so new
+  content is checked before a version sweep. `IsInIntegrityCheckedSet` carries
+  the same predicate text (a unit test holds the two equal); the worker runs
+  it on the reloaded row immediately before the read and sends nothing for a
+  transcript that has left the set.
+- **Taking and ending an attempt.** `ClaimIntegrityAttempt` is a conditional
+  upsert: it adds one to `attempts` and holds the key until `next_attempt_at`
+  (one transcript's whole check runs under that hold), and returns no row
+  while another holder's time has not passed or the attempt is finished. A
+  check that answers ends `done`; legacy content and content the service
+  refuses as too large end `skipped` (no retry); every other failure stays
+  `pending` with `next_attempt_at` pushed back by `min(1 minute << attempts,
+  6 hours)` until the sixth attempt, which ends `failed`. A failure inside
+  village after the attempt was taken counts the same way: a database error
+  while preparing the check is `read_failed`, and an answer that could not be
+  stored is a failure with no `last_error` class. The cap is also enforced
+  where attempts are listed and taken: neither returns an attempt already at
+  six, even one whose end could not be recorded. An attempt that sent
+  nothing because the transcript left the set or changed content before the
+  read is given back by `ReleaseIntegrityAttempt` (a first attempt leaves no
+  row, a later one is due again with its earlier count), so coming back into
+  the set still checks it. A check the service refuses for its shared secret
+  (401 or 403) is a configuration failure, not the content's: the attempt is
+  given back the same way and the pass ends, so a wrong secret burns no
+  attempts. An answer from an older checker than the version the attempt
+  was taken under (during a rollout) is stored as its own result, and its
+  flag counts, but the attempt is given back too, so the newer version is
+  still owed an answer. An attempt interrupted by a shutdown is never
+  ended, and is due again once its hold passes. A new content hash or checker
+  version is a new key with fresh attempts. Every hold and backoff is
+  computed in SQL from the database's own `now()`, so a skewed application
+  clock cannot shorten a hold or a backoff.
 
 ## 4. Governance event taxonomy
 
@@ -918,6 +1078,8 @@ authenticating. Both are custom Postgres parameters read via
 | `app.share_state_derivation` | Permission for the ONE sanctioned writer of the derived `transcript_shares` row. Set to `on` by `derive_transcript_share` immediately before it writes and back to `off` immediately after, so the permission never outlives the derivation it was opened for. It is not authorization: it marks the derivation, and everything else is refused. | Txn only (`set_config(..., true)`) | `derive_transcript_share` only. NOTHING in Go sets it |
 | `app.transcript_writer_version` | Compatibility marker proving a transcript storage mutation uses the encryption-aware descriptor shape. Exact current value: `1`. It is not authorization. | Txn only (`set_config(..., true)` / `SET LOCAL`) | Every encryption-aware create, republish, rewrite, hash backfill, rewrap, direct delete, and account-delete transaction |
 
+- **The transcript integrity tables (migration 049) add no GUC and no
+  trigger.** The registry above is unchanged.
 - **System actor:** `00000000-0000-0000-0000-000000000000`
   (`database.SystemActorID`) - the reserved attribution for non-user mutations
   (seeds, backfills, runbooks). It references no `users` row on purpose and is

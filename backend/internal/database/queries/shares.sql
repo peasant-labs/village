@@ -60,7 +60,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
-       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
@@ -296,6 +297,18 @@ SELECT DISTINCT gm.user_id
 FROM transcript_shares ts
 JOIN group_members gm ON gm.group_id = ts.group_id
 WHERE ts.transcript_id = $1 AND gm.role = 'owner';
+
+-- name: ListSubmittedCollectiveOwnersForTranscript :many
+-- Returns the owner user_ids of every collective the transcript is submitted
+-- to and not decided against: a share row whose status is pending or approved.
+-- Unlike ListGroupOwnersForTranscript, a rejected share does not count. It
+-- decides who may read the transcript's stored publish metadata.
+SELECT DISTINCT gm.user_id
+FROM transcript_shares ts
+JOIN group_members gm ON gm.group_id = ts.group_id
+WHERE ts.transcript_id = $1
+  AND ts.status IN ('pending', 'approved')
+  AND gm.role = 'owner';
 
 -- name: ListLiveShareAttemptsForGroup :many
 -- Which of the named transcripts are ALREADY live in one collective. Live means

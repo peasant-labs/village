@@ -32,29 +32,50 @@ afterEach(() => vi.unstubAllGlobals());
 
 async function mountedRead(text: string, fails = false, knownHarness?: string, secondRead?: string) {
   // The response exposes text only: a regression to response.json() fails here.
-  const fetch = vi.fn().mockResolvedValueOnce({ ok: true, text: async () => text }).mockResolvedValue({ ok: true, text: async () => secondRead ?? text });
+  const fetch = vi.fn().mockResolvedValueOnce({ ok: true, headers: new Headers(), text: async () => text }).mockResolvedValue({ ok: true, headers: new Headers(), text: async () => secondRead ?? text });
   vi.stubGlobal("fetch", fetch);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const hook = renderHook(() => useTranscriptContent("public-fixture", {knownHarness}), { wrapper });
   await waitFor(() => expect(hook.result.current.status).toBe(fails ? "error" : "success"));
   expect(fetch.mock.calls[0][0]).toContain("/transcripts/public-fixture/content");
-  const value = hook.result.current.data;
+  const value = hook.result.current.data?.content;
   if (fails) expect(value).toBeUndefined();
   if (secondRead !== undefined) {
     const next = await hook.result.current.refetch();
     expect(next.isSuccess).toBe(true);
-    expect(next.data).toEqual(value);
+    expect(next.data?.content).toEqual(value);
     expect(fetch).toHaveBeenCalledTimes(2);
   }
   hook.unmount(); client.clear();
   return value;
 }
 
+describe("rendered content hash on the mounted fetch path", () => {
+  const digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  for (const [name, header, want] of [
+    ["header_read_alongside_content", digest, digest],
+    ["malformed_header_reads_null", "NOT-A-DIGEST", null],
+    ["absent_header_reads_null", null, null],
+  ] as const) {
+    it(name, async () => {
+      const headers = new Headers();
+      if (header != null) headers.set("Village-Content-Hash", header);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, headers, text: async () => JSON.stringify({ turns: [] }) }));
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+      const hook = renderHook(() => useTranscriptContent("public-fixture"), { wrapper });
+      await waitFor(() => expect(hook.result.current.status).toBe("success"));
+      expect(hook.result.current.data?.contentHash).toBe(want);
+      hook.unmount(); client.clear();
+    });
+  }
+});
+
 describe("raw content on the mounted fetch path", () => {
   it("waits for metadata and keys cached validation by trusted harness", async () => {
     const text = renderedLegacy.find((c) => c.name === "array_to_empty_harness_detail")!.rendered;
-    const fetch = vi.fn().mockResolvedValue({ok: true, text: async () => text});
+    const fetch = vi.fn().mockResolvedValue({ok: true, headers: new Headers(), text: async () => text});
     vi.stubGlobal("fetch", fetch);
     const client = new QueryClient({defaultOptions: {queries: {retry: false}}});
     const wrapper = ({children}: {children: ReactNode}) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;

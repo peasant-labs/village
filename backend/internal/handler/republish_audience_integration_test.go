@@ -502,6 +502,10 @@ type failableTranscriptBlobStore struct {
 	beforeFailedWrite func()
 }
 
+func (s *failableTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+
 func (s *failableTranscriptBlobStore) Write(ctx context.Context, id uuid.UUID, contents []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
 	// The production store hands its context to the key service and the object
 	// store, so a write on a request whose client has already hung up fails.

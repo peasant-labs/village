@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
+import { readContentHashHeader } from "@/lib/contentHashHeader";
 import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
 import type { VillageTranscriptShare } from "@peasant-labs/schema";
 import type {
@@ -213,7 +214,10 @@ export function useTranscriptContent(id: string, options: {knownHarness?: string
         throw new ApiError(res.status, message);
       }
       const text = await res.text();
-      return parseTranscriptResponseText(text, options.knownHarness);
+      // The hash of the bytes just read; the viewer marks flagged turns only
+      // when it equals the detail response's content hash.
+      const contentHash = readContentHashHeader(res.headers.get("Village-Content-Hash"));
+      return { content: parseTranscriptResponseText(text, options.knownHarness), contentHash };
     },
     enabled: !!id && (options.enabled ?? true),
   });

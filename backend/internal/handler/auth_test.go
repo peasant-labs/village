@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -94,6 +95,19 @@ type mockQuerier struct {
 	countPullableTranscriptsInCollective   func(ctx context.Context, arg sqlc.CountPullableTranscriptsInCollectiveParams) (int64, error)
 	countTranscriptAnnotations             func(ctx context.Context, transcriptID pgtype.UUID) (int64, error)
 	compareAndSwapTranscriptBlob           func(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
+	setTranscriptPublishMetadataObject     func(ctx context.Context, arg sqlc.SetTranscriptPublishMetadataObjectParams) error
+	replaceTranscriptPublishMetadataObject func(ctx context.Context, arg sqlc.ReplaceTranscriptPublishMetadataObjectParams) (int64, error)
+	recordTranscriptContentRewrite         func(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error
+	insertIntegrityResult                  func(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error
+	servedIntegrityForContent              func(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error)
+	hasOpenIntegrityFlag                   func(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
+	recordIntegrityTombstone               func(ctx context.Context, transcriptID pgtype.UUID) error
+	inheritIntegrityTombstone              func(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error
+	listIntegrityCandidates                func(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error)
+	isInIntegrityCheckedSet                func(ctx context.Context, id pgtype.UUID) (bool, error)
+	claimIntegrityAttempt                  func(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error)
+	completeIntegrityAttempt               func(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error
+	deleteTranscriptReturningDescriptor    func(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 
 	// Project identity stubs. listOwnerProjectIdentities also counts its calls,
@@ -536,8 +550,92 @@ func (m *mockQuerier) CompareAndSwapTranscriptBlob(ctx context.Context, arg sqlc
 func (m *mockQuerier) CompareAndSwapWrappedDataKey(context.Context, sqlc.CompareAndSwapWrappedDataKeyParams) (int64, error) {
 	return 0, nil
 }
-func (m *mockQuerier) DeleteTranscriptReturningDescriptor(context.Context, pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error) {
+func (m *mockQuerier) DeleteTranscriptReturningDescriptor(ctx context.Context, id pgtype.UUID) (sqlc.DeleteTranscriptReturningDescriptorRow, error) {
+	if m.deleteTranscriptReturningDescriptor != nil {
+		return m.deleteTranscriptReturningDescriptor(ctx, id)
+	}
 	return sqlc.DeleteTranscriptReturningDescriptorRow{}, nil
+}
+func (m *mockQuerier) SetTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.SetTranscriptPublishMetadataObjectParams) error {
+	if m.setTranscriptPublishMetadataObject != nil {
+		return m.setTranscriptPublishMetadataObject(ctx, arg)
+	}
+	return nil
+}
+
+// ReplaceTranscriptPublishMetadataObject defaults to one row, the answer for a
+// row whose metadata key is still the expected one.
+func (m *mockQuerier) ReplaceTranscriptPublishMetadataObject(ctx context.Context, arg sqlc.ReplaceTranscriptPublishMetadataObjectParams) (int64, error) {
+	if m.replaceTranscriptPublishMetadataObject != nil {
+		return m.replaceTranscriptPublishMetadataObject(ctx, arg)
+	}
+	return 1, nil
+}
+func (m *mockQuerier) RecordTranscriptContentRewrite(ctx context.Context, arg sqlc.RecordTranscriptContentRewriteParams) error {
+	if m.recordTranscriptContentRewrite != nil {
+		return m.recordTranscriptContentRewrite(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) InsertIntegrityResult(ctx context.Context, arg sqlc.InsertIntegrityResultParams) error {
+	if m.insertIntegrityResult != nil {
+		return m.insertIntegrityResult(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) ServedIntegrityForContent(ctx context.Context, arg sqlc.ServedIntegrityForContentParams) (sqlc.ServedIntegrityForContentRow, error) {
+	if m.servedIntegrityForContent != nil {
+		return m.servedIntegrityForContent(ctx, arg)
+	}
+	return sqlc.ServedIntegrityForContentRow{}, nil
+}
+func (m *mockQuerier) HasOpenIntegrityFlag(ctx context.Context, transcriptID pgtype.UUID) (bool, error) {
+	if m.hasOpenIntegrityFlag != nil {
+		return m.hasOpenIntegrityFlag(ctx, transcriptID)
+	}
+	return false, nil
+}
+func (m *mockQuerier) RecordIntegrityTombstone(ctx context.Context, transcriptID pgtype.UUID) error {
+	if m.recordIntegrityTombstone != nil {
+		return m.recordIntegrityTombstone(ctx, transcriptID)
+	}
+	return nil
+}
+func (m *mockQuerier) InheritIntegrityTombstone(ctx context.Context, arg sqlc.InheritIntegrityTombstoneParams) error {
+	if m.inheritIntegrityTombstone != nil {
+		return m.inheritIntegrityTombstone(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) ListIntegrityCandidates(ctx context.Context, arg sqlc.ListIntegrityCandidatesParams) ([]sqlc.Transcript, error) {
+	if m.listIntegrityCandidates != nil {
+		return m.listIntegrityCandidates(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) IsInIntegrityCheckedSet(ctx context.Context, id pgtype.UUID) (bool, error) {
+	if m.isInIntegrityCheckedSet != nil {
+		return m.isInIntegrityCheckedSet(ctx, id)
+	}
+	return false, nil
+}
+func (m *mockQuerier) ClaimIntegrityAttempt(ctx context.Context, arg sqlc.ClaimIntegrityAttemptParams) (int32, error) {
+	if m.claimIntegrityAttempt != nil {
+		return m.claimIntegrityAttempt(ctx, arg)
+	}
+	return 0, pgx.ErrNoRows
+}
+func (m *mockQuerier) CompleteIntegrityAttempt(ctx context.Context, arg sqlc.CompleteIntegrityAttemptParams) error {
+	if m.completeIntegrityAttempt != nil {
+		return m.completeIntegrityAttempt(ctx, arg)
+	}
+	return nil
+}
+func (m *mockQuerier) ReleaseIntegrityAttempt(context.Context, sqlc.ReleaseIntegrityAttemptParams) error {
+	return nil
+}
+func (m *mockQuerier) IsLegacyLineageContent(context.Context, sqlc.IsLegacyLineageContentParams) (bool, error) {
+	return false, nil
 }
 func (m *mockQuerier) ListTranscriptDescriptorsForRewrap(context.Context, sqlc.ListTranscriptDescriptorsForRewrapParams) ([]sqlc.ListTranscriptDescriptorsForRewrapRow, error) {
 	return nil, nil
@@ -920,6 +1018,9 @@ func (m *mockQuerier) RetractUserSharesInGroup(ctx context.Context, arg sqlc.Ret
 func (m *mockQuerier) ListGroupOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
 	return nil, nil
 }
+func (m *mockQuerier) ListSubmittedCollectiveOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error) {
+	return nil, nil
+}
 
 // ---- Collective repository / GitHub App methods --------------------------
 
@@ -1013,6 +1114,52 @@ type mockTranscriptBlobStore struct {
 	uploadErr    error
 	deletedKeys  []string
 	deleteErr    error
+	metadata     fakeMetadataStore
+}
+
+// fakeMetadataStore keeps publish metadata objects for a test blob store, so
+// an authoritative publish through a fake keeps its metadata the way the
+// encrypted store does.
+type fakeMetadataStore struct {
+	mu      sync.Mutex
+	objects map[storage.ObjectKey][]byte
+}
+
+// writeGeneration writes the body through write, the fake's own Write, so a
+// wrapper that overrides Write keeps its hooks, then keeps the metadata.
+func (f *fakeMetadataStore) writeGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte, write func(context.Context, uuid.UUID, []byte) (storage.BlobDescriptor, storage.ContentIdentity, error)) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	d, identity, err := write(ctx, id, body)
+	if err != nil || metadata == nil {
+		return d, identity, nil, err
+	}
+	key := storage.ObjectKey("transcripts/" + uuid.NewString() + ".bin")
+	m, err := storage.NewMetadataObject(key, schema.ComputeTranscriptHash(metadata), int64(len(metadata)))
+	if err != nil {
+		return storage.BlobDescriptor{}, storage.ContentIdentity{}, nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.objects == nil {
+		f.objects = make(map[storage.ObjectKey][]byte)
+	}
+	f.objects[key] = append([]byte(nil), metadata...)
+	return d, identity, &m, nil
+}
+
+func (f *fakeMetadataStore) read(m storage.MetadataObject) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	stored, ok := f.objects[m.Key()]
+	if !ok {
+		return nil, storage.ErrObjectNotFound
+	}
+	return append([]byte(nil), stored...), nil
+}
+
+func (f *fakeMetadataStore) delete(m storage.MetadataObject) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.objects, m.Key())
 }
 
 func (m *mockTranscriptBlobStore) Write(_ context.Context, _ uuid.UUID, content []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
@@ -1038,6 +1185,23 @@ func (*mockTranscriptBlobStore) Rewrap(context.Context, uuid.UUID, storage.BlobD
 func (m *mockTranscriptBlobStore) Delete(_ context.Context, descriptor storage.BlobDescriptor) error {
 	m.deletedKeys = append(m.deletedKeys, string(descriptor.ObjectKey()))
 	return m.deleteErr
+}
+
+// errFakeStoresNoMetadata is what a test blob store that keeps no metadata
+// returns from ReadMetadata. It is deliberately not storage.ErrObjectNotFound,
+// so such a fake can never be mistaken for a row whose metadata object is
+// missing.
+var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")
+
+func (s *mockTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+func (s *mockTranscriptBlobStore) ReadMetadata(_ context.Context, _ uuid.UUID, _ storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.metadata.read(m)
+}
+func (s *mockTranscriptBlobStore) DeleteMetadata(_ context.Context, m storage.MetadataObject) error {
+	s.metadata.delete(m)
+	return nil
 }
 
 // Compile-time assertion: mockQuerier must satisfy Querier.

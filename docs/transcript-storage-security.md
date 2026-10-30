@@ -74,9 +74,23 @@ opaque immutable generation key. The canonical transcript UUID is
 domain-separated AAD:
 
 ```text
- body AAD = "village:transcript-body:v1:" + transcript UUID
- DEK  AAD = "village:transcript-dek:v1:"  + transcript UUID
+ body AAD     = "village:transcript-body:v1:" + transcript UUID
+ metadata AAD = "village:transcript-publish-metadata:v1:" + transcript UUID
+ DEK  AAD     = "village:transcript-dek:v1:"  + transcript UUID
 ```
+
+The validated publish metadata, when a write carries it, is a second opaque
+generation sealed under the same DEK as the body with the metadata AAD. One DEK
+keeps one wrapped key per row, so the key-version index, rewrap, and backup KEK
+retention cover both objects without new state. The distinct AAD prefix stops a
+metadata object from authenticating as a body, or a body as metadata, and the
+UUID binds both to their transcript. Each `Seal` draws its own random 96-bit
+nonce from `crypto/rand`. Two messages per DEK are far inside the random-nonce
+budget. Every write still makes a fresh DEK, so a rewrite re-encrypts both
+objects. If the metadata upload fails after the body upload, the write deletes
+the body generation best effort and returns an error; nothing is committed. If
+that deletion also fails, the error is typed and carries the body's opaque
+object key so the caller emits reconciliation evidence for it.
 
 ### Envelope write and stored split
 
@@ -90,6 +104,13 @@ domain-separated AAD:
       |                                  v
       |                     R2/RustFS opaque generation.bin
       |
+ publish metadata -> SHA3-256,size
+      |
+      +--> AES-256-GCM(same DEK, metadata AAD) -> ciphertext
+      |                                  |
+      |                                  v
+      |          R2/RustFS opaque metadata generation (same DEK)
+      |
       +--> AES-256-GCM KEK(DEK AAD) -> wrapped DEK
                                            |
                                            v
@@ -97,6 +118,7 @@ domain-separated AAD:
  | transcript UUID | opaque object key | wrapped DEK              |
  | algorithm=aes-256-gcm-random-nonce-v1 | positive key version   |
  | plaintext SHA3-256 | plaintext size                         |
+ | metadata object key | metadata SHA3-256 | metadata size        |
  +---------------------------------------------------------------+
 
  Neither store alone has plaintext plus the authority to recover it.
@@ -231,8 +253,9 @@ objects.
 
 ## Deletion, reconciliation, backups, and erasure
 
-Direct deletion is row-first: the writer-marked transaction removes the row and
-wrapped DEK, then a known commit permits ciphertext deletion. Rollback or
+Direct deletion is row-first: the writer-marked transaction removes the row,
+the wrapped DEK, and both object descriptors (content and publish metadata),
+then a known commit permits deleting both ciphertext objects. Rollback or
 ambiguity retains ciphertext. A cleanup failure emits reconciliation evidence.
 Account cascades remove key-bearing rows but do not yet guarantee physical object
 cleanup.
@@ -258,7 +281,10 @@ the transcript ID, complete descriptor, NULL hash, and NULL-safe prior size stil
 match. A concurrent write wins safely.
 
 Rewrap changes only the wrapped DEK and key version. It never downloads or
-rewrites the body and never changes object key, hash, or size.
+rewrites the body and never changes object key, hash, or size. The publish
+metadata object is covered without its own step because it shares the body's
+DEK: its ciphertext, key, hash, and size stay byte-identical, and it opens with
+the rewrapped descriptor.
 
 ### Rotation and rewrap
 

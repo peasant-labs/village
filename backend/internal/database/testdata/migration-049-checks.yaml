@@ -1,0 +1,84 @@
+# Each case runs in a rolled-back transaction against a seeded transcript.
+# {transcript_id}, {owner_id} and {hash} are substituted before execution.
+# expect is "ok" or a substring the PostgreSQL error must contain.
+# check_sql, when set, runs after the statement and must return want as text.
+- name: checked_with_turns_ok
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict, flagged_turns) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'checked', '{0,4}')
+  expect: ok
+- name: checked_without_turns_ok
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'checked')
+  expect: ok
+- name: unchecked_without_turns_ok
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'unchecked')
+  expect: ok
+- name: unchecked_refuses_turns
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict, flagged_turns) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'unchecked', '{1}')
+  expect: transcript_integrity_results_unchecked_has_no_turns
+- name: unknown_verdict_refused
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'clean')
+  expect: transcript_integrity_results_verdict_closed
+- name: bad_version_refused
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2', 'checked')
+  expect: transcript_integrity_results_version_shape
+- name: bad_hash_refused
+  statement: INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', 'ABC', '1.2.3', 'checked')
+  expect: transcript_integrity_results_hash_shape
+- name: result_cascades_with_transcript
+  statement: |-
+    INSERT INTO transcript_integrity_results (transcript_id, content_hash, scry_version, verdict) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'checked');
+    DELETE FROM transcripts WHERE id = '{transcript_id}'
+  expect: ok
+  check_sql: SELECT count(*)::text FROM transcript_integrity_results WHERE transcript_id = '{transcript_id}'
+  want: "0"
+- name: inherited_flag_cascades_with_transcript
+  statement: |-
+    INSERT INTO transcript_integrity_inherited_flags (transcript_id, flagged_at) VALUES ('{transcript_id}', now());
+    DELETE FROM transcripts WHERE id = '{transcript_id}'
+  expect: ok
+  check_sql: SELECT count(*)::text FROM transcript_integrity_inherited_flags WHERE transcript_id = '{transcript_id}'
+  want: "0"
+- name: tombstone_survives_transcript_delete
+  statement: |-
+    INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ('{owner_id}', 'local-1', now());
+    DELETE FROM transcripts WHERE id = '{transcript_id}'
+  expect: ok
+  check_sql: SELECT count(*)::text FROM integrity_flag_tombstones WHERE owner_id = '{owner_id}'
+  want: "1"
+- name: tombstone_goes_with_the_account
+  statement: |-
+    INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ('{owner_id}', 'local-1', now());
+    DELETE FROM transcripts WHERE id = '{transcript_id}';
+    DELETE FROM users WHERE id = '{owner_id}'
+  expect: ok
+  check_sql: SELECT count(*)::text FROM integrity_flag_tombstones WHERE owner_id = '{owner_id}'
+  want: "0"
+- name: tombstone_empty_local_id_refused
+  statement: INSERT INTO integrity_flag_tombstones (owner_id, local_id, flagged_at) VALUES ('{owner_id}', '', now())
+  expect: integrity_flag_tombstones_local_id_nonempty
+- name: attempt_defaults_ok
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'pending')
+  expect: ok
+  check_sql: SELECT attempts::text || coalesce(last_error, '-') FROM transcript_integrity_attempts WHERE transcript_id = '{transcript_id}'
+  want: 0-
+- name: attempt_read_failed_ok
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status, last_error) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'failed', 'read_failed')
+  expect: ok
+- name: attempt_unknown_error_refused
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status, last_error) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'failed', 'connection refused to 10.0.0.1')
+  expect: transcript_integrity_attempts_last_error_closed
+- name: attempt_unknown_status_refused
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'running')
+  expect: transcript_integrity_attempts_status_closed
+- name: attempt_negative_count_refused
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status, attempts) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'pending', -1)
+  expect: transcript_integrity_attempts_attempts_nonnegative
+- name: attempt_bad_version_refused
+  statement: INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', 'v1', 'pending')
+  expect: transcript_integrity_attempts_version_shape
+- name: attempt_cascades_with_transcript
+  statement: |-
+    INSERT INTO transcript_integrity_attempts (transcript_id, content_hash, scry_version, status) VALUES ('{transcript_id}', '{hash}', '1.2.3', 'pending');
+    DELETE FROM transcripts WHERE id = '{transcript_id}'
+  expect: ok
+  check_sql: SELECT count(*)::text FROM transcript_integrity_attempts WHERE transcript_id = '{transcript_id}'
+  want: "0"

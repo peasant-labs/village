@@ -11,6 +11,9 @@ func CORS(frontendURL string) func(http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			// The content route names the generation it served; a cross-origin
+			// browser can read that header only when it is exposed.
+			w.Header().Set("Access-Control-Expose-Headers", "Village-Content-Hash")
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)

@@ -184,8 +184,9 @@ func computedAssociationPushItem(associationID string) schema.AnnotationPushItem
 }
 
 type recordingTranscriptBlobStore struct {
-	mu    sync.Mutex
-	blobs map[string][]byte
+	mu       sync.Mutex
+	blobs    map[string][]byte
+	metadata fakeMetadataStore
 }
 
 func newRecordingTranscriptBlobStore() *recordingTranscriptBlobStore {
@@ -229,6 +230,17 @@ func (s *recordingTranscriptBlobStore) Delete(_ context.Context, descriptor stor
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.blobs, string(descriptor.ObjectKey()))
+	return nil
+}
+
+func (s *recordingTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+func (s *recordingTranscriptBlobStore) ReadMetadata(_ context.Context, _ uuid.UUID, _ storage.BlobDescriptor, m storage.MetadataObject) ([]byte, error) {
+	return s.metadata.read(m)
+}
+func (s *recordingTranscriptBlobStore) DeleteMetadata(_ context.Context, m storage.MetadataObject) error {
+	s.metadata.delete(m)
 	return nil
 }
 

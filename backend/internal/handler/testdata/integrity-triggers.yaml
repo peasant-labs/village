@@ -1,0 +1,585 @@
+# What the background check sends, and what it records, as transcripts move in
+# and out of the checked set, against real PostgreSQL and RustFS and an
+# in-process integrity service.
+#
+# The checked set is every transcript someone other than its owner can read:
+# public, or shared to any collective (a pending, approved or rejected share).
+# Every step drives a production route; tick runs one pass of the worker
+# directly, with no timers.
+#
+# steps (do):
+#   publish: publish content ref through the publish route as transcript t
+#     (t1 by default). The first publish of t creates it, a later one
+#     republishes it, and publishing the same ref again is an exact replay.
+#     shape is canonical (default), bare (a legacy bare payload) or raw_jsonl
+#     (legacy raw provider lines). turns are the positions the service flags
+#     in this content (none by default).
+#   make_public, make_private: the owner's visibility change through PATCH.
+#   share: the share route, to the open collective (auto-approved) or the
+#     curated one (pending until reviewed). withdraw retracts that share.
+#   approve, reject: the curated collective's owner reviews the share.
+#   contribute: the project contribution route, to the open collective.
+#   read_content: the content route as the owner. With as, the read must
+#     install a rewrite, and as names the installed content.
+#   set_version: the service now reports this checker version.
+#   answer_version: the service's answers now report this version while its
+#     health still reports the earlier one, as a newer checker answering
+#     during a rollout.
+#   fail: every service call answers this status (0 restores). fail_check
+#     fails only the check call, so health still answers.
+#   make_due: the attempts for t are due now, as if their wait had passed.
+#   delete_object: the stored content object of t disappears.
+#   record_legacy_rewrite: records that t's current content was installed by
+#     village rewriting legacy raw lines, as the content route records such
+#     a rewrite. The route cannot re-encode the sparse raw lines a fixture can
+#     publish, so the record is written directly.
+#   wrong_secret: the worker now sends a shared secret the service refuses;
+#     right_secret restores the correct one. Health needs no secret, as on
+#     the real service, so only the check calls are refused.
+#   expect_calls: the worker has made exactly count check calls so far,
+#     refused ones included.
+#   fail_store: storing a result fails (on: true) or works again (on:
+#     false), as when the database refuses the write after the service
+#     answered. fail_lineage does the same for the legacy-lineage read, a
+#     database failure before any call.
+#   seed_attempts: t's current content already has a pending attempt under
+#     1.0.0 that is due now with count attempts, as when completing the last
+#     allowed attempt itself failed.
+#   launch: the worker comes into being (cases with unlaunched start without
+#     one, as rows published before it existed).
+#   tick: one pass of the worker. withdraw_after_list withdraws t's share to
+#     collective after the pass has listed its candidates and before it reads
+#     them.
+#   expect_sent: the service has received exactly count checks so far.
+#   assert_served: the content route as the owner serves, for t's current
+#     content, exactly the session detail the last check of t sent.
+#
+# want:
+#   sent: the content refs the service received, as a multiset (in order
+#     when ordered is true).
+#   absent: content refs whose text no request may contain.
+#   ledger: every attempt row of the case's transcripts: ref, version
+#     (default 1.0.0), status, error (the closed last_error, empty for none),
+#     attempts, and due_in, the seconds until it is due again (checked when
+#     set).
+#   results: every stored result: ref, version (default 1.0.0), turns.
+#   nudges: how many integrity nudges the routes made.
+
+- name: private_unshared_sends_nothing
+  why: nobody but the owner can read a private transcript with no share, so it is never sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: tick}
+  want: {sent: [], ledger: [], results: [], nudges: 1}
+
+- name: shared_publish_is_checked
+  why: an auto-approved share makes the transcript readable by the collective, so it is checked
+  steps:
+    - {do: publish, ref: a, turns: [0]}
+    - {do: share, collective: open}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a, turns: [0]}]
+    nudges: 2
+
+- name: pending_share_is_checked
+  why: the curated collective's owner can read a pending share, so it is checked before any decision
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: approval_of_checked_hash_sends_nothing
+  why: approving changes who reads it but not the content, which already has a result
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick}
+    - {do: approve}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: rejected_share_edit_is_checked
+  why: a rejected share is still readable by the collective owner, so new content under it is checked
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick}
+    - {do: reject}
+    - {do: publish, ref: b}
+    - {do: tick}
+  want:
+    sent: [a, b]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: b}]
+
+- name: withdrawn_share_stops_checks
+  why: a withdrawn share leaves nobody else able to read it, so new content is not sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick}
+    - {do: withdraw, collective: curated}
+    - {do: publish, ref: b}
+    - {do: tick}
+  want:
+    sent: [a]
+    absent: [b]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: reshare_of_checked_hash_sends_nothing
+  why: coming back into the set checks only content with no result under the current version
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick}
+    - {do: withdraw, collective: curated}
+    - {do: share, collective: curated}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: public_publish_is_checked_once
+  why: making a transcript public puts it in the set; its content is checked once
+  steps:
+    - {do: publish, ref: a, turns: [1]}
+    - {do: make_public}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a, turns: [1]}]
+    nudges: 2
+
+- name: second_tick_sends_nothing
+  why: a stored result ends the work for that content and version
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: tick}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: private_to_public_is_checked
+  why: nothing is sent while private; going public checks the content
+  steps:
+    - {do: publish, ref: a}
+    - {do: tick}
+    - {do: make_public}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: public_to_private_unshared_sends_nothing
+  why: a transcript made private before the worker reads it is never sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: make_private}
+    - {do: tick}
+  want: {sent: [], absent: [a], ledger: [], results: [], nudges: 3}
+
+- name: public_republish_checks_the_new_hash
+  why: republishing a public transcript replaces its content, and the new content is checked
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: tick}
+    - {do: publish, ref: b}
+    - {do: tick}
+  want:
+    sent: [a, b]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: b}]
+
+- name: shared_republish_checks_the_new_hash
+  why: republishing a shared transcript replaces its content, and the new content is checked
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: open}
+    - {do: tick}
+    - {do: publish, ref: b}
+    - {do: tick}
+  want:
+    sent: [a, b]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: b}]
+
+- name: fingerprint_replay_sends_nothing
+  why: an exact replay of a publish changes nothing, so it neither nudges nor sends
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: tick}
+    - {do: publish, ref: a}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+    nudges: 2
+
+- name: legacy_raw_jsonl_is_skipped_without_a_call
+  why: legacy raw provider lines carry no session records to compare, so they are skipped and never sent
+  steps:
+    - {do: publish, ref: a, shape: raw_jsonl}
+    - {do: make_public}
+    - {do: tick}
+    - {do: tick}
+  want:
+    sent: []
+    absent: [a]
+    ledger: [{ref: a, status: skipped, error: legacy_content, attempts: 1}]
+    results: []
+
+- name: legacy_rewrite_is_skipped_without_a_call
+  why: canonical content village installed by rewriting legacy raw lines is still legacy, so it is skipped and never sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: record_legacy_rewrite}
+    - {do: make_public}
+    - {do: tick}
+  want:
+    sent: []
+    absent: [a]
+    ledger: [{ref: a, status: skipped, error: legacy_content, attempts: 1}]
+    results: []
+
+- name: rewritten_hash_is_a_candidate
+  why: a migrate-on-read rewrite installs new content, which is checked as the content route serves it
+  steps:
+    - {do: publish, ref: a, shape: bare}
+    - {do: make_public}
+    - {do: tick}
+    - {do: read_content, as: a2}
+    - {do: tick}
+    - {do: assert_served}
+  want:
+    sent: [a, a2]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: a2, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: a2}]
+    nudges: 3
+
+- name: sent_detail_is_the_served_detail
+  why: flagged positions index the payload the content route serves, so the check must send exactly that payload
+  steps:
+    - {do: publish, ref: a, turns: [1]}
+    - {do: make_public}
+    - {do: tick}
+    - {do: assert_served}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a, turns: [1]}]
+
+- name: version_change_rechecks_public_and_shared
+  why: a new checker version rechecks every transcript in the set, and still nothing private
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: publish, ref: c, t: t2}
+    - {do: share, t: t2, collective: curated}
+    - {do: publish, ref: p, t: t3}
+    - {do: tick}
+    - {do: set_version, version: 1.1.0}
+    - {do: tick}
+  want:
+    sent: [a, c, a, c]
+    absent: [p]
+    ledger:
+      - {ref: a, status: done, attempts: 1}
+      - {ref: c, status: done, attempts: 1}
+      - {ref: a, version: 1.1.0, status: done, attempts: 1}
+      - {ref: c, version: 1.1.0, status: done, attempts: 1}
+    results: [{ref: a}, {ref: c}, {ref: a, version: 1.1.0}, {ref: c, version: 1.1.0}]
+
+- name: version_sweep_after_new_content
+  why: content with no result under any version is checked before the version sweep rechecks older content
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: tick}
+    - {do: set_version, version: 1.1.0}
+    - {do: publish, ref: b, t: t2}
+    - {do: make_public, t: t2}
+    - {do: tick}
+  want:
+    sent: [a, b, a]
+    ordered: true
+    ledger:
+      - {ref: a, status: done, attempts: 1}
+      - {ref: b, version: 1.1.0, status: done, attempts: 1}
+      - {ref: a, version: 1.1.0, status: done, attempts: 1}
+    results: [{ref: a}, {ref: b, version: 1.1.0}, {ref: a, version: 1.1.0}]
+
+- name: scry_down_ends_the_tick_without_writes
+  why: when health fails the pass ends before it takes any attempt, so the next pass starts fresh
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail, status: 503}
+    - {do: tick}
+    - {do: fail, status: 0}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: failure_backs_off
+  why: a failed check waits out its backoff instead of retrying on the next pass
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_check, status: 503}
+    - {do: tick}
+    - {do: fail_check, status: 0}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, error: unavailable, attempts: 1, due_in: 120}]
+    results: []
+
+- name: six_failures_is_failed
+  why: after six failed attempts the content is left failed and not retried
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_check, status: 503}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: fail_check, status: 0}
+    - {do: make_due}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: failed, error: unavailable, attempts: 6}]
+    results: []
+
+- name: too_large_is_terminal
+  why: content the service refuses as too large is skipped once, with no retry loop
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_check, status: 413}
+    - {do: tick}
+    - {do: fail_check, status: 0}
+    - {do: make_due}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: skipped, error: too_large, attempts: 1}]
+    results: []
+
+- name: unreadable_content_is_read_failed
+  why: content village cannot read is recorded as a read failure with the normal backoff, and nothing is sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: delete_object}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, error: read_failed, attempts: 1, due_in: 120}]
+    results: []
+
+- name: left_set_between_list_and_read_sends_nothing
+  why: membership is tested again right before the read, so a share withdrawn after the listing sends nothing and leaves no attempt
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: tick, withdraw_after_list: true, collective: curated}
+    - {do: expect_sent, count: 0}
+    - {do: share, collective: curated}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: project_contribution_is_checked
+  why: contributing a project shares each transcript, so each is checked
+  steps:
+    - {do: publish, ref: a}
+    - {do: contribute}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+    nudges: 2
+
+- name: existing_public_rows_are_checked_at_launch
+  why: public rows that predate the worker have no result, so its first pass checks them
+  unlaunched: true
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: launch}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: existing_shared_rows_are_checked_at_launch
+  why: shared rows that predate the worker have no result, so its first pass checks them
+  unlaunched: true
+  steps:
+    - {do: publish, ref: a}
+    - {do: share, collective: curated}
+    - {do: launch}
+    - {do: tick}
+  want:
+    sent: [a]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: request_never_includes_unshared_private_content
+  why: a pass that checks one transcript never carries another's private content
+  steps:
+    - {do: publish, ref: p, t: t1}
+    - {do: publish, ref: a, t: t2}
+    - {do: make_public, t: t2}
+    - {do: tick}
+  want:
+    sent: [a]
+    absent: [p]
+    ledger: [{ref: a, status: done, attempts: 1}]
+    results: [{ref: a}]
+
+- name: rejected_secret_burns_no_attempts
+  why: a refused secret is a configuration failure, so a pass ends at the first refusal, counts no attempt, and the backlog checks normally once the secret is fixed
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: publish, ref: b, t: t2}
+    - {do: make_public, t: t2}
+    - {do: wrong_secret}
+    - {do: tick}
+    - {do: tick}
+    - {do: expect_calls, count: 2}
+    - {do: expect_sent, count: 0}
+    - {do: right_secret}
+    - {do: tick}
+  want:
+    sent: [a, b]
+    ledger: [{ref: a, status: done, attempts: 1}, {ref: b, status: done, attempts: 1}]
+    results: [{ref: a}, {ref: b}]
+
+- name: store_failure_backs_off_and_caps
+  why: an answer that cannot be stored still counts as a failed attempt with backoff, so the content is not resent every hold and stops after six
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_store, on: true}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: make_due}
+    - {do: tick}
+    - {do: fail_store, on: false}
+    - {do: make_due}
+    - {do: tick}
+  want:
+    sent: [a, a, a, a, a, a]
+    ledger: [{ref: a, status: failed, attempts: 6}]
+    results: []
+
+- name: database_failure_before_the_call_backs_off
+  why: a database failure while preparing the check is a read failure with the normal backoff, and nothing is sent
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: fail_lineage, on: true}
+    - {do: tick}
+    - {do: fail_lineage, on: false}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, error: read_failed, attempts: 1, due_in: 120}]
+    results: []
+
+- name: claim_refuses_past_the_cap
+  why: an attempt left pending at the cap, because recording its end failed, is never taken again
+  steps:
+    - {do: publish, ref: a}
+    - {do: make_public}
+    - {do: seed_attempts, count: 6}
+    - {do: tick}
+  want:
+    sent: []
+    ledger: [{ref: a, status: pending, attempts: 6}]
+    results: []
+
+- name: newer_answer_starts_the_sweep
+  why: an answer from a newer checker moves the held version forward, so the same pass rechecks older content under it, and an older health report does not move it back
+  steps:
+    - {do: publish, ref: a, t: t1}
+    - {do: make_public, t: t1}
+    - {do: tick}
+    - {do: answer_version, version: 1.1.0}
+    - {do: publish, ref: b, t: t2}
+    - {do: make_public, t: t2}
+    - {do: tick}
+    - {do: expect_sent, count: 3}
+    - {do: tick}
+  want:
+    sent: [a, b, a]
+    ordered: true
+    ledger:
+      - {ref: a, status: done, attempts: 1}
+      - {ref: b, status: done, attempts: 1}
+      - {ref: a, version: 1.1.0, status: done, attempts: 1}
+    results: [{ref: a}, {ref: b, version: 1.1.0}, {ref: a, version: 1.1.0}]
+
+- name: older_answer_leaves_the_newer_version_owed
+  why: an answer from an older checker is stored and its flag counts, but it does not settle what the newer held version owes, so the newer checker is still asked
+  steps:
+    - {do: set_version, version: 1.1.0}
+    - {do: answer_version, version: 1.0.0}
+    - {do: publish, ref: a, turns: [0]}
+    - {do: make_public}
+    - {do: tick}
+    - {do: expect_sent, count: 1}
+    - {do: answer_version, version: 1.1.0}
+    - {do: tick}
+  want:
+    sent: [a, a]
+    ledger: [{ref: a, version: 1.1.0, status: done, attempts: 1}]
+    results: [{ref: a, turns: [0]}, {ref: a, version: 1.1.0, turns: [0]}]

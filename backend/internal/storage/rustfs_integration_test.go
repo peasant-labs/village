@@ -120,3 +120,59 @@ func TestRustFSEncryptedTranscriptProductionPath(t *testing.T) {
 		t.Fatalf("deleted generation absence classification failed: %v", err)
 	}
 }
+
+func TestRustFSPublishMetadataLifecycle(t *testing.T) {
+	cfg := &config.Config{S3Endpoint: rustfsEnv("TEST_S3_ENDPOINT", "http://127.0.0.1:9000"), S3Bucket: rustfsEnv("TEST_S3_BUCKET", "peasant-transcripts"), S3AccessKey: rustfsEnv("TEST_S3_ACCESS_KEY", "minioadmin"), S3SecretKey: rustfsEnv("TEST_S3_SECRET_KEY", "minioadmin"), S3UsePathStyle: true}
+	objects, err := NewS3ObjectStore(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ring, err := config.ParseTranscriptKeyring("1", `{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewEncryptedTranscriptStore(objects, ring)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	id := uuid.New()
+	body := []byte(`{"contractVersion":"0.1.0","private":"rustfs-body"}`)
+	metadata := []byte(`{"client":{"name":"peasant","version":"1.2.3"},"private":"rustfs-metadata"}`)
+	d, identity, m, err := store.WriteGeneration(ctx, id, body, metadata)
+	if err != nil || m == nil {
+		t.Fatalf("real RustFS write generation failed; verify TEST_S3_* points to a reachable initialized bucket: m=%v err=%v", m, err)
+	}
+	t.Cleanup(func() {
+		_ = store.Delete(context.Background(), d)
+		_ = store.DeleteMetadata(context.Background(), *m)
+	})
+	raw, contentType, err := objects.Get(ctx, m.Key())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != ciphertextContentType || bytes.Contains(raw, []byte("rustfs-metadata")) {
+		t.Fatalf("raw metadata object is not opaque ciphertext: content-type=%q", contentType)
+	}
+	plain, _, err := store.Read(ctx, id, d, NewKnownContentIdentity(identity))
+	if err != nil || !bytes.Equal(plain, body) {
+		t.Fatalf("body read failed: %v", err)
+	}
+	gotMetadata, err := store.ReadMetadata(ctx, id, d, *m)
+	if err != nil || !bytes.Equal(gotMetadata, metadata) {
+		t.Fatalf("metadata read failed: %v", err)
+	}
+	if err := store.DeleteMetadata(ctx, *m); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := objects.Get(ctx, m.Key()); !errors.Is(err, ErrObjectNotFound) {
+		t.Fatalf("deleted metadata absence classification failed: %v", err)
+	}
+	if _, err := store.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
+		t.Fatalf("deleted metadata read classification failed: %v", err)
+	}
+	if _, _, err := store.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil {
+		t.Fatalf("deleting the metadata removed the body: %v", err)
+	}
+}

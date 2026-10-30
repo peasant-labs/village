@@ -30,8 +30,9 @@ export default function TranscriptDetailPage({
   const { id } = use(params);
   useDeclareSignedOutReadable(openSignedOut);
   const { data, isLoading } = useTranscript(id);
-  const { data: content, isLoading: contentLoading, error: contentError } =
+  const { data: contentRead, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
+  const content = contentRead?.content;
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   // The person's own collectives need a session; nobody signed out has any.
   // While the session read is in flight, a browser holding a session cookie
@@ -163,6 +164,8 @@ export default function TranscriptDetailPage({
         detail={detail}
         relationshipNavigation={data.relationshipNavigation}
         transcriptContentHash={t.content_hash}
+        integrity={data.integrity}
+        renderedContentHash={contentRead?.contentHash ?? null}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
         beforeHeader={pendingReviews.length > 0 ? <PendingApprovalBar transcriptId={t.id} reviews={pendingReviews} /> : undefined}
       />

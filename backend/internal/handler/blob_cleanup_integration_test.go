@@ -36,6 +36,10 @@ func (s *cleanupFailureTranscriptBlobStore) Write(ctx context.Context, id uuid.U
 	return descriptor, identity, err
 }
 
+func (s *cleanupFailureTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+
 func (s *cleanupFailureTranscriptBlobStore) Delete(ctx context.Context, descriptor storage.BlobDescriptor) error {
 	if s.deleteErr != nil {
 		return s.deleteErr
@@ -127,9 +131,9 @@ func TestMountedBlobCleanupFailuresEmitReconciliationEvidence(t *testing.T) {
 				blobs.afterWrite = func() {
 					execAsSystem(t, context.Background(), pool, "DELETE FROM transcripts WHERE id = $1", row.ID)
 				}
-				h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"candidate-race"}`))
+				_, _ = h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"candidate-race"}`), ShapeUnknown)
 			case cleanupRewriteSuperseded:
-				h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"committed-rewrite"}`))
+				_, _ = h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"committed-rewrite"}`), ShapeUnknown)
 			case cleanupDeleteTarget:
 				request := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+uuidFromPg(row.ID).String(), nil)
 				request = withChiURLParam(request, "id", uuidFromPg(row.ID).String())

@@ -320,6 +320,10 @@ func (s *gatedRecordingTranscriptBlobStore) Write(ctx context.Context, id uuid.U
 	return s.recordingTranscriptBlobStore.Write(ctx, id, content)
 }
 
+func (s *gatedRecordingTranscriptBlobStore) WriteGeneration(ctx context.Context, id uuid.UUID, body, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
+	return s.metadata.writeGeneration(ctx, id, body, metadata, s.Write)
+}
+
 func preparePublish(owner pgtype.UUID, username, localID string, associations []schema.PublishedAssociation, content string) (func(context.Context, *Handler) publishOutcome, error) {
 	metadata := schema.PublishRequest{Identity: schema.SessionIdentity{SessionID: schema.SessionID(localID), SchemaVersion: 2}, Model: schema.ModelInfo{Harness: schema.HarnessClaudeCode, Model: "association-test"}, Timestamp: schema.TimestampInfo{Start: 1700000000000, End: 1700000060000}, Source: schema.SourceInfo{FilePath: "/fixtures/association.jsonl", Format: "jsonl"}, Git: schema.GitContext{Branch: strPtr("main"), Associations: associations}, Project: schema.ProjectContext{Hash: testProjectHash, Name: "association-fixture"}, Stats: schema.SessionStats{TurnCount: 1, ToolCallCount: 1, DurationMs: 1000, TokensIn: 1, TokensOut: 1}, Diagnostics: schema.DiagnosticsInfo{Warnings: []schema.DiagnosticEntry{}}}
 	metadataJSON, err := json.Marshal(metadata)

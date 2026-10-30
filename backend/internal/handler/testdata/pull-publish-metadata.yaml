@@ -1,0 +1,165 @@
+# Who may read a transcript's stored publish metadata through
+# GET /api/v1/pull/transcripts/{id}/publish-metadata, against real PostgreSQL
+# and RustFS. The route is mounted behind the same session middleware as in
+# production, and every signed-in request sends the pull contract header the
+# pull content tests send unless the case names another.
+#
+# Every case publishes one transcript as `owner` with the production publish
+# handler, then shapes it:
+#   publish: authoritative (stores the metadata object) | legacy (stores none)
+#   visibility: private (the default) | public
+#   share: pending | approved | rejected, the state of one submission to a
+#     collective that `collective_owner` owns and `member` belongs to
+#   fault: tamper_stored_object overwrites the metadata object's ciphertext in
+#     RustFS; delete_stored_object deletes the metadata object while the row
+#     still names it; republish_before_metadata_read republishes the
+#     transcript after the handler read its row and before its object read,
+#     so the object that row names is gone; owner_anonymous_to_caller makes the public-owner rule answer
+#     anonymous for the transcript's owner. No present rule shows an allowed
+#     caller an anonymous owner (the owner sees themselves, and a collective
+#     owner sees whoever submitted to it), so the fault stands in for a rule
+#     that does, which the route must still answer with 404.
+#
+#   caller: owner | collective_owner | member | stranger | signed_out
+#   target: the published transcript (default) | missing (a random id) |
+#     invalid (not an id)
+#   pull_contract: the request header value; leave it out for the default
+#   want_status: the HTTP status
+#   want_metadata: the 200 body is json.Marshal of the published request (the
+#     republished one, when the case republishes)
+#   want_metadata_reads: how many times the handler read the metadata object
+#   want_log_message, want_log_level, want_log_stage: the one log line a 500
+#     must leave; a missing object is a warning, never a failed verification
+#   reads_transcript: a precondition, checked before the request, that the
+#     caller can read the transcript itself through the web read rule, so the
+#     404 is about the metadata alone
+#
+# The last case lists, by name, every 404 case whose body must be
+# byte-identical to the others: the route answers each the same way so that
+# nothing about the transcript leaks.
+#
+# The published metadata carries this sentinel in its source path and model,
+# so a 500 that echoed stored bytes or a decrypt error would show it.
+sentinel: pull-metadata-sentinel-7f3a1c
+cases:
+  - name: owner_reads_it
+    why: the transcript's owner reads the metadata they published
+    caller: owner
+    want_status: 200
+    want_metadata: true
+
+  - name: collective_owner_pending_reads_it
+    why: the owner of a collective reviewing a pending submission reads it
+    caller: collective_owner
+    share: pending
+    want_status: 200
+    want_metadata: true
+
+  - name: collective_owner_approved_reads_it
+    why: the owner of a collective holding an approved submission reads it
+    caller: collective_owner
+    share: approved
+    want_status: 200
+    want_metadata: true
+
+  - name: collective_owner_rejected_404
+    why: a rejected submission no longer admits the collective's owner, although they can still read the transcript
+    caller: collective_owner
+    share: rejected
+    reads_transcript: true
+    want_status: 404
+
+  - name: other_member_of_that_collective_404
+    why: a member reading an approved share can pull the transcript but not its metadata
+    caller: member
+    share: approved
+    reads_transcript: true
+    want_status: 404
+
+  - name: public_reader_404
+    why: reading a public transcript does not admit its metadata
+    caller: stranger
+    visibility: public
+    reads_transcript: true
+    want_status: 404
+
+  - name: signed_out_401
+    why: the route needs a session before anything else is decided
+    caller: signed_out
+    want_status: 401
+
+  - name: none_stored_404
+    why: a transcript published before metadata was stored has none to serve
+    caller: owner
+    publish: legacy
+    want_status: 404
+
+  - name: missing_transcript_404
+    why: an id with no transcript answers like every other refusal
+    caller: owner
+    target: missing
+    want_status: 404
+
+  - name: invalid_id_404
+    why: a malformed id answers like every other refusal, never 400
+    caller: owner
+    target: invalid
+    want_status: 404
+
+  - name: stranger_private_404
+    why: a caller with no right to the transcript at all
+    caller: stranger
+    want_status: 404
+
+  - name: tampered_stored_object_500
+    why: bytes that fail authentication are never served
+    caller: owner
+    fault: tamper_stored_object
+    want_status: 500
+    want_metadata_reads: 1
+    want_log_message: publish metadata verification failed
+    want_log_level: ERROR
+    want_log_stage: read
+
+  - name: republished_between_row_and_object_read_retries
+    why: a republish deletes the object the first row named; the handler reloads the row, decides access again and serves the new metadata
+    caller: owner
+    fault: republish_before_metadata_read
+    want_status: 200
+    want_metadata: true
+    want_metadata_reads: 2
+
+  - name: object_missing_500
+    why: an object the unchanged row still names is a storage reconciliation matter, logged as such, and is not read twice
+    caller: owner
+    fault: delete_stored_object
+    want_status: 500
+    want_metadata_reads: 1
+    want_log_message: publish metadata object missing
+    want_log_level: WARN
+    want_log_stage: object_missing
+
+  - name: below_pull_contract_refused
+    why: a signed-in client below the minimum pull contract is refused before the read
+    caller: owner
+    pull_contract: 0.1.9
+    want_status: 406
+
+  - name: owner_anonymous_to_caller_404
+    why: an allowed caller to whom the owner is anonymous must not see the owner's repository, paths or commit authors
+    caller: collective_owner
+    share: pending
+    fault: owner_anonymous_to_caller
+    want_status: 404
+
+  - name: not_found_bodies_identical
+    why: every 404 is the same bytes, so the answer reveals nothing about the transcript
+    compare_not_found:
+      - collective_owner_rejected_404
+      - other_member_of_that_collective_404
+      - public_reader_404
+      - none_stored_404
+      - missing_transcript_404
+      - invalid_id_404
+      - stranger_private_404
+      - owner_anonymous_to_caller_404
