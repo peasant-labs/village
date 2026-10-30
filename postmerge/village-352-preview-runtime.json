@@ -1,0 +1,18 @@
+{
+  "source": "6b34ad17b6369527f5ecce926a9aa6003d99b07b",
+  "tree": "658f74b3a8929b251a06e6a55ee59e5c8f792ce8",
+  "package": "0.0.56",
+  "buildId": "NdT2MkmWkZYFoHiWkfg8Q",
+  "pid": 49172,
+  "pgid": 49172,
+  "cwd": "/Users/vitorhugo/Documents/Projects/polyrepo/village/develop/frontend/.next/standalone/frontend",
+  "port": 3310,
+  "api": "http://localhost:8810/api/v1",
+  "retiredFrontendGroup": 14454,
+  "retainedApiPorts": [
+    8799,
+    8800,
+    8810,
+    8820
+  ]
+}

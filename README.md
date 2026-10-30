@@ -23,3 +23,9 @@ Frozen install, production build, TypeScript and ESLint passed (lint retains two
 No all-accessibility pass is claimed: canonical Welcome HandleClaim has no h1 override, recorded for canonical follow-up; no duplicate visible title was added. Firefox headless could not launch in this macOS environment (SWGL framebuffer mapping error/timeouts), so final browser evidence is Chromium. Global/error boundary code was reviewed without claiming a forced mounted crash. Transient auth routes were checked through actual redirects/source rather than screenshots after navigation had unloaded them.
 
 Two initial phone project-owner capture setups waited for hidden collapsed-sheet controls. Their failed setup results are retained locally. Final captures open the real project-settings sheet before waiting; no production source or gate assertion was weakened.
+
+## Delivered
+
+[PR352](https://github.com/peasant-labs/village/pull/352) merged after every CI check passed, including the full Linux frontend test/mutation suite and backend race integration aggregate. Actual merge `6b34ad17b6369527f5ecce926a9aa6003d99b07b` has exactly the reviewed tree. Clean develop was synced, frozen-installed and normally built before replacing the owned3310frontend with a detached production standalone process. The original API/proxy processes and synthetic state were preserved.
+
+Postmerge proof is in `postmerge/`:22critical banner/viewer observations passed and their images were inspected;37actual alias exits and all synthetic contribution/history checks passed again. The original310-state-combination review was not unnecessarily repeated against an identical source tree. Railway deployment7439536691 succeeded for the actual mergeSHA; public callback returned200,22of23observed assets match local output, and the freshly fetched bannerCSS matches exactly. One JavaScript asset differs under the public/local API configurations, so no all-assets equality is claimed.

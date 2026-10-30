@@ -1,0 +1,23 @@
+{
+  "mergedSource": "6b34ad17b6369527f5ecce926a9aa6003d99b07b",
+  "sameReviewedTree": "658f74b3a8929b251a06e6a55ee59e5c8f792ce8",
+  "allRequiredChecks": "SUCCESS on exact reviewed6e53455",
+  "postmergeNormalBuild": "frozen install and make build both passed from clean develop with GOTOOLCHAIN=go1.25.8 and NEXT_PUBLIC_API_URL=http://localhost:8810/api/v1",
+  "criticalObservations": 22,
+  "criticalPassed": 22,
+  "criticalImagesInspected": 22,
+  "aliasesPassed": 37,
+  "runtimePid": 49172,
+  "deploymentId": 7439536691,
+  "deploymentState": "success",
+  "publicAssetsMatchingBuild": 22,
+  "publicAssetsObserved": 23,
+  "publicBannerCssMatchesBuild": true,
+  "publicDifference": "one JavaScript asset differs between public and local API configuration; no all-assets identity claim",
+  "originalServicePidsPreserved": [
+    70687,
+    70690,
+    71288,
+    71289
+  ]
+}

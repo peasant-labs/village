@@ -1,0 +1,56 @@
+{
+  "results": [
+    {
+      "group": "ML Reading Group",
+      "approved": 0,
+      "pending": 1,
+      "pairs": 1
+    },
+    {
+      "group": "Acme Platform",
+      "approved": 5,
+      "pending": 0,
+      "pairs": 5
+    },
+    {
+      "group": "Acme Company",
+      "approved": 2,
+      "pending": 0,
+      "pairs": 2
+    }
+  ],
+  "pullReads": [
+    {
+      "id": "ct-home-1",
+      "canonical": "04f311d5-0404-45f2-8af8-cc57c97c6e76",
+      "count": 2
+    },
+    {
+      "id": "ct-home-2",
+      "canonical": "aa1cae3f-3c6d-412e-8044-93f527d5f65c",
+      "count": 1
+    },
+    {
+      "id": "ct-home-3",
+      "canonical": "0d3e6f86-4bc4-476b-8af6-2e3cffe29391",
+      "count": 1
+    },
+    {
+      "id": "ct-home-4",
+      "canonical": "012ca75e-22c3-450d-843a-dea7bb6ab490",
+      "count": 0
+    },
+    {
+      "id": "ct-home-5",
+      "canonical": "5ea8de1a-6b56-45f8-862c-2eb51c65fe05",
+      "count": 0
+    },
+    {
+      "id": "ct-home-6",
+      "canonical": "697c9330-7f56-432e-8f2b-f81c5853dde2",
+      "count": 1
+    }
+  ],
+  "allPairMetadataContentAndHistoryReadsPassed": true,
+  "longDemoAndPullRequestReadsPassed": true
+}

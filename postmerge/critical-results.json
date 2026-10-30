@@ -1,0 +1,5653 @@
+{
+  "source": "6b34ad17b6369527f5ecce926a9aa6003d99b07b",
+  "sourceStatus": "",
+  "package": "0.0.56",
+  "results": [
+    {
+      "name": "home-agent-only",
+      "theme": "light",
+      "width": 1440,
+      "world": "agent",
+      "proof": {
+        "url": "/",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "your transcripts"
+        ],
+        "text": "your transcripts\n1\ntranscript\n3\ncollectives\n2\npull requests linked\n500\ntokens recorded\nlibrary\ngroup by: project\ncolumns\n\nyour published agent sessions are grouped below.\n\nsessions with your own prompts appear in the main library.\n\n+ 1 agent session\nshow",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "INPUT",
+            "label": "search your transcripts",
+            "x": 319,
+            "y": 313.390625,
+            "width": 308,
+            "height": 42
+          },
+          {
+            "tag": "BUTTON",
+            "label": "group by: project",
+            "x": 652,
+            "y": 312.390625,
+            "width": 208.4375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "columns",
+            "x": 872.4375,
+            "y": 312.390625,
+            "width": 119.9375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "+ 1 agent sessionshow",
+            "x": 281,
+            "y": 479.390625,
+            "width": 1126,
+            "height": 44
+          }
+        ],
+        "banner": {
+          "x": 280,
+          "y": 372.390625,
+          "width": 1128,
+          "height": 90,
+          "paragraphs": [
+            {
+              "text": "your published agent sessions are grouped below.",
+              "x": 305,
+              "y": 389.390625,
+              "width": 725.75,
+              "height": 24,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            },
+            {
+              "text": "sessions with your own prompts appear in the main library.",
+              "x": 305,
+              "y": 421.390625,
+              "width": 725.75,
+              "height": 24,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            }
+          ]
+        },
+        "viewer": null,
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "home-agent-only-light-1440.png"
+    },
+    {
+      "name": "transcript-long",
+      "theme": "light",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "77.3k tokens",
+            "x": 1097.171875,
+            "y": 101.203125,
+            "width": 127.34375,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 158,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": 87,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 198.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 310.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 421.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 533.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 644.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 756.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 868.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 979.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 155,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 155,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 281.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 280.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 458.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 457.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 577.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 614.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 679.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 678.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 832.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 831.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 985.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 984.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 158,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 250.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 281.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 312.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 345,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 341,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 377.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 456.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 487.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 518.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 600,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 645,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 681,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 755,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 755,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 755,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-long-light-1440.png"
+    },
+    {
+      "name": "transcript-pr-header",
+      "theme": "light",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nhome\ningest-api\nFix flaky ingest test\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\nuser turns\n#1\n4m\nVerify sticky model attribution on the mounted Village transcript route.\n5 turns\nlist\ngraph\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution ",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 913.609375,
+            "y": 101.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 264,
+            "y": 318,
+            "width": 113.65625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 379,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#14mVerify sticky model attribution on t",
+            "x": 248,
+            "y": 420,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 376,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 376,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 665.125,
+            "y": 502.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 501.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 655.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 654.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 763.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 762.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 920.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 779.296875,
+            "y": 919.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 379,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 471.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 502.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 533.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 566,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 562,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 598.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 677.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 708.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 739.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 821,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 866,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 902,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 976,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 976,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 397.34375,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 530.6875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 619.796875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 708.90625,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 3,
+          "streamHeight": 534,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-light-1440.png"
+    },
+    {
+      "name": "transcript-pr-header-zen",
+      "theme": "light",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nhome\ningest-api\nFix flaky ingest test\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\n5 turns\nlist\ngraph\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst as",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 665.609375,
+            "y": 101.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 16,
+            "y": 318,
+            "width": 113.65625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 1249.34375,
+            "y": 376,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1330.75,
+            "y": 376,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 416.625,
+            "y": 502.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 477.71875,
+            "y": 501.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 631.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 530.796875,
+            "y": 630.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 739.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 530.796875,
+            "y": 738.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 896.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 530.796875,
+            "y": 895.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1379,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 16,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 149.34375,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 282.6875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 371.796875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 460.90625,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 3,
+          "streamHeight": 534,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-zen-light-1440.png"
+    },
+    {
+      "name": "transcript-initial-prose",
+      "theme": "light",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository quer",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": -10,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 101.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 213.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 324.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 436.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 547.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 659.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 771.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 882.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#102mImplement the async iterator and ad",
+            "x": 248,
+            "y": 994.34375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 98,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 98,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 22.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 21.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 199.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 198.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 318.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 355.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 420.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 419.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 573.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 572.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 726.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 725.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 564,
+            "y": 845.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 564,
+            "y": 882.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 947.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 779.296875,
+            "y": 946.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 153.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 184.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 215.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 248,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 244,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 280.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 359.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 390.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 421.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 503,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 548,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 584,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 812,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-prose-light-1440.png"
+    },
+    {
+      "name": "transcript-initial-wordless",
+      "theme": "light",
+      "width": 1440,
+      "world": "wordless",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "light",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository quer",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": -10,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 101.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 213.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 324.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 436.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 547.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 659.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 771.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 882.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#102mImplement the async iterator and ad",
+            "x": 248,
+            "y": 994.34375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 98,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 98,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 30.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 29.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 149.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 186.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 457.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 456.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 610.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 609.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 564,
+            "y": 729.75,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 564,
+            "y": 766.75,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 831.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 779.296875,
+            "y": 830.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 984.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 3",
+            "x": 726.21875,
+            "y": 983.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 153.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 184.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 215.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 248,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 244,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 280.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 359.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 390.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 421.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 503,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 548,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 584,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 812,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-wordless-light-1440.png"
+    },
+    {
+      "name": "home-agent-only",
+      "theme": "light",
+      "width": 390,
+      "world": "agent",
+      "proof": {
+        "url": "/",
+        "theme": "light",
+        "scrollWidth": 390,
+        "h1": [
+          "your transcripts"
+        ],
+        "text": "your transcripts\n1\ntranscript\n3\ncollectives\n2\npull requests linked\n500\ntokens recorded\nlibrary\ngroup by: project\ncolumns\n\nyour published agent sessions are grouped below.\n\nsessions with your own prompts appear in the main library.\n\n+ 1 agent session\nshow",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "INPUT",
+            "label": "search your transcripts",
+            "x": 55,
+            "y": 474.984375,
+            "width": 306,
+            "height": 42
+          },
+          {
+            "tag": "BUTTON",
+            "label": "group by: project",
+            "x": 16,
+            "y": 529.984375,
+            "width": 208.4375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "columns",
+            "x": 236.4375,
+            "y": 529.984375,
+            "width": 119.9375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "+ 1 agent sessionshow",
+            "x": 17,
+            "y": 744.984375,
+            "width": 356,
+            "height": 44
+          }
+        ],
+        "banner": {
+          "x": 16,
+          "y": 589.984375,
+          "width": 358,
+          "height": 138,
+          "paragraphs": [
+            {
+              "text": "your published agent sessions are grouped below.",
+              "x": 41,
+              "y": 606.984375,
+              "width": 308,
+              "height": 48,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            },
+            {
+              "text": "sessions with your own prompts appear in the main library.",
+              "x": 41,
+              "y": 662.984375,
+              "width": 308,
+              "height": 48,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            }
+          ]
+        },
+        "viewer": null,
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "home-agent-only-light-390.png"
+    },
+    {
+      "name": "transcript-long",
+      "theme": "light",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home",
+        "theme": "light",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming beha",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "77.3k tokens",
+            "x": 845.171875,
+            "y": 126.203125,
+            "width": 127.34375,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 235.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 234.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 416.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 415.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 535.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 572.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 625.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 624.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 782.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 781.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 915.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 914.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 796,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-long-light-390.png"
+    },
+    {
+      "name": "transcript-pr-header",
+      "theme": "light",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "light",
+        "scrollWidth": 390,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant t",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 661.609375,
+            "y": 99.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 12,
+            "y": 363.1875,
+            "width": 113.65625,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 121.125,
+            "y": 492.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 491.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 601.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 600.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 697.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 696.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 847.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 231.296875,
+            "y": 846.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 943.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1d",
+            "x": 231.296875,
+            "y": 942.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 133.34375,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 258.6875,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 339.796875,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 420.90625,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 3,
+          "streamHeight": 539,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-light-390.png"
+    },
+    {
+      "name": "transcript-initial-prose",
+      "theme": "light",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "light",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant t",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 55.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 54.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 236.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 235.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 355.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 392.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 445.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 444.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 602.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 601.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 735.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 734.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 32,
+            "y": 854.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 32,
+            "y": 891.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 944.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 231.296875,
+            "y": 943.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 774,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-prose-light-390.png"
+    },
+    {
+      "name": "transcript-initial-wordless",
+      "theme": "light",
+      "width": 390,
+      "world": "wordless",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "light",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant turn 1b\nassistant\n#1b\n1d ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\n1 ",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 47.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 46.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 190.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 227.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 478.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 477.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 611.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 610.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 32,
+            "y": 730.75,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 32,
+            "y": 767.75,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 820.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 231.296875,
+            "y": 819.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 977.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 3",
+            "x": 178.21875,
+            "y": 976.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 774,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-wordless-light-390.png"
+    },
+    {
+      "name": "home-agent-only",
+      "theme": "dark",
+      "width": 1440,
+      "world": "agent",
+      "proof": {
+        "url": "/",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "your transcripts"
+        ],
+        "text": "your transcripts\n1\ntranscript\n3\ncollectives\n2\npull requests linked\n500\ntokens recorded\nlibrary\ngroup by: project\ncolumns\n\nyour published agent sessions are grouped below.\n\nsessions with your own prompts appear in the main library.\n\n+ 1 agent session\nshow",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "INPUT",
+            "label": "search your transcripts",
+            "x": 319,
+            "y": 313.390625,
+            "width": 308,
+            "height": 42
+          },
+          {
+            "tag": "BUTTON",
+            "label": "group by: project",
+            "x": 652,
+            "y": 312.390625,
+            "width": 208.4375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "columns",
+            "x": 872.4375,
+            "y": 312.390625,
+            "width": 119.9375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "+ 1 agent sessionshow",
+            "x": 281,
+            "y": 479.390625,
+            "width": 1126,
+            "height": 44
+          }
+        ],
+        "banner": {
+          "x": 280,
+          "y": 372.390625,
+          "width": 1128,
+          "height": 90,
+          "paragraphs": [
+            {
+              "text": "your published agent sessions are grouped below.",
+              "x": 305,
+              "y": 389.390625,
+              "width": 725.75,
+              "height": 24,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            },
+            {
+              "text": "sessions with your own prompts appear in the main library.",
+              "x": 305,
+              "y": 421.390625,
+              "width": 725.75,
+              "height": 24,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            }
+          ]
+        },
+        "viewer": null,
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "home-agent-only-dark-1440.png"
+    },
+    {
+      "name": "transcript-long",
+      "theme": "dark",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "77.3k tokens",
+            "x": 1097.171875,
+            "y": 101.203125,
+            "width": 127.34375,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 158,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": 87,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 198.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 310.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 421.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 533.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 644.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 756.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 868.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 979.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 155,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 155,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 281.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 280.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 458.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 457.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 577.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 614.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 679.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 678.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 832.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 831.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 985.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 984.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 158,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 250.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 281.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 312.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 345,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 341,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 377.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 456.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 487.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 518.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 600,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 645,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 681,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 755,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 755,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 755,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-long-dark-1440.png"
+    },
+    {
+      "name": "transcript-pr-header",
+      "theme": "dark",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nhome\ningest-api\nFix flaky ingest test\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\nuser turns\n#1\n4m\nVerify sticky model attribution on the mounted Village transcript route.\n5 turns\nlist\ngraph\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution ",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 913.609375,
+            "y": 101.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 264,
+            "y": 318,
+            "width": 113.65625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 379,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#14mVerify sticky model attribution on t",
+            "x": 248,
+            "y": 420,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 376,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 376,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 665.125,
+            "y": 502.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 501.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 655.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 654.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 763.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 762.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 718.203125,
+            "y": 920.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 779.296875,
+            "y": 919.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 379,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 471.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 502.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 533.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 566,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 562,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 598.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 677.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 708.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 739.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 821,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 866,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 902,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 976,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 976,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 397.34375,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 530.6875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 619.796875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 708.90625,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 3,
+          "streamHeight": 534,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-dark-1440.png"
+    },
+    {
+      "name": "transcript-pr-header-zen",
+      "theme": "dark",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nhome\ningest-api\nFix flaky ingest test\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\n5 turns\nlist\ngraph\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst as",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 16,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 665.609375,
+            "y": 101.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 16,
+            "y": 318,
+            "width": 113.65625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 1249.34375,
+            "y": 376,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1330.75,
+            "y": 376,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 416.625,
+            "y": 502.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 477.71875,
+            "y": 501.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 631.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 530.796875,
+            "y": 630.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 739.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 530.796875,
+            "y": 738.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 469.703125,
+            "y": 896.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 530.796875,
+            "y": 895.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1379,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 16,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 149.34375,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 282.6875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 371.796875,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 460.90625,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 3,
+          "streamHeight": 534,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-zen-dark-1440.png"
+    },
+    {
+      "name": "transcript-initial-prose",
+      "theme": "dark",
+      "width": 1440,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository quer",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": -10,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 101.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 213.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 324.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 436.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 547.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 659.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 771.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 882.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#102mImplement the async iterator and ad",
+            "x": 248,
+            "y": 994.34375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 98,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 98,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 22.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 726.21875,
+            "y": 21.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 199.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 779.296875,
+            "y": 198.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 318.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 355.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 420.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 419.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 573.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 572.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 726.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 725.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 564,
+            "y": 845.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 564,
+            "y": 882.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 947.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 779.296875,
+            "y": 946.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 153.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 184.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 215.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 248,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 244,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 280.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 359.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 390.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 421.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 503,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 548,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 584,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 812,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-prose-dark-1440.png"
+    },
+    {
+      "name": "transcript-initial-wordless",
+      "theme": "dark",
+      "width": 1440,
+      "world": "wordless",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "dark",
+        "scrollWidth": 1440,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository quer",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 256,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link",
+            "x": 1360,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "more",
+            "x": 1396,
+            "y": 8,
+            "width": 28,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse user turns outline",
+            "x": 447,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#12mBuild a resumable activity export. S",
+            "x": 248,
+            "y": -10,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#22mCheck the current export instruction",
+            "x": 248,
+            "y": 101.59375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#32mLocate the unbounded read and trace ",
+            "x": 248,
+            "y": 213.1875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#42mCheck the repository query and find ",
+            "x": 248,
+            "y": 324.78125,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#52mReview the route and cancellation me",
+            "x": 248,
+            "y": 436.375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#62mRun the current tests and keep their",
+            "x": 248,
+            "y": 547.96875,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#72mAdd explicit cursor and page types. ",
+            "x": 248,
+            "y": 659.5625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#82mImplement a versioned cursor decoder",
+            "x": 248,
+            "y": 771.15625,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#92mAdd the bounded repository query usi",
+            "x": 248,
+            "y": 882.75,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "#102mImplement the async iterator and ad",
+            "x": 248,
+            "y": 994.34375,
+            "width": 239,
+            "height": 111.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "list",
+            "x": 977.34375,
+            "y": 98,
+            "width": 81.40625,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "graph",
+            "x": 1058.75,
+            "y": 98,
+            "width": 91.25,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 30.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 779.296875,
+            "y": 29.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 564,
+            "y": 149.796875,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 564,
+            "y": 186.796875,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 457.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 726.21875,
+            "y": 456.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 610.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 779.296875,
+            "y": 609.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 564,
+            "y": 729.75,
+            "width": 527,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 564,
+            "y": 766.75,
+            "width": 527,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 718.203125,
+            "y": 831.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 779.296875,
+            "y": 830.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 665.125,
+            "y": 984.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 3",
+            "x": 726.21875,
+            "y": 983.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "zen mode",
+            "x": 1107,
+            "y": 852,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "collapse filters",
+            "x": 1400,
+            "y": 61,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 153.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 184.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 215.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 248,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "tool calls",
+            "x": 1217,
+            "y": 244,
+            "width": 106.484375,
+            "height": 24
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 280.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 359.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 390.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "INPUT",
+            "label": "",
+            "x": 1193,
+            "y": 421.5,
+            "width": 16,
+            "height": 16
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show hidden indicators",
+            "x": 1185,
+            "y": 503,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "expand all tool calls",
+            "x": 1185,
+            "y": 548,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "compact mode",
+            "x": 1185,
+            "y": 584,
+            "width": 40,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "start",
+            "x": 1185,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "latest",
+            "x": 1308.5,
+            "y": 658,
+            "width": 115.5,
+            "height": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 264,
+            "y": 953,
+            "width": 109.34375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 397.34375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 539.53125,
+            "y": 953,
+            "width": 73.953125,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 637.484375,
+            "y": 953,
+            "width": 65.109375,
+            "height": 48
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 726.59375,
+            "y": 953,
+            "width": 118.1875,
+            "height": 48
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 952,
+          "footerTop": 952,
+          "prRows": 0,
+          "streamHeight": 812,
+          "footerHeight": 48
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-wordless-dark-1440.png"
+    },
+    {
+      "name": "home-agent-only",
+      "theme": "dark",
+      "width": 390,
+      "world": "agent",
+      "proof": {
+        "url": "/",
+        "theme": "dark",
+        "scrollWidth": 390,
+        "h1": [
+          "your transcripts"
+        ],
+        "text": "your transcripts\n1\ntranscript\n3\ncollectives\n2\npull requests linked\n500\ntokens recorded\nlibrary\ngroup by: project\ncolumns\n\nyour published agent sessions are grouped below.\n\nsessions with your own prompts appear in the main library.\n\n+ 1 agent session\nshow",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "INPUT",
+            "label": "search your transcripts",
+            "x": 55,
+            "y": 474.984375,
+            "width": 306,
+            "height": 42
+          },
+          {
+            "tag": "BUTTON",
+            "label": "group by: project",
+            "x": 16,
+            "y": 529.984375,
+            "width": 208.4375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "columns",
+            "x": 236.4375,
+            "y": 529.984375,
+            "width": 119.9375,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "+ 1 agent sessionshow",
+            "x": 17,
+            "y": 744.984375,
+            "width": 356,
+            "height": 44
+          }
+        ],
+        "banner": {
+          "x": 16,
+          "y": 589.984375,
+          "width": 358,
+          "height": 138,
+          "paragraphs": [
+            {
+              "text": "your published agent sessions are grouped below.",
+              "x": 41,
+              "y": 606.984375,
+              "width": 308,
+              "height": 48,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            },
+            {
+              "text": "sessions with your own prompts appear in the main library.",
+              "x": 41,
+              "y": 662.984375,
+              "width": 308,
+              "height": 48,
+              "fontSize": "16px",
+              "lineHeight": "24px"
+            }
+          ]
+        },
+        "viewer": null,
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "home-agent-only-dark-390.png"
+    },
+    {
+      "name": "transcript-long",
+      "theme": "dark",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home",
+        "theme": "dark",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming beha",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "77.3k tokens",
+            "x": 845.171875,
+            "y": 126.203125,
+            "width": 127.34375,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 235.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 234.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 416.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 415.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 535.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 572.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 625.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 624.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 782.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 781.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 915.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 914.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 796,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-long-dark-390.png"
+    },
+    {
+      "name": "transcript-pr-header",
+      "theme": "dark",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+        "theme": "dark",
+        "scrollWidth": 390,
+        "h1": [
+          "Fix flaky ingest test"
+        ],
+        "text": "skip to session views\nFix flaky ingest test\nclaude code\nanthropic/claude-fable-5\n5m\n5\nturns\n0\ntools\n500\ntokens\n\npull requests 5\n\nacme/ingest-api\n#42\nattached, Fix flaky ingest test\nacme/ingest-api\n#45\nattached, Retry with the injected clock\nacme/web\n#31\ndetached\nshow all\n5\nplanning\nturns 1–5\nuser turn 1\nuser\n#1\njun 17\n\nVerify sticky model attribution on the mounted Village transcript route.\n\nassistant turn 1a\nassistant\n#1a\njun 17\n\nFirst assistant response with direct Fable evidence.\n\nassistant t",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "500 tokens",
+            "x": 661.609375,
+            "y": 99.203125,
+            "width": 109.640625,
+            "height": 19.59375
+          },
+          {
+            "tag": "BUTTON",
+            "label": "show all 5",
+            "x": 12,
+            "y": 363.1875,
+            "width": 113.65625,
+            "height": 44
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 121.125,
+            "y": 492.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 491.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 601.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 600.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 697.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 696.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 847.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1c",
+            "x": 231.296875,
+            "y": 846.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "jun 17",
+            "x": 174.203125,
+            "y": 943.984375,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1d",
+            "x": 231.296875,
+            "y": 942.984375,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 2",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 5",
+            "x": 133.34375,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 0",
+            "x": 258.6875,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 0",
+            "x": 339.796875,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 0",
+            "x": 420.90625,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 3,
+          "streamHeight": 539,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-pr-header-dark-390.png"
+    },
+    {
+      "name": "transcript-initial-prose",
+      "theme": "dark",
+      "width": 390,
+      "world": "live",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "dark",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant t",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 55.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1",
+            "x": 178.21875,
+            "y": 54.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 236.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1a",
+            "x": 231.296875,
+            "y": 235.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 355.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 392.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 445.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 444.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 602.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 601.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 735.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 734.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 32,
+            "y": 854.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 32,
+            "y": 891.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 944.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 231.296875,
+            "y": 943.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 774,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-prose-dark-390.png"
+    },
+    {
+      "name": "transcript-initial-wordless",
+      "theme": "dark",
+      "width": 390,
+      "world": "wordless",
+      "proof": {
+        "url": "/transcripts/long-demo?in=home&turn=1",
+        "theme": "dark",
+        "scrollWidth": 390,
+        "h1": [
+          "Build a resumable activity export"
+        ],
+        "text": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant turn 1b\nassistant\n#1b\n1d ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\n1 ",
+        "bodyFont": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "dialogs": [],
+        "controls": [
+          {
+            "tag": "BUTTON",
+            "label": "skip to session views",
+            "x": 8,
+            "y": 64,
+            "width": 2,
+            "height": 2
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 47.796875,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 1b",
+            "x": 231.296875,
+            "y": 46.796875,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action, 150ms",
+            "x": 32,
+            "y": 190.796875,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Globsrc/export/**/*150ms",
+            "x": 32,
+            "y": 227.796875,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 478.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2",
+            "x": 178.21875,
+            "y": 477.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 611.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2a",
+            "x": 231.296875,
+            "y": 610.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1 action: 1 file, 150ms",
+            "x": 32,
+            "y": 730.75,
+            "width": 326,
+            "height": 37
+          },
+          {
+            "tag": "BUTTON",
+            "label": "ReadREADME.md150ms",
+            "x": 32,
+            "y": 767.75,
+            "width": 326,
+            "height": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 174.203125,
+            "y": 820.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 2b",
+            "x": 231.296875,
+            "y": 819.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "1d ago",
+            "x": 121.125,
+            "y": 977.75,
+            "width": 53.09375,
+            "height": 22
+          },
+          {
+            "tag": "BUTTON",
+            "label": "copy link to turn 3",
+            "x": 178.21875,
+            "y": 976.75,
+            "width": 24,
+            "height": 24
+          },
+          {
+            "tag": "BUTTON",
+            "label": "highlights 7",
+            "x": 8,
+            "y": 956,
+            "width": 109.34375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "full trace 84",
+            "x": 133.34375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "diffs 13",
+            "x": 267.53125,
+            "y": 956,
+            "width": 73.953125,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "files 9",
+            "x": 357.484375,
+            "y": 956,
+            "width": 65.109375,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "annotations 5",
+            "x": 438.59375,
+            "y": 956,
+            "width": 118.1875,
+            "height": 45
+          },
+          {
+            "tag": "BUTTON",
+            "label": "transcript tools",
+            "x": 338,
+            "y": 956,
+            "width": 44,
+            "height": 44
+          }
+        ],
+        "banner": null,
+        "viewer": {
+          "centerScrollTop": 0,
+          "streamBottom": 955,
+          "footerTop": 955,
+          "prRows": 0,
+          "streamHeight": 774,
+          "footerHeight": 45
+        },
+        "overflow": []
+      },
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": [],
+      "file": "transcript-initial-wordless-dark-390.png"
+    }
+  ]
+}
