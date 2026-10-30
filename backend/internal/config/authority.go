@@ -102,6 +102,8 @@ func loadServingConfiguration(cfg *Config) {
 	cfg.EmailProviderAPIKey = getEnv("EMAIL_PROVIDER_API_KEY", "")
 	cfg.EmailFrom = getEnv("EMAIL_FROM", "")
 	cfg.EmailLinkSigningKey = getEnv("EMAIL_LINK_SIGNING_KEY", "")
+	cfg.ScryURL = getEnv("SCRY_URL", "")
+	cfg.ScrySharedSecret = getEnv("SCRY_SHARED_SECRET", "")
 }
 
 func validateRequiredURL(setting, value string) error {
