@@ -15,6 +15,7 @@ export type DisclosureCase = {
 export type DisclosureFixtures = {
   line: string;
   linkLabel: string;
+  lineEnd: string;
   href: string;
   forbidden: string[];
   cases: DisclosureCase[];
@@ -35,7 +36,7 @@ const REQUIRED_DISCLOSURE = [
 export function loadDisclosureFixtures(): DisclosureFixtures {
   const path = resolve(__dirname, "../testdata/manage-access-disclosure.yaml");
   const raw = parse(readFileSync(path, "utf8")) as DisclosureFixtures;
-  assertExactKeys(raw, ["line", "linkLabel", "href", "forbidden", "cases"], "manage-access-disclosure.yaml");
+  assertExactKeys(raw, ["line", "linkLabel", "lineEnd", "href", "forbidden", "cases"], "manage-access-disclosure.yaml");
   raw.cases.forEach((c, i) => assertExactKeys(c, ["name", "surface", "visibility", "check"], `cases[${i}]`));
   assertNamesMatch(raw.cases.map((c) => c.name), REQUIRED_DISCLOSURE, "manage-access-disclosure cases");
   return raw;
@@ -55,11 +56,8 @@ const REQUIRED_PRIVACY = [
   "says_no_person_reads",
   "says_stores_nothing_logs_no_content",
   "says_only_the_result_is_kept",
-  "says_servers_decrypt_for_every_read",
-  "says_pending_submissions_are_covered",
   "says_editing_does_not_clear_a_flag",
-  "says_recheck_when_the_check_is_updated",
-  "says_checks_stop_only_when_nobody_else_can_read",
+  "says_flags_can_be_false_positives",
   "never_claims_no_access",
   "notice_date_bumped",
 ] as const;

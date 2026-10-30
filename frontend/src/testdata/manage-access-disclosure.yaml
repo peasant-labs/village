@@ -3,14 +3,16 @@
 # The disclosure line is one shared copy, shown wherever a transcript becomes
 # readable by anyone besides its owner: the manage access dialog, the contribute
 # confirmation, and the public choice in the edit dialog. `line` is the exact
-# wording as rendered, ending at the link; `linkLabel` is the link text.
+# wording as rendered, ending at the link; `linkLabel` is the link text and
+# `lineEnd` the text after it.
 #
 # Cases are guarded by a required-NAME manifest in the loader, never by a count.
 # `surface` is one of manage_access, contribute_confirm, make_public, share_choice, already_public; `check` is
 # one of shown, link, no_middle_dot, no_access_claim.
 
-line: "once anyone besides you can read this transcript, including a collective's owners reviewing your submission, an automated check reads it for signs it was edited after it was recorded. no person reads it for this. the check stores nothing and logs no content; village keeps only the result and when the check ran. see the"
+line: "once this transcript is shared, an automated check reads it for signs of editing. the check does not store any content; village only keeps metadata about the check result and timestamp (see the"
 linkLabel: privacy notice
+lineEnd: ")."
 href: /privacy#privacy-integrity
 
 # Phrases the rendered text must never contain.

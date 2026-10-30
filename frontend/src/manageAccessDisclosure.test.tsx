@@ -73,7 +73,7 @@ for (const c of fixtures.cases) {
     const text = flat(dialog);
     switch (c.check) {
       case "shown":
-        expect(text).toContain(`${fixtures.line} ${fixtures.linkLabel}.`);
+        expect(text).toContain(`${fixtures.line} ${fixtures.linkLabel}${fixtures.lineEnd}`);
         break;
       case "link": {
         const link = within(dialog).getByRole("link", { name: fixtures.linkLabel });
