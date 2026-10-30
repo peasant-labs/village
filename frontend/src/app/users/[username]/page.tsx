@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Image from "next/image";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
+import RequestFailureState from "@/components/RequestFailureState";
+import { isApiErrorStatus } from "@/lib/api";
 import { HOME_SECTION } from "@/lib/nav/sections";
 
 /**
@@ -53,12 +55,16 @@ export default function UserProfilePage({
 }) {
   const { username } = use(params);
   const { user, isLoggedIn } = useAuth();
-  const { data: profile, isError: isProfileError } = usePublicProfile(username);
+  const profileRead = usePublicProfile(username);
+  const { data: profile, isError: isProfileError } = profileRead;
+  const [retryingProfile, setRetryingProfile] = useState(false);
+  const [retryingLibrary, setRetryingLibrary] = useState(false);
   // The organizations this person has linked. The server sends only the
   // visible ones, and answers the same way for an owner and a visitor.
   const { data: linkedOrgs } = usePublicOrgs(username);
   const publicOrgs = linkedOrgs ?? [];
-  const { data, isLoading } = useTranscripts({ owner: username });
+  const libraryRead = useTranscripts({ owner: username });
+  const { data, isLoading } = libraryRead;
   // The server's own helper-group fold for this person's library. Independent
   // of the flat list above: the rows, the ordinary child chip and the project
   // bucketing are unchanged, and a grouped read that fails contributes nothing.
@@ -83,6 +89,25 @@ export default function UserProfilePage({
   const effectiveProfile = profile ?? (isOwnProfile ? user : undefined);
   const displayName = effectiveProfile?.display_name ?? username;
   const avatarUrl = effectiveProfile?.avatar_url ?? undefined;
+
+  if (!isOwnProfile && ((isProfileError && !isApiErrorStatus(profileRead.error, 404)) || retryingProfile)) {
+    return (
+      <OnPage tight={isLoggedIn}>
+        <ProfileCrumb username={username} signedIn={isLoggedIn} />
+        <RequestFailureState
+          headingLevel={1}
+          title="this profile could not load"
+          message="the profile could not be read. retry to load it before continuing."
+          retryLabel="retry profile"
+          retryDisabled={profileRead.isFetching || retryingProfile}
+          onRetry={() => {
+            setRetryingProfile(true);
+            void profileRead.refetch().finally(() => setRetryingProfile(false));
+          }}
+        />
+      </OnPage>
+    );
+  }
 
   if (isProfileError && !isOwnProfile) {
     return (
@@ -136,7 +161,18 @@ export default function UserProfilePage({
   // ── Library panel (main canvas) ──────────────────────────────────────────────
   // Header always visible. Loading: existing shimmer (keeps the card structure
   // consistent). Loaded: DataState discriminates empty vs content.
-  const libraryPanel = (
+  const libraryPanel = (!data && (libraryRead.isError || retryingLibrary)) ? (
+    <RequestFailureState
+      title="this library could not load"
+      message="the published library could not be read. retry to load its transcripts."
+      retryLabel="retry published library"
+      retryDisabled={libraryRead.isFetching || retryingLibrary}
+      onRetry={() => {
+        setRetryingLibrary(true);
+        void libraryRead.refetch().finally(() => setRetryingLibrary(false));
+      }}
+    />
+  ) : (
     <div className="border border-rule bg-surface">
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
         <span className="inline-flex items-center gap-2 font-mono text-[length:var(--fs-sm)] font-semibold text-[color:var(--ink-strong)]">

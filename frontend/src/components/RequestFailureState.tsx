@@ -67,7 +67,7 @@ export default function RequestFailureState({
             what a busy state does, and it would interrupt the polite region
             that already says the request is going out again. */}
         <div role="alert" className="flex flex-col items-center gap-3">
-          <Heading className={headingLevel ? "on-section-title" : "text-sm font-medium text-ink"}>{title}</Heading>
+          <Heading className={headingLevel ? "on-h2" : "text-sm font-medium text-ink"}>{title}</Heading>
           <p className="text-[length:var(--fs-body)] text-ink-3 max-w-sm">{message}</p>
         </div>
         <RetryButton label={retryLabel} busy={retryDisabled} onRetry={onRetry} />
