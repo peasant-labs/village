@@ -241,7 +241,6 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
           onAdd={add}
           empty="none of your collectives matches that name."
         /> : null}
-        <p className="pub-hint">removing a collective takes the transcript back from it: its members lose access.</p>
         <IntegrityDisclosure />
         {/* Always mounted, so a screen reader hears each change as it lands. */}
         <p className={status ? "pub-line" : "sr-only"} role="status" aria-live="polite">
