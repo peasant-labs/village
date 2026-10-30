@@ -1,4 +1,6 @@
-import { waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -107,6 +109,53 @@ describe("mounted transcript route: the trail names where it was opened from", (
       } else {
         expect(replacedRoutes).toEqual([]);
       }
+    });
+  }
+});
+
+const readFailures = parse(readFileSync("src/testdata/transcript-page-read-errors.yaml", "utf8")) as Array<{
+  name: string; status: number; retry: boolean;
+}>;
+
+describe("mounted transcript route: metadata read failures", () => {
+  it("retains the failed, refused and not-found read regressions", () => {
+    expect(readFailures.map((fixture) => fixture.name)).toEqual(expect.arrayContaining([
+      "temporary-metadata-failure-retries-the-same-transcript",
+      "refused-metadata-is-not-an-empty-result",
+      "missing-transcript-retains-indistinguishable-not-found",
+    ]));
+  });
+  for (const fixture of readFailures) {
+    it(fixture.name, async () => {
+      let reads = 0;
+      let releaseRetry: (() => void) | undefined;
+      installRESTFixture(TRANSCRIPT_ID, metadata(fx.routeCases[0]), detail(), "metadata-read-failure", undefined, async (url) => {
+        if (!url.endsWith(`/transcripts/${TRANSCRIPT_ID}`)) return undefined;
+        reads += 1;
+        if (reads === 1) return new Response(JSON.stringify({ error: "metadata unavailable" }), { status: fixture.status });
+        await new Promise<void>((resolve) => { releaseRetry = resolve; });
+        return undefined;
+      });
+      await renderProductionRoute(TRANSCRIPT_ID, "?in=home");
+      if (!fixture.retry) {
+        expect(await screen.findByRole("heading", { level: 1, name: "transcript not found" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "retry transcript" })).not.toBeInTheDocument();
+        expect(reads).toBe(1);
+        return;
+      }
+      expect(await screen.findByRole("heading", { level: 1, name: "this transcript could not load" })).toBeInTheDocument();
+      expect(screen.queryByText("transcript not found")).not.toBeInTheDocument();
+      const retry = screen.getByRole("button", { name: "retry transcript" });
+      retry.focus();
+      fireEvent.click(retry);
+      await waitFor(() => expect(releaseRetry).toBeDefined());
+      expect(retry).toHaveAttribute("aria-disabled", "true");
+      expect(retry).toHaveFocus();
+      fireEvent.click(retry);
+      expect(reads).toBe(2);
+      releaseRetry!();
+      await waitFor(() => expect(document.querySelector(".txn-title")).toHaveTextContent(TITLE));
+      expect(reads).toBe(2);
     });
   }
 });
