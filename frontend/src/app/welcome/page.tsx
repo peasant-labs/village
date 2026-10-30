@@ -85,9 +85,6 @@ export default function WelcomePage() {
     return null;
   }
 
-  // The claim card is the design system's. Its own note names the design
-  // system rather than this product, so the line under it says what the
-  // handle is here: the address of the person's profile.
   return (
     <OnPage>
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-[var(--sp-5)]">
@@ -98,8 +95,8 @@ export default function WelcomePage() {
           onSubmit={handleSubmit}
         />
         <p className="on-muted m-0 max-w-[44ch] text-center" data-testid="welcome-handle-note">
-          Your handle names your profile on peasant online, at{" "}
-          <span className="font-mono">/users/your-handle</span>. You can change it later in your
+          your handle names your profile on peasant online, at{" "}
+          <span className="font-mono">/users/your-handle</span>. you can change it later in your
           settings.
         </p>
       </div>

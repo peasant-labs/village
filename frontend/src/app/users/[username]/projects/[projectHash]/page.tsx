@@ -4,7 +4,6 @@ import { use, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   EyeOff,
-  FileText,
   Library,
   Pencil,
   Users,
@@ -12,11 +11,9 @@ import {
 import {
   Button,
   DataState,
-  EmptyState,
   Input,
   RailSection,
   RailShell,
-  StatGrid,
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
@@ -191,12 +188,8 @@ export default function UserProjectPage({
         empty={data.transcripts.length === 0}
         emptyState={
           <div className="px-5 py-10">
-            <EmptyState
-              icon={Library}
-              as="h3"
-              title="no transcripts to show"
-              message="this project has no published sessions you can open."
-            />
+            <h3 className="on-section-title">no transcripts to show</h3>
+            <p className="on-muted">this project has no published sessions you can open.</p>
           </div>
         }
       >
@@ -273,12 +266,8 @@ export default function UserProjectPage({
         empty={data.collectives.length === 0}
         emptyState={
           <div className="px-5 py-10">
-            <EmptyState
-              icon={Users}
-              as="h3"
-              title="no collectives to show"
-              message="no collective you can see holds a transcript from this project."
-            />
+            <h3 className="on-section-title">no collectives to show</h3>
+            <p className="on-muted">no collective you can see holds a transcript from this project.</p>
           </div>
         }
       >
@@ -408,22 +397,10 @@ export default function UserProjectPage({
         </div>
       </header>
 
-      <StatGrid
-        tiles={[
-          {
-            key: "transcripts",
-            label: "transcripts",
-            value: data.transcripts.length.toLocaleString(),
-            icon: FileText,
-          },
-          {
-            key: "collectives",
-            label: "collectives",
-            value: data.collectives.length.toLocaleString(),
-            icon: Users,
-          },
-        ]}
-      />
+      <dl className="on-stats on-profile-stats" aria-label="project in numbers">
+        <div className="on-stat"><dt>transcripts</dt><dd>{data.transcripts.length.toLocaleString()}</dd></div>
+        <div className="on-stat"><dt>collectives</dt><dd>{data.collectives.length.toLocaleString()}</dd></div>
+      </dl>
 
       {ownerRail ? (
         <RailShell
@@ -435,12 +412,7 @@ export default function UserProjectPage({
           {canvas}
         </RailShell>
       ) : (
-        // No rail for a viewer who is not the owner, so the canvas would run the
-        // full page width. It is held to the design system's own content measure
-        // instead: the transcript rows carry a `group` class that the design
-        // system also styles as a capped layout group, so a wider container
-        // leaves the rows centred inside their own panel.
-        <div style={{ maxWidth: "var(--maxw)" }}>{canvas}</div>
+        canvas
       )}
     </OnPage>
   );
