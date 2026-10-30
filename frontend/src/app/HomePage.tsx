@@ -344,8 +344,9 @@ function HomeBody({ username }: { username: string }) {
     );
   } else if (total === 0 && agentTotal > 0 && query === "") {
     listRegion = (
-      <div className="on-notice" data-testid="home-agent-only">
-        <p>your published agent sessions are grouped below. sessions with your own prompts appear in the main library.</p>
+      <div className="on-notice on-agent-library-note" data-testid="home-agent-only">
+        <p>your published agent sessions are grouped below.</p>
+        <p>sessions with your own prompts appear in the main library.</p>
       </div>
     );
   } else if (libraryEmpty) {

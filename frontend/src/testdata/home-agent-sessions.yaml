@@ -2,3 +2,6 @@ name: agent-only-library-keeps-its-published-sessions-reachable
 viewerUsername: agent-publisher
 agentTotal: 1
 expectedGroupLabel: + 1 agent session
+noticeParagraphs:
+  - your published agent sessions are grouped below.
+  - sessions with your own prompts appear in the main library.

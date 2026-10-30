@@ -670,12 +670,13 @@ describe("mounted home route: a failure belongs to the handle it came from", () 
 });
 
 const agentOnly = parse(readFileSync("src/testdata/home-agent-sessions.yaml", "utf8")) as {
-  name: string; viewerUsername: string; agentTotal: number; expectedGroupLabel: string;
+  name: string; viewerUsername: string; agentTotal: number; expectedGroupLabel: string; noticeParagraphs: string[];
 };
 it(agentOnly.name, async () => {
   installHomeRouteREST({ viewerUsername: agentOnly.viewerUsername, transcripts: [], agentTotal: agentOnly.agentTotal });
   await renderAppRoute("/");
   await waitFor(() => expect(screen.getByTestId("home-agent-only")).toBeInTheDocument());
   expect(screen.queryByTestId("home-empty-state")).not.toBeInTheDocument();
+  expect(Array.from(screen.getByTestId("home-agent-only").querySelectorAll("p"), (paragraph) => paragraph.textContent)).toEqual(agentOnly.noticeParagraphs);
   expect(screen.getByRole("button", { name: new RegExp(agentOnly.expectedGroupLabel.replace("+", "\\+")) })).toBeInTheDocument();
 });
