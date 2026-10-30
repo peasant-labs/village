@@ -1,0 +1,142 @@
+{
+  "source": "6e53455ba8ac5570b37730a58aca75be57050a7c",
+  "fairtrade": "0.0.56",
+  "supplements": [
+    {
+      "name": "transcript-diagram",
+      "theme": "light",
+      "width": 1440,
+      "proof": {
+        "svg": {
+          "width": 540.265625,
+          "height": 822.390625,
+          "viewBox": [
+            -91,
+            -91.5,
+            540.265625,
+            822.4000244140625
+          ]
+        },
+        "pan": {
+          "className": "txn-mermaid-stage",
+          "scrollWidth": 564,
+          "clientWidth": 525
+        },
+        "fonts": [
+          "16px"
+        ]
+      },
+      "end": {
+        "scrollTop": 15250,
+        "max": 15250
+      }
+    },
+    {
+      "name": "transcript-diagram",
+      "theme": "light",
+      "width": 390,
+      "proof": {
+        "svg": {
+          "width": 540.265625,
+          "height": 822.390625,
+          "viewBox": [
+            -91,
+            -91.5,
+            540.265625,
+            822.4000244140625
+          ]
+        },
+        "pan": {
+          "className": "txn-mermaid-stage",
+          "scrollWidth": 564,
+          "clientWidth": 324
+        },
+        "fonts": [
+          "16px"
+        ]
+      },
+      "end": {
+        "scrollTop": 13845,
+        "max": 13845
+      }
+    },
+    {
+      "name": "new-collective-2",
+      "theme": "light",
+      "width": 390,
+      "proof": {
+        "scrollTop": 111,
+        "scrollHeight": 940,
+        "clientHeight": 829
+      }
+    },
+    {
+      "name": "transcript-diagram",
+      "theme": "dark",
+      "width": 1440,
+      "proof": {
+        "svg": {
+          "width": 540.265625,
+          "height": 822.390625,
+          "viewBox": [
+            -91,
+            -91.5,
+            540.265625,
+            822.4000244140625
+          ]
+        },
+        "pan": {
+          "className": "txn-mermaid-stage",
+          "scrollWidth": 564,
+          "clientWidth": 525
+        },
+        "fonts": [
+          "16px"
+        ]
+      },
+      "end": {
+        "scrollTop": 15250,
+        "max": 15250
+      }
+    },
+    {
+      "name": "transcript-diagram",
+      "theme": "dark",
+      "width": 390,
+      "proof": {
+        "svg": {
+          "width": 540.265625,
+          "height": 822.390625,
+          "viewBox": [
+            -91,
+            -91.5,
+            540.265625,
+            822.4000244140625
+          ]
+        },
+        "pan": {
+          "className": "txn-mermaid-stage",
+          "scrollWidth": 564,
+          "clientWidth": 324
+        },
+        "fonts": [
+          "16px"
+        ]
+      },
+      "end": {
+        "scrollTop": 13845,
+        "max": 13845
+      }
+    },
+    {
+      "name": "new-collective-2",
+      "theme": "dark",
+      "width": 390,
+      "proof": {
+        "scrollTop": 111,
+        "scrollHeight": 940,
+        "clientHeight": 829
+      }
+    }
+  ]
+}

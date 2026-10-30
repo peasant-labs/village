@@ -1,0 +1,561 @@
+{
+  "sourceBase": "a036154d2e33b5da4fa92040ca025c38fa16c647",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "name": "phone",
+      "width": 390,
+      "height": 1000
+    }
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "cases": [
+    {
+      "name": "home",
+      "url": "/",
+      "selector": "[data-testid=home-page]",
+      "world": "live"
+    },
+    {
+      "name": "home-expanded",
+      "url": "/",
+      "selector": "[data-testid=home-page]",
+      "world": "live",
+      "action": "home-expand"
+    },
+    {
+      "name": "home-agent-only",
+      "url": "/",
+      "selector": "[data-testid=home-agent-only]",
+      "world": "agent"
+    },
+    {
+      "name": "home-agent-expanded",
+      "url": "/",
+      "selector": "[data-testid=home-agent-only]",
+      "world": "agent",
+      "action": "agent-expand"
+    },
+    {
+      "name": "home-empty",
+      "url": "/",
+      "selector": "[data-testid=home-empty-state]",
+      "world": "empty"
+    },
+    {
+      "name": "home-no-match",
+      "url": "/",
+      "selector": "[data-testid=home-page]",
+      "world": "live",
+      "action": "home-no-match"
+    },
+    {
+      "name": "home-error",
+      "url": "/",
+      "selector": "[data-testid=home-page-error]",
+      "world": "home-error",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "home-loading",
+      "url": "/",
+      "selector": "[data-testid=home-list-loading]",
+      "world": "home-loading"
+    },
+    {
+      "name": "discover-transcripts",
+      "url": "/discover?view=transcripts",
+      "selector": ".cex-results",
+      "world": "live"
+    },
+    {
+      "name": "discover-collectives",
+      "url": "/discover?view=collectives",
+      "selector": ".on-discover-collective",
+      "world": "live"
+    },
+    {
+      "name": "discover-search",
+      "url": "/discover?view=transcripts",
+      "selector": ".cex-results",
+      "world": "live",
+      "action": "discover-search"
+    },
+    {
+      "name": "discover-empty",
+      "url": "/discover?view=transcripts",
+      "selector": "main",
+      "world": "empty"
+    },
+    {
+      "name": "collectives",
+      "url": "/collectives",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "new-collective-1",
+      "url": "/collectives",
+      "selector": "main",
+      "world": "isolated",
+      "action": "new-collective-1"
+    },
+    {
+      "name": "new-collective-2",
+      "url": "/collectives",
+      "selector": "main",
+      "world": "isolated",
+      "action": "new-collective-2"
+    },
+    {
+      "name": "new-collective-3",
+      "url": "/collectives",
+      "selector": "main",
+      "world": "isolated",
+      "action": "new-collective-3"
+    },
+    {
+      "name": "collective-transcripts",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=transcripts",
+      "selector": "[data-testid=collective-page]",
+      "world": "live"
+    },
+    {
+      "name": "collective-waiting",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=waiting",
+      "selector": "[data-testid=collective-page]",
+      "world": "live"
+    },
+    {
+      "name": "collective-members",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=members",
+      "selector": "[data-testid=collective-page]",
+      "world": "live"
+    },
+    {
+      "name": "collective-repositories",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "selector": "[data-testid=collective-page]",
+      "world": "live"
+    },
+    {
+      "name": "collective-stats",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=stats",
+      "selector": "[data-testid=collective-page]",
+      "world": "live"
+    },
+    {
+      "name": "collective-last-page",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "selector": "[data-testid=collective-page]",
+      "world": "live",
+      "action": "collective-last-page"
+    },
+    {
+      "name": "collective-settings-general",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=general",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-settings-access",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=access",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-settings-members",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-settings-github",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=github",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-settings-pull-requests",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=pull-requests",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-settings-danger",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=danger",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "collective-leave-dialog",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000002",
+      "selector": "[data-testid=collective-page]",
+      "world": "live",
+      "action": "leave-dialog"
+    },
+    {
+      "name": "contribute",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/contribute",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "contribute-preview",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/contribute",
+      "selector": "main",
+      "world": "live",
+      "action": "contribute-preview"
+    },
+    {
+      "name": "contribute-error",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/contribute",
+      "selector": "main",
+      "world": "contribute-error",
+      "expectedReadFailures": true,
+      "readyText": "your transcripts could not load"
+    },
+    {
+      "name": "review",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "selector": "[data-testid=review-panel]",
+      "world": "live"
+    },
+    {
+      "name": "review-preview",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "selector": "[data-testid=review-panel]",
+      "world": "live",
+      "action": "review-preview"
+    },
+    {
+      "name": "review-error",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "selector": "main",
+      "world": "review-error",
+      "expectedReadFailures": true,
+      "readyText": "the review queue could not load"
+    },
+    {
+      "name": "profile",
+      "url": "/users/alice-dev",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "profile-contributions",
+      "url": "/users/alice-dev",
+      "selector": "main",
+      "world": "live",
+      "action": "profile-contributions"
+    },
+    {
+      "name": "profile-history",
+      "url": "/users/alice-dev",
+      "selector": "main",
+      "world": "live",
+      "action": "profile-history"
+    },
+    {
+      "name": "profile-agent-expanded",
+      "url": "/users/alice-dev",
+      "selector": "main",
+      "world": "agent",
+      "action": "profile-agent"
+    },
+    {
+      "name": "profile-not-found",
+      "url": "/users/no-such-review-user",
+      "selector": "main",
+      "world": "profile-not-found",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "project",
+      "url": "/users/alice-dev/projects/4444444444444444444444444444444444444444444444444444444444444444",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "project-agents",
+      "url": "/users/alice-dev/projects/4444444444444444444444444444444444444444444444444444444444444444",
+      "selector": "main",
+      "world": "live",
+      "action": "project-agents"
+    },
+    {
+      "name": "project-not-found",
+      "url": "/users/alice-dev/projects/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "selector": "main",
+      "world": "project-not-found",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "pull-requests",
+      "url": "/pulls",
+      "selector": "[data-testid=pulls-request]",
+      "world": "live"
+    },
+    {
+      "name": "pull-request-digest",
+      "url": "/pulls/acme/ingest-api/45",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "pull-request-prompt-expanded",
+      "url": "/pulls/acme/ingest-api/45",
+      "selector": "main",
+      "world": "live",
+      "action": "pr-history"
+    },
+    {
+      "name": "settings-profile",
+      "url": "/settings#profile",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-profile"
+    },
+    {
+      "name": "settings-organizations",
+      "url": "/settings#organizations",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-organizations"
+    },
+    {
+      "name": "settings-pull-requests",
+      "url": "/settings#pull-requests",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-pull-requests"
+    },
+    {
+      "name": "settings-email",
+      "url": "/settings#email",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-email"
+    },
+    {
+      "name": "settings-connections",
+      "url": "/settings#connections",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-connections"
+    },
+    {
+      "name": "settings-danger-zone",
+      "url": "/settings#danger-zone",
+      "selector": "main",
+      "world": "live",
+      "action": "settings-danger-zone"
+    },
+    {
+      "name": "settings-delete-confirmation",
+      "url": "/settings#danger-zone",
+      "selector": "main",
+      "world": "live",
+      "action": "delete-dialog"
+    },
+    {
+      "name": "transcript-long",
+      "url": "/transcripts/long-demo?in=home",
+      "selector": ".txn-app",
+      "world": "live"
+    },
+    {
+      "name": "transcript-diagram",
+      "url": "/transcripts/long-demo?in=home",
+      "selector": ".txn-app",
+      "world": "live",
+      "action": "diagram"
+    },
+    {
+      "name": "transcript-tools",
+      "url": "/transcripts/long-demo?in=home",
+      "selector": ".txn-app",
+      "world": "live",
+      "action": "tools"
+    },
+    {
+      "name": "transcript-integrity",
+      "url": "/transcripts/integrity-demo",
+      "selector": ".txn-app",
+      "world": "integrity",
+      "action": "integrity"
+    },
+    {
+      "name": "transcript-metadata-error",
+      "url": "/transcripts/long-demo",
+      "selector": "main",
+      "world": "transcript-error",
+      "expectedReadFailures": true,
+      "readyText": "this transcript could not load"
+    },
+    {
+      "name": "transcript-not-found",
+      "url": "/transcripts/no-such-review-session",
+      "selector": "main",
+      "world": "transcript-not-found",
+      "expectedReadFailures": true,
+      "readyText": "transcript not found"
+    },
+    {
+      "name": "privacy",
+      "url": "/privacy",
+      "selector": "main",
+      "world": "live"
+    },
+    {
+      "name": "unsubscribe-invalid",
+      "url": "/email/unsubscribe",
+      "selector": "[data-testid=unsubscribe-invalid]",
+      "world": "live"
+    },
+    {
+      "name": "unsubscribe-confirm",
+      "url": "/email/unsubscribe?token=synthetic-review-token",
+      "selector": "[data-testid=unsubscribe-ask]",
+      "world": "live"
+    },
+    {
+      "name": "welcome",
+      "url": "/welcome",
+      "selector": "main",
+      "world": "welcome"
+    },
+    {
+      "name": "not-found",
+      "url": "/no-such-review-page",
+      "selector": "main",
+      "world": "live",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "visual-harness-production",
+      "url": "/dev/visual-harness",
+      "selector": "main",
+      "world": "live",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "contribute-empty",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/contribute",
+      "selector": "[data-testid=contribute-member-panel]",
+      "world": "contribute-empty"
+    },
+    {
+      "name": "review-permission",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001/review",
+      "selector": "main",
+      "world": "review-permission"
+    },
+    {
+      "name": "collective-private",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001",
+      "selector": "main",
+      "world": "collective-private"
+    },
+    {
+      "name": "transcript-pr-header",
+      "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+      "selector": ".txn-app",
+      "world": "live"
+    },
+    {
+      "name": "transcript-pr-header-zen",
+      "url": "/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a?in=home",
+      "selector": ".txn-app",
+      "world": "live",
+      "action": "zen",
+      "viewports": [
+        "desktop"
+      ]
+    },
+    {
+      "name": "transcript-initial-prose",
+      "url": "/transcripts/long-demo?in=home&turn=1",
+      "selector": ".txn-app",
+      "world": "live"
+    },
+    {
+      "name": "transcript-initial-wordless",
+      "url": "/transcripts/long-demo?in=home&turn=1",
+      "selector": ".txn-app",
+      "world": "wordless"
+    },
+    {
+      "name": "repository-controls",
+      "url": "/collectives/c011ec71-0000-4000-8000-000000000001?tab=repositories",
+      "selector": ".rpk-foot",
+      "world": "live",
+      "action": "repository-footer"
+    },
+    {
+      "name": "legacy-explore",
+      "url": "/explore",
+      "selector": ".cex-results",
+      "world": "live"
+    },
+    {
+      "name": "project-owner",
+      "url": "/users/alice-dev/projects/4444444444444444444444444444444444444444444444444444444444444444",
+      "selector": "[data-testid=project-page]",
+      "world": "project-owner",
+      "action": "project-settings"
+    },
+    {
+      "name": "profile-error",
+      "url": "/users/bob-ai",
+      "selector": "[data-failure-panel]",
+      "world": "profile-error",
+      "readyText": "this profile could not load",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "profile-library-error",
+      "url": "/users/alice-dev",
+      "selector": "[data-failure-panel]",
+      "world": "profile-library-error",
+      "readyText": "this library could not load",
+      "expectedReadFailures": true
+    },
+    {
+      "name": "project-error",
+      "url": "/users/alice-dev/projects/4444444444444444444444444444444444444444444444444444444444444444",
+      "selector": "[data-failure-panel]",
+      "world": "project-error",
+      "readyText": "this project could not load",
+      "expectedReadFailures": true
+    }
+  ],
+  "redirects": [
+    "/groups",
+    "/groups/c011ec71-0000-4000-8000-000000000001",
+    "/groups/c011ec71-0000-4000-8000-000000000001/review",
+    "/groups/c011ec71-0000-4000-8000-000000000001/contribute",
+    "/groups/c011ec71-0000-4000-8000-000000000001/settings",
+    "/publish",
+    "/login",
+    "/auth/start",
+    "/auth/callback"
+  ],
+  "firefoxCases": [
+    "home-agent-only",
+    "home-agent-expanded",
+    "transcript-pr-header",
+    "transcript-pr-header-zen",
+    "transcript-long",
+    "transcript-initial-prose",
+    "transcript-initial-wordless"
+  ],
+  "initialSourceBase": "a036154d2e33b5da4fa92040ca025c38fa16c647"
+}

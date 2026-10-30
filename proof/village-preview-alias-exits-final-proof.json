@@ -1,0 +1,302 @@
+{
+  "sourceArtifact": "6e53455ba8ac5570b37730a58aca75be57050a7c / registry Fairtrade0.0.56 / production3344",
+  "supplementPid": 71288,
+  "results": [
+    {
+      "id": "3f9c0a17-0000-4000-8000-000000000001",
+      "title": "Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/3f9c0a17-0000-4000-8000-000000000001?in=collective%3Ac011ec71-0000-4000-8000-000000000002",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "c41a9f20-0000-4000-8000-000000000002",
+      "title": "Guard empty turns in the digest",
+      "url": "http://localhost:3344/transcripts/c41a9f20-0000-4000-8000-000000000002?in=collective%3Ac011ec71-0000-4000-8000-000000000002",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "5d82a4b0-0000-4000-8000-000000000003",
+      "title": "Paginate the collectives list",
+      "url": "http://localhost:3344/transcripts/5d82a4b0-0000-4000-8000-000000000003?in=collective%3Ac011ec71-0000-4000-8000-000000000002",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "91be07c4-0000-4000-8000-000000000004",
+      "title": "Migrate retry queue to worker",
+      "url": "http://localhost:3344/transcripts/91be07c4-0000-4000-8000-000000000004?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "b4d9e310-0000-4000-8000-000000000005",
+      "title": "Refactoring database queries",
+      "url": "http://localhost:3344/transcripts/b4d9e310-0000-4000-8000-000000000005?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "76aafaca-f872-4fae-874b-6b8c3caaedc9",
+      "title": "Recorded replay 1: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/76aafaca-f872-4fae-874b-6b8c3caaedc9?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "3c437c57-6eba-447d-8987-fc34f2ae2bcf",
+      "title": "Recorded replay 2: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/3c437c57-6eba-447d-8987-fc34f2ae2bcf?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "947ab1bf-a2d5-4df4-8f36-53212db9dbae",
+      "title": "Recorded replay 3: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/947ab1bf-a2d5-4df4-8f36-53212db9dbae?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "a2122c93-20b2-406a-8ea7-2cfdcfee5aa4",
+      "title": "Recorded replay 4: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/a2122c93-20b2-406a-8ea7-2cfdcfee5aa4?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "0df1604e-b6b7-4614-8f28-e93f5453f3bd",
+      "title": "Recorded replay 5: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/0df1604e-b6b7-4614-8f28-e93f5453f3bd?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "94dbe2a7-2fef-43fb-87f1-9bb20bc4b658",
+      "title": "Recorded replay 6: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/94dbe2a7-2fef-43fb-87f1-9bb20bc4b658?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "2cabf1fe-3644-48a5-8a13-76f408215c4b",
+      "title": "Recorded replay 7: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/2cabf1fe-3644-48a5-8a13-76f408215c4b?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "04a94327-8a49-4877-807e-d19ee3f4e8de",
+      "title": "Recorded replay 8: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/04a94327-8a49-4877-807e-d19ee3f4e8de?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "c3a83f9d-8c43-4f04-84e4-9e77a2749cca",
+      "title": "Recorded replay 9: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/c3a83f9d-8c43-4f04-84e4-9e77a2749cca?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "85787620-70b4-4353-8820-1732f62e7dea",
+      "title": "Recorded replay 10: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/85787620-70b4-4353-8820-1732f62e7dea?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "9e2bb03e-df1e-4b7a-88ba-8da814452edf",
+      "title": "Recorded replay 11: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/9e2bb03e-df1e-4b7a-88ba-8da814452edf?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "4c6aa867-daad-480b-85eb-9e7dfcf3737f",
+      "title": "Recorded replay 12: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/4c6aa867-daad-480b-85eb-9e7dfcf3737f?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "dc42531a-c3bf-4570-8499-c697b6c28a23",
+      "title": "Recorded replay 13: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/dc42531a-c3bf-4570-8499-c697b6c28a23?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "94807805-59b5-4990-8435-15d7cc760579",
+      "title": "Recorded replay 14: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/94807805-59b5-4990-8435-15d7cc760579?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "d5ce7e7d-ee46-468b-8b6b-f5769cf488d4",
+      "title": "Recorded replay 15: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/d5ce7e7d-ee46-468b-8b6b-f5769cf488d4?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "1045f8cb-991d-4eb0-8b75-13f63eefb5a7",
+      "title": "Recorded replay 16: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/1045f8cb-991d-4eb0-8b75-13f63eefb5a7?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "9b0d517e-14ea-4532-8e3b-fea2d0e04449",
+      "title": "Recorded replay 17: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/9b0d517e-14ea-4532-8e3b-fea2d0e04449?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "bda02c66-c783-4002-8428-794190121da3",
+      "title": "Recorded replay 18: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/bda02c66-c783-4002-8428-794190121da3?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "545cb22e-edb3-41f7-8a7f-b94aa572658d",
+      "title": "Recorded replay 19: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/545cb22e-edb3-41f7-8a7f-b94aa572658d?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "35be8973-948b-407c-874e-ccb5f7f379f9",
+      "title": "Recorded replay 20: Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/35be8973-948b-407c-874e-ccb5f7f379f9?in=collective%3Ac011ec71-0000-4000-8000-000000000001",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-1",
+      "title": "Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/ct-home-1?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "04f311d5-0404-45f2-8af8-cc57c97c6e76",
+      "title": "Fix flaky ingest test",
+      "url": "http://localhost:3344/transcripts/04f311d5-0404-45f2-8af8-cc57c97c6e76?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-2",
+      "title": "Guard empty turns in the digest",
+      "url": "http://localhost:3344/transcripts/ct-home-2?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "aa1cae3f-3c6d-412e-8044-93f527d5f65c",
+      "title": "Guard empty turns in the digest",
+      "url": "http://localhost:3344/transcripts/aa1cae3f-3c6d-412e-8044-93f527d5f65c?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-3",
+      "title": "Paginate the collectives list",
+      "url": "http://localhost:3344/transcripts/ct-home-3?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "0d3e6f86-4bc4-476b-8af6-2e3cffe29391",
+      "title": "Paginate the collectives list",
+      "url": "http://localhost:3344/transcripts/0d3e6f86-4bc4-476b-8af6-2e3cffe29391?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-4",
+      "title": "Migrate retry queue to worker",
+      "url": "http://localhost:3344/transcripts/ct-home-4?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "012ca75e-22c3-450d-843a-dea7bb6ab490",
+      "title": "Migrate retry queue to worker",
+      "url": "http://localhost:3344/transcripts/012ca75e-22c3-450d-843a-dea7bb6ab490?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-5",
+      "title": "Reproduce the tokenizer benchmark",
+      "url": "http://localhost:3344/transcripts/ct-home-5?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "5ea8de1a-6b56-45f8-862c-2eb51c65fe05",
+      "title": "Reproduce the tokenizer benchmark",
+      "url": "http://localhost:3344/transcripts/5ea8de1a-6b56-45f8-862c-2eb51c65fe05?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "ct-home-6",
+      "title": "Refactoring database queries",
+      "url": "http://localhost:3344/transcripts/ct-home-6?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    },
+    {
+      "id": "697c9330-7f56-432e-8f2b-f81c5853dde2",
+      "title": "Refactoring database queries",
+      "url": "http://localhost:3344/transcripts/697c9330-7f56-432e-8f2b-f81c5853dde2?in=home",
+      "streamCharacters": 524,
+      "failures": [],
+      "errors": []
+    }
+  ]
+}

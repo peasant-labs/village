@@ -1,0 +1,19 @@
+{
+  "source": "6e53455ba8ac5570b37730a58aca75be57050a7c",
+  "package": "0.0.56",
+  "mainStateSheetsInspected": 78,
+  "primaryObservationsInspected": 310,
+  "fullPageImages": 118,
+  "fullPageUniqueHashes": 106,
+  "belowFoldInspectionSheetsInspected": 24,
+  "allFullPageContentInspected": true,
+  "supplements": "Scroll images inspected separately; matching exact served source.",
+  "findingsRemaining": [
+    "Welcome canonical HandleClaim has no h1 prop; no duplicate visible heading added. Canonical follow-up, no all-accessibility pass claimed.",
+    "Firefox headless could not launch on macOS (SWGL framebuffer mapping error and timeout); Chromium validation only.",
+    "Framework global/error boundaries reviewed in source; no forced mounted crash claim."
+  ],
+  "setupCorrection": "Two phone project-owner initial setup waits targeted collapsed controls. Original failures retained locally; final captures open the actual project settings sheet. No production source or assertion was weakened.",
+  "supplementImagesInspected": 14,
+  "supplementObservations": 6
+}

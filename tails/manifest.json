@@ -1,0 +1,586 @@
+{
+  "files": 118,
+  "unique": 106,
+  "tiles": 142,
+  "sheets": 24,
+  "manifest": [
+    {
+      "file": "collective-last-page-dark-1440-full.png",
+      "sha256": "889830409ff4b8a69726391ba77c1781dcf31833ecc5f877b1abf7db0ebf8881",
+      "height": 1012
+    },
+    {
+      "file": "collective-last-page-dark-390-full.png",
+      "sha256": "9b748d9a4d0233890ccf669a6b65024aedbacaaae85e15f99e1cf9fda83c3f33",
+      "height": 1786
+    },
+    {
+      "file": "collective-last-page-light-1440-full.png",
+      "sha256": "b69a3845f5c35bd801f19ed76973296661c0415e70fa2b8403ec0b692fdf26a8",
+      "height": 1012
+    },
+    {
+      "file": "collective-last-page-light-390-full.png",
+      "sha256": "1e9d515b0a5312a6298dc1accd571978d6df84d2d8953e53333fc911a25655b0",
+      "height": 1786
+    },
+    {
+      "file": "collective-leave-dialog-dark-390-full.png",
+      "sha256": "1f077745a3869412b7512740fe2c0631118ba96d7b78eed2b07d079af56b1788",
+      "height": 1216
+    },
+    {
+      "file": "collective-leave-dialog-light-390-full.png",
+      "sha256": "fb000145d574a6615096ebe05a00ce0c122f4022ac44cf66fe43d95f590a4fe4",
+      "height": 1216
+    },
+    {
+      "file": "collective-members-dark-390-full.png",
+      "sha256": "aa082ac40e10fc9229b940b89be31820aa673bee8bddf2eb94497b851beaa52f",
+      "height": 1045
+    },
+    {
+      "file": "collective-members-light-390-full.png",
+      "sha256": "a507138816450ffe03c2c14dd22245cd862ab9b79884ada89121ee34e984419b",
+      "height": 1045
+    },
+    {
+      "file": "collective-private-dark-390-full.png",
+      "sha256": "818c8a97c8d3c1a8c9512fb2204c1d225fc00a8e9d8ed70afc9ca9e8775655ac",
+      "height": 1153
+    },
+    {
+      "file": "collective-private-light-390-full.png",
+      "sha256": "3797b06f02548b88b70a459302a853b78926db81ace920ab63e177f55b7d10ae",
+      "height": 1153
+    },
+    {
+      "file": "collective-repositories-dark-1440-full.png",
+      "sha256": "f9b1f34892a4c19650dedbc8bc91712b73ea036a605da56897158da29e0165d5",
+      "height": 1351
+    },
+    {
+      "file": "collective-repositories-dark-390-full.png",
+      "sha256": "4596e72fa0ef38c93d0e615ecb02a251e6858fe8c6a6ad4bddc82eafa0b272d3",
+      "height": 1797
+    },
+    {
+      "file": "collective-repositories-light-1440-full.png",
+      "sha256": "9a77503ff6cad5dcdd90ab03a672476e45e61e7c03d8164cd293e6e1c579f60f",
+      "height": 1351
+    },
+    {
+      "file": "collective-repositories-light-390-full.png",
+      "sha256": "f44e0cafbb98033d9095582fd232a31b1292ef56cd60f743a98b8b68123fb654",
+      "height": 1797
+    },
+    {
+      "file": "collective-settings-access-dark-390-full.png",
+      "sha256": "5474d8a7d795ae9e6fa4db1ace4cbc29d7654ac898c0b47cf2dc31f04f428566",
+      "height": 1475
+    },
+    {
+      "file": "collective-settings-access-light-390-full.png",
+      "sha256": "1367d7b1089bad4557575c68e6c06e9a9418c3c23b131fa5ab99c020c873575e",
+      "height": 1475
+    },
+    {
+      "file": "collective-settings-github-dark-1440-full.png",
+      "sha256": "95b3517c9bb3d3a60992ab545f6097b6481750ced273e3f0a8b81d9d9c375f68",
+      "height": 1169
+    },
+    {
+      "file": "collective-settings-github-dark-390-full.png",
+      "sha256": "aab688d2c9e94b11325811790e4ded3bb20a4938895066762e28be141ec214d1",
+      "height": 1435
+    },
+    {
+      "file": "collective-settings-github-light-1440-full.png",
+      "sha256": "6f71c5b4b742645607741b0e25b2d6c04fe455105a18b3a4e045ba68d1d4037b",
+      "height": 1169
+    },
+    {
+      "file": "collective-settings-github-light-390-full.png",
+      "sha256": "7cb60857b4a794a9eb9bf988d9309fbb6d10b9bfc840f617181d3d8e88e33d46",
+      "height": 1435
+    },
+    {
+      "file": "collective-settings-members-dark-390-full.png",
+      "sha256": "fb0eeb19dad20e62cba4a027aaa942f28e0241f6e53770730e1176023b3916b7",
+      "height": 1055
+    },
+    {
+      "file": "collective-settings-members-light-390-full.png",
+      "sha256": "d6aa4826b82924ef8f4e8ced01253cd6b65923abf1efc0c8dc74be98b139e8ac",
+      "height": 1055
+    },
+    {
+      "file": "collective-transcripts-dark-1440-full.png",
+      "sha256": "6b3fa1e6f293a5557cb2711d2457445ce811cbc383ec9e20ada468afb496bfc3",
+      "height": 1907
+    },
+    {
+      "file": "collective-transcripts-dark-390-full.png",
+      "sha256": "a9de36d580bd7266942d578590fba835033a5152635e989fc067db6f093a3c2a",
+      "height": 3767
+    },
+    {
+      "file": "collective-transcripts-light-1440-full.png",
+      "sha256": "b984c72b09f97fd39eb1d04383d1a3bc08217e057ae289a4e90c01181419bae0",
+      "height": 1907
+    },
+    {
+      "file": "collective-transcripts-light-390-full.png",
+      "sha256": "08f18efc0509ce5aceb044922b916116e0dd594956a4ee3e99a306b577995f11",
+      "height": 3767
+    },
+    {
+      "file": "collective-waiting-dark-390-full.png",
+      "sha256": "90c394f3eba3b3549286507e93199772607496522993c5ef3717be34a8e70dbf",
+      "height": 1122
+    },
+    {
+      "file": "collective-waiting-light-390-full.png",
+      "sha256": "b8d0d901ed68876520d3667b0560798b053004515f4cb661b33c064457306852",
+      "height": 1122
+    },
+    {
+      "file": "contribute-dark-1440-full.png",
+      "sha256": "1795b9501599b82a9957e0966bb92884bb26b620b5b125320ea323c0a06f49a0",
+      "height": 1034
+    },
+    {
+      "file": "contribute-dark-390-full.png",
+      "sha256": "5597a91fb4d72eba5f800f85e12612f70478a362ffe11e71e31a7dc701f92b04",
+      "height": 2104
+    },
+    {
+      "file": "contribute-light-1440-full.png",
+      "sha256": "49d08098bb15c1409577344756ef37f6bd6349505eb2b481ba0126c7998c1a62",
+      "height": 1034
+    },
+    {
+      "file": "contribute-light-390-full.png",
+      "sha256": "04a11234ad01cbc5402665838f2d146c4e2dcda95ed1bc45b6071f71ea0b438f",
+      "height": 2104
+    },
+    {
+      "file": "contribute-preview-dark-1440-full.png",
+      "sha256": "4e379eddf2be0a2e819d1f2070d9d8199445b702650bbaae7468d6450378678e",
+      "height": 1034
+    },
+    {
+      "file": "contribute-preview-dark-390-full.png",
+      "sha256": "83288168082a2bdac133b1cbb92a07c5f17e863833a0fbd6f74ab7ad04b2b56c",
+      "height": 2661
+    },
+    {
+      "file": "contribute-preview-light-1440-full.png",
+      "sha256": "e10012e7c6aeb6ace8345105b06b05e034cf2583877aba6467c4cb31be280cc7",
+      "height": 1034
+    },
+    {
+      "file": "contribute-preview-light-390-full.png",
+      "sha256": "495536b58c7953fbbdc8749f6ae623c600fa3caf748c84e2ef91f1b38882c026",
+      "height": 2661
+    },
+    {
+      "file": "discover-collectives-dark-390-full.png",
+      "sha256": "de39200b474e7166ef72ce7b512292e7608d3dd56bb87a5f67cbd81e635a5bd5",
+      "height": 1246
+    },
+    {
+      "file": "discover-collectives-light-390-full.png",
+      "sha256": "6b60bfdfaf3e908cead56ba55ebbd7109f8da2a7bd9b5602203a3e62902dcbff",
+      "height": 1246
+    },
+    {
+      "file": "discover-transcripts-dark-1440-full.png",
+      "sha256": "e1244f04777910ba90723db77e3fcc4e4a3e9422c72578d6429ca820fc195b2c",
+      "height": 1018
+    },
+    {
+      "file": "discover-transcripts-dark-390-full.png",
+      "sha256": "e3c9fa45fb506b9cfa7af343bcd96120ae9335a8d1136447194ddf7612a649e3",
+      "height": 1385
+    },
+    {
+      "file": "discover-transcripts-light-1440-full.png",
+      "sha256": "73f3490d5d77c48aa1ca1fd104d1a280afcc57ebaec70ac07b5d51e89cc4f30e",
+      "height": 1018
+    },
+    {
+      "file": "discover-transcripts-light-390-full.png",
+      "sha256": "0a3a2481ffd34609329cfc6810a74151180f00006fbee2e75002d8f26ff14936",
+      "height": 1385
+    },
+    {
+      "file": "home-dark-390-full.png",
+      "sha256": "ac034dae0a78c287f5211762871377ff117425ae40da74aef6ff690c13b7f2c4",
+      "height": 1196
+    },
+    {
+      "file": "home-expanded-dark-1440-full.png",
+      "sha256": "48591026b7789650750f580bb80f082ac3044172602c2d1db3f638b139f077d5",
+      "height": 1256
+    },
+    {
+      "file": "home-expanded-dark-390-full.png",
+      "sha256": "d4dadbf35612e0b943c276f8bfed44cb11b2665cfb8f3dbd1fc9e3d2ed7ee459",
+      "height": 2145
+    },
+    {
+      "file": "home-expanded-light-1440-full.png",
+      "sha256": "692b05f11d2f10dac9dd9fc85d21b007a1a23152b0ba7bd14b1fec6ce3a8513d",
+      "height": 1256
+    },
+    {
+      "file": "home-expanded-light-390-full.png",
+      "sha256": "7126a7a92569ae3da609be0a68f92b80679aef395c107e396635966faf34e057",
+      "height": 2145
+    },
+    {
+      "file": "home-light-390-full.png",
+      "sha256": "459a498bbb00f6b0dda8cbc700e471c95392a9729e59cbdc8a84e45b1152fc42",
+      "height": 1196
+    },
+    {
+      "file": "home-no-match-dark-390-full.png",
+      "sha256": "e8b840b41fa1e78e96d4742df9bea86e312717bc945d1f203e8f8d47876271a2",
+      "height": 1005
+    },
+    {
+      "file": "home-no-match-light-390-full.png",
+      "sha256": "bf270fceda9eb4187aeab3a14bba4034ec31bb993e5689d61710997ac3424eee",
+      "height": 1005
+    },
+    {
+      "file": "legacy-explore-dark-1440-full.png",
+      "sha256": "1da34a19a7541df79080b742945703942c6f08c9df706e03a78b7939d1391d1e",
+      "height": 1300
+    },
+    {
+      "file": "legacy-explore-dark-390-full.png",
+      "sha256": "20b6b1d1b0dfe28bb5811651d7fe6e21b8828f5e7dde09d3db4d529ae5a51190",
+      "height": 2184
+    },
+    {
+      "file": "legacy-explore-light-1440-full.png",
+      "sha256": "a18fa3016cbee284791755393fefb9823f43b688cecabb22de14b95fcb58342f",
+      "height": 1300
+    },
+    {
+      "file": "legacy-explore-light-390-full.png",
+      "sha256": "f1154236c94b99e879ae3e1540f674b3776abb263b2e8829afeeb892e9b51755",
+      "height": 2184
+    },
+    {
+      "file": "privacy-dark-1440-full.png",
+      "sha256": "e2f787f57613fdda0402fca67418d10b7a9e3b8293736f8e9c311ab2514d9533",
+      "height": 2104
+    },
+    {
+      "file": "privacy-dark-390-full.png",
+      "sha256": "e57099865b2519730acb0138ff9cca1e0ae91e1b5fa991be802275efacd5c153",
+      "height": 3146
+    },
+    {
+      "file": "privacy-light-1440-full.png",
+      "sha256": "202a089e9c8b7698bdc9a09e137bad4957d0cab150e0a895781e9754aed230d8",
+      "height": 2104
+    },
+    {
+      "file": "privacy-light-390-full.png",
+      "sha256": "778fba276b55634cf111e7c42bc8c96fba65ead3f2543edf2a2a271f5b8395ff",
+      "height": 3146
+    },
+    {
+      "file": "profile-agent-expanded-dark-390-full.png",
+      "sha256": "f742082e19212c8b6a5a976e9490f7881b52267ffb14025cd8aea452d6e971e8",
+      "height": 1073
+    },
+    {
+      "file": "profile-agent-expanded-light-390-full.png",
+      "sha256": "9542918bb30e2be2f527cc434c1b3fb612613b249d792bfb6606790056c4a0bd",
+      "height": 1073
+    },
+    {
+      "file": "profile-contributions-dark-1440-full.png",
+      "sha256": "8880bb13532ffb87623932435ae7f8b0c56c0ca8d015ede7cedffbccb05ed578",
+      "height": 1588
+    },
+    {
+      "file": "profile-contributions-dark-390-full.png",
+      "sha256": "42096da17f73bb6c713768c60452717dbd2e9e812e6a8f38df8812a8063ea16a",
+      "height": 2464
+    },
+    {
+      "file": "profile-contributions-light-1440-full.png",
+      "sha256": "19e78df869a42684ccd57c336fd259e05226ef35b67f76f174c9e1ca8a9a85f7",
+      "height": 1588
+    },
+    {
+      "file": "profile-contributions-light-390-full.png",
+      "sha256": "00bc9ea8ea30e3519c8a2198a2bea6385f3f9f00ec6279d03c1018ddbe2c1e3d",
+      "height": 2464
+    },
+    {
+      "file": "profile-dark-1440-full.png",
+      "sha256": "ed0c2ea7792e4d623fd17fbc8dc340ffe2b89765c8f0668fa521b83ef6e5060b",
+      "height": 1507
+    },
+    {
+      "file": "profile-dark-390-full.png",
+      "sha256": "631e60b51f479da66ef8d2c9da66fada2225cf8ef62bb306635f9bdd691df64b",
+      "height": 2351
+    },
+    {
+      "file": "profile-history-dark-1440-full.png",
+      "sha256": "4828eee1da94bffecaa0ae0fefd67ac315daf63610cf138704672dc6ec166123",
+      "height": 1699
+    },
+    {
+      "file": "profile-history-dark-390-full.png",
+      "sha256": "fa1d25f2a2c34d91a7981560d63b61931ee355b1c9a55f0452e2dd9a57d8873f",
+      "height": 2596
+    },
+    {
+      "file": "profile-history-light-1440-full.png",
+      "sha256": "b39d66d6dc978bab513e20f9463a818614128917d278f885b41f802171752d78",
+      "height": 1699
+    },
+    {
+      "file": "profile-history-light-390-full.png",
+      "sha256": "9637915ee7eca4b77390c5051711e8b340f04395054dc64e653c44d7a0a63125",
+      "height": 2596
+    },
+    {
+      "file": "profile-library-error-dark-390-full.png",
+      "sha256": "badb1ac94dd9c2602c94d250bdfd049f381d6cef153e7833b004f8a6ba65334d",
+      "height": 1446
+    },
+    {
+      "file": "profile-library-error-light-390-full.png",
+      "sha256": "5eb302e6d85b108c7f58dfebb337b90d30e220c77c4f11598feb49d1c7b6bef7",
+      "height": 1446
+    },
+    {
+      "file": "profile-light-1440-full.png",
+      "sha256": "1f824519537e84cb6cb565ab6e72986df93c32fad36b9166dc021ed6c7dd89f4",
+      "height": 1507
+    },
+    {
+      "file": "profile-light-390-full.png",
+      "sha256": "95b6b64393fc22f5a165681fce26ea661b7faed2f74509680a611e5dc6bb590b",
+      "height": 2351
+    },
+    {
+      "file": "project-agents-dark-390-full.png",
+      "sha256": "7d0be31941a50a0bfea68ad6e72b4752254019a82bcb7e0f7a1819f10da7f626",
+      "height": 1034
+    },
+    {
+      "file": "project-agents-light-390-full.png",
+      "sha256": "d9ef5df6267a388a1b28f4f252c318eb0422a67a587d25d23ff8bb56145aaf7f",
+      "height": 1034
+    },
+    {
+      "file": "project-owner-dark-390-full.png",
+      "sha256": "52ac35e8791a6b8e7467d82efe025799595ebd9c64fdd3876e5e8269c64f50b5",
+      "height": 1237
+    },
+    {
+      "file": "project-owner-light-390-full.png",
+      "sha256": "848457ca270e57ce03df0c9da6f5e4590403617a703635c2d04f05a39db5e257",
+      "height": 1237
+    },
+    {
+      "file": "pull-request-digest-dark-390-full.png",
+      "sha256": "387b18feb77e6ec6c8d869bb638c150354350a458d848cea9c8f3cb1f5bfd1bb",
+      "height": 1451
+    },
+    {
+      "file": "pull-request-digest-light-390-full.png",
+      "sha256": "8ed00b8f02d03474713fa06a2023ce292eac470a68f3bede04b3d430f3aa1da1",
+      "height": 1451
+    },
+    {
+      "file": "pull-request-prompt-expanded-dark-390-full.png",
+      "sha256": "c229761466f10381914f86a86a8e999e9a8f97cd2834f06530ad80f169c24267",
+      "height": 1452
+    },
+    {
+      "file": "pull-request-prompt-expanded-light-390-full.png",
+      "sha256": "db6109ac3c8249c9b1971d5ed82659442e99959151bdf7a165847d692ddca9ee",
+      "height": 1452
+    },
+    {
+      "file": "repository-controls-dark-1440-full.png",
+      "sha256": "af024917d11a6dc682439ca8c04ae127ad45ea6559bfa704383531516c05ea85",
+      "height": 1351
+    },
+    {
+      "file": "repository-controls-dark-390-full.png",
+      "sha256": "1f22a90a4ed3a090485a6c82064e5cd5314446a814054aeaaf9cd8d19fb4a120",
+      "height": 1797
+    },
+    {
+      "file": "repository-controls-light-1440-full.png",
+      "sha256": "f91dcd20641cc5006b0835be7820ffe91031c8d4b55aa06a4e2d8a76e4d91580",
+      "height": 1351
+    },
+    {
+      "file": "repository-controls-light-390-full.png",
+      "sha256": "ac1623266cd54fb57106edb47e65e820e2c6fd4dd335e6bdff4665ec4e88bf20",
+      "height": 1797
+    },
+    {
+      "file": "review-dark-390-full.png",
+      "sha256": "572acd0314c2ac81f23643531eed57a21ac7c4308f5313b742592adbb65f7e0a",
+      "height": 1621
+    },
+    {
+      "file": "review-light-390-full.png",
+      "sha256": "d8a23b90aad2534e4cb5fdd03695887b79fdb2b873a9ee53fcb0773839539911",
+      "height": 1621
+    },
+    {
+      "file": "review-preview-dark-390-full.png",
+      "sha256": "d4b1587c78262749efe3ff1c0c36c5cb3ea36fcf0851b64e56aa9facb6766236",
+      "height": 1621
+    },
+    {
+      "file": "review-preview-light-390-full.png",
+      "sha256": "2637df84bd3e071df0b6dd3b28857b72cc9dab68441b5f532119b4593fcd6243",
+      "height": 1621
+    },
+    {
+      "file": "settings-connections-dark-1440-full.png",
+      "sha256": "fc553402ef556051d4eed7c9b56b003edb22c1f6ad1017856a46b531218bdff8",
+      "height": 1282
+    },
+    {
+      "file": "settings-connections-dark-390-full.png",
+      "sha256": "2293b3189e40e9f842408b53c47d12fa348841898c501c56846d3b8aa3228172",
+      "height": 1875
+    },
+    {
+      "file": "settings-connections-light-1440-full.png",
+      "sha256": "03b9bb628f33cc00c660721cb11f6de9166a964ed8d51deeb50c3b02cbd7df10",
+      "height": 1282
+    },
+    {
+      "file": "settings-connections-light-390-full.png",
+      "sha256": "7efca5393c4ab1f01b6a20554387b7c7cda5a1b5bc5d2da4514a238525d9fe8e",
+      "height": 1875
+    },
+    {
+      "file": "settings-danger-zone-dark-1440-full.png",
+      "sha256": "49e516efa0c57cb2271cb09c13dd982651ee4fc9cff22994dda4640882be3321",
+      "height": 1282
+    },
+    {
+      "file": "settings-danger-zone-dark-390-full.png",
+      "duplicateOf": "settings-connections-dark-390-full.png"
+    },
+    {
+      "file": "settings-danger-zone-light-1440-full.png",
+      "sha256": "de1f5de78244cc44da1af263ab70b2dd7b25bb2a4d0500b248c5ca8876a1f026",
+      "height": 1282
+    },
+    {
+      "file": "settings-danger-zone-light-390-full.png",
+      "duplicateOf": "settings-connections-light-390-full.png"
+    },
+    {
+      "file": "settings-delete-confirmation-dark-1440-full.png",
+      "sha256": "a256379d60021bd4e2cd3a707ff99f38a246480de57835d5a125340342d2e7ef",
+      "height": 1306
+    },
+    {
+      "file": "settings-delete-confirmation-dark-390-full.png",
+      "sha256": "15405fde68f99c6cb9e55dac79a8a35edbd9757fe34d19dcf302f17e959a17c4",
+      "height": 1875
+    },
+    {
+      "file": "settings-delete-confirmation-light-1440-full.png",
+      "sha256": "e0eaec855f0624a8c0122e5a6166e35af41f732c2453d85906b010180dec866a",
+      "height": 1306
+    },
+    {
+      "file": "settings-delete-confirmation-light-390-full.png",
+      "sha256": "ea1e095a588fe4240fada1c468115dc34734c9a97b6322b1c571498d5f7eea1d",
+      "height": 1875
+    },
+    {
+      "file": "settings-email-dark-1440-full.png",
+      "sha256": "ba393c5a6930f670ef856d79972d73b4cbb30046103ef3a0ee8f25cf61d213b2",
+      "height": 1282
+    },
+    {
+      "file": "settings-email-dark-390-full.png",
+      "sha256": "1f6ac39f80cb1e454afd87354749af07762ad99d1ae5604a40e31e18b0baad8d",
+      "height": 1875
+    },
+    {
+      "file": "settings-email-light-1440-full.png",
+      "sha256": "397a8b36897bf6819317e87e7f686091c5a11c9eef0a4c3e9d1eceeeaed7d5e5",
+      "height": 1282
+    },
+    {
+      "file": "settings-email-light-390-full.png",
+      "sha256": "389339242042558952755dbd948658bd598606fd3dd868f195eb27ef94c7af2e",
+      "height": 1875
+    },
+    {
+      "file": "settings-organizations-dark-1440-full.png",
+      "duplicateOf": "settings-email-dark-1440-full.png"
+    },
+    {
+      "file": "settings-organizations-dark-390-full.png",
+      "sha256": "451f7e7b85bd71639398748dccb81a7d5574b48da521b273b722f2524bc91923",
+      "height": 1875
+    },
+    {
+      "file": "settings-organizations-light-1440-full.png",
+      "duplicateOf": "settings-email-light-1440-full.png"
+    },
+    {
+      "file": "settings-organizations-light-390-full.png",
+      "sha256": "e0e54cdf7d63a45a62e4aa285504f790c0da17ea75a12fc758d0bb9b8c3157ad",
+      "height": 1875
+    },
+    {
+      "file": "settings-profile-dark-1440-full.png",
+      "duplicateOf": "settings-email-dark-1440-full.png"
+    },
+    {
+      "file": "settings-profile-dark-390-full.png",
+      "duplicateOf": "settings-organizations-dark-390-full.png"
+    },
+    {
+      "file": "settings-profile-light-1440-full.png",
+      "duplicateOf": "settings-email-light-1440-full.png"
+    },
+    {
+      "file": "settings-profile-light-390-full.png",
+      "duplicateOf": "settings-organizations-light-390-full.png"
+    },
+    {
+      "file": "settings-pull-requests-dark-1440-full.png",
+      "duplicateOf": "settings-email-dark-1440-full.png"
+    },
+    {
+      "file": "settings-pull-requests-dark-390-full.png",
+      "duplicateOf": "settings-organizations-dark-390-full.png"
+    },
+    {
+      "file": "settings-pull-requests-light-1440-full.png",
+      "duplicateOf": "settings-email-light-1440-full.png"
+    },
+    {
+      "file": "settings-pull-requests-light-390-full.png",
+      "duplicateOf": "settings-organizations-light-390-full.png"
+    }
+  ]
+}

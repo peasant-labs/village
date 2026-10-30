@@ -1,0 +1,56 @@
+[
+  {
+    "path": "/groups",
+    "destination": "http://localhost:3344/collectives",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/groups/c011ec71-0000-4000-8000-000000000001",
+    "destination": "http://localhost:3344/collectives/c011ec71-0000-4000-8000-000000000001",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/groups/c011ec71-0000-4000-8000-000000000001/review",
+    "destination": "http://localhost:3344/collectives/c011ec71-0000-4000-8000-000000000001/review",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/groups/c011ec71-0000-4000-8000-000000000001/contribute",
+    "destination": "http://localhost:3344/collectives/c011ec71-0000-4000-8000-000000000001/contribute",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/groups/c011ec71-0000-4000-8000-000000000001/settings",
+    "destination": "http://localhost:3344/collectives/c011ec71-0000-4000-8000-000000000001/settings",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/publish",
+    "destination": "https://peasantlabs.org/docs#publish",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/login",
+    "destination": "http://localhost:3344/",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/auth/start",
+    "destination": "http://localhost:3344/",
+    "externalNavigationBlocked": false,
+    "error": null
+  },
+  {
+    "path": "/auth/callback",
+    "destination": "http://localhost:3344/",
+    "externalNavigationBlocked": false,
+    "error": null
+  }
+]
