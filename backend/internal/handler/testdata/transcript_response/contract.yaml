@@ -110,6 +110,12 @@ mounted_paths:
 read_time_fields:
   - parent_transcript_id
 # The owner is the public owner shape the handler resolved for the viewer.
+# json_column_fields are stored as JSON bytes. The source row carries them in
+# the base64 form a []byte column takes in JSON; the response must serve the
+# decoded JSON document itself, never that base64 string.
+json_column_fields:
+  - subagents
+  - diagnostics_warnings
 owner_fields:
   - owner
   - pull_requests

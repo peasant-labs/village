@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/peasant-labs/schema"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -36,6 +38,9 @@ type transcriptResponseContract struct {
 	// ReadTimeFields are resolved per viewer at read time by the route, not
 	// projected from the row; a bare composition serves them null.
 	ReadTimeFields []string `yaml:"read_time_fields"`
+	// JSONColumnFields are stored JSON documents; the response serves the
+	// decoded document, not the base64 form of its bytes.
+	JSONColumnFields []string `yaml:"json_column_fields"`
 }
 
 type mountedPathFixture struct {
@@ -117,7 +122,7 @@ func loadTranscriptResponseContract(t *testing.T) transcriptResponseContract {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		t.Fatalf("transcript response contract must contain exactly one YAML document; got %v", err)
 	}
-	if len(fixture.AllowedFields) != 61 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 {
+	if len(fixture.AllowedFields) != 61 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 || len(fixture.JSONColumnFields) != 2 {
 		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 61/5/5/2/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))
 	}
 	return fixture
@@ -209,6 +214,13 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 		wantJSON, err := json.Marshal(fixture.SourceRow[field])
 		if err != nil {
 			t.Fatalf("marshal source value for %s: %v", field, err)
+		}
+		if slices.Contains(fixture.JSONColumnFields, field) {
+			encoded, _ := fixture.SourceRow[field].(string)
+			wantJSON, err = base64.StdEncoding.DecodeString(encoded)
+			if err != nil || !json.Valid(wantJSON) {
+				t.Fatalf("source value for JSON column %s must be base64 of a JSON document: %v", field, err)
+			}
 		}
 		if !bytes.Equal(got, wantJSON) {
 			t.Errorf("%s field %q = %s; want source-distinguishing value %s", mountedPath.Name, field, got, wantJSON)

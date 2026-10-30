@@ -1,0 +1,26 @@
+# Cases behind TestTranscriptResponseServesJSONColumnsAsJSON. Each case stores
+# the two JSON columns as bytes, projects the row with toTranscriptResponse,
+# encodes it, and decodes it with the contract type. `subagents` and
+# `diagnostics_warnings` are the stored bytes; an empty string stores empty
+# bytes and `absent: true` stores nil. `want_*_len` is the decoded array
+# length, or -1 for null. Guarded by a required-name list, never a count.
+cases:
+  - name: populated-columns-serve-arrays
+    subagents: '[{"sessionId":"child-one","parentUuid":"parent-one"},{"sessionId":"child-two","parentUuid":"parent-one"}]'
+    diagnostics_warnings: '[{"errorType":"unknown_data_retained","location":"entry","message":"retained","remediation":"none"}]'
+    want_subagents_len: 2
+    want_diagnostics_len: 1
+  - name: empty-arrays-serve-empty-arrays
+    subagents: '[]'
+    diagnostics_warnings: '[]'
+    want_subagents_len: 0
+    want_diagnostics_len: 0
+  - name: empty-bytes-serve-null
+    subagents: ''
+    diagnostics_warnings: ''
+    want_subagents_len: -1
+    want_diagnostics_len: -1
+  - name: nil-columns-serve-null
+    absent: true
+    want_subagents_len: -1
+    want_diagnostics_len: -1
