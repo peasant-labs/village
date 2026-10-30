@@ -1,0 +1,104 @@
+{
+  "provenance": {
+    "sha": "4ddf6f72bccd0eed2ead9223690836b6c1970b64",
+    "status": "",
+    "package": "0.0.55",
+    "app": "http://localhost:3340",
+    "api": "http://localhost:8810/api/v1",
+    "fixture": "documented live fixture proxy8810 (preserved journey8799 + profile/history/pagination supplements)"
+  },
+  "results": [
+    {
+      "name": "long-demo",
+      "theme": "light",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the ",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "light",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n1d ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n1d ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n1d ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n1d ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n1d ago\n\nLo",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "dark",
+      "width": 1440,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 1440,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nhome\nactivity-export-demo\nBuild a resumable activity export\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nuser turns\n#1\n2m\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n#2\n2m\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n#3\n2m\nLocate the unbounded read and trace how the response gets written.\n#4\n2m\nCheck the repository query and find a stable ordering key for equal timestamps.\n#5\n2m\nReview the route and cancellation mechanism. Do not keep writing after the client disconnects.\n#6\n2m\nRun the current tests and keep their baseline separate from the new boundary tests.\n#7\n2m\nAdd explicit cursor and page types. Keep the page limit bounded and avoid a second copy of cursor state.\n#8\n2m\nImplement a versioned cursor decoder that rejects malformed input without leaking implementation errors.\n#9\n2m\nAdd the bounded repository query using the composite cursor and the existing index.\n#10\n2m\nImplement the ",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    },
+    {
+      "name": "long-demo",
+      "theme": "dark",
+      "width": 390,
+      "url": "/transcripts/long-demo?in=home",
+      "scrollWidth": 390,
+      "h1": [
+        "Build a resumable activity export"
+      ],
+      "mainText": "skip to session views\nBuild a resumable activity export\nclaude code\nanthropic/claude-sonnet-4\n1h 23m\n84\nturns\n28\nprompts\n28\ntools\n77.3k\ntokens\nplanning\nturns 1–19\nuser turn 1\nuser\n#1\n1d ago\n\nBuild a resumable activity export. Stream CSV in bounded pages, preserve stable ordering, support cancellation, and test resume boundaries. This is a synthetic demonstration project.\n\nassistant turn 1a\nassistant\n#1a\n1d ago\n\nI will inspect the export path and tests before changing the cursor or streaming behavior.\n\n1 action, 150ms\nGlob\nsrc/export/**/*\n150ms\nassistant turn 1b\nassistant\n#1b\n1d ago\n\nThe work is concentrated in five export modules plus the HTTP route. I will keep storage and HTTP responsibilities separate.\n\nuser turn 2\nuser\n#2\n1d ago\n\nCheck the current export instructions and document the existing behavior before choosing an implementation.\n\nassistant turn 2a\nassistant\n#2a\n1d ago\n\nReading the README to understand the public interface and expected CSV format.\n\n1 action: 1 file, 150ms\nRead\nREADME.md\n150ms\nassistant turn 2b\nassistant\n#2b\n1d ago\n\nThe CSV columns are already documented. The missing behavior is bounded streaming and a durable resume cursor.\n\nuser turn 3\nuser\n#3\n1d ago\n\nLo",
+      "fonts": {
+        "body": "atkinsonHyperlegible, \"atkinsonHyperlegible Fallback\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+        "h1": "atkinsonHyperlegibleMono, \"atkinsonHyperlegibleMono Fallback\", ui-monospace, Menlo, Consolas, monospace"
+      },
+      "reviewActions": [],
+      "digest": null,
+      "diagrams": 0,
+      "overflow": [],
+      "diagramProof": null,
+      "errors": [],
+      "consoleErrors": [],
+      "failedReads": []
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "source": "4ddf6f72bccd0eed2ead9223690836b6c1970b64",
+  "tree": "d43bf82405f1078a6a1bf47e5c7738c163cbd2fa",
+  "clean": true,
+  "buildId": "Itx8d-wSFLAGyphK3OQ60",
+  "fairtrade": "0.0.55",
+  "app": "http://localhost:3340",
+  "api": "http://localhost:8810/api/v1",
+  "mountedChecks": 8,
+  "inspectedScreenshots": 8,
+  "servedStyles": [
+    {
+      "url": "/_next/static/chunks/28f3f0623e472e27.css",
+      "sha256": "d0bc33051593250efd22fc4fcc218fb27cd13ce55d223acd5adb283a32cdd1cf",
+      "bytes": 34389,
+      "ledgerSystemBorderRemoved": false
+    },
+    {
+      "url": "/_next/static/chunks/77df77db59e8e46b.css",
+      "sha256": "19fb7972d7bd47821899675e5f30b156ed72c219dcd89453aec46929326844d0",
+      "bytes": 8848,
+      "ledgerSystemBorderRemoved": false
+    },
+    {
+      "url": "/_next/static/chunks/7bff9f1738bd5c3c.css",
+      "sha256": "71f567ecc75df0ca51e338a5b365700237c57f41210b183eca6520c1d304e8f0",
+      "bytes": 410041,
+      "ledgerSystemBorderRemoved": true
+    },
+    {
+      "url": "/_next/static/chunks/b5507667d38843e0.css",
+      "sha256": "d18eeea11752caf755b83cb877e974e724eb71f09c84125b217ae5558cca142e",
+      "bytes": 1960,
+      "ledgerSystemBorderRemoved": false
+    },
+    {
+      "url": "/_next/static/chunks/d885a2a78b9332c2.css",
+      "sha256": "5fd4c2870ddcd320cdd5dbc13a34066458b41ff4756222f936587f3a10f19307",
+      "bytes": 70808,
+      "ledgerSystemBorderRemoved": false
+    }
+  ]
+}

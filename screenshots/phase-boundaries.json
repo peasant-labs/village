@@ -1,0 +1,1376 @@
+{
+  "head": "4ddf6f72bccd0eed2ead9223690836b6c1970b64",
+  "package": "0.0.55",
+  "app": "http://localhost:3340",
+  "api": "http://localhost:8810/api/v1",
+  "results": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "phases": [
+        {
+          "label": " Planningturns 1–19",
+          "turn": 0,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Implementationturns 20–52",
+          "turn": 19,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Retry loopturns 53–65, 2 error",
+          "turn": 52,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Planningturns 66–84",
+          "turn": 65,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        }
+      ],
+      "roleRules": [
+        {
+          "turn": 1,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 3,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 4,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 6,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 7,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 9,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 10,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 12,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 13,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 15,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 16,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 18,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 21,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 22,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 24,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 25,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 27,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 28,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 30,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 31,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 33,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 34,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 36,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 37,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 39,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 40,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 42,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 43,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 45,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 46,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 48,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 49,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 51,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 54,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 55,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 57,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 58,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 60,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 61,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 63,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 64,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 66,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 67,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 69,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 70,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 72,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 73,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 75,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 76,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 78,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 79,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 81,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 82,
+          "borderTop": "1px"
+        }
+      ],
+      "avatars": [
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "active": "rgb(138, 95, 31) 2px 0px 0px 0px inset",
+      "systemRows": 0,
+      "errors": []
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "scrollWidth": 390,
+      "phases": [
+        {
+          "label": " Planningturns 1–19",
+          "turn": 0,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Implementationturns 20–52",
+          "turn": 19,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Retry loopturns 53–65, 2 error",
+          "turn": 52,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Planningturns 66–84",
+          "turn": 65,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        }
+      ],
+      "roleRules": [
+        {
+          "turn": 1,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 3,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 4,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 6,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 7,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 9,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 10,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 12,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 13,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 15,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 16,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 18,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 21,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 22,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 24,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 25,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 27,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 28,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 30,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 31,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 33,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 34,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 36,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 37,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 39,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 40,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 42,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 43,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 45,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 46,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 48,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 49,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 51,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 54,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 55,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 57,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 58,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 60,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 61,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 63,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 64,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 66,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 67,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 69,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 70,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 72,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 73,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 75,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 76,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 78,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 79,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 81,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 82,
+          "borderTop": "1px"
+        }
+      ],
+      "avatars": [
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "active": "rgb(138, 95, 31) 2px 0px 0px 0px inset",
+      "systemRows": 0,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "phases": [
+        {
+          "label": " Planningturns 1–19",
+          "turn": 0,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Implementationturns 20–52",
+          "turn": 19,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Retry loopturns 53–65, 2 error",
+          "turn": 52,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Planningturns 66–84",
+          "turn": 65,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        }
+      ],
+      "roleRules": [
+        {
+          "turn": 1,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 3,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 4,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 6,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 7,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 9,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 10,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 12,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 13,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 15,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 16,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 18,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 21,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 22,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 24,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 25,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 27,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 28,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 30,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 31,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 33,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 34,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 36,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 37,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 39,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 40,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 42,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 43,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 45,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 46,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 48,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 49,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 51,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 54,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 55,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 57,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 58,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 60,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 61,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 63,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 64,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 66,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 67,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 69,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 70,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 72,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 73,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 75,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 76,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 78,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 79,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 81,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 82,
+          "borderTop": "1px"
+        }
+      ],
+      "avatars": [
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "active": "rgb(214, 174, 102) 2px 0px 0px 0px inset",
+      "systemRows": 0,
+      "errors": []
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "scrollWidth": 390,
+      "phases": [
+        {
+          "label": " Planningturns 1–19",
+          "turn": 0,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Implementationturns 20–52",
+          "turn": 19,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Retry loopturns 53–65, 2 error",
+          "turn": 52,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        },
+        {
+          "label": " Planningturns 66–84",
+          "turn": 65,
+          "nextClass": "txn-turnwrap txn-turnwrap-ledger",
+          "nextTag": "ARTICLE",
+          "hrCount": 0,
+          "borderBottom": "1px"
+        }
+      ],
+      "roleRules": [
+        {
+          "turn": 1,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 3,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 4,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 6,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 7,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 9,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 10,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 12,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 13,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 15,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 16,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 18,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 21,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 22,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 24,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 25,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 27,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 28,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 30,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 31,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 33,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 34,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 36,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 37,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 39,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 40,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 42,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 43,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 45,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 46,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 48,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 49,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 51,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 54,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 55,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 57,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 58,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 60,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 61,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 63,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 64,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 66,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 67,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 69,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 70,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 72,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 73,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 75,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 76,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 78,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 79,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 81,
+          "borderTop": "1px"
+        },
+        {
+          "turn": 82,
+          "borderTop": "1px"
+        }
+      ],
+      "avatars": [
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "active": "rgb(214, 174, 102) 2px 0px 0px 0px inset",
+      "systemRows": 0,
+      "errors": []
+    }
+  ]
+}
