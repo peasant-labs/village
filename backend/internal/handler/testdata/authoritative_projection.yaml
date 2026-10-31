@@ -1,0 +1,22 @@
+# Every leaf of a fully populated authoritative publish request either reaches
+# the legacy projection or is listed here with the reason it does not.
+renamed:
+  .identity.parentSessionId: .identity.parentUuid
+  .model.harnessVersion: .model.version
+not_projected:
+  # Read from the authoritative request or the stored bytes.
+  - .client.name
+  - .client.version
+  - .contentHash
+  # Persisted from the durable session detail through the publication graph.
+  - .identity.purpose
+  - .identity.relationships[].anchor.kind
+  - .identity.relationships[].anchor.sourceEntryRef
+  - .identity.relationships[].anchor.sourceRevisionRef
+  - .identity.relationships[].evidence
+  - .identity.relationships[].kind
+  - .identity.relationships[].targetLocalId
+  - .identity.relationships[].targetState
+  - .identity.rootSessionId
+  # Always private: the replacement rule applies it, not the projection.
+  - .visibilityIntent
