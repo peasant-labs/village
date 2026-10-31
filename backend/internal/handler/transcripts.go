@@ -240,16 +240,12 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// it beside the content, client included; a legacy publish stores none.
 	var publishMetadata []byte
 	if authoritative {
-		projected, err := json.Marshal(authoritativeReq)
-		if err != nil || json.Unmarshal(projected, &req) != nil {
+		projected, stored, err := projectAuthoritativePublish(authoritativeReq)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Village validated the authoritative metadata but could not map it to persistence; retry after upgrading Village")
 			return
 		}
-		publishMetadata = projected
-		// The authoritative successor field is parentSessionId, while the legacy
-		// compatibility projection intentionally retains parentUuid. Materialize
-		// the authoritative value explicitly instead of conflating the two wires.
-		req.Identity.ParentSessionID = authoritativeReq.Identity.ParentSessionID
+		req, publishMetadata = projected, stored
 	} else if err := json.Unmarshal(metaBytes, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid legacy metadata JSON")
 		return
