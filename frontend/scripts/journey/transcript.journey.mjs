@@ -28,6 +28,11 @@ if (parity.mobile_cases.map((c) => c.name).sort().join('|') !== expectedMobileCa
   throw new Error('mobile transcript fixture has missing or duplicate required case names')
 }
 
+const requiredCompactCases = ['compact-home', 'compact-pending-collective']
+if (parity.compact_cases.map((c) => c.name).sort().join('|') !== requiredCompactCases.sort().join('|')) {
+  throw new Error('compact transcript fixture has missing or duplicate required case names')
+}
+
 test.describe('transcript context parity', () => {
   test.beforeEach(async ({ page, request }, testInfo) => {
     await setScenario(request, 'transcript-owner')
@@ -75,6 +80,7 @@ test.describe('transcript context parity', () => {
 
   for (const c of parity.contexts) {
     test(`${c.name}: full root, header and zen`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}${c.search}`)
       await expect(page.locator('.txn-stream')).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toContainText(OWNED_TRANSCRIPT.title)
@@ -104,6 +110,47 @@ test.describe('transcript context parity', () => {
       expect(restored).toBe(true)
       const box = await page.locator('.txn-app').boundingBox()
       expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize().height + 1)
+    })
+  }
+
+  for (const c of parity.compact_cases) {
+    test(`${c.name}: native controls and footer focus`, async ({ page }) => {
+      await page.setViewportSize(c.viewport)
+      await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}${c.search}`)
+      const viewer = page.locator('.txn-app')
+      await expect(viewer).toHaveClass(/txn-compact/)
+      const tools = viewer.getByRole('button', { name: 'transcript tools', exact: true })
+      const openFilters = async () => {
+        await tools.click()
+        await viewer.locator('.txn-mobile-controls').getByRole('button', { name: 'filters', exact: true }).click()
+        const dialog = page.getByRole('dialog', { name: 'filters', exact: true })
+        await expect(dialog).toBeVisible()
+        return dialog
+      }
+      let dialog = await openFilters()
+      await dialog.getByRole('switch', { name: 'compact mode', exact: true }).click()
+      await page.keyboard.press('Escape')
+      await expect(tools).toBeFocused()
+      dialog = await openFilters()
+      await expect(dialog.getByRole('switch', { name: 'compact mode', exact: true })).toHaveAttribute('aria-checked', 'true')
+      await dialog.getByRole('switch', { name: 'compact mode', exact: true }).click()
+      await page.keyboard.press('Escape')
+      await expect(tools).toBeFocused()
+      expect(await viewer.locator('.txn-body:visible').first().evaluate((e) => e.getBoundingClientRect().width)).toBeGreaterThanOrEqual(c.min_prose_width)
+      const tabs = viewer.getByRole('tablist', { name: 'session views' })
+      await tabs.getByRole('tab').first().evaluate((e) => e.focus({ preventScroll: true }))
+      const position = await page.evaluate(() => ({ x: scrollX, y: scrollY }))
+      await page.keyboard.press('End')
+      await expect(tabs.getByRole('tab').last()).toBeFocused()
+      await expect.poll(() => tabs.evaluate((e) => {
+        const tab = document.activeElement, b = tab.getBoundingClientRect(), clip = e.getBoundingClientRect(), style = getComputedStyle(tab)
+        const ring = Math.max(0, parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth))
+        return tab.matches(':focus-visible') && b.left - ring >= clip.left - 1 && b.right + ring <= clip.right + 1 && b.top - ring >= clip.top - 1 && b.bottom + ring <= clip.bottom + 1
+      })).toBe(true)
+      expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(position)
+      await page.keyboard.press('Home')
+      await expect(tabs.getByRole('tab').first()).toBeFocused()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
     })
   }
 
