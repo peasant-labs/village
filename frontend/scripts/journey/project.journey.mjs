@@ -72,8 +72,9 @@ test.describe('project orphan sessions', () => {
     // Open the first orphan through the real client route and land on the viewer.
     const first = rows.locator(`a[href="/transcripts/${JOURNEY_PROJECT.orphanTranscriptIDs[0]}"]`).first()
     await first.click()
-    await expect(page).toHaveURL(
-      new RegExp(`/transcripts/${JOURNEY_PROJECT.orphanTranscriptIDs[0]}$`),
+    await expect(page).toHaveURL((url) =>
+      url.pathname === `/transcripts/${JOURNEY_PROJECT.orphanTranscriptIDs[0]}` &&
+      url.searchParams.get('in') === 'home',
     )
     await expect(page.locator('.txn-app')).toBeVisible()
   })

@@ -23,9 +23,14 @@ const expectedContexts = ['home-control', 'direct-collective', 'inferred-collect
 if (parity.contexts.map((c) => c.name).sort().join('|') !== expectedContexts.sort().join('|')) {
   throw new Error('transcript context parity fixture has missing or duplicate required case names')
 }
-const expectedMobileCases = ['home-short', 'home-long', 'collective-short', 'collective-long-pending', 'home-clipboard-denied']
+const expectedMobileCases = ['home-short', 'home-long', 'collective-short', 'collective-long-pending', 'home-compact-laptop', 'home-clipboard-denied']
 if (parity.mobile_cases.map((c) => c.name).sort().join('|') !== expectedMobileCases.sort().join('|')) {
   throw new Error('mobile transcript fixture has missing or duplicate required case names')
+}
+
+const requiredCompactCases = ['compact-home', 'compact-pending-collective']
+if (parity.compact_cases.map((c) => c.name).sort().join('|') !== requiredCompactCases.sort().join('|')) {
+  throw new Error('compact transcript fixture has missing or duplicate required case names')
 }
 
 test.describe('transcript context parity', () => {
@@ -75,6 +80,7 @@ test.describe('transcript context parity', () => {
 
   for (const c of parity.contexts) {
     test(`${c.name}: full root, header and zen`, async ({ page }) => {
+      await page.setViewportSize(parity.desktop_viewport)
       await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}${c.search}`)
       await expect(page.locator('.txn-stream')).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toContainText(OWNED_TRANSCRIPT.title)
@@ -107,6 +113,47 @@ test.describe('transcript context parity', () => {
     })
   }
 
+  for (const c of parity.compact_cases) {
+    test(`${c.name}: native controls and footer focus`, async ({ page }) => {
+      await page.setViewportSize(c.viewport)
+      await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}${c.search}`)
+      const viewer = page.locator('.txn-app')
+      await expect(viewer).toHaveClass(/txn-compact/)
+      const tools = viewer.getByRole('button', { name: 'transcript tools', exact: true })
+      const openFilters = async () => {
+        await tools.click()
+        await viewer.locator('.txn-mobile-controls').getByRole('button', { name: 'filters', exact: true }).click()
+        const dialog = page.getByRole('dialog', { name: 'filters', exact: true })
+        await expect(dialog).toBeVisible()
+        return dialog
+      }
+      let dialog = await openFilters()
+      await dialog.getByRole('switch', { name: 'compact mode', exact: true }).click()
+      await page.keyboard.press('Escape')
+      await expect(tools).toBeFocused()
+      dialog = await openFilters()
+      await expect(dialog.getByRole('switch', { name: 'compact mode', exact: true })).toHaveAttribute('aria-checked', 'true')
+      await dialog.getByRole('switch', { name: 'compact mode', exact: true }).click()
+      await page.keyboard.press('Escape')
+      await expect(tools).toBeFocused()
+      expect(await viewer.locator('.txn-body:visible').first().evaluate((e) => e.getBoundingClientRect().width)).toBeGreaterThanOrEqual(c.min_prose_width)
+      const tabs = viewer.getByRole('tablist', { name: 'session views' })
+      await tabs.getByRole('tab').first().evaluate((e) => e.focus({ preventScroll: true }))
+      const position = await page.evaluate(() => ({ x: scrollX, y: scrollY }))
+      await page.keyboard.press('End')
+      await expect(tabs.getByRole('tab').last()).toBeFocused()
+      await expect.poll(() => tabs.evaluate((e) => {
+        const tab = document.activeElement, b = tab.getBoundingClientRect(), clip = e.getBoundingClientRect(), style = getComputedStyle(tab)
+        const ring = Math.max(0, parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth))
+        return tab.matches(':focus-visible') && b.left - ring >= clip.left - 1 && b.right + ring <= clip.right + 1 && b.top - ring >= clip.top - 1 && b.bottom + ring <= clip.bottom + 1
+      })).toBe(true)
+      expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(position)
+      await page.keyboard.press('Home')
+      await expect(tabs.getByRole('tab').first()).toBeFocused()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1)
+    })
+  }
+
   test('unverified source opens the original call from another tab', async ({ page }) => {
     await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}?in=home`)
     await expect(page.locator('.txn-stream')).toBeVisible()
@@ -119,7 +166,7 @@ test.describe('transcript context parity', () => {
 
   for (const c of parity.mobile_cases) {
     test(`${c.name}: mobile utilities and exits`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 })
+      await page.setViewportSize(c.viewport ?? parity.mobile_viewport)
       await page.addInitScript(({ rejected }) => {
         window.__transcriptCopies = []
         Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
@@ -228,6 +275,7 @@ async function recordAxe(page, testInfo) {
 
 test.describe('transcript page, as its owner', () => {
   test.beforeEach(async ({ page, request, theme }) => {
+    await page.setViewportSize(parity.desktop_viewport)
     await setScenario(request, 'transcript-owner')
     await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}`)
     await expect(page.locator('.txn-app')).toBeVisible()
