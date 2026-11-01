@@ -23,7 +23,7 @@ const expectedContexts = ['home-control', 'direct-collective', 'inferred-collect
 if (parity.contexts.map((c) => c.name).sort().join('|') !== expectedContexts.sort().join('|')) {
   throw new Error('transcript context parity fixture has missing or duplicate required case names')
 }
-const expectedMobileCases = ['home-short', 'home-long', 'collective-short', 'collective-long-pending', 'home-clipboard-denied']
+const expectedMobileCases = ['home-short', 'home-long', 'collective-short', 'collective-long-pending', 'home-compact-laptop', 'home-clipboard-denied']
 if (parity.mobile_cases.map((c) => c.name).sort().join('|') !== expectedMobileCases.sort().join('|')) {
   throw new Error('mobile transcript fixture has missing or duplicate required case names')
 }
@@ -80,7 +80,7 @@ test.describe('transcript context parity', () => {
 
   for (const c of parity.contexts) {
     test(`${c.name}: full root, header and zen`, async ({ page }) => {
-      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.setViewportSize(parity.desktop_viewport)
       await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}${c.search}`)
       await expect(page.locator('.txn-stream')).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toContainText(OWNED_TRANSCRIPT.title)
@@ -166,7 +166,7 @@ test.describe('transcript context parity', () => {
 
   for (const c of parity.mobile_cases) {
     test(`${c.name}: mobile utilities and exits`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 })
+      await page.setViewportSize(c.viewport ?? parity.mobile_viewport)
       await page.addInitScript(({ rejected }) => {
         window.__transcriptCopies = []
         Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
@@ -275,6 +275,7 @@ async function recordAxe(page, testInfo) {
 
 test.describe('transcript page, as its owner', () => {
   test.beforeEach(async ({ page, request, theme }) => {
+    await page.setViewportSize(parity.desktop_viewport)
     await setScenario(request, 'transcript-owner')
     await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}`)
     await expect(page.locator('.txn-app')).toBeVisible()
