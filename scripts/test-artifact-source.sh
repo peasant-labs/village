@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source_script="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/check-artifact-source.sh"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source_script="$script_dir/check-artifact-source.sh"
+# Fail closed unless both explicit trigger path lists cover the sourced build helper.
+awk '
+  /^  pull_request:$/ { event = "pull_request"; in_paths = 0; next }
+  /^  push:$/ { event = "push"; in_paths = 0; next }
+  /^[^[:space:]#]/ && $0 != "on:" { event = ""; in_paths = 0 }
+  /^    paths:$/ { in_paths = 1; next }
+  /^    [[:alnum:]_]+:/ && $0 != "    paths:" { in_paths = 0 }
+  in_paths && /^      - "scripts\/production-image-build\.sh"$/ {
+    if (event == "pull_request") pull_request = 1
+    if (event == "push") push = 1
+  }
+  END {
+    if (!pull_request || !push) {
+      print "backend-tests.yml must trigger on scripts/production-image-build.sh for both pull_request and push" > "/dev/stderr"
+      exit 1
+    }
+  }
+' "$script_dir/../.github/workflows/backend-tests.yml"
 temp_root="$(mktemp -d)"
 trap 'rm -rf "$temp_root"' EXIT
 
