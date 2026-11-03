@@ -5,6 +5,26 @@ mode="${FAKE_DOCKER_CASE:?FAKE_DOCKER_CASE is required}"
 revision="${EXPECTED_REVISION:?EXPECTED_REVISION is required}"
 
 if [[ "${1:-}" == "build" ]]; then
+  cli="${0##*/}"
+  if [[ "$mode" == native_* ]]; then
+    [[ "$cli" == podman ]] || { echo >&2 'native build did not use podman'; exit 2; }
+    args=" $* "
+    [[ "$args" == *' --security-opt seccomp=/server-only/seccomp.json '* ]] || exit 2
+    if [[ "$args" == *'frontend/Dockerfile '* ]]; then
+      [[ "$args" == *' --volume /var/cache/runner/pnpm-store:/pnpm/store:rw '* && "$args" == *' --volume /var/cache/runner/pnpm-metadata:/pnpm/cache:rw '* && "$args" == *' --build-arg PNPM_BUILD_STORE=/pnpm/store '* && "$args" == *' --build-arg PNPM_BUILD_CACHE=/pnpm/cache '* ]] || exit 2
+      if [[ "$mode" == native_frontend_failure ]]; then echo >&2 'native frontend build failed'; exit 42; fi
+    else
+      [[ "$args" == *' --volume /var/cache/runner/gomod:/go/pkg/mod:rw '* && "$args" == *' --volume /var/cache/runner/gobuild:/root/.cache/go-build:rw '* ]] || exit 2
+    fi
+    if [[ "$mode" == native_failure ]]; then echo >&2 'native build failed'; exit 42; fi
+  else
+    [[ "$cli" == docker ]] || { echo >&2 'fallback did not use docker'; exit 2; }
+  fi
+  if [[ "${FAKE_REVISION_GUARD:-}" == 1 ]]; then
+    [[ " $* " == *' --build-arg RAILWAY_GIT_COMMIT_SHA='* ]] || { echo >&2 'revision argument missing'; exit 2; }
+    echo >&2 'RAILWAY_GIT_COMMIT_SHA must be the full 40-character lowercase Git revision'
+    exit 1
+  fi
   found_revision=false
   prior=""
   for argument in "$@"; do
@@ -27,6 +47,10 @@ if [[ "${1:-}" == "build" ]]; then
     printf >&2 'fake docker did not receive RAILWAY_GIT_COMMIT_SHA=%s\n' "$revision"
     exit 2
   fi
+  exit 0
+fi
+
+if [[ "${FAKE_REVISION_GUARD:-}" == 1 && "${1:-}" == image && "${2:-}" == rm ]]; then
   exit 0
 fi
 

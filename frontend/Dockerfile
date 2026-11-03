@@ -6,7 +6,15 @@ WORKDIR /app
 # Keep dependency installation cacheable and locked to the committed workspace.
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY frontend/package.json frontend/package.json
-RUN pnpm install --frozen-lockfile
+ARG PNPM_BUILD_STORE
+ARG PNPM_BUILD_CACHE
+RUN if [ -n "$PNPM_BUILD_STORE" ] && [ -n "$PNPM_BUILD_CACHE" ]; then \
+      PNPM_CONFIG_STORE_DIR="$PNPM_BUILD_STORE" PNPM_CONFIG_CACHE_DIR="$PNPM_BUILD_CACHE" pnpm install --frozen-lockfile; \
+    elif [ -z "$PNPM_BUILD_STORE$PNPM_BUILD_CACHE" ]; then \
+      pnpm install --frozen-lockfile; \
+    else \
+      echo >&2 'frontend/Dockerfile: PNPM_BUILD_STORE and PNPM_BUILD_CACHE must both be set or both be unset.'; exit 1; \
+    fi
 
 FROM node:26-alpine AS builder
 RUN npm install -g pnpm@11.24.0

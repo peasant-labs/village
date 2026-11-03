@@ -13,6 +13,12 @@ line_number=0
 header_seen=false
 declare -Ar required_modes=(
   [success]=1
+  [native_success]=1
+  [native_failure]=1
+  [native_frontend_failure]=1
+  [native_empty]=1
+  [revision]=1
+  [native_revision]=1
   [label_mismatch]=1
   [missing_runtime_revision]=1
   [runtime_revision_mismatch]=1
@@ -78,7 +84,14 @@ repository="$temp_root/repository"
 mkdir -p "$repository/scripts" "$repository/fake-bin"
 cp "$script_dir/check-artifact-source.sh" "$repository/scripts/check-artifact-source.sh"
 cp "$script_dir/verify-production-artifacts.sh" "$repository/scripts/verify-production-artifacts.sh"
+cp "$script_dir/production-image-build.sh" "$repository/scripts/production-image-build.sh"
+cp "$script_dir/test-production-revision-guard.sh" "$repository/scripts/test-production-revision-guard.sh"
+mkdir -p "$repository/scripts/testdata/production-artifacts"
+cp "$script_dir/testdata/production-artifacts/invalid-revisions.yaml" "$repository/scripts/testdata/production-artifacts/invalid-revisions.yaml"
 cp "$script_dir/testdata/production-artifacts/fake-docker.sh" "$repository/fake-bin/docker"
+ln -s docker "$repository/fake-bin/podman"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$repository/fake-bin/mkdir"
+chmod +x "$repository/fake-bin/mkdir"
 chmod +x "$repository/scripts/check-artifact-source.sh" "$repository/scripts/verify-production-artifacts.sh" "$repository/fake-bin/docker"
 
 git -C "$repository" init --quiet
@@ -92,12 +105,25 @@ revision="$(git -C "$repository" rev-parse HEAD)"
 while IFS= read -r row; do
   IFS='|' read -r mode outcome expected <<<"$row"
 
+  profile=()
+  if [[ "$mode" == native_* ]]; then profile=('RUNNER_BUILD_SECCOMP_PROFILE=/server-only/seccomp.json'); fi
+  if [[ "$mode" == native_empty ]]; then profile=('RUNNER_BUILD_SECCOMP_PROFILE='); fi
+  script="$repository/scripts/verify-production-artifacts.sh"
+  revision_guard=''
+  if [[ "$mode" == revision || "$mode" == native_revision ]]; then
+    script="$repository/scripts/test-production-revision-guard.sh"
+    revision_guard=1
+  fi
+
   if output="$(
-    PATH="$repository/fake-bin:$PATH" \
+    env -u RUNNER_BUILD_SECCOMP_PROFILE \
+      PATH="$repository/fake-bin:$PATH" \
       FAKE_DOCKER_CASE="$mode" \
+      FAKE_REVISION_GUARD="$revision_guard" \
+      "${profile[@]}" \
       EXPECTED_REVISION="$revision" \
       NEXT_PUBLIC_API_URL='https://village.invalid/api/v1' \
-      "$repository/scripts/verify-production-artifacts.sh" "$revision" 2>&1
+      bash "$script" "$revision" 2>&1
   )"; then
     actual=pass
   else
