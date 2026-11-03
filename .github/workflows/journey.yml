@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   determine-runner:
-    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@0233bce3b714e3200a63fab0568a9815e8fca72f
     with:
       fallback: '["ubuntu-latest"]'
     secrets:
@@ -39,8 +39,7 @@ jobs:
     # The official Playwright image carries the browsers (pinned to the same
     # 1.63.0 the repo tests against) and their system dependencies, so jobs
     # never apt-install at runtime and never download browsers. --ipc=host and
-    # --init are Playwright's recommended Chromium flags; both proven under the
-    # pool's rootless Podman (plabs-qv80wm spike). The image ships Node 24, so
+    # --init are Playwright's recommended Chromium flags. The image ships Node 24, so
     # setup-node below still provides the repo's Node 26.
     container:
       # mcr.microsoft.com/playwright:v1.63.0-noble, linux/amd64 manifest.

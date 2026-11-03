@@ -5,12 +5,8 @@ name: Backend Tests
 # real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
 # container; the workflow starts an ephemeral pinned RustFS container explicitly.
 #
-# Jobs run on the organization's self-hosted container pool when a runner is
-# online and on GitHub-hosted ubuntu-24.04 otherwise; both paths are kept
-# green. The routing job is the shared reusable workflow pinned by tag
-# (peasant-labs/infra runner-router-v1); the fallback is ubuntu-24.04 because
-# the integration suite needs real PostgreSQL and S3-compatible storage via
-# stock service containers, which the pinned image provides.
+# The shared router selects the self-hosted pool or GitHub-hosted ubuntu-24.04.
+# Both paths must support real PostgreSQL and S3-compatible storage containers.
 on:
   pull_request:
     paths:
@@ -63,7 +59,7 @@ permissions:
 
 jobs:
   determine-runner:
-    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@0233bce3b714e3200a63fab0568a9815e8fca72f
     with:
       fallback: '["ubuntu-24.04"]'
     secrets:
@@ -78,9 +74,8 @@ jobs:
     # the tests at this service; each integration test runs RunMigrations itself,
     # so no migration step is needed here.
     #
-    # Ports and container identity are dynamic: the self-hosted pool shares one
-    # podman socket and host network, so fixed host ports (5432/9000) or a fixed
-    # RustFS container name collide the moment two backend jobs run concurrently.
+    # Dynamic ports and container identity prevent collisions when backend jobs
+    # share a container runtime or host network.
     services:
       postgres:
         # postgres 16.15-alpine3.24 (project mirror), pinned to the linux/amd64 manifest.
@@ -164,9 +159,7 @@ jobs:
           # Pin the toolchain to the module's declared version.
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-          # Our pool keeps GOCACHE/GOMODCACHE on the host, so the GitHub cache
-          # there only re-downloads that host's own snapshot, and a key miss tars
-          # the whole shared cache for an upload over the 10 GB limit.
+          # Avoid GitHub cache uploads for the self-hosted pool.
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Preflight PostgreSQL and RustFS
@@ -263,9 +256,7 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-          # Our pool keeps GOCACHE/GOMODCACHE on the host, so the GitHub cache
-          # there only re-downloads that host's own snapshot, and a key miss tars
-          # the whole shared cache for an upload over the 10 GB limit.
+          # Avoid GitHub cache uploads for the self-hosted pool.
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Notices are fresh + no copyleft dependency
