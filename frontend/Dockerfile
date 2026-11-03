@@ -6,7 +6,12 @@ WORKDIR /app
 # Keep dependency installation cacheable and locked to the committed workspace.
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY frontend/package.json frontend/package.json
-RUN pnpm install --frozen-lockfile
+ARG PNPM_SHARED_CACHE=false
+RUN case "$PNPM_SHARED_CACHE" in \
+      false) pnpm install --frozen-lockfile ;; \
+      true) pnpm install --frozen-lockfile --store-dir /app/.pnpm-cache --config.enable-global-virtual-store=true ;; \
+      *) echo >&2 "frontend/Dockerfile: PNPM_SHARED_CACHE must be true or false; set it to false for the standard build or true for the shared cache layout."; exit 1 ;; \
+    esac
 
 FROM node:26-alpine AS builder
 RUN npm install -g pnpm@11.24.0
@@ -25,7 +30,12 @@ RUN test -n "$NEXT_PUBLIC_API_URL" || { \
     }
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 WORKDIR /app/frontend
-RUN pnpm run build
+ARG PNPM_SHARED_CACHE=false
+RUN case "$PNPM_SHARED_CACHE" in \
+      false) pnpm run build ;; \
+      true) PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=true PNPM_CONFIG_STORE_DIR=/app/.pnpm-cache pnpm run build ;; \
+      *) echo >&2 "frontend/Dockerfile: PNPM_SHARED_CACHE must be true or false; set it to false for the standard build or true for the shared cache layout."; exit 1 ;; \
+    esac
 
 FROM node:26-alpine AS runner
 ARG RAILWAY_GIT_COMMIT_SHA
