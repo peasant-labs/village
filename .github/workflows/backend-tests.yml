@@ -5,12 +5,8 @@ name: Backend Tests
 # real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
 # container; the workflow starts an ephemeral pinned RustFS container explicitly.
 #
-# Jobs run on the organization's self-hosted container pool when a runner is
-# online and on GitHub-hosted ubuntu-24.04 otherwise; both paths are kept
-# green. The routing job is the shared reusable workflow pinned by tag
-# (peasant-labs/infra runner-router-v1); the fallback is ubuntu-24.04 because
-# the integration suite needs real PostgreSQL and S3-compatible storage via
-# stock service containers, which the pinned image provides.
+# The shared router selects the self-hosted pool or GitHub-hosted ubuntu-24.04.
+# Both paths must support real PostgreSQL and S3-compatible storage containers.
 on:
   pull_request:
     paths:
@@ -22,6 +18,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "scripts/verify-production-artifacts.sh"
+      - "scripts/production-image-build.sh"
       - "scripts/check-artifact-source.sh"
       - "scripts/test-artifact-source.sh"
       - "scripts/test-production-artifacts.sh"
@@ -44,6 +41,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "scripts/verify-production-artifacts.sh"
+      - "scripts/production-image-build.sh"
       - "scripts/check-artifact-source.sh"
       - "scripts/test-artifact-source.sh"
       - "scripts/test-production-artifacts.sh"
@@ -63,7 +61,7 @@ permissions:
 
 jobs:
   determine-runner:
-    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@71e687cef7eede9a63659be98ce9adac3c563398
     with:
       fallback: '["ubuntu-24.04"]'
     secrets:
@@ -78,9 +76,8 @@ jobs:
     # the tests at this service; each integration test runs RunMigrations itself,
     # so no migration step is needed here.
     #
-    # Ports and container identity are dynamic: the self-hosted pool shares one
-    # podman socket and host network, so fixed host ports (5432/9000) or a fixed
-    # RustFS container name collide the moment two backend jobs run concurrently.
+    # Dynamic ports and container identity prevent collisions when backend jobs
+    # share a container runtime or host network.
     services:
       postgres:
         # postgres 16.15-alpine3.24 (project mirror), pinned to the linux/amd64 manifest.
@@ -164,9 +161,7 @@ jobs:
           # Pin the toolchain to the module's declared version.
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-          # Our pool keeps GOCACHE/GOMODCACHE on the host, so the GitHub cache
-          # there only re-downloads that host's own snapshot, and a key miss tars
-          # the whole shared cache for an upload over the 10 GB limit.
+          # Avoid GitHub cache uploads for the self-hosted pool.
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Preflight PostgreSQL and RustFS
@@ -263,9 +258,7 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-          # Our pool keeps GOCACHE/GOMODCACHE on the host, so the GitHub cache
-          # there only re-downloads that host's own snapshot, and a key miss tars
-          # the whole shared cache for an upload over the 10 GB limit.
+          # Avoid GitHub cache uploads for the self-hosted pool.
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Notices are fresh + no copyleft dependency
@@ -279,6 +272,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Isolate pnpm caches
+        run: |
+          echo "PNPM_CONFIG_STORE_DIR=$RUNNER_TEMP/village-pnpm-store" >> "$GITHUB_ENV"
+          echo "PNPM_CONFIG_CACHE_DIR=$RUNNER_TEMP/village-pnpm-metadata" >> "$GITHUB_ENV"
+
       - name: Set up pnpm
         uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
         with:
@@ -289,6 +287,19 @@ jobs:
         with:
           node-version: 26
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Select pnpm metadata cache generation
+        id: pnpm-metadata-generation
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm metadata
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ env.PNPM_CONFIG_CACHE_DIR }}
+          key: pnpm-metadata-v11-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-${{ steps.pnpm-metadata-generation.outputs.week }}
+          restore-keys: |
+            pnpm-metadata-v11-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}-
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/production-image-build.sh
+source "$script_dir/production-image-build.sh"
 repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
 fixture="$script_dir/testdata/production-artifacts/invalid-revisions.yaml"
 temp_root="$(mktemp -d)"
@@ -23,7 +25,7 @@ assert_rejected() {
   images+=("$image")
 
   if [[ "$target" == "backend" ]]; then
-    if docker build \
+    if production_image_build backend \
       --build-arg "RAILWAY_GIT_COMMIT_SHA=$invalid_revision" \
       --tag "$image" \
       "$repo_root/backend" >"$output" 2>&1; then
@@ -31,7 +33,7 @@ assert_rejected() {
       exit 1
     fi
   else
-    if docker build \
+    if production_image_build frontend \
       --build-arg "RAILWAY_GIT_COMMIT_SHA=$invalid_revision" \
       --build-arg 'NEXT_PUBLIC_API_URL=https://village.invalid/api/v1' \
       --tag "$image" \

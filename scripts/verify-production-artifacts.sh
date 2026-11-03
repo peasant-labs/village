@@ -3,6 +3,8 @@ set -euo pipefail
 
 revision="${1:-}"
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/production-image-build.sh
+source "$script_dir/production-image-build.sh"
 repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
 "$script_dir/check-artifact-source.sh" "$revision"
 cd "$repo_root"
@@ -16,7 +18,7 @@ fi
 backend_image="village-backend:${revision}"
 frontend_image="village-frontend:${revision}"
 
-docker build --build-arg "RAILWAY_GIT_COMMIT_SHA=$revision" --tag "$backend_image" backend
+production_image_build backend --build-arg "RAILWAY_GIT_COMMIT_SHA=$revision" --tag "$backend_image" backend
 
 # The published backend image conveys a statically-linked binary; it must carry
 # village's own license (Apache-2.0 section 4a) and the dependency license notices
@@ -28,7 +30,7 @@ for doc in LICENSE THIRD_PARTY_NOTICES; do
   fi
 done
 
-docker build \
+production_image_build frontend \
   --build-arg "RAILWAY_GIT_COMMIT_SHA=$revision" \
   --build-arg "NEXT_PUBLIC_API_URL=$api_url" \
   --tag "$frontend_image" \

@@ -1,5 +1,11 @@
 cases:
   - "success|pass|Verified backend and frontend production image revision"
+  - "native_success|pass|Verified backend and frontend production image revision"
+  - "native_failure|fail|native build failed"
+  - "native_frontend_failure|fail|native frontend build failed"
+  - "native_empty|fail|RUNNER_BUILD_SECCOMP_PROFILE is empty"
+  - "revision|pass|Production Dockerfiles reject invalid Railway Git revisions"
+  - "native_revision|pass|Production Dockerfiles reject invalid Railway Git revisions"
   - "label_mismatch|fail|reports revision"
   - "missing_runtime_revision|fail|reports runtime revision ''"
   - "runtime_revision_mismatch|fail|reports runtime revision '0000000000000000000000000000000000000000'"
