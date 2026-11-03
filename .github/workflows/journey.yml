@@ -82,6 +82,8 @@ jobs:
       - name: Verify built collective routes and legacy redirects
         run: |
           command -v flock || { echo 'The built collective journey requires util-linux flock'; exit 1; }
+          # Trust only this job's checkout for the provenance Git commands.
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$GITHUB_WORKSPACE"
           pnpm --dir frontend run journey:collectives-built
 
       - name: Upload built collective evidence
