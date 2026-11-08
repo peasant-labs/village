@@ -52,7 +52,12 @@ describe("mounted production transcript route with published Pi presentation", (
     const fetchMock = installRESTFixture(transcriptID, metadata, detail, "mounted Pi namespace route");
 
     await renderProductionRoute(transcriptID);
-    await waitFor(() => expect(document.querySelectorAll(".txn-turnwrap")).toHaveLength(detail.turns.length));
+    // The released design system hides system entries by default, so the mounted
+    // trace counts conversation turns and keeps recorded system context out of the
+    // reading pane until the reader enables the category.
+    const conversationTurns = detail.turns.filter((turn: { role: string }) => turn.role !== "system");
+    await waitFor(() => expect(document.querySelectorAll(".txn-turnwrap")).toHaveLength(conversationTurns.length));
+    expect(document.body.textContent).not.toContain("visible context [image omitted]");
 
     // The ledger opens a turn's work from its summary line; the rows live inside.
     const workToggle = document.querySelector<HTMLElement>(".txn-work-toggle");
@@ -67,7 +72,6 @@ describe("mounted production transcript route with published Pi presentation", (
     fireEvent.click(tool);
     await waitFor(() => expect(document.body.textContent).toContain("error [image omitted]"));
     expect(document.body.textContent).toContain("error [image omitted]");
-    expect(document.body.textContent).toContain("visible context [image omitted]");
     expect(document.body.textContent).toContain("recorded harness estimate");
     expect(fixture.capabilities).toContain("tool_namespace_v1");
     const requested = fetchMock.mock.calls.map(([input]) => String(input));
