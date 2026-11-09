@@ -251,7 +251,8 @@ const server = createServer((req, res) => {
       total: 0,
       agent_total: 0,
       page: Number(url.searchParams.get('page') || '1'),
-      limit: Number(url.searchParams.get('limit') || '24'),
+      per_page: Number(url.searchParams.get('per_page') || '25'),
+      next_items: [],
     })
   }
   // The public profile only, as the server sends it to any viewer.

@@ -61,7 +61,7 @@ function installBackend(viewerUsername: string | null): void {
           : json(userFixture(viewerUsername));
       }
       if (path.startsWith("/transcripts")) {
-        return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 5 });
+        return json({ transcripts: [], total: 0, agent_total: 0, page: 1, per_page: 25, next_items: [] });
       }
       throw new Error(`privacy link test received an unexpected request to ${url}`);
     }),

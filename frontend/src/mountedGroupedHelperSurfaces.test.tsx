@@ -5,8 +5,6 @@ import {
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import HomePage from "@/app/HomePage";
-import { showHomeAsFlatList } from "@/test/mountedHomeRoute";
 import ExplorePage from "@/app/explore/ExplorePage";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { renderProfileRoute } from "@/test/mountedProfileRoute";
@@ -100,8 +98,18 @@ async function renderDiscovery(testCase: ExploreSurfaceCase): Promise<string[]> 
       if (url.includes("/collectives/search")) return json({ collectives: [] });
       if (url.includes("/transcript-groups/")) return json(surfaceMemberPayload(testCase.member));
       if (url.includes("/transcripts")) {
-        if (url.includes("view=grouped")) return json(exploreGroupedPayload(testCase));
-        return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 });
+        if (url.includes("view=grouped")) {
+          // The grouped reader holds the server to the page and page size the
+          // request named, so the answer echoes them.
+          const requested = new URL(url).searchParams;
+          const payload = exploreGroupedPayload(testCase) as Record<string, unknown>;
+          return json({
+            ...payload,
+            page: Number(requested.get("page") ?? 1),
+            limit: Number(requested.get("limit") ?? 20),
+          });
+        }
+        return json({ transcripts: [], total: 0, agent_total: 0, page: 1, per_page: 25, next_items: [] });
       }
       return json({});
     }),
@@ -179,7 +187,8 @@ function installContinuationREST(testCase: ContinuationCase): string[] {
           total: testCase.flatTranscripts,
           agent_total: 0,
           page: 1,
-          limit: Number(params.get("limit") ?? 24),
+          per_page: Number(params.get("per_page") ?? 25),
+          next_items: [],
         });
       }
       if (url.includes("/projects/")) return json(projectPayload(testCase));
@@ -222,15 +231,7 @@ it(fixtures.explore.name, async () => {
 for (const testCase of fixtures.continuationCases) {
   it(testCase.name, async () => {
     const calls = installContinuationREST(testCase);
-    if (testCase.route === "home") {
-      showHomeAsFlatList();
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      await act(async () => { render(
-        <QueryClientProvider client={client}>
-          <AppRouterContext.Provider value={makeRouter()}><AuthProvider><HomePage /></AuthProvider></AppRouterContext.Provider>
-        </QueryClientProvider>,
-      ); });
-    } else if (testCase.route === "profile") {
+    if (testCase.route === "profile") {
       await renderProfileRoute(testCase.owner);
     } else {
       await renderProjectRoute(testCase.owner, testCase.projectHash!);

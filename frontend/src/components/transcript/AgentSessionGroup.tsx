@@ -95,10 +95,10 @@ function AgentSessionRows({
   const params = useMemo(() => {
     const next: Record<string, string> = { ...(baseParams ?? {}) };
     delete next.page;
-    delete next.limit;
+    delete next.per_page;
     next.origin = AGENT_ORIGIN;
     next.page = String(page);
-    next.limit = String(TRANSCRIPT_PAGE_SIZE);
+    next.per_page = String(TRANSCRIPT_PAGE_SIZE);
     return next;
   }, [baseParams, page]);
 

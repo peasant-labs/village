@@ -1,3 +1,5 @@
+import { PageSize } from "@peasant-labs/schema";
+
 /**
  * Session-list page request helpers for the mounted `/` Explore surface.
  *
@@ -6,7 +8,7 @@
  * the key that produced it. These helpers keep those two concepts separate:
  *
  *   • `buildTranscriptListParams` turns the current filters into the complete
- *     set of server-affecting request parameters (`sort`, `page`, `limit`, and
+ *     set of server-affecting request parameters (`sort`, `page`, `per_page`, and
  *     the optional `q`/`provider`/`tags`). Every value that changes the response
  *     lives here so it can form a complete TanStack query key.
  * Response pagination is validated at the production query boundary before
@@ -14,8 +16,10 @@
  * complete request identity used by that boundary.
  */
 
-/** Explicit Village page size for the commons discovery list. */
-export const TRANSCRIPT_PAGE_SIZE = 24;
+/** Explicit Village page size for the commons discovery list. The server
+ *  accepts only the schema `PageSize` members, so the request can never fall
+ *  outside the closed set. */
+export const TRANSCRIPT_PAGE_SIZE = PageSize.P25;
 
 /** The `/api/v1/transcripts` discovery endpoint, named in the errors a failed
  *  request throws (for whoever reads the logs), never on the page. */
@@ -65,7 +69,7 @@ export function buildTranscriptListParams(
   const params: Record<string, string> = {
     sort: filters.order,
     page: String(filters.page),
-    limit: String(TRANSCRIPT_PAGE_SIZE),
+    per_page: String(TRANSCRIPT_PAGE_SIZE),
   };
   const trimmedQuery = filters.query.trim();
   if (trimmedQuery) params.q = trimmedQuery;

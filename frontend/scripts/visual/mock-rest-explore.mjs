@@ -422,7 +422,7 @@ const filterTranscripts = (url) => {
     .filter(Boolean)
   const sort = url.searchParams.get('sort') || 'recent'
   const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
-  const limit = Math.max(1, Number(url.searchParams.get('limit') || '24'))
+  const perPage = Math.max(1, Number(url.searchParams.get('per_page') || '25'))
   // Discovery scope, matching the server: absent, the list carries everything
   // EXCEPT agent-driven sessions; origin=agent carries only them.
   const origin = url.searchParams.get('origin') || ''
@@ -456,8 +456,8 @@ const filterTranscripts = (url) => {
   })
 
   const start = (page - 1) * limit
-  const items = rows.slice(start, start + limit)
-  return { transcripts: items, total: rows.length, agent_total: agentTotal, page, limit }
+  const items = rows.slice(start, start + perPage)
+  return { transcripts: items, total: rows.length, agent_total: agentTotal, page, per_page: perPage, next_items: rows.slice(start + perPage, start + 2 * perPage) }
 }
 
 const filterCollectives = (url) => {

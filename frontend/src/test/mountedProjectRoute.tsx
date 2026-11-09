@@ -260,6 +260,8 @@ export function installProfileRouteREST(
         })),
         total: projects.length,
         agent_total: 0,
+        per_page: 25,
+        next_items: [],
         page: 1,
         limit: 20,
       });

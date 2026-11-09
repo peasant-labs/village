@@ -16,7 +16,7 @@ import type {
   HomeTranscriptCase,
 } from "@/test/homePageFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
-import { DEFAULT_HOME_VIEW, HOME_COLUMNS, HOME_VIEW_STORAGE_KEY } from "@/lib/homeView";
+import { ALL_VILLAGE_COLUMNS, DEFAULT_HOME_VIEW, HOME_VIEW_STORAGE_KEY } from "@/lib/homeView";
 import type { TranscriptListItem, User } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
 import { withResolvedParents } from "@/test/parentTranscriptFixture";
@@ -280,22 +280,30 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       const query = new URLSearchParams(path.includes("?") ? path.slice(path.indexOf("?") + 1) : "");
       const q = (query.get("q") ?? "").toLowerCase();
       const page = Number(query.get("page") ?? 1);
-      const limit = Number(query.get("limit") ?? 24);
+      const perPage = Number(query.get("per_page") ?? 25);
       const matching = isOwnerScoped
         ? fixture.transcripts.filter((t) => t.title.toLowerCase().includes(q))
         : [];
-      const listed = matching
-        .slice((page - 1) * limit, page * limit)
-        .map((t) => listItem(t, owner));
-      // The server resolves each row's parent within this one owner.
-      const resolved = withResolvedParents(listed.map((item) => item.transcript));
-      const rows = listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
+      // The server echoes the requested page and answers an out-of-range one
+      // with no rows. It reads one page and the page after it, so `next_items`
+      // is the following page's rows. A full second page is fine: only an empty
+      // next_items means the traversal is done.
+      const start = (page - 1) * perPage;
+      const build = (slice: HomeTranscriptCase[]) => {
+        const listed = slice.map((t) => listItem(t, owner));
+        // The server resolves each row's parent within this one owner.
+        const resolved = withResolvedParents(listed.map((item) => item.transcript));
+        return listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
+      };
+      const rows = build(matching.slice(start, start + perPage));
+      const nextItems = build(matching.slice(start + perPage, start + 2 * perPage));
       return json({
         transcripts: rows,
         total: matching.length,
         agent_total: fixture.agentTotal ?? 0,
         page,
-        limit,
+        per_page: perPage,
+        next_items: nextItems,
       });
     }
     throw new Error(`mounted home route fixture received an unexpected request to ${url}`);
@@ -349,12 +357,12 @@ async function renderRoute(element: React.ReactElement): Promise<void> {
 
 /** The real page registered at `path`. */
 function routeElement(path: string): React.ReactElement {
-  if (path === "/") return <RootPage />;
-  if (path === "/explore") return <ExploreRoute />;
   // The route reads `next` on the server and hands it to this page; the test
   // hands it the same value from the address it mounts at.
   const [route, query = ""] = path.split("?");
   const params = new URLSearchParams(query);
+  if (route === "/") return <RootPage />;
+  if (route === "/explore") return <ExploreRoute />;
   if (route === "/login") return <LoginPage next={params.get("next")} />;
   if (route === "/auth/start") return <SignInStart provider={params.get("provider")} next={params.get("next")} />;
   if (route === "/privacy") return <PrivacyNotice />;
@@ -373,8 +381,11 @@ export async function renderAppRoute(
   options: { header?: boolean } = {},
 ): Promise<void> {
   const page = routeElement(path);
-  if (!options.header) return renderRoute(page);
+  // The address is moved first for every mount: the page reads its own URL
+  // (page, per_page, grouping), and the chrome reads the same pathname a real
+  // navigation would leave behind.
   window.history.replaceState({}, "", path);
+  if (!options.header) return renderRoute(page);
   return renderRoute(<AppFrame>{page}</AppFrame>);
 }
 
@@ -391,15 +402,18 @@ export async function renderHeaderAt(pathname: string, page: React.ReactNode = n
  * Arranges the home table as one flat list with every column, the way a person
  * who chose "group by: nothing" and ticked every column sees it. Tests about
  * the rows read that view; how grouping and the column picker arrange the same
- * rows is covered by `homeView.test.tsx`. The choice lives where the page reads
- * it, in this browser's storage, so the page is mounted unchanged.
+ * rows is covered by `homeView.test.tsx`.
+ *
+ * The grouping is URL-owned, so this returns the path the test mounts: the
+ * stored device half holds the columns and the closed groups, and the URL holds
+ * the grouping.
  */
-export function showHomeAsFlatList(): void {
-  const columns = Object.fromEntries(HOME_COLUMNS.map((key) => [key, true]));
+export function showHomeAsFlatList(): string {
   globalThis.localStorage.setItem(
     HOME_VIEW_STORAGE_KEY,
-    JSON.stringify({ ...DEFAULT_HOME_VIEW, groupBy: "none", columns }),
+    JSON.stringify({ columns: ALL_VILLAGE_COLUMNS, collapsed: [...DEFAULT_HOME_VIEW.collapsed] }),
   );
+  return "/?groupBy=none";
 }
 
 /** Shared teardown; call once at module scope in each mounted-home test file. */

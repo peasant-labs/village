@@ -120,7 +120,10 @@ export function adaptExplore(
       })) ?? [],
       total: transcripts?.total ?? 0,
       page: transcripts?.page ?? 0,
-      limit: transcripts?.limit ?? 0,
+      // The fairtrade Explore payload names its page size `limit`; the Village
+      // wire calls it `per_page`. The adapter is the only place the two names
+      // meet, so no consumer reads a wire field.
+      limit: transcripts?.per_page ?? 0,
     },
     collectives: collectives?.collectives?.map((collective) => ({
       id: collective.id,

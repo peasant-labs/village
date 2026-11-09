@@ -77,7 +77,8 @@ function listResponse(ids: string[], origin: SessionOrigin, agentTotal: number):
     total: ids.length,
     agent_total: agentTotal,
     page: 1,
-    limit: 24,
+    per_page: 25,
+    next_items: [],
   };
 }
 

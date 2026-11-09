@@ -1,0 +1,32 @@
+# Cases for the Library URL codec (`decodeLibraryView` / `encodeLibraryView`).
+# The codec owns exactly three values: the page, the closed page size, and the
+# grouping. The visible columns and the closed groups never enter a URL, so a
+# copied URL reproduces the data view and the grouping, not the sender's columns.
+cases:
+  - name: omitted-values-take-the-library-defaults
+    query: ""
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: page-size-and-grouping-round-trip
+    query: "page=3&per_page=50&groupBy=agent"
+    expect: { page: 3, perPage: 50, groupBy: agent }
+
+  - name: an-out-of-set-size-falls-back-to-twenty-five
+    query: "per_page=26"
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: an-unknown-grouping-falls-back-to-project
+    query: "groupBy=by-tea-leaves"
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: a-zero-page-falls-back-to-one
+    query: "page=0"
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: a-non-number-page-falls-back-to-one
+    query: "page=two"
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: the-nothing-grouping-round-trips
+    query: "groupBy=none&per_page=100"
+    expect: { page: 1, perPage: 100, groupBy: none }

@@ -1,0 +1,72 @@
+# Page and page-size parsing for GET /api/v1/transcripts. `kind` is the closed
+# outcome: `accepted` states the page, the closed page-size member, and the row
+# offset the query implies; `refused` states a per_page outside schema.AllPageSizes
+# and the phrases its refusal must carry. The bound is derived from the contract,
+# so this fixture names members and never a handler-local copy of the set.
+- name: omitted-page-and-size
+  kind: accepted
+  query: ""
+  page: 1
+  per_page: 25
+  offset: 0
+
+- name: page-two-keeps-the-default-size
+  kind: accepted
+  query: "page=2"
+  page: 2
+  per_page: 25
+  offset: 25
+
+- name: fifty-per-page
+  kind: accepted
+  query: "per_page=50"
+  page: 1
+  per_page: 50
+  offset: 0
+
+- name: one-hundred-per-page-on-page-three
+  kind: accepted
+  query: "page=3&per_page=100"
+  page: 3
+  per_page: 100
+  offset: 200
+
+- name: an-unreadable-page-is-page-one
+  kind: accepted
+  query: "page=zero"
+  page: 1
+  per_page: 25
+  offset: 0
+
+- name: a-below-set-size-is-refused
+  kind: refused
+  query: "per_page=24"
+  refused_value: "24"
+  error_contains:
+    - "per_page 24 is outside the closed page-size set"
+    - "25, 50, 100"
+    - "no transcript page was returned"
+
+- name: an-above-set-size-is-refused
+  kind: refused
+  query: "per_page=101"
+  refused_value: "101"
+  error_contains:
+    - "per_page 101 is outside the closed page-size set"
+    - "25, 50, 100"
+
+- name: a-non-member-between-members-is-refused
+  kind: refused
+  query: "per_page=26"
+  refused_value: "26"
+  error_contains:
+    - "per_page 26 is outside the closed page-size set"
+    - "25, 50, 100"
+
+- name: a-non-number-is-refused
+  kind: refused
+  query: "per_page=twenty"
+  refused_value: "twenty"
+  error_contains:
+    - "per_page \"twenty\" is not a whole number"
+    - "25, 50, 100"

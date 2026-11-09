@@ -61,7 +61,6 @@ export interface GroupedHelperSurfaceFixtures {
 }
 
 const REQUIRED_CONTINUATION_CASES = [
-  "home-continuation-reaches-later-context",
   "profile-continuation-reaches-later-context",
   "project-continuation-reaches-later-context",
 ];

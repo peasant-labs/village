@@ -7,7 +7,7 @@
    an optional PAGINATION_DELAY_MS on the /transcripts route so the "loading page
    N; showing page M" busy state can be captured in a real browser.
 
-   Routes mirror the production discovery surface (offset page/limit, total from
+   Routes mirror the production discovery surface (offset page/per_page, total from
    one filtered set) and the auth/profile probes LayoutShell issues so the real
    page mounts signed-in (no username-claim gate).
 
@@ -118,10 +118,16 @@ const sortRows = (list, sort) =>
 const listTranscripts = (url) => {
   const sort = url.searchParams.get('sort') || 'recent'
   const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
-  const limit = Math.max(1, Number(url.searchParams.get('limit') || '24'))
+  const perPage = Math.max(1, Number(url.searchParams.get('per_page') || '25'))
   const sorted = sortRows(rows, sort)
-  const start = (page - 1) * limit
-  return { transcripts: sorted.slice(start, start + limit), total: sorted.length, page, limit }
+  const start = (page - 1) * perPage
+  return {
+    transcripts: sorted.slice(start, start + perPage),
+    total: sorted.length,
+    page,
+    per_page: perPage,
+    next_items: sorted.slice(start + perPage, start + 2 * perPage),
+  }
 }
 
 const server = createServer((req, res) => {

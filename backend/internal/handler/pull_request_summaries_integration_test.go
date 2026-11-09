@@ -109,7 +109,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 	var target string
 	switch surface {
 	case "list":
-		target = "/api/v1/transcripts?limit=100&" + listFilter
+		target = "/api/v1/transcripts?per_page=100&" + listFilter
 	case "collective":
 		target = "/api/v1/groups/" + groupID + "?limit=100"
 	case "collective_grouped":

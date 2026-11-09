@@ -197,6 +197,8 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
         transcripts: rows,
         total: rows.length,
         agent_total: 0,
+      per_page: 25,
+      next_items: [],
         page: 1,
         limit: 24,
       });

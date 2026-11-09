@@ -438,8 +438,13 @@ export interface TranscriptListResponse {
    * never include them, so this is what the collapsed group counts.
    */
   agent_total: number;
+  /** The one-based page the server returned, echoed from the request. */
   page: number;
-  limit: number;
+  /** The closed page size the page was read at, echoed from the request. */
+  per_page: number;
+  /** The following page's rows, in its order, or none when this page is the
+   *  last one reachable. A host derives the next page's group keys from it. */
+  next_items: TranscriptListItem[];
 }
 
 export interface TranscriptDetailResponse {

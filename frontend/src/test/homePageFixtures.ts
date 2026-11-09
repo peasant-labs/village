@@ -105,6 +105,14 @@ export type HomePullRequestCellCase = {
   more: HomePullRequestMore;
 };
 
+/** One numbered page the case presses through: the page, its closed size, and
+ *  the rows it lists. */
+export type HomePageCase = {
+  page: number;
+  perPage: number;
+  expectRowTitles: string[];
+};
+
 export type HomeCase = {
   name: string;
   viewerUsername: string;
@@ -113,6 +121,7 @@ export type HomeCase = {
   usernameChosen: boolean;
   requestFailure: HomeRequestFailure;
   expectHomeSurface: HomeSurface;
+  /** What the table lists once settled: the first page, or the clamp target. */
   expectRowTitles: string[];
   expectProjectLinks: { title: string; href: string | null }[];
   stats?: HomeStatsCase;
@@ -121,7 +130,15 @@ export type HomeCase = {
   contributions?: HomeContributionCase[];
   expectWaiting?: string[];
   search?: { query: string; expectRowTitles: string[] };
-  loadMore?: { expectRowTitles: string[] };
+  /** The numbered pages the case presses through, in order. */
+  pages?: HomePageCase[];
+  /** A cold URL page past the last page: the client asks for it, reads the
+   *  echoed total, then asks for the last page in a second request. */
+  clampFrom?: number;
+  /** The page the URL carries when the page mounts. Defaults to 1. */
+  startPage?: number;
+  /** Every page the test expects to see requested, in order. */
+  expectRequestedPages?: number[];
   expectPullRequestCells?: HomePullRequestCellCase[];
   expectSharedWithCells?: { title: string; text: string[] }[];
   /** The agent cell: the brand mark drawn (or none) and the agent name beside it. */
@@ -251,6 +268,9 @@ const accountMenuEffects: readonly AccountMenuEffect[] = ["navigate", "sign-out"
 
 const requiredHomeCaseNames = [
   "canonical-provider-marks-use-received-harness-without-provider-facts",
+  "a-short-library-shows-real-page-numbers",
+  "an-out-of-range-page-clamps-to-the-last-page",
+  "a-search-resets-to-page-one",
   "recent-sessions-lead-and-projects-follow",
   "public-link-access-is-named-alongside-approved-collectives",
   "pending-private-submission-does-not-claim-author-only-access",
@@ -291,7 +311,10 @@ const optionalHomeCaseKeys = [
   "contributions",
   "expectWaiting",
   "search",
-  "loadMore",
+  "pages",
+  "clampFrom",
+  "startPage",
+  "expectRequestedPages",
   "expectPullRequestCells",
   "expectSharedWithCells",
   "expectProviderMarks",
@@ -531,7 +554,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
     "home-page homeCases",
   );
   const loadedHomeCases: LoadedHomeCase[] = [];
-  let sawCappedCase = false;
+  let sawPagedCase = false;
   let sawUnsortedInput = false;
   for (const c of fixtures.homeCases) {
     assertKeysWithin(c, homeCaseKeys, optionalHomeCaseKeys, `home case ${c.name}`);
@@ -677,40 +700,88 @@ export function loadHomePageFixtures(): HomePageFixtures {
     // the data rather than a copy of the page's sort.
     const newest = newestFirstTitles(c.transcripts);
     const wantFirst = newest.slice(0, c.expectRowTitles.length);
-    if (JSON.stringify(c.expectRowTitles) !== JSON.stringify(wantFirst)) {
+    if (c.pages === undefined && JSON.stringify(c.expectRowTitles) !== JSON.stringify(wantFirst)) {
       throw new Error(
         `home case ${c.name}: expectRowTitles is ${c.expectRowTitles.join(", ")} but the case's ` +
           `own rows, most recent first, are ${wantFirst.join(", ")}`,
       );
     }
-    if (c.transcripts.length > c.expectRowTitles.length) {
-      sawCappedCase = true;
-      // The rows past the first page are only asserted by pressing `load more`.
-      // A case that holds them back without that step says nothing about them.
-      if (c.loadMore === undefined) {
+    // Every declared page must list the rows the fixture's own order serves at
+    // that page and size. The pages are the case's own data sliced the way the
+    // server slices it, never a copy of the page's arithmetic.
+    const pages = c.pages ?? [];
+    if (pages.length > 0) {
+      sawPagedCase = true;
+      for (const declared of pages) {
+        assertExactKeys(declared, ["page", "perPage", "expectRowTitles"], `home case ${c.name} page`);
+        if (!Number.isSafeInteger(declared.page) || declared.page < 1) {
+          throw new Error(`home case ${c.name}: a page must be one-based, got ${declared.page}`);
+        }
+        if (![25, 50, 100].includes(declared.perPage)) {
+          throw new Error(
+            `home case ${c.name}: perPage ${declared.perPage} is not a schema PageSize member`,
+          );
+        }
+        const served = newest
+          .slice((declared.page - 1) * declared.perPage, declared.page * declared.perPage);
+        if (JSON.stringify(declared.expectRowTitles) !== JSON.stringify(served)) {
+          throw new Error(
+            `home case ${c.name}: page ${declared.page} at ${declared.perPage}/page lists ` +
+              `${served.join(", ") || "nothing"}, not ${declared.expectRowTitles.join(", ") || "nothing"}`,
+          );
+        }
+      }
+      if (c.clampFrom === undefined) {
+        const first = c.startPage ?? 1;
+        const declaredPages = pages.map((p) => p.page);
+        if (JSON.stringify(declaredPages) !== JSON.stringify(declaredPages.map((_, i) => i + first))) {
+          throw new Error(
+            `home case ${c.name}: pages must be pressed in order from page ${first}; got ` +
+              `${declaredPages.join(", ")}`,
+          );
+        }
+      } else {
+        const perPage = pages[0].perPage;
+        const last = Math.max(1, Math.ceil(c.transcripts.length / perPage));
+        if (c.clampFrom <= last) {
+          throw new Error(
+            `home case ${c.name}: clampFrom ${c.clampFrom} is not past the last page ${last}, so the ` +
+              `clamp could not happen`,
+          );
+        }
+        if (pages.length !== 1 || pages[0].page !== last) {
+          throw new Error(
+            `home case ${c.name}: a clamping cold URL settles on the last page ${last} and no other; ` +
+              `declare that one page`,
+          );
+        }
+      }
+      const settled = c.clampFrom === undefined ? pages[0] : pages[pages.length - 1];
+      if (JSON.stringify(c.expectRowTitles) !== JSON.stringify(settled.expectRowTitles)) {
         throw new Error(
-          `home case ${c.name}: supplies more rows than its table first lists, so it must press ` +
-            `load more (loadMore) and say what the table lists after`,
+          `home case ${c.name}: expectRowTitles must name the rows the settled page lists ` +
+            `(${settled.expectRowTitles.join(", ") || "nothing"})`,
         );
       }
-      // The first page must BE the newest rows as served: the mock serves rows
-      // in the order written, a page at a time.
-      const servedFirst = c.transcripts.slice(0, c.expectRowTitles.length).map((t) => t.title);
-      if (JSON.stringify([...servedFirst].sort()) !== JSON.stringify([...wantFirst].sort())) {
+      if (c.clampFrom === undefined && c.startPage !== undefined && c.startPage !== pages[0].page) {
         throw new Error(
-          `home case ${c.name}: its first ${c.expectRowTitles.length} rows as written are not its ` +
-            `newest ones, so the first page served could not list what expectRowTitles says`,
+          `home case ${c.name}: startPage ${c.startPage} is not the first declared page ${pages[0].page}`,
+        );
+      }
+    } else if (c.expectHomeSurface === "rows" && c.expectRowTitles.length > 0) {
+      // A single-page case must fit its shown rows on one default page.
+      if (c.expectRowTitles.length > 25) {
+        throw new Error(
+          `home case ${c.name}: lists ${c.expectRowTitles.length} rows on one default page; declare ` +
+            `pages so the numbered pager is exercised`,
         );
       }
     }
-    if (c.loadMore !== undefined) {
-      assertExactKeys(c.loadMore, ["expectRowTitles"], `home case ${c.name} loadMore`);
-      if (JSON.stringify(c.loadMore.expectRowTitles) !== JSON.stringify(newest)) {
-        throw new Error(
-          `home case ${c.name}: after load more the table lists every row, newest first ` +
-            `(${newest.join(", ")}); got ${c.loadMore.expectRowTitles.join(", ")}`,
-        );
-      }
+    if (c.clampFrom !== undefined && c.pages === undefined) {
+      throw new Error(`home case ${c.name}: a clamping cold URL must declare the page it settles on`);
+    }
+    if (c.startPage !== undefined && (!Number.isSafeInteger(c.startPage) || c.startPage < 1)) {
+      throw new Error(`home case ${c.name}: startPage must be one-based, got ${c.startPage}`);
     }
     const givenOrder = c.transcripts.map((t) => t.title);
     if (c.transcripts.length > 1 && JSON.stringify(givenOrder) !== JSON.stringify(newest)) {
@@ -833,11 +904,17 @@ export function loadHomePageFixtures(): HomePageFixtures {
         `would still pass.`,
     );
   }
-  if (!sawCappedCase) {
+  if (!sawPagedCase) {
     throw new Error(
-      `home-page homeCases: at least one case must supply MORE transcripts than its table first ` +
-        `lists. Without one, a page that asked for everything at once, or never offered the rest, ` +
-        `would still pass.`,
+      `home-page homeCases: at least one case must press through MORE THAN ONE numbered page. ` +
+        `Without one, a page that asked for everything at once, or never offered a pager, would ` +
+        `still pass.`,
+    );
+  }
+  if (!loadedHomeCases.some((c) => c.clampFrom !== undefined)) {
+    throw new Error(
+      `home-page homeCases: at least one case must open a cold URL past the last page, or a client ` +
+        `that rendered the empty page instead of clamping would still pass.`,
     );
   }
   // Each answer the page can give needs at least one case, or a page that

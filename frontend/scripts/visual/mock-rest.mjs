@@ -354,7 +354,8 @@ const shareableTranscriptListResponse = {
   total: 1,
   agent_total: 0,
   page: 1,
-  limit: 100,
+  per_page: 100,
+  next_items: [],
 }
 
 // The tree-based contribute page's own corpus (village#66): two projects (one

@@ -2,60 +2,65 @@
 # API client, TanStack observer, and cache. The action determines whether the
 # first result is final, retried on the exact key, or followed by a new key while
 # the second response is deliberately deferred.
+#
+# The wire calls the page size `per_page` and echoes it. The behavior ids keep
+# their historical names (`limit-mismatch-...`) so the guard's inventory does not
+# churn with the wire rename; only `params`, `responses`, and `errorFragments`
+# name the field.
 cases:
   - name: valid-settled-data-enters-cache
     action: settle
-    params: {sort: recent, page: "2", limit: "24"}
+    params: {sort: recent, page: "2", per_page: "25"}
     responses:
-      - {page: 2, limit: 24, total: 50}
+      - {page: 2, per_page: 25, total: 50}
     initialStatus: success
     finalPage: 2
     errorFragments: []
 
   - name: page-mismatch-rejected-before-cache-commit
     action: settle
-    params: {sort: recent, page: "2", limit: "24"}
+    params: {sort: recent, page: "2", per_page: "25"}
     responses:
-      - {page: 5, limit: 24, total: 50}
+      - {page: 5, per_page: 25, total: 50}
     initialStatus: error
-    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
+    errorFragments: ["requested page 2 and per_page 25", "received page 5 and per_page 25", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
 
   - name: limit-mismatch-rejected-before-cache-commit
     action: settle
-    params: {sort: recent, page: "2", limit: "24"}
+    params: {sort: recent, page: "2", per_page: "25"}
     responses:
-      - {page: 2, limit: 20, total: 50}
+      - {page: 2, per_page: 50, total: 50}
     initialStatus: error
-    errorFragments: ["requested page 2 and limit 24", "received page 2 and limit 20", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
+    errorFragments: ["requested page 2 and per_page 25", "received page 2 and per_page 50", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
 
   - name: omitted-pagination-remains-compatible
     action: settle
     params: {sort: recent}
     responses:
-      - {page: 5, limit: 20, total: 50}
+      - {page: 5, per_page: 25, total: 50}
     initialStatus: success
     finalPage: 5
     errorFragments: []
 
   - name: mismatch-retries-the-exact-key
     action: retry
-    params: {sort: recent, page: "2", limit: "24"}
+    params: {sort: recent, page: "2", per_page: "25"}
     responses:
-      - {page: 5, limit: 24, total: 50}
-      - {page: 2, limit: 24, total: 50}
+      - {page: 5, per_page: 25, total: 50}
+      - {page: 2, per_page: 25, total: 50}
     initialStatus: error
     finalPage: 2
-    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24"]
+    errorFragments: ["requested page 2 and per_page 25", "received page 5 and per_page 25"]
 
   - name: rejected-mismatch-cannot-placeholder-a-new-key
     action: seededNewKey
-    params: {sort: recent, page: "1", limit: "24"}
-    mismatchParams: {sort: recent, page: "2", limit: "24"}
-    nextParams: {sort: recent, page: "3", limit: "24"}
+    params: {sort: recent, page: "1", per_page: "25"}
+    mismatchParams: {sort: recent, page: "2", per_page: "25"}
+    nextParams: {sort: recent, page: "3", per_page: "25"}
     responses:
-      - {page: 1, limit: 24, total: 50}
-      - {page: 5, limit: 24, total: 50}
-      - {page: 3, limit: 24, total: 50}
+      - {page: 1, per_page: 25, total: 50}
+      - {page: 5, per_page: 25, total: 50}
+      - {page: 3, per_page: 25, total: 50}
     initialStatus: success
     finalPage: 3
-    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24"]
+    errorFragments: ["requested page 2 and per_page 25", "received page 5 and per_page 25"]

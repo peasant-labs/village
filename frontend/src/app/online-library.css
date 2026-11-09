@@ -65,12 +65,6 @@
 /* The dashboard separates its overview from the working library. */
 .on-home-library { display: grid; gap: var(--sp-4); min-width: 0; border-top: var(--bd); padding-block-start: var(--sp-6); }
 .on-home-library > .on-h2 { margin: 0; }
-.on-home-library .on-table-box { max-width: 100%; border-top: var(--bd); }
-.on-home-library .on-table { table-layout: auto; }
-.on-home-library .on-table tr.is-in > td:first-child { padding-inline-start: var(--sp-5); background-image: none; }
-.on-home-library .on-table tbody tr.is-row > td { height: auto; vertical-align: top; padding-block: var(--sp-4); }
-.on-home-library .on-table td:first-child { min-width: 16ch; }
-.on-home-library .on-gtog { gap: var(--sp-2); }
 
 /* Home's plain toolbar actions share the search and menu controls' outer height. */
 .on-home-library .on-tools > .btn { min-height: var(--target-comfortable); }

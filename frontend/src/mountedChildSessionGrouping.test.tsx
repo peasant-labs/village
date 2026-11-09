@@ -214,7 +214,8 @@ function listResponse(testCase: ChildSessionGroupingCase): TranscriptListRespons
     total: testCase.serverTotal,
     agent_total: testCase.agentSessions.length,
     page: 1,
-    limit: 24,
+    per_page: 25,
+    next_items: [],
   };
 }
 
@@ -225,7 +226,8 @@ function agentListResponse(testCase: ChildSessionGroupingCase): TranscriptListRe
     total: testCase.agentSessions.length,
     agent_total: testCase.agentSessions.length,
     page: 1,
-    limit: 24,
+    per_page: 25,
+    next_items: [],
   };
 }
 
@@ -380,9 +382,9 @@ function homeRows(testCase: ChildSessionGroupingCase): HomeTranscriptCase[] {
 describe("the home page lists a started session inside its parent's chip", () => {
   for (const testCase of casesFor("home")) {
     it(testCase.name, async () => {
-      showHomeAsFlatList();
+      const flatPath = showHomeAsFlatList();
       installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: homeRows(testCase) });
-      await renderAppRoute("/");
+      await renderAppRoute(flatPath);
       await flush();
 
       const table = await screen.findByTestId("home-transcripts");

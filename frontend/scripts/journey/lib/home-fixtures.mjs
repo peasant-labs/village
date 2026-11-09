@@ -274,15 +274,16 @@ export async function handleHomeRequest(req, res, scenario) {
     url.searchParams.get('view') !== 'grouped'
   ) {
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
-    const limit = Math.max(1, Number(url.searchParams.get('limit') || '20'))
+    const perPage = Math.max(1, Number(url.searchParams.get('per_page') || '25'))
     const q = (url.searchParams.get('q') || '').toLowerCase()
     const matching = scenario === 'empty' ? [] : HOME_ROWS.filter((row) => row.title.toLowerCase().includes(q))
     send(res, 200, {
-      transcripts: matching.slice((page - 1) * limit, page * limit).map(listItem),
+      transcripts: matching.slice((page - 1) * perPage, page * perPage).map(listItem),
       total: matching.length,
       agent_total: 0,
       page,
-      limit,
+      per_page: perPage,
+      next_items: matching.slice(page * perPage, (page + 1) * perPage).map(listItem),
     })
     return true
   }

@@ -120,7 +120,8 @@ function installREST(): Calls {
           total: 1,
           agent_total: 0,
           page: Number(url.searchParams.get("page") ?? 1),
-          limit: Number(url.searchParams.get("limit") ?? 24),
+          per_page: Number(url.searchParams.get("per_page") ?? 25),
+          next_items: [],
         });
       }
       if (url.pathname.includes("/transcript-groups/")) {
@@ -166,7 +167,7 @@ function groupTrigger(groupId: string): HTMLButtonElement {
 }
 
 it("home attaches the grouped helper group to its owner row and expands it in place", async () => {
-  showHomeAsFlatList();
+  window.history.replaceState({}, "", showHomeAsFlatList());
   const calls = installREST();
   await renderHome();
 
