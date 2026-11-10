@@ -12,6 +12,7 @@ const requiredNames = [
   "per-page-guard-bypass",
   "clamp-bypass",
   "stored-view-order-collapse",
+  "continuation-uses-last-settled-page",
 ];
 if (!Array.isArray(root.mutations) || root.mutations.length !== requiredNames.length) {
   throw new Error(`transcript query guard fixture must contain exactly ${requiredNames.length} mutations`);

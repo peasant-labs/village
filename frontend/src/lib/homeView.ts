@@ -231,13 +231,12 @@ export function decodeLibraryView(params: URLSearchParams): LibraryUrlView {
   return { page, perPage, groupBy };
 }
 
-/** Renders the URL half of the view as search parameters. The device half is
- *  deliberately absent. */
+/** Renders non-default URL view values. The device half is deliberately absent. */
 export function encodeLibraryView(view: LibraryUrlView): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("page", String(view.page));
-  params.set("perPage", String(view.perPage));
-  params.set("groupBy", view.groupBy.wire);
+  if (view.page !== DEFAULT_LIBRARY_URL_VIEW.page) params.set("page", String(view.page));
+  if (view.perPage !== DEFAULT_LIBRARY_URL_VIEW.perPage) params.set("perPage", String(view.perPage));
+  if (view.groupBy !== DEFAULT_LIBRARY_URL_VIEW.groupBy) params.set("groupBy", view.groupBy.wire);
   return params;
 }
 
@@ -251,7 +250,9 @@ export function writeLibraryViewToUrl(view: LibraryUrlView): void {
   for (const [name, value] of next) params.set(name, value);
   const query = params.toString();
   const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}${window.location.hash}`;
-  window.history.replaceState(window.history.state, "", url);
+  if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState(window.history.state, "", url);
+  }
 }
 
 /** A project a loaded row belongs to: its identity, and the name to show. */

@@ -26,3 +26,10 @@ mutations:
     replacement: "    migrated = [...ALL_VILLAGE_COLUMNS].reverse().filter(\n      (column) => column === ColumnIdValues.Transcript || stored[column.wire] === true,\n    );"
     testFile: src/lib/homeView.test.ts
     testName: keeps a readable columns record in the closed set's order and drops an unknown key
+
+  - name: continuation-uses-last-settled-page
+    file: ../../src/app/HomePage.tsx
+    original: "  const priorPage = settledPage == null ? undefined : pageRows.get(settledPage - 1);"
+    replacement: "  const priorPage = recordedData == null ? undefined : pageRows.get(recordedData.page);"
+    testFile: src/homePage.test.tsx
+    testName: a-continuing-group-opens-with-a-compact-continuation-row
