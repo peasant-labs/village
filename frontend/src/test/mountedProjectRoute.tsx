@@ -263,7 +263,6 @@ export function installProfileRouteREST(
         per_page: 25,
         next_items: [],
         page: 1,
-        limit: 20,
       });
     }
     if (/\/orgs$/.test(url)) return json([]);

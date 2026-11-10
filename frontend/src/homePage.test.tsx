@@ -136,6 +136,38 @@ function pageStatus(): string {
   return text(document.querySelector('[data-testid="home-transcripts"] .libt-page-status'));
 }
 
+/** The compact continuation rows on the table, if any. */
+function continuationRows(): Element[] {
+  return [
+    ...document.querySelectorAll('[data-testid="home-transcripts"] tr[data-row-kind="continuation"]'),
+  ];
+}
+
+/** A page's declared continuation state, when the case states one. */
+function assertContinuation(expected: boolean | undefined): void {
+  if (expected === undefined) return;
+  const rows = continuationRows();
+  if (expected) {
+    expect(rows.length).toBeGreaterThan(0);
+    expect(text(rows[0])).toContain(", continued");
+  } else {
+    expect(rows.length).toBe(0);
+  }
+}
+
+/** Opens the table's column picker, toggles one column, and closes it. */
+async function toggleColumn(column: string): Promise<void> {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /^columns: / }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("checkbox", { name: column }));
+  });
+  await act(async () => {
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: column }), { key: "Escape" });
+  });
+}
+
 
 function tableTitles(): string[] {
   return tableRows().map(rowTitle);
@@ -569,6 +601,7 @@ describe("mounted home route: your transcripts, their totals and your collective
       if (c.pages !== undefined) {
         const last = Math.max(1, Math.ceil(c.transcripts.length / c.pages[0].perPage));
         expect(pageStatus()).toBe(`page ${c.pages[0].page} of ${last}`);
+        assertContinuation(c.pages[0].expectContinuationRows);
         // Every page after the first is reached by the table's own next-page
         // control, and each response replaces the rows rather than appending.
         for (const declared of c.pages.slice(c.clampFrom !== undefined ? 1 : 1)) {
@@ -581,6 +614,10 @@ describe("mounted home route: your transcripts, their totals and your collective
             new URL(window.location.href).searchParams.get("page"),
             "the URL names the page the reader sees",
           ).toBe(String(declared.page));
+          if (declared.toggleColumn !== undefined) {
+            await toggleColumn(declared.toggleColumn);
+          }
+          assertContinuation(declared.expectContinuationRows);
         }
       } else if (c.expectHomeSurface === "rows" && c.expectRowTitles.length > 0) {
         // One page: the pager is absent because there is nowhere to go.
@@ -606,15 +643,7 @@ describe("mounted home route: your transcripts, their totals and your collective
       // A group that began on the immediately preceding page opens with one
       // compact continuation row; a cold page or a return has no such
       // predecessor, so nothing is marked.
-      const continuationRows = document.querySelectorAll(
-        '[data-testid="home-transcripts"] tr[data-row-kind="continuation"]',
-      );
-      if (c.expectContinuationRows === true) {
-        expect(continuationRows.length).toBeGreaterThan(0);
-        expect(text(continuationRows[0])).toContain(", continued");
-      } else {
-        expect(continuationRows.length).toBe(0);
-      }
+      assertContinuation(c.expectContinuationRows);
 
       for (const change of c.pageSizeChanges ?? []) {
         const select = screen.getByRole("combobox", { name: "page size" });

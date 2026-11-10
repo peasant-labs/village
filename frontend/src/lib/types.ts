@@ -1,5 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
-import type { VillageTranscriptListResponse } from "@peasant-labs/schema";
+import type { License, SessionOutcome, SourceFormat, VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -147,7 +147,7 @@ export interface Transcript {
    *  owner, or null when it resolved none. */
   parent_transcript_id: string | null;
   ingested_at: string | null;
-  source_format: string | null;
+  source_format: SourceFormat | null;
   git_branch: string | null;
   git_remote: string | null;
   /*
@@ -199,11 +199,11 @@ export interface Transcript {
   duration_ms: number | null;
   tokens_in: number | null;
   tokens_out: number | null;
-  subagents: unknown[] | null;
+  subagents: Record<string, unknown>[] | null;
   diagnostics_warnings: DiagnosticEntry[] | null;
   diagnostics_partial: boolean | null;
   title_generated: string | null;
-  outcome: string | null;
+  outcome: SessionOutcome | null;
   files_touched: number | null;
   lines_changed: number | null;
   retry_loops: number | null;
@@ -230,7 +230,7 @@ export interface Transcript {
   computed_at: string | null;
   compute_version: number | null;
   content_hash: string | null;
-  license_id: string | null;
+  license_id: License | null;
   /**
    * Who drove the session. Discovery metadata only: an `agent` row is
    * collapsed into a labelled group instead of occupying a root-level list,
@@ -318,7 +318,7 @@ interface EnrichedTranscriptShare {
   group_id: string;
   group_name: string;
   acceptance_mode: "open" | "verified_only" | "curated";
-  status: string;
+  status: VillageShareStatus;
   shared_at: string;
 }
 

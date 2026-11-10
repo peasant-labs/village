@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
+import { ALL_VILLAGE_COLUMNS } from "@/lib/homeView";
 
 /**
  * Loader for `src/testdata/home-page.yaml` — the case corpus behind
@@ -111,6 +112,10 @@ export type HomePageCase = {
   page: number;
   perPage: number;
   expectRowTitles: string[];
+  /** A column to toggle after this page settles, before moving to the next. */
+  toggleColumn?: string;
+  /** Whether this page renders a compact continuation row once settled. */
+  expectContinuationRows?: boolean;
 };
 
 export type HomeCase = {
@@ -730,7 +735,29 @@ export function loadHomePageFixtures(): HomePageFixtures {
     if (pages.length > 0) {
       sawPagedCase = true;
       for (const declared of pages) {
-        assertExactKeys(declared, ["page", "perPage", "expectRowTitles"], `home case ${c.name} page`);
+        const pageKeys = Object.keys(declared);
+        const allowedPageKeys = ["page", "perPage", "expectRowTitles", "toggleColumn", "expectContinuationRows"];
+        if (
+          ["page", "perPage", "expectRowTitles"].some((key) => !pageKeys.includes(key)) ||
+          pageKeys.some((key) => !allowedPageKeys.includes(key))
+        ) {
+          throw new Error(`home case ${c.name} page has unknown or missing fields: ${pageKeys.join(", ")}`);
+        }
+        if (
+          declared.toggleColumn !== undefined &&
+          !ALL_VILLAGE_COLUMNS.some((column) => column.label === declared.toggleColumn)
+        ) {
+          throw new Error(`home case ${c.name}: no column named ${declared.toggleColumn}`);
+        }
+        if (
+          declared.expectContinuationRows !== undefined &&
+          typeof declared.expectContinuationRows !== "boolean"
+        ) {
+          throw new Error(`home case ${c.name}: a page's expectContinuationRows must be a boolean`);
+        }
+        if (declared.expectContinuationRows === true && (c.groupBy === undefined || c.groupBy === "none")) {
+          throw new Error(`home case ${c.name}: a continuation row needs a grouping other than none`);
+        }
         if (!Number.isSafeInteger(declared.page) || declared.page < 1) {
           throw new Error(`home case ${c.name}: a page must be one-based, got ${declared.page}`);
         }

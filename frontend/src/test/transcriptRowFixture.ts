@@ -1,3 +1,4 @@
+import type { ProjectHash, SessionID, TranscriptID } from "@peasant-labs/schema";
 import type { Transcript, TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 
 /**
@@ -88,12 +89,32 @@ export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Tran
  *  row does not carry. */
 export type TranscriptListRow = TranscriptListResponse["transcripts"][number];
 
-export function asTranscriptListRow(row: TranscriptListItem): TranscriptListRow {
+/**
+ * The contract brands three string identities (`TranscriptID`, `SessionID`,
+ * `ProjectHash`); the fixture keeps readable names and the same strings at
+ * runtime. This states each brand once, at the one boundary where a fixture row
+ * crosses into the contract's row type, so every other field of the row is
+ * still checked by the compiler rather than an `as unknown as` cast.
+ */
+function wireTranscript(row: Transcript): TranscriptListRow["transcript"] {
   return {
     ...row,
+    id: row.id as TranscriptID,
+    local_id: row.local_id as SessionID,
+    parent_session_id: row.parent_session_id as SessionID | null,
+    parent_transcript_id: row.parent_transcript_id as TranscriptID | null,
+    project_hash: row.project_hash as ProjectHash | null,
+  };
+}
+
+export function asTranscriptListRow(row: TranscriptListItem): TranscriptListRow {
+  return {
+    transcript: wireTranscript(row.transcript),
+    tags: row.tags,
+    owner: row.owner,
     owner_orgs: [],
     shares: row.shares ?? null,
     attestations: row.attestations ?? null,
     pull_requests: row.pull_requests ?? { count: 0, recent: [] },
-  } as unknown as TranscriptListRow;
+  };
 }

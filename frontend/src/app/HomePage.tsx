@@ -446,10 +446,10 @@ function HomeBody({ username }: { username: string }) {
     };
     setView(deviceView);
     saveHomeView(deviceView);
-    // The view is a new arrangement; a continuation from the old one is not
-    // evidence about this one.
-    clearPageHistory();
     if (groupingChanged || nextPage !== page) {
+      // A new grouping or page is a different traversal; a column or collapse
+      // change is not, and must keep the current page's continuation marker.
+      clearPageHistory();
       applyUrlView({ page: nextPage, perPage, groupBy: next.groupBy });
     }
   };
