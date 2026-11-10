@@ -1,0 +1,41 @@
+cases:
+  - name: flat-with-following-page
+    kind: flat
+    requested: {page: "1", per_page: "25"}
+    response: {transcripts: [], next_items: [next], total: 51, agent_total: 3, page: 1, per_page: 25}
+    paging: {page: 1, perPage: 25, total: 51, hasMore: true}
+  - name: flat-without-following-page
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 2, per_page: 25}
+    paging: {page: 2, perPage: 25, total: 30, hasMore: false}
+  - name: grouped-with-following-page
+    kind: grouped
+    requested: {page: "1", limit: "20"}
+    response: {items: [], page: 1, limit: 20, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    paging: {page: 1, perPage: 20, total: 30, hasMore: true}
+  - name: grouped-last-page
+    kind: grouped
+    requested: {page: "2", limit: "20"}
+    response: {items: [], page: 2, limit: 20, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    paging: {page: 2, perPage: 20, total: 30, hasMore: false}
+  - name: flat-wrong-echoed-page
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 1, per_page: 25}
+    rejected: true
+  - name: flat-wrong-echoed-size
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 2, per_page: 50}
+    rejected: true
+  - name: grouped-wrong-echoed-page
+    kind: grouped
+    requested: {page: "2", limit: "20"}
+    response: {items: [], page: 1, limit: 20, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    rejected: true
+  - name: grouped-wrong-echoed-size
+    kind: grouped
+    requested: {page: "2", limit: "20"}
+    response: {items: [], page: 2, limit: 25, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    rejected: true

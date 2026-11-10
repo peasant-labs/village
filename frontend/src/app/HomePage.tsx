@@ -255,8 +255,8 @@ function HomeBody({ username }: { username: string }) {
   // with the last page, and the next request carries it. An effect would render
   // the empty page once before correcting it, and a synchronous setState in an
   // effect is the cascading render the hook rules forbid.
-  const observedLast = lastPageIndex(list.data?.total ?? 0, perPage);
-  if (list.data != null && list.data.page > observedLast && page !== observedLast) {
+  const observedLast = lastPageIndex(list.data?.paging.total ?? 0, perPage);
+  if (list.data != null && list.data.paging.page > observedLast && page !== observedLast) {
     setUrlView({ page: observedLast, perPage, groupBy });
   }
 
@@ -270,9 +270,9 @@ function HomeBody({ username }: { username: string }) {
     // Writing it back after a page-size change (which resets to page one) would
     // put the old page number back in the address.
     if (list.data == null || list.isPlaceholderData) return;
-    const last = lastPageIndex(list.data.total, perPage);
-    if (list.data.page > last) return;
-    writeLibraryViewToUrl({ page: list.data.page, perPage, groupBy });
+    const last = lastPageIndex(list.data.paging.total, perPage);
+    if (list.data.paging.page > last) return;
+    writeLibraryViewToUrl({ page: list.data.paging.page, perPage, groupBy });
   }, [list.data, list.isPlaceholderData, perPage, groupBy]);
 
   // The grouped response is the server's own fold of saved helper threads onto
@@ -322,13 +322,13 @@ function HomeBody({ username }: { username: string }) {
   const data = list.data;
   const loaded = data?.transcripts ?? [];
   const nextItems = data?.next_items ?? [];
-  const total = data?.total ?? 0;
+  const total = data?.paging.total ?? 0;
   const agentTotal = data?.agent_total ?? 0;
   const lastPage = lastPageIndex(total, perPage);
   // The first response to an out-of-range cold URL has no rows to show; the
   // clamp effect is already asking for the last page. Render neither an empty
   // page nor a "no transcripts" answer while that second request is in flight.
-  const awaitingClamp = data != null && data.page > lastPage;
+  const awaitingClamp = data != null && data.paging.page > lastPage;
   const searching = list.isPlaceholderData;
 
   // Grouped BEFORE ranking, so a row is a session the viewer ran rather than a
@@ -346,11 +346,11 @@ function HomeBody({ username }: { username: string }) {
   // end of its block. `nextItems` is the server's own following page, so no host
   // derives a group the server did not serve.
   const nextGroupKeys =
-    nextItems.length > 0 ? groupKeysFor(nextItems, (row) => groupKeysOf(row, groupBy)) : null;
+    data?.paging.hasMore ? groupKeysFor(nextItems, (row) => groupKeysOf(row, groupBy)) : null;
   // A group that began on the page immediately before this one opens with one
   // compact continuation row. A cold URL, or a return to an earlier page, has
   // no adjacent predecessor held, so its groups keep full headers.
-  const settledPage = data != null && !list.isPlaceholderData ? data.page : null;
+  const settledPage = data != null && !list.isPlaceholderData ? data.paging.page : null;
   const priorPage = settledPage == null ? undefined : pageRows.get(settledPage - 1);
   const continuedRows =
     priorPage !== undefined && settledPage !== null && priorPage.page === settledPage - 1
@@ -386,7 +386,7 @@ function HomeBody({ username }: { username: string }) {
   // rules forbid.
   if (data != null && !list.isPlaceholderData && data !== recordedData) {
     setRecordedData(data);
-    setPageRows((current) => new Map(current).set(data.page, { page: data.page, rows: data.transcripts }));
+    setPageRows((current) => new Map(current).set(data.paging.page, { page: data.paging.page, rows: data.transcripts }));
   }
 
   // Mounted on every branch below, not inside one of them: a polite region has
@@ -688,7 +688,7 @@ function HomeBody({ username }: { username: string }) {
               groupLabel={(id) => groupLabelOf(id, groupBy, groupLabels)}
               nextGroupKeys={nextGroupKeys}
               continuedGroupKeys={continuedGroupKeys}
-              page={{ index: list.data!.page, size: perPage, total: list.data!.total }}
+              page={{ index: list.data!.paging.page, size: perPage, total: list.data!.paging.total }}
               viewState={{ groupBy, visibleColumns: view.columns, collapsed: view.collapsed }}
               onViewStateChange={changeView}
               onPageChange={goToPage}

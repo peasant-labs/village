@@ -1,8 +1,8 @@
 mutations:
   - name: response-pagination-guard-bypass
     file: ../../src/lib/queries/transcripts.ts
-    original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return response;"
-    replacement: "      return response;"
+    original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return { ...response, paging: adaptTranscriptPaging(response) };"
+    replacement: "      return { ...response, paging: adaptTranscriptPaging(response) };"
     testFile: src/mountedSessionListPagination.test.tsx
     testName: rejected-mismatch-then-new-page-keeps-last-confirmed-rows
 
@@ -15,8 +15,8 @@ mutations:
 
   - name: clamp-bypass
     file: ../../src/app/HomePage.tsx
-    original: "  if (list.data != null && list.data.page > observedLast && page !== observedLast) {"
-    replacement: "  if (false && list.data != null && list.data.page > observedLast && page !== observedLast) {"
+    original: "  if (list.data != null && list.data.paging.page > observedLast && page !== observedLast) {"
+    replacement: "  if (false && list.data != null && list.data.paging.page > observedLast && page !== observedLast) {"
     testFile: src/homePage.test.tsx
     testName: an-out-of-range-page-clamps-to-the-last-page
 
