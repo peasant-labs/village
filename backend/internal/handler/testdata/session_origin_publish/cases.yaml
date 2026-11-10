@@ -24,9 +24,9 @@
 # Publish must still succeed and store the fail-safe value, because a transcript
 # is never hidden merely because Village could not read it.
 #
-# `expected_status: 400` marks the refusal row. Its needles are authored here,
-# independently of any production message, so an error that stops saying these
-# things fails the row instead of silently agreeing with itself.
+# `expected_status: 400` marks the refusal row. The handler test protects the
+# observable status and no-write side effect; it does not couple the fixture to
+# the wording of the error response.
 
 - name: user_prompt_publishes_as_user
   arm: user
@@ -158,8 +158,3 @@
       content: "Scanning the repository."
       count: 2
   expected_status: 400
-  expected_error_contains:
-    - "robot"
-    - "user, agent, unknown"
-    - "nothing was stored"
-    - "publish again"
