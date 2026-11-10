@@ -1962,6 +1962,22 @@ func pageSizeMenu() string {
 	return strings.Join(members, ", ")
 }
 
+// transcriptListResponse is the wire envelope of GET /api/v1/transcripts. Its
+// six fields are the contract's schema.VillageTranscriptListResponse fields, in
+// the contract's order; the rows keep the handler's existing public projections
+// (transcript, tags, owner, owner_orgs, shares, attestations, pull_requests) and
+// are asserted against the contract's row type by the response-shape test. The
+// envelope is typed rather than a map so a renamed or dropped top-level field
+// cannot compile.
+type transcriptListResponse struct {
+	Transcripts []map[string]any `json:"transcripts"`
+	NextItems   []map[string]any `json:"next_items"`
+	Total       int              `json:"total"`
+	AgentTotal  int              `json:"agent_total"`
+	Page        int              `json:"page"`
+	PerPage     int              `json:"per_page"`
+}
+
 // parseTranscriptListPage reads the page and per_page a list request carries.
 // An omitted page is page one. An omitted per_page is the contract's 25-row
 // default; any other value must be a schema.PageSize member, and an out-of-set
@@ -2359,22 +2375,22 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		nextItems = append(nextItems, rowJSON(p))
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"transcripts": transcripts,
-		"total":       total,
+	writeJSON(w, http.StatusOK, transcriptListResponse{
+		Transcripts: transcripts,
+		// The following page's rows, for the table's group-continuation keys.
+		// Empty when the requested page is the last one reachable.
+		NextItems: nextItems,
+		Total:     int(total),
 		// How many agent-driven sessions the SAME filters match, so a client can
 		// render the collapsed "+ N agent sessions" group without guessing or
 		// issuing a second speculative request.
-		"agent_total": snapshot.agentTotal,
-		"page":        page,
+		AgentTotal: int(snapshot.agentTotal),
+		Page:       page,
 		// The closed page size the page was read at, echoed so the client can
 		// divide `total` into real page numbers. The server never clamps a page:
 		// it echoes the requested page and returns an empty list when it is out
 		// of range, and the client requests the last page in a second step.
-		"per_page": int(perPage),
-		// The following page's rows, for the table's group-continuation keys.
-		// Empty when the requested page is the last one reachable.
-		"next_items": nextItems,
+		PerPage: int(perPage),
 	})
 }
 

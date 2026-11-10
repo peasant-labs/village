@@ -1,0 +1,11 @@
+# The top-level JSON fields of schema.VillageTranscriptListResponse, in the
+# contract's declaration order. GET /api/v1/transcripts emits this envelope; a
+# renamed or dropped field must fail the response-shape test rather than drift
+# from the contract. The list is also checked against the emitted envelope type,
+# so both sides move together.
+- transcripts
+- next_items
+- total
+- agent_total
+- page
+- per_page

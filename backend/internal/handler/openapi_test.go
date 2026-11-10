@@ -313,17 +313,25 @@ func TestServeOpenAPI_ServesModuleSpec(t *testing.T) {
 		t.Fatal("served spec != schema.VillageAPISpecJSON() — the served document must be the module's bytes verbatim, with no vendored copy to drift")
 	}
 
+	// Decode each schema's enum as raw JSON, then narrow the license one: the
+	// contract now carries numeric enums too (SchemaPageSize is 25/50/100), so a
+	// shared `[]string` field would reject the whole document.
 	var doc struct {
 		Components struct {
 			Schemas map[string]struct {
-				Enum []string `json:"enum"`
+				Enum json.RawMessage `json:"enum"`
 			} `json:"schemas"`
 		} `json:"components"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("served spec is not valid JSON: %v", err)
 	}
-	got := doc.Components.Schemas["SchemaLicense"].Enum
+	var got []string
+	if raw := doc.Components.Schemas["SchemaLicense"].Enum; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("served components.schemas.SchemaLicense.enum is not a string enum: %v", err)
+		}
+	}
 	if len(got) == 0 {
 		t.Fatal("served spec has no components.schemas.SchemaLicense enum — the license menu is missing from the served contract")
 	}
@@ -342,8 +350,9 @@ func TestServeOpenAPI_ServesModuleSpec(t *testing.T) {
 }
 
 // wantVillageAPIVersion is the contract version the village serves + enforces. It is
-// the consumer-side pin on the module's schema.VillageAPIVersion.
-const wantVillageAPIVersion = "0.35.0"
+// the consumer-side pin on the module's schema.VillageAPIVersion. It moved to
+// 0.36.0 with the flat transcript list's per_page/next_items envelope.
+const wantVillageAPIVersion = "0.36.0"
 
 // TestPinnedContractVersion_MatchesExpected asserts the pinned schema module reports
 // the contract version the village expects. The schema repo's go-apidiff gate

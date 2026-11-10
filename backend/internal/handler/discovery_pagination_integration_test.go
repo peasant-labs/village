@@ -138,33 +138,25 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, p
 	if w.Code != http.StatusOK {
 		t.Fatalf("ListTranscripts(%s) status = %d, want 200 (body: %s)", target, w.Code, w.Body.String())
 	}
-	var resp struct {
-		Transcripts []struct {
-			Transcript struct {
-				ID string `json:"id"`
-			} `json:"transcript"`
-		} `json:"transcripts"`
-		NextItems []struct {
-			Transcript struct {
-				ID string `json:"id"`
-			} `json:"transcript"`
-		} `json:"next_items"`
-		Total   int64 `json:"total"`
-		Page    int   `json:"page"`
-		PerPage int   `json:"per_page"`
-	}
+	// Decode the REAL response into the contract's own type and run its
+	// validation: every case below therefore also proves the served envelope is
+	// exactly schema.VillageTranscriptListResponse, not a lookalike.
+	var resp schema.VillageTranscriptListResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode list response for %s: %v\nbody: %s", target, err, w.Body.String())
+		t.Fatalf("decode list response for %s into schema.VillageTranscriptListResponse: %v\nbody: %s", target, err, w.Body.String())
+	}
+	if err := resp.Validate(); err != nil {
+		t.Fatalf("list response for %s does not satisfy schema.VillageTranscriptListResponse.Validate: %v", target, err)
 	}
 	ids := make([]string, 0, len(resp.Transcripts))
 	for _, row := range resp.Transcripts {
-		ids = append(ids, row.Transcript.ID)
+		ids = append(ids, row.Transcript.ID.String())
 	}
 	nextIDs := make([]string, 0, len(resp.NextItems))
 	for _, row := range resp.NextItems {
-		nextIDs = append(nextIDs, row.Transcript.ID)
+		nextIDs = append(nextIDs, row.Transcript.ID.String())
 	}
-	return discoveryResponse{IDs: ids, NextIDs: nextIDs, Total: resp.Total, Page: resp.Page, PerPage: resp.PerPage}
+	return discoveryResponse{IDs: ids, NextIDs: nextIDs, Total: int64(resp.Total), Page: resp.Page, PerPage: resp.PerPage}
 }
 
 func equalIDs(got, want []string) bool {

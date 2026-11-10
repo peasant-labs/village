@@ -12,11 +12,12 @@ import (
 //go:embed testdata/published_schema.yaml
 var publishedSchemaYAML []byte
 
-// The digest is the independently downloaded v0.41.0 GitHub release asset,
-// not a checksum calculated from the server under test. Keep the literal
-// version guard as well: both bytes and intended contract version must match.
-// The Village API moved from 0.34.0 to 0.35.0 in v0.41.0 (the optional turn
-// controlKind field), so the bytes and the digest changed with it.
+// The digest is the independently downloaded v0.44.0 GitHub release asset
+// (village-api-0.36.0.json), not a checksum calculated from the server under
+// test. Keep the literal version guard as well: both bytes and intended
+// contract version must match. The Village API moved from 0.35.0 to 0.36.0 in
+// v0.44.0 (the flat transcript list's per_page and next_items), so the bytes
+// and the digest changed with it.
 func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	fixture, err := decodeSingleYAMLDocument[struct {
 		Name    string `yaml:"name"`
@@ -27,7 +28,7 @@ func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Name != "published-village-api-0.35.0" || fixture.Module != "v0.41.0" {
+	if fixture.Name != "published-village-api-0.36.0" || fixture.Module != "v0.44.0" {
 		t.Fatal("published artifact identity changed; review the actual release before updating this fixture")
 	}
 	rec := httptest.NewRecorder()
