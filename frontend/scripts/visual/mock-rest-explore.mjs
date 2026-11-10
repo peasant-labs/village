@@ -455,7 +455,7 @@ const filterTranscripts = (url) => {
     return String(b.transcript.session_start || b.transcript.session_end || '').localeCompare(String(a.transcript.session_start || a.transcript.session_end || ''))
   })
 
-  const start = (page - 1) * limit
+  const start = (page - 1) * perPage
   const items = rows.slice(start, start + perPage)
   return { transcripts: items, total: rows.length, agent_total: agentTotal, page, per_page: perPage, next_items: rows.slice(start + perPage, start + 2 * perPage) }
 }
