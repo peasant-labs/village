@@ -943,7 +943,7 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			}
 
 			// Flat list, filtered to this world's sessions.
-			status, body = w.get(t, router, viewer, "/transcripts?limit=100&q="+url.QueryEscape("posession"))
+			status, body = w.get(t, router, viewer, "/transcripts?per_page=100&q="+url.QueryEscape("posession"))
 			if status != http.StatusOK {
 				t.Fatalf("list answered %d: %s", status, body)
 			}
@@ -1023,7 +1023,7 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 					} else {
 						view = ""
 					}
-					status, body = w.get(t, router, viewer, "/transcripts?limit=100&"+filter+view)
+					status, body = w.get(t, router, viewer, "/transcripts?per_page=100&"+filter+view)
 					if status != http.StatusOK {
 						t.Fatalf("filtered list %s%s answered %d: %s", filter, view, status, body)
 					}

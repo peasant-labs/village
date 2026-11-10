@@ -47,7 +47,7 @@ vi.mock("@/lib/adapters/explore", () => ({
   // Passthrough: surface the displayed list response's page so the test can
   // assert which page's rows page.tsx chose to present.
   adaptExplore: (list: TranscriptListResponse) => ({
-    transcripts: { transcripts: [], total: list.total, page: list.page, limit: list.limit },
+    transcripts: { transcripts: [], total: list.total, page: list.page, limit: list.per_page },
     collectives: [],
     popularTags: [],
   }),
@@ -84,7 +84,7 @@ let currentQuery = "";
 const dataObjects = new Map<string, TranscriptListResponse>(
   Object.entries(fixtures.data).map(([id, value]) => [
     id,
-    { transcripts: [], total: value.total, agent_total: 0, page: value.page, limit: value.limit },
+    { transcripts: [], total: value.total, agent_total: 0, page: value.page, per_page: value.limit, next_items: [] },
   ]),
 );
 

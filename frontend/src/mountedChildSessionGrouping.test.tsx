@@ -13,7 +13,7 @@ import {
   installProjectRouteREST,
   renderProjectRoute,
 } from "@/test/mountedProjectRoute";
-import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { asTranscriptListRow, makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { HomeTranscriptCase } from "@/test/homePageFixtures";
 import type { TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
@@ -207,25 +207,27 @@ function parentsOf(testCase: ChildSessionGroupingCase): Map<string, string | nul
 
 function listResponse(testCase: ChildSessionGroupingCase): TranscriptListResponse {
   return {
-    transcripts: testCase.rows.map((row) => wireItem(row, "user", parentsOf(testCase).get(row.name) ?? null)),
+    transcripts: testCase.rows.map((row) => asTranscriptListRow(wireItem(row, "user", parentsOf(testCase).get(row.name) ?? null))),
     // The server's own count for the active filters. A case whose result set is
     // larger than one response reports more than it carries, which is what the
     // real paged endpoint does.
     total: testCase.serverTotal,
     agent_total: testCase.agentSessions.length,
     page: 1,
-    limit: 24,
+    per_page: 25,
+    next_items: [],
   };
 }
 
 /** The `origin=agent` scope, which the server serves separately. */
 function agentListResponse(testCase: ChildSessionGroupingCase): TranscriptListResponse {
   return {
-    transcripts: testCase.agentSessions.map((id) => wireItem(agentRow(id), "agent")),
+    transcripts: testCase.agentSessions.map((id) => asTranscriptListRow(wireItem(agentRow(id), "agent"))),
     total: testCase.agentSessions.length,
     agent_total: testCase.agentSessions.length,
     page: 1,
-    limit: 24,
+    per_page: 25,
+    next_items: [],
   };
 }
 
@@ -380,9 +382,9 @@ function homeRows(testCase: ChildSessionGroupingCase): HomeTranscriptCase[] {
 describe("the home page lists a started session inside its parent's chip", () => {
   for (const testCase of casesFor("home")) {
     it(testCase.name, async () => {
-      showHomeAsFlatList();
+      const flatPath = showHomeAsFlatList();
       installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: homeRows(testCase) });
-      await renderAppRoute("/");
+      await renderAppRoute(flatPath);
       await flush();
 
       const table = await screen.findByTestId("home-transcripts");

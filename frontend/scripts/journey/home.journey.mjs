@@ -32,8 +32,15 @@ async function expectNoSeriousAxe(page, testInfo) {
 
 /** Shows every row as one flat list, the way a person who chose it sees it. */
 async function groupByNothing(page) {
-  await page.getByTestId('home-group-by').getByRole('button').first().click()
+  await page.getByRole('button', { name: /^group by: / }).click()
   await page.getByRole('radio', { name: 'nothing' }).click()
+}
+
+/** One row's cell for a column, by the header order the reader sees. */
+function cellOf(row, headers, name) {
+  const index = headers.indexOf(name)
+  if (index < 0) throw new Error(`the table draws no ${name} column`)
+  return row.locator('td').nth(index)
 }
 
 test.describe('home', () => {
@@ -55,32 +62,36 @@ test.describe('home', () => {
     await expect(page.getByTestId('home-recent')).toHaveCount(0)
     await expect(page.locator('.on-home-library')).toHaveCount(1)
 
-    // The table opens grouped by project with every group closed; one control
-    // opens them all.
-    const groups = page.locator('[data-testid="home-table"] tr.is-group button')
-    await expect(groups.first()).toHaveAttribute('aria-expanded', 'false')
-    await expect(page.getByTestId('home-transcript-row')).toHaveCount(0)
-    await page.getByRole('button', { name: 'expand all' }).click()
+    // The shared table opens grouped by project, every group open, and every
+    // host column the default saved view shows.
+    const groupToggles = page.locator('[data-row-kind="group"] .libt-group-toggle')
+    await expect(groupToggles).not.toHaveCount(0)
+    await expect(groupToggles.first()).toHaveAttribute('aria-expanded', 'true')
     const rows = page.getByTestId('home-transcript-row')
     await expect(rows).toHaveCount(HOME_ROWS.length)
     for (const row of HOME_ROWS) {
-      await expect(page.getByTestId('home-table').getByRole('link', { name: row.title, exact: true })).toHaveAttribute(
+      await expect(page.getByTestId('home-transcripts').getByRole('link', { name: row.title, exact: true })).toHaveAttribute(
         'href',
         `/transcripts/${row.id}?in=home`,
       )
     }
 
-    // The agent column leads with the provider's mark beside its name.
-    const agent = page.locator('[data-testid="home-table"] td[data-col="agent"]').first()
+    // The agent column leads with the provider's mark beside its name. The
+    // header order is the reader's own: transcript, project, who can read,
+    // agent, when.
+    const headers = await page.locator('[data-testid="home-transcripts"] thead th').allInnerTexts()
+    const firstRow = page.locator('[data-row-kind="row"]').first()
+    const agent = cellOf(firstRow, headers, 'agent')
     await expect(agent.locator('svg[data-brand]')).toHaveAttribute('data-brand', 'claude')
     await expect(agent).toHaveText('claude-code')
 
     // The pull requests column is one the person turns on: two numbers, then
     // the true count of the rest.
-    await page.getByTestId('home-columns').getByRole('button', { name: 'columns' }).click()
+    await page.getByRole('button', { name: /^columns: / }).click()
     await page.getByRole('checkbox', { name: 'pull requests' }).click()
     await page.keyboard.press('Escape')
-    const first = page.locator('[data-testid="home-table"] td[data-col="pullRequests"]').first()
+    const withPullRequests = await page.locator('[data-testid="home-transcripts"] thead th').allInnerTexts()
+    const first = cellOf(page.locator('[data-row-kind="row"]').first(), withPullRequests, 'pull requests')
     await expect(first.getByRole('list', { name: 'pull requests' })).toContainText('#45')
     await expect(first.getByRole('link', { name: '2 more pull requests on the transcript page' })).toHaveText('+2')
 
@@ -105,7 +116,7 @@ test.describe('home', () => {
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
     await page.reload()
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
-    await expect(page.getByTestId('home-group-by')).toContainText('group by: nothing')
+    await expect(page.getByRole('button', { name: /^group by: / })).toContainText('group by: nothing')
   })
 
   test('searches your transcripts', async ({ page, theme }, testInfo) => {
@@ -118,8 +129,7 @@ test.describe('home', () => {
     const search = page.getByRole('searchbox', { name: 'search your transcripts' })
     await search.fill('fix')
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(1)
-    await expect(page.getByTestId('home-table').getByRole('link', { name: 'Fix flaky ingest test', exact: true })).toBeVisible()
-    await expect(page.getByTestId('home-count')).toHaveText('1 of 1 transcript')
+    await expect(page.getByTestId('home-transcripts').getByRole('link', { name: 'Fix flaky ingest test', exact: true })).toBeVisible()
 
     await expectNoSeriousAxe(page, testInfo)
     await evidence(page, testInfo, 'home-search', page.getByTestId('home-page'))
@@ -136,8 +146,11 @@ test.describe('home', () => {
     await page.goto('/')
     await expect(page.getByTestId('home-page')).toBeVisible()
     await expectTheme(page, theme)
-    await page.getByRole('button', { name: 'expand all' }).click()
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
+    // The wide table scrolls inside its own box, so the page itself never
+    // scrolls sideways.
+    const tableBox = page.locator('[data-testid="home-transcripts"] .tbl-scroll')
+    await expect(tableBox).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow).toBeLessThanOrEqual(0)
   })

@@ -1,4 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
+import type { License, SessionOutcome, SourceFormat, VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -146,7 +147,7 @@ export interface Transcript {
    *  owner, or null when it resolved none. */
   parent_transcript_id: string | null;
   ingested_at: string | null;
-  source_format: string | null;
+  source_format: SourceFormat | null;
   git_branch: string | null;
   git_remote: string | null;
   /*
@@ -198,11 +199,11 @@ export interface Transcript {
   duration_ms: number | null;
   tokens_in: number | null;
   tokens_out: number | null;
-  subagents: unknown[] | null;
+  subagents: Record<string, unknown>[] | null;
   diagnostics_warnings: DiagnosticEntry[] | null;
   diagnostics_partial: boolean | null;
   title_generated: string | null;
-  outcome: string | null;
+  outcome: SessionOutcome | null;
   files_touched: number | null;
   lines_changed: number | null;
   retry_loops: number | null;
@@ -229,7 +230,7 @@ export interface Transcript {
   computed_at: string | null;
   compute_version: number | null;
   content_hash: string | null;
-  license_id: string | null;
+  license_id: License | null;
   /**
    * Who drove the session. Discovery metadata only: an `agent` row is
    * collapsed into a labelled group instead of occupying a root-level list,
@@ -317,7 +318,7 @@ interface EnrichedTranscriptShare {
   group_id: string;
   group_name: string;
   acceptance_mode: "open" | "verified_only" | "curated";
-  status: string;
+  status: VillageShareStatus;
   shared_at: string;
 }
 
@@ -415,32 +416,33 @@ export interface TranscriptRow {
   transcript: Transcript;
   /** The owner as the server resolved them for this viewer. */
   owner: PublicOwner;
-  shares?: { group_name: string }[];
+  /** The contract allows a null shares array; a reader treats null as none. */
+  shares?: { group_name: string }[] | null;
 }
 
 export interface TranscriptListItem {
   transcript: Transcript;
   tags: Tag[];
   owner: PublicOwner;
-  shares?: EnrichedTranscriptShare[];
-  attestations?: AttestationSummary[];
+  /** The contract allows null for either collection; a reader treats null as
+   *  none. */
+  shares?: EnrichedTranscriptShare[] | null;
+  attestations?: AttestationSummary[] | null;
   /** The pull requests this row is attached to that the caller may read: how
    *  many, and up to three of the newest. Absent on a row from a server that
    *  predates the summary, which a reader treats as none. */
   pull_requests?: VillagePullRequestsSummary;
 }
 
-export interface TranscriptListResponse {
-  transcripts: TranscriptListItem[];
-  total: number;
-  /**
-   * How many agent-driven sessions the SAME filters match. The listed rows
-   * never include them, so this is what the collapsed group counts.
-   */
-  agent_total: number;
-  page: number;
-  limit: number;
-}
+/**
+ * One page of the transcript list, derived from the contract rather than
+ * mirrored here: this type IS `schema.VillageTranscriptListResponse`, so a
+ * renamed or dropped field fails the frontend build instead of drifting from
+ * the served document. The explicit page values are held to the request by the
+ * query guard, and the view keeps `TranscriptListItem` for the row shape the
+ * app renders (the contract's row is a superset of it).
+ */
+export type TranscriptListResponse = VillageTranscriptListResponse;
 
 export interface TranscriptDetailResponse {
   transcript: Transcript;

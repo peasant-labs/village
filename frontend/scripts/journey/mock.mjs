@@ -178,7 +178,7 @@ const server = createServer(async (req, res) => {
   if (await handleHomeRequest(req, res, scenario)) return
 
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
-    return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
+    return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, per_page: 25, next_items: [] })
   }
 
   // The owned transcript: its turns are the transcript mock's own content, and

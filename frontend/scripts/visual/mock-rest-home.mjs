@@ -396,7 +396,8 @@ const server = createServer((req, res) => {
       total: rows.length,
       agent_total: 0,
       page: Number(url.searchParams.get('page') || '1'),
-      limit: Number(url.searchParams.get('limit') || '24'),
+      per_page: Number(url.searchParams.get('per_page') || '25'),
+      next_items: [],
     })
   }
   const membersMatch = path.match(/^\/transcript-groups\/([^/]+)\/members$/)

@@ -8,12 +8,12 @@
 # strict typing, exact keys, unique names, referential integrity of every dataId,
 # and that displayedPage is present exactly for the `explore` branch.
 #
-# total 50 at limit 24 => 3 pages, so "of 3" in the loaded status text.
+# total 60 at the 25-row page size => 3 pages, so "of 3" in the loaded status text.
 
 data:
-  page1: { page: 1, total: 50, limit: 24 }
-  page2: { page: 2, total: 50, limit: 24 }
-  page3: { page: 3, total: 50, limit: 24 }
+  page1: { page: 1, total: 60, limit: 25 }
+  page2: { page: 2, total: 60, limit: 25 }
+  page3: { page: 3, total: 60, limit: 25 }
 
 scenarios:
   - name: page-transition-error-and-exact-key-retry

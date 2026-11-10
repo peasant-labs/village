@@ -1942,6 +1942,76 @@ func unshareAndNarrow(ctx context.Context, q Querier, transcriptID, groupID pgty
 	return true, nil
 }
 
+// transcriptListPage is the parsed offset-page intent of GET /api/v1/transcripts:
+// the one-based page, the closed page-size member, and the row offset they
+// imply. `next_items` and `total` come from the same read, so the page number is
+// the only client-supplied paging state.
+type transcriptListPage struct {
+	page    int
+	perPage schema.PageSize
+	offset  int
+}
+
+// pageSizeMenu renders the closed set from schema.AllPageSizes, so the handler
+// never restates 25, 50, or 100 or drifts when the contract widens.
+func pageSizeMenu() string {
+	members := make([]string, len(schema.AllPageSizes))
+	for i, size := range schema.AllPageSizes {
+		members[i] = size.String()
+	}
+	return strings.Join(members, ", ")
+}
+
+// transcriptListResponse is the wire envelope of GET /api/v1/transcripts. Its
+// six fields are the contract's schema.VillageTranscriptListResponse fields, in
+// the contract's order; the rows keep the handler's existing public projections
+// (transcript, tags, owner, owner_orgs, shares, attestations, pull_requests) and
+// are asserted against the contract's row type by the response-shape test. The
+// envelope is typed rather than a map so a renamed or dropped top-level field
+// cannot compile.
+type transcriptListResponse struct {
+	Transcripts []map[string]any `json:"transcripts"`
+	NextItems   []map[string]any `json:"next_items"`
+	Total       int              `json:"total"`
+	AgentTotal  int              `json:"agent_total"`
+	Page        int              `json:"page"`
+	PerPage     int              `json:"per_page"`
+}
+
+// parseTranscriptListPage reads the page and per_page a list request carries.
+// An omitted page is page one. An omitted per_page is the contract's 25-row
+// default; any other value must be a schema.PageSize member, and an out-of-set
+// value is refused rather than quietly answered at a different size. The
+// refusal happens before either read, so a hand-built URL fails closed.
+func parseTranscriptListPage(q url.Values) (transcriptListPage, error) {
+	page := 1
+	if raw := strings.TrimSpace(q.Get("page")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	perPage := schema.PageSize25
+	if raw := strings.TrimSpace(q.Get("per_page")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return transcriptListPage{}, fmt.Errorf(
+				"per_page %q is not a whole number: GET /api/v1/transcripts accepts only the closed page sizes %s, so no transcript page was returned; omit per_page for the %s-row default or request one of the listed sizes",
+				raw, pageSizeMenu(), schema.PageSize25.String(),
+			)
+		}
+		size, err := schema.NewPageSize(parsed)
+		if err != nil {
+			return transcriptListPage{}, fmt.Errorf(
+				"per_page %d is outside the closed page-size set: GET /api/v1/transcripts accepts only %s, so no transcript page was returned; omit per_page for the %s-row default or request one of the listed sizes",
+				parsed, pageSizeMenu(), schema.PageSize25.String(),
+			)
+		}
+		perPage = size
+	}
+	return transcriptListPage{page: page, perPage: perPage, offset: (page - 1) * int(perPage)}, nil
+}
+
 func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("view") == "grouped" {
 		h.listGroupedTranscripts(w, r)
@@ -1950,15 +2020,12 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	q := r.URL.Query()
 
-	page, _ := strconv.Atoi(q.Get("page"))
-	if page < 1 {
-		page = 1
+	paging, err := parseTranscriptListPage(q)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	limit, _ := strconv.Atoi(q.Get("limit"))
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
-	offset := (page - 1) * limit
+	page, perPage, offset := paging.page, paging.perPage, paging.offset
 
 	baseFrom := `FROM transcripts t
 		LEFT JOIN transcript_tags tt ON t.id = tt.transcript_id
@@ -2096,7 +2163,12 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	// `agent_total` disagree with the rows on the returned page. selectArgs is
 	// built without aliasing the shared args backing array so the count reads are
 	// unaffected by the appended LIMIT/OFFSET.
-	selectArgs := append(append([]any{}, args...), limit, offset)
+	// The page read carries the requested page plus up to one more page, so
+	// `next_items` can state the following page's group keys without a second
+	// read. The bound is 2*perPage, so a full second page still proves another
+	// page follows it.
+	scanLimit := 2 * int(perPage)
+	selectArgs := append(append([]any{}, args...), scanLimit, offset)
 	snapshot, err := h.listDiscoverySnapshot(r.Context(), discoverySnapshotRequest{
 		countQuery:      countQuery,
 		countArgs:       args,
@@ -2273,9 +2345,18 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transcripts := []map[string]any{}
-	for _, p := range parsed {
-		transcripts = append(transcripts, map[string]any{
+	// The read carries the requested page and then up to one more page. The
+	// first `perPage` rows are the page; the rest are `next_items`, so a host
+	// can pre-compute the group keys of the following page without a second
+	// request. A full second page is fine: only an empty next_items means the
+	// traversal is done. An out-of-range page reads no rows, so both arrays are
+	// empty and the client clamps from the echoed total.
+	pageRows := len(parsed)
+	if pageRows > int(perPage) {
+		pageRows = int(perPage)
+	}
+	rowJSON := func(p parsedTranscript) map[string]any {
+		return map[string]any{
 			"transcript":    listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]).withParent(parents.of(p.t.ID)).withholdRepository(p.owner),
 			"tags":          p.tags,
 			"owner":         p.owner,
@@ -2283,18 +2364,33 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 			"shares":        sharesByTranscript[p.t.ID],
 			"attestations":  attestsByTranscript[p.t.ID],
 			"pull_requests": pullRequests[p.t.ID],
-		})
+		}
+	}
+	transcripts := make([]map[string]any, 0, pageRows)
+	for _, p := range parsed[:pageRows] {
+		transcripts = append(transcripts, rowJSON(p))
+	}
+	nextItems := make([]map[string]any, 0, len(parsed)-pageRows)
+	for _, p := range parsed[pageRows:] {
+		nextItems = append(nextItems, rowJSON(p))
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"transcripts": transcripts,
-		"total":       total,
+	writeJSON(w, http.StatusOK, transcriptListResponse{
+		Transcripts: transcripts,
+		// The following page's rows, for the table's group-continuation keys.
+		// Empty when the requested page is the last one reachable.
+		NextItems: nextItems,
+		Total:     int(total),
 		// How many agent-driven sessions the SAME filters match, so a client can
 		// render the collapsed "+ N agent sessions" group without guessing or
 		// issuing a second speculative request.
-		"agent_total": snapshot.agentTotal,
-		"page":        page,
-		"limit":       limit,
+		AgentTotal: int(snapshot.agentTotal),
+		Page:       page,
+		// The closed page size the page was read at, echoed so the client can
+		// divide `total` into real page numbers. The server never clamps a page:
+		// it echoes the requested page and returns an empty list when it is out
+		// of range, and the client requests the last page in a second step.
+		PerPage: int(perPage),
 	})
 }
 

@@ -23,6 +23,12 @@ function assertPageMatches(page: number, limit: number, response: { page: number
  * The global/profile/project query uses the server's complete grouped page, not
  * a client fold over a flat page. Owner/project inputs must be settled before
  * enabling the query; an empty owner is global discovery, not an owner lookup.
+ *
+ * Vocabulary note (follow-up): this envelope is its own contract and still
+ * names its page size `limit` and its count `totalItems`, while the flat
+ * transcript list now serves `per_page` and `next_items`. Aligning the two
+ * vocabularies is a separate contract change; this read must not be renamed
+ * ahead of it.
  */
 export function useGroupedTranscripts(
   params: Record<string, string>,

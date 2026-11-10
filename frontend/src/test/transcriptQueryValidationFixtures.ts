@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 
 export type QueryValidationAction = "settle" | "retry" | "seededNewKey";
-export type QueryValidationResponse = { page: number; limit: number; total: number };
+export type QueryValidationResponse = { page: number; per_page: number; total: number };
 export type QueryValidationFixture = {
   name: string;
   action: QueryValidationAction;
@@ -60,8 +60,8 @@ export function loadTranscriptQueryValidationFixtures(): QueryValidationFixture[
     if (!Array.isArray(raw.responses) || raw.responses.length === 0) throw new Error(`${raw.name} responses must be nonempty`);
     const responses = raw.responses.map((response, responseIndex): QueryValidationResponse => {
       if (!isObject(response)) throw new Error(`${raw.name} response ${responseIndex} must be an object`);
-      assertKeys(response, ["page", "limit", "total"], [], `${raw.name} response ${responseIndex}`);
-      if (![response.page, response.limit, response.total].every(Number.isSafeInteger)) {
+      assertKeys(response, ["page", "per_page", "total"], [], `${raw.name} response ${responseIndex}`);
+      if (![response.page, response.per_page, response.total].every(Number.isSafeInteger)) {
         throw new Error(`${raw.name} response ${responseIndex} values must be safe integers`);
       }
       return response as QueryValidationResponse;

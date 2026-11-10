@@ -34,10 +34,10 @@ it("keeps both discovery searches reachable, retains filters, and focuses the vi
     if (url.pathname.endsWith("/tags/popular")) return Response.json([]);
     if (url.pathname.endsWith("/transcripts")) {
       const page = Number(url.searchParams.get("page") ?? 1);
-      const limit = Number(url.searchParams.get("limit") ?? 20);
+      const perPage = Number(url.searchParams.get("per_page") ?? 25);
       return Response.json(url.searchParams.get("view") === "grouped"
-        ? { items: [], page, limit, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 }
-        : { transcripts: [], page, limit, total: 0, agent_total: 0 });
+        ? { items: [], page, limit: Number(url.searchParams.get("limit") ?? 20), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 }
+        : { transcripts: [], page, per_page: perPage, total: 0, agent_total: 0, next_items: [] });
     }
     return collectivesFetch(input, init);
   });

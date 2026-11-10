@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, expect, it, vi } from "vitest";
 import RootPage from "@/app/page";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { asTranscriptListRow, makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { showHomeAsFlatList } from "@/test/mountedHomeRoute";
 import {
   loadGroupedHelperMountFixtures,
@@ -11,7 +11,7 @@ import {
   memberPageFor,
   memberUUID,
 } from "@/test/groupedHelperMountFixtures";
-import type { TranscriptListItem, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
@@ -114,13 +114,14 @@ function installREST(): Calls {
             helperThreadTotal: fixtures.groups.owner.helperThreadCount + 1,
           });
         }
-        const item: TranscriptListItem = { transcript: ownerTranscript, tags: [], owner: profileOwner(OWNER_USER) };
+        const item = asTranscriptListRow({ transcript: ownerTranscript, tags: [], owner: profileOwner(OWNER_USER) });
         return json({
           transcripts: [item],
           total: 1,
           agent_total: 0,
           page: Number(url.searchParams.get("page") ?? 1),
-          limit: Number(url.searchParams.get("limit") ?? 24),
+          per_page: Number(url.searchParams.get("per_page") ?? 25),
+          next_items: [],
         });
       }
       if (url.pathname.includes("/transcript-groups/")) {
@@ -166,7 +167,7 @@ function groupTrigger(groupId: string): HTMLButtonElement {
 }
 
 it("home attaches the grouped helper group to its owner row and expands it in place", async () => {
-  showHomeAsFlatList();
+  window.history.replaceState({}, "", showHomeAsFlatList());
   const calls = installREST();
   await renderHome();
 

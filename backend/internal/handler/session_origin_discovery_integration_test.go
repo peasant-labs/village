@@ -144,7 +144,7 @@ func TestListTranscripts_SessionOriginScope_RealPostgres(t *testing.T) {
 
 	for _, request := range fixture.Requests {
 		t.Run(request.Name, func(t *testing.T) {
-			url := fmt.Sprintf("/api/v1/transcripts?limit=100&owner=%s", ownerLogin[request.OwnerFilter])
+			url := fmt.Sprintf("/api/v1/transcripts?per_page=100&owner=%s", ownerLogin[request.OwnerFilter])
 			if request.Origin != "" {
 				url += "&origin=" + request.Origin
 			}
@@ -255,7 +255,7 @@ func TestGetTranscript_AgentSessionStillResolves_RealPostgres(t *testing.T) {
 	stored := govStoreWithOrigin(t, ctx, h, owner, "origin-deeplink-agent", sessionorigin.Agent, dbVisibilityPublic)
 	id := uuid.UUID(stored.ID.Bytes).String()
 
-	list := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts?limit=100&owner=origin-deeplink-owner", nil)
+	list := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts?per_page=100&owner=origin-deeplink-owner", nil)
 	listRecorder := httptest.NewRecorder()
 	h.ListTranscripts(listRecorder, list)
 	if listRecorder.Code != http.StatusOK {

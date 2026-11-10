@@ -107,9 +107,23 @@ describe("mounted routes: which surface each visitor lands on", () => {
 
 });
 
+/** The shared table's column headers, in drawn order. */
+function columnLabels(): string[] {
+  return [...document.querySelectorAll('[data-testid="home-transcripts"] thead th')].map(text);
+}
+
+/** One row's cell for a column, found by the header the reader sees. */
+function cellOf(tr: Element, column: string): Element {
+  const index = columnLabels().indexOf(column);
+  if (index < 0) throw new Error(`the table has no ${column} column; it draws ${columnLabels().join(", ")}`);
+  const td = tr.querySelectorAll("td")[index];
+  if (td == null) throw new Error(`the row has no ${column} cell`);
+  return td;
+}
+
 /** The top-level rows of the transcripts table, as the reader sees them. */
 function tableRows(): HTMLTableRowElement[] {
-  return [...document.querySelectorAll<HTMLTableRowElement>('[data-testid="home-transcripts"] tr[data-testid="home-row"]')];
+  return [...document.querySelectorAll<HTMLTableRowElement>('[data-testid="home-transcripts"] tr[data-row-kind="row"]')];
 }
 
 /** The title a table row leads with. */
@@ -117,11 +131,41 @@ function rowTitle(tr: Element): string {
   return tr.querySelector('[data-testid="home-transcript-row"] > a')?.textContent ?? "";
 }
 
-/** A row's cell for one of the table's columns. */
-function cellOf(tr: Element, column: string): Element {
-  const td = tr.querySelector(`td[data-col="${column}"]`);
-  if (td == null) throw new Error(`the row has no ${column} cell`);
-  return td;
+/** The numbered pager's own words: "page N of M". */
+function pageStatus(): string {
+  return text(document.querySelector('[data-testid="home-transcripts"] .libt-page-status'));
+}
+
+/** The compact continuation rows on the table, if any. */
+function continuationRows(): Element[] {
+  return [
+    ...document.querySelectorAll('[data-testid="home-transcripts"] tr[data-row-kind="continuation"]'),
+  ];
+}
+
+/** A page's declared continuation state, when the case states one. */
+function assertContinuation(expected: boolean | undefined): void {
+  if (expected === undefined) return;
+  const rows = continuationRows();
+  if (expected) {
+    expect(rows.length).toBeGreaterThan(0);
+    expect(text(rows[0])).toContain(", continued");
+  } else {
+    expect(rows.length).toBe(0);
+  }
+}
+
+/** Opens the table's column picker, toggles one column, and closes it. */
+async function toggleColumn(column: string): Promise<void> {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /^columns: / }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("checkbox", { name: column }));
+  });
+  await act(async () => {
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: column }), { key: "Escape" });
+  });
 }
 
 
@@ -142,7 +186,11 @@ function text(el: Element | null | undefined): string {
 describe("mounted home route: your transcripts, their totals and your collectives", () => {
   for (const c of fixtures.homeCases) {
     it(c.name, async () => {
-      showHomeAsFlatList();
+      const flatPath = showHomeAsFlatList();
+      const basePath =
+        c.groupBy === undefined
+          ? flatPath
+          : flatPath.replace("groupBy=none", `groupBy=${c.groupBy}`);
       const backend = installHomeRouteREST({
         viewerUsername: c.viewerUsername,
         transcripts: c.transcripts,
@@ -152,7 +200,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         collectives: c.collectives,
         contributions: c.contributions,
       });
-      await renderAppRoute("/");
+      await renderAppRoute(c.startPage === undefined ? basePath : `${basePath}&page=${c.startPage}`);
 
       const requested = backend.requested;
       const ownerRequests = () =>
@@ -404,7 +452,10 @@ describe("mounted home route: your transcripts, their totals and your collective
       for (const p of ownerRequests()) {
         const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
         expect(query.get("page"), `${p} names its page`).not.toBeNull();
-        expect(query.get("limit"), `${p} names its page size`).not.toBeNull();
+        expect(query.get("per_page"), `${p} names its page size`).not.toBeNull();
+        expect(["25", "50", "100"], `${p} names a schema PageSize member`).toContain(
+          query.get("per_page"),
+        );
       }
 
       // A row that arrived with no project identity is a server contract
@@ -448,14 +499,9 @@ describe("mounted home route: your transcripts, their totals and your collective
       }
 
       for (const cell of c.expectSharedWithCells ?? []) {
-        const td = cellOf(rowTitled(cell.title), "readers");
+        const td = cellOf(rowTitled(cell.title), "who can read");
         const named = [...td.querySelectorAll(".on-readers > span")].map(text);
         expect(named.length > 0 ? named : [text(td)]).toEqual(cell.text);
-        // On a phone the readers column gives way and the row says who can
-        // read it under its title, always, whatever columns are chosen.
-        const readers = rowTitled(cell.title).querySelector('[data-testid="home-row-facts"] [data-fact="readers"]');
-        expect(readers, `${cell.title} says who can read it under its title`).not.toBeNull();
-        expect(text(readers!)).toBe(`who can read: ${cell.text.join(", ")}`);
       }
       for (const mark of c.expectProviderMarks ?? []) {
         const agent = cellOf(rowTitled(mark.title), "agent");
@@ -465,18 +511,16 @@ describe("mounted home route: your transcripts, their totals and your collective
         // what is read, so the mark is not announced a second time.
         expect(text(agent)).toBe(mark.name);
         for (const icon of icons) expect(icon).not.toHaveAttribute("role", "img");
-        // And the title names no provider: the agent has its own column. Only
-        // the phone's facts line under the title, drawn where that column
-        // gives way, names it there.
+        // And the title names no provider: the agent has its own column.
         const titleMarks = [
           ...rowTitled(mark.title).querySelectorAll('[data-testid="home-transcript-row"] svg[data-brand]'),
-        ].filter((icon) => icon.closest('[data-testid="home-row-facts"]') === null);
+        ];
         expect(titleMarks).toEqual([]);
       }
 
       for (const cell of c.expectPullRequestCells ?? []) {
         const tr = rowTitled(cell.title);
-        const td = cellOf(tr, "pullRequests");
+        const td = cellOf(tr, "pull requests");
         const numbers = () => [...td.querySelectorAll(".ovl-item a")].map(text);
         if (cell.shown.length === 0) {
           expect(text(td)).toBe("none");
@@ -536,6 +580,93 @@ describe("mounted home route: your transcripts, their totals and your collective
         }
       }
 
+      // A paged case presses through the numbered pager: every page replaces
+      // the last, each page names its own rows, and there is no load-more
+      // control anywhere in the Library.
+      expect(screen.queryByTestId("home-load-more")).toBeNull();
+      expect(screen.queryByTestId("grouped-helper-fallback")).toBeNull();
+      if (c.clampFrom !== undefined && c.pages !== undefined) {
+        // The cold URL asked for the out-of-range page first, then the last page
+        // in a second request, and the URL now names the page the reader sees.
+        const requested = ownerRequests().map(
+          (p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page"),
+        );
+        expect(requested.slice(0, 2)).toEqual([String(c.clampFrom), String(c.pages[0].page)]);
+        await waitFor(() =>
+          expect(new URL(window.location.href).searchParams.get("page")).toBe(String(c.pages![0].page)),
+        );
+        const perPage = new URL(window.location.href).searchParams.get("perPage");
+        expect(perPage).toBe(String(c.pages[0].perPage));
+      }
+      if (c.pages !== undefined) {
+        const last = Math.max(1, Math.ceil(c.transcripts.length / c.pages[0].perPage));
+        expect(pageStatus()).toBe(`page ${c.pages[0].page} of ${last}`);
+        assertContinuation(c.pages[0].expectContinuationRows);
+        // Every page after the first is reached by the table's own next-page
+        // control, and each response replaces the rows rather than appending.
+        for (const declared of c.pages.slice(c.clampFrom !== undefined ? 1 : 1)) {
+          await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "next page" }));
+          });
+          await waitFor(() => expect(tableTitles()).toEqual(declared.expectRowTitles));
+          expect(pageStatus()).toBe(`page ${declared.page} of ${last}`);
+          expect(
+            new URL(window.location.href).searchParams.get("page"),
+            "the URL names the page the reader sees",
+          ).toBe(String(declared.page));
+          if (declared.toggleColumn !== undefined) {
+            await toggleColumn(declared.toggleColumn);
+          }
+          assertContinuation(declared.expectContinuationRows);
+        }
+      } else if (c.expectHomeSurface === "rows" && c.expectRowTitles.length > 0) {
+        // One page: the pager is absent because there is nowhere to go.
+        expect(ownerRequests().some((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page") === "2")).toBe(false);
+      }
+
+      if (c.returnToPage !== undefined && c.pages !== undefined) {
+        const target = c.pages.find((entry) => entry.page === c.returnToPage)!;
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: "previous page" }));
+        });
+        await waitFor(() => expect(tableTitles()).toEqual(target.expectRowTitles));
+        const last = Math.max(1, Math.ceil(c.transcripts.length / target.perPage));
+        expect(pageStatus()).toBe(`page ${target.page} of ${last}`);
+        expect(new URL(window.location.href).searchParams.get("page")).toBe(String(target.page));
+        // The page that was pressed forward FROM is not adjacent to the page
+        // returned to, so its groups keep their full labels.
+        for (const label of document.querySelectorAll('[data-testid="home-transcripts"] .libt-group-label')) {
+          expect(text(label)).not.toContain(", continued");
+        }
+      }
+
+      // A group that began on the immediately preceding page opens with one
+      // compact continuation row; a cold page or a return has no such
+      // predecessor, so nothing is marked.
+      assertContinuation(c.expectContinuationRows);
+
+      for (const change of c.pageSizeChanges ?? []) {
+        const select = screen.getByRole("combobox", { name: "page size" });
+        await act(async () => {
+          fireEvent.change(select, { target: { value: String(change.to) } });
+        });
+        await waitFor(() => expect(tableTitles()).toEqual(change.expectRowTitles));
+        const last = Math.max(1, Math.ceil(c.transcripts.length / change.to));
+        expect(pageStatus()).toBe(`page 1 of ${last}`);
+        const url = new URL(window.location.href);
+        expect(url.searchParams.get("page"), "a size change resets to page one").toBe("1");
+        expect(url.searchParams.get("perPage")).toBe(String(change.to));
+        // The request that answered the new view asked for page one at the new
+        // size, not for the page the old size was on.
+        expect(
+          ownerRequests().some((p) => {
+            const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
+            return query.get("page") === "1" && query.get("per_page") === String(change.to);
+          }),
+          `the page-size change to ${change.to} requested page one at the new size`,
+        ).toBe(true);
+      }
+
       if (c.search !== undefined) {
         const box = screen.getByRole("searchbox", { name: "search your transcripts" });
         await act(async () => {
@@ -549,6 +680,15 @@ describe("mounted home route: your transcripts, their totals and your collective
             ),
           ).toBe(true),
         );
+        // A search is a different result set: it starts at page one, even
+        // when it was asked from a later page.
+        expect(
+          ownerRequests().some((p) => {
+            const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
+            return query.get("q") === c.search!.query && query.get("page") === "1";
+          }),
+          "the search was asked at page one",
+        ).toBe(true);
         if (c.search.expectRowTitles.length === 0) {
           const noMatch = await screen.findByTestId("home-no-match");
           expect(text(noMatch)).toContain(c.search.query);
@@ -563,27 +703,15 @@ describe("mounted home route: your transcripts, their totals and your collective
         }
       }
 
-      if (c.loadMore !== undefined) {
-        expect(text(screen.getByTestId("home-count"))).toBe(
-          `${c.expectRowTitles.length} of ${c.transcripts.length} transcripts`,
-        );
-        const more = screen.getByTestId("home-load-more");
-        expect(text(more)).toBe(`show ${c.transcripts.length - c.expectRowTitles.length} more`);
-        await act(async () => {
-          fireEvent.click(more);
-        });
-        await waitFor(() => expect(tableTitles()).toEqual(c.loadMore!.expectRowTitles));
-        // The next page was asked for as the NEXT page, not the first again.
-        expect(
-          ownerRequests().some((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page") === "2"),
-        ).toBe(true);
-        expect(screen.queryByTestId("home-load-more")).toBeNull();
-        expect(text(screen.getByTestId("home-count"))).toBe(
-          `${c.transcripts.length} of ${c.transcripts.length} transcripts`,
-        );
-      } else if (c.expectHomeSurface === "rows") {
-        // Everything fits on the first page, so nothing offers more.
-        expect(screen.queryByTestId("home-load-more")).toBeNull();
+      if (c.expectRequestedPages !== undefined) {
+        for (const expected of c.expectRequestedPages) {
+          expect(
+            ownerRequests().some(
+              (p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page") === String(expected),
+            ),
+            `page ${expected} was requested`,
+          ).toBe(true);
+        }
       }
     });
   }

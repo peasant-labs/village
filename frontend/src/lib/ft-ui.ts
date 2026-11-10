@@ -455,6 +455,20 @@ export { BrandMark, RepoPicker } from "@peasant-labs/fairtrade/ui";
 export { formatCount, formatInteger } from "@peasant-labs/fairtrade/ui";
 
 /**
+ * The shared transcript library table and the two host contracts that come with
+ * it. The table is controlled: it renders the rows, page, and saved view the
+ * host gives it and reports changes back, so a host owns the URL and storage.
+ * `groupKeysFor` unions a page's bare group keys; `ColumnAlign` is the closed
+ * alignment set a host column declares.
+ */
+export { ColumnAlign, TranscriptLibraryTable, groupKeysFor } from "@peasant-labs/fairtrade/ui";
+export type {
+  SavedView,
+  TranscriptLibraryColumn,
+  TranscriptLibraryPage,
+} from "@peasant-labs/fairtrade/ui";
+
+/**
  * fairtrade Dialog — a real modal: role=dialog, focus trapped, Escape and the
  * scrim close it, focus returns to the opener. Widened because the published
  * `.d.ts` types every prop as a required `any`, although `footer`,

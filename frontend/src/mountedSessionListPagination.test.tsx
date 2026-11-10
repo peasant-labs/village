@@ -14,6 +14,7 @@ import {
   type PaginationExpect,
 } from "@/test/sessionListPaginationFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { asTranscriptListRow } from "@/test/transcriptRowFixture";
 
 /**
  * Mounted `/` session-pagination evidence.
@@ -33,8 +34,8 @@ import { profileOwner } from "@/test/publicOwnerFixture";
  * against the corrected Explore they pass.
  */
 
-const PAGE_SIZE = 24;
-const TOTAL_ITEMS = 72; // 3 pages at 24/page, so the numbered pager is present.
+const PAGE_SIZE = 25;
+const TOTAL_ITEMS = 72; // 3 pages at 25/page, so the numbered pager is present.
 
 const fixtures = loadSessionListPaginationFixtures();
 
@@ -74,7 +75,7 @@ function wireItem(id: string): TranscriptListItem {
 }
 
 function buildResponse(data: PaginationData): TranscriptListResponse {
-  return { transcripts: data.ids.map(wireItem), total: TOTAL_ITEMS, agent_total: 0, page: data.page, limit: PAGE_SIZE };
+  return { transcripts: data.ids.map((id) => asTranscriptListRow(wireItem(id))), total: TOTAL_ITEMS, agent_total: 0, page: data.page, per_page: PAGE_SIZE, next_items: [] };
 }
 
 function makeRouter(): AppRouterInstance {

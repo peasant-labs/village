@@ -217,7 +217,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
     }
 
     case "home-page": {
-      showHomeAsFlatList();
+      const flatPath = showHomeAsFlatList();
       installHomeRouteREST({
         viewerUsername: content.viewer,
         transcripts:
@@ -234,7 +234,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
               ]
             : [],
       });
-      await renderAppRoute("/");
+      await renderAppRoute(flatPath);
       await screen.findByTestId(c.state === "rows" ? "home-transcripts" : "home-empty-state");
       return screen.getByTestId("home-page");
     }

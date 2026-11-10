@@ -245,7 +245,8 @@ const libraryResponse = {
   total: libraryRows.length,
   agent_total: 0,
   page: 1,
-  limit: 100,
+  per_page: 100,
+  next_items: [],
 }
 
 // ── The collective's own contributions ───────────────────────────────────────

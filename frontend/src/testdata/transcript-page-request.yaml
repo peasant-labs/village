@@ -13,7 +13,7 @@ paramBuilds:
     expectedParams:
       sort: recent
       page: "1"
-      limit: "24"
+      per_page: "25"
 
   - name: deeper-page-keeps-size
     filters:
@@ -25,7 +25,7 @@ paramBuilds:
     expectedParams:
       sort: recent
       page: "3"
-      limit: "24"
+      per_page: "25"
 
   - name: query-is-trimmed
     filters:
@@ -37,7 +37,7 @@ paramBuilds:
     expectedParams:
       sort: recent
       page: "1"
-      limit: "24"
+      per_page: "25"
       q: auth middleware
 
   - name: whitespace-query-and-all-provider-omitted
@@ -50,7 +50,7 @@ paramBuilds:
     expectedParams:
       sort: recent
       page: "2"
-      limit: "24"
+      per_page: "25"
 
   - name: provider-tags-and-order
     filters:
@@ -64,7 +64,7 @@ paramBuilds:
     expectedParams:
       sort: turns
       page: "2"
-      limit: "24"
+      per_page: "25"
       provider: claude-code
       tags: debugging,greenfield
 

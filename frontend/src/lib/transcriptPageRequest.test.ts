@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AllPageSizes, PageSize } from "@peasant-labs/schema";
 import {
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
@@ -11,8 +12,9 @@ import { loadTranscriptPageRequestFixtures } from "@/test/transcriptPageRequestF
 const fixtures = loadTranscriptPageRequestFixtures();
 
 describe("buildTranscriptListParams", () => {
-  it("always requests the explicit Village page size", () => {
-    expect(TRANSCRIPT_PAGE_SIZE).toBe(24);
+  it("always requests a member of the schema page-size set", () => {
+    expect(TRANSCRIPT_PAGE_SIZE).toBe(PageSize.P25);
+    expect(AllPageSizes).toContain(TRANSCRIPT_PAGE_SIZE);
   });
 
   for (const fixture of fixtures.paramBuilds) {

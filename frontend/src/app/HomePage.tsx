@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FileText, Layers, Search, SlidersHorizontal, Terminal } from "lucide-react";
-import { useTranscriptPages } from "@/lib/queries/transcripts";
+import { FileText, Search, Terminal } from "lucide-react";
+import { useTranscripts } from "@/lib/queries/transcripts";
 import { transcriptListFailureNote } from "@/lib/transcriptPageRequest";
-import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { useGroups } from "@/lib/queries/groups";
 import { useMyCollectiveContributions } from "@/lib/queries/collectives";
@@ -17,43 +16,80 @@ import {
 } from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
-import HomeTable from "@/components/home/HomeTable";
 import HomeWaiting from "@/components/home/HomeWaiting";
 import DocsLink from "@/components/online/DocsLink";
 import { DOCS_PUBLISH_URL } from "@/lib/appLinks";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
-import { CheckRow, RadioRow, ViewMenu } from "@/components/online/ViewMenu";
+import { CheckRow, ViewMenu } from "@/components/online/ViewMenu";
 import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
-import { publishedAtDescending } from "@/lib/format";
-import { formatCount, formatInteger } from "@/lib/ft-ui";
+import { formatRelativeTime, publishedAtDescending } from "@/lib/format";
 import {
-  GROUP_BYS,
-  GROUP_BY_LABELS,
-  HOME_COLUMNS,
-  HOME_COLUMN_LABELS,
-  groupRows,
+  ColumnAlign,
+  ProviderName,
+  TranscriptLibraryTable,
+  formatCount,
+  formatInteger,
+  groupKeysFor,
+  type SavedView,
+  type TranscriptLibraryColumn,
+} from "@/lib/ft-ui";
+import { isHarness } from "@/lib/harness";
+import ChildSessionDisclosure from "@/components/transcript/ChildSessionDisclosure";
+import type { TranscriptRowFact } from "@/components/transcript/TranscriptList";
+import PullRequestCell from "@/components/home/PullRequestCell";
+import {
+  ALL_GROUP_BYS,
+  ColumnId,
+  GroupBy,
+  NO_READERS,
+  agentLabel,
+  decodeLibraryView,
+  groupKeysOf,
+  groupLabelOf,
   loadHomeView,
   projectKey,
+  projectLabel,
   projectOptions,
+  readersOf,
   saveHomeView,
+  writeLibraryViewToUrl,
+  type ColumnId as ColumnIdType,
+  type GroupBy as GroupByType,
   type HomeView,
+  type LibraryUrlView,
 } from "@/lib/homeView";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
-import type { TranscriptListItem } from "@/lib/types";
+import type { TranscriptListItem, TranscriptRow } from "@/lib/types";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /**
  * The signed-in landing surface: the caller's own transcripts, their totals,
- * the newest few as cards, and a table the person can filter by project, group
- * and trim to the columns they want.
+ * the newest few as cards, and the shared transcript library table.
  *
  * Every read is the caller's own and already served: the owner-scoped
- * transcript list (a page at a time, with search), `GET /users/me/stats` for
- * the totals, `GET /collectives` for the collectives they belong to, and
+ * transcript list (one numbered page at a time, with search), `GET /users/me/stats`
+ * for the totals, `GET /collectives` for the collectives they belong to, and
  * `GET /users/me/collectives/contributions` for what is still waiting for a
  * collective's approval. The collectives themselves are listed in the sidebar.
+ *
+ * The table is controlled. The URL owns the page, the page size, and the
+ * grouping; this device owns the visible columns and the closed groups. The
+ * host composes one saved view from both halves and reports changes back. No
+ * host re-derives grouping or paging: the table owns group layout, column
+ * visibility, and pager chrome.
  */
+
+/**
+ * The facts a session another session started states when its chip is opened.
+ * No provider: the home list names what a session was about and where, not
+ * which tool recorded it.
+ */
+export const HOME_STARTED_SESSION_FACTS: readonly TranscriptRowFact[] = ["branch", "date", "turns"];
+
+/** How long typing has to pause before the list is asked again. */
+const SEARCH_SETTLE_MS = 250;
 
 /**
  * Whether the viewer's handle is known, still being chosen, or recorded as
@@ -61,12 +97,6 @@ import type { TranscriptListItem } from "@/lib/types";
  * closed set rather than a pair of booleans combined at each branch.
  */
 type HandleState = "known" | "choosing" | "missing";
-
-/** How many transcripts one page of the list asks for, and `load more` adds. */
-export const HOME_PAGE_SIZE = 20;
-
-/** How long typing has to pause before the list is asked again. */
-const SEARCH_SETTLE_MS = 250;
 
 /**
  * The rows a list of parents is shown in, most recently ACTIVE first.
@@ -108,23 +138,18 @@ function counted(n: number, one: string, many: string): { label: string; value: 
   return { label: n === 1 ? one : many, value: n };
 }
 
+/** The last page `total` rows divide into at `perPage`, never below one. The one
+ *  division both the clamp and the pager agree on. */
+function lastPageIndex(total: number, perPage: number): number {
+  return Math.max(1, Math.ceil(total / perPage));
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const username = user?.github_username ?? "";
   // A blank owner filter is DROPPED by the list handler, which would answer
   // with the whole commons under a heading that says "your", so nothing is
   // asked until the viewer's handle is known.
-  //
-  // The three states are named rather than derived from two booleans at each
-  // use, because they are answered differently and only one of them is a
-  // waiting state. `choosing` is on its way to `/welcome` — the handle gate
-  // reads `username_chosen`, so this page only has to hold still. `missing` is
-  // an account that records having chosen a handle while carrying none: a
-  // server contract violation nothing will resolve on its own.
-  // A null user is not an account with a bad handle, it is no answer yet, and
-  // it must never reach the accusation below. `RootPage` does not mount this
-  // page without one, but the guard belongs with the state it describes rather
-  // than with the only caller that happens to hold the line today.
   const handleState: HandleState =
     username.trim() !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
 
@@ -164,38 +189,99 @@ export default function HomePage() {
 function HomeBody({ username }: { username: string }) {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
+
+  // The URL half of the view. Read once on mount (the body only mounts in the
+  // browser) and rewritten on every change, so a copied URL reproduces the data
+  // view and the grouping. The device half is read from storage beside it.
+  const [urlView, setUrlView] = useState<LibraryUrlView>(() =>
+    decodeLibraryView(new URLSearchParams(window.location.search)),
+  );
+  const { page, perPage, groupBy } = urlView;
+
+  const [view, setView] = useState<HomeView>(loadHomeView);
+
+  const applyUrlView = (next: LibraryUrlView) => {
+    setUrlView(next);
+    writeLibraryViewToUrl(next);
+  };
+
+  // Every settled page's rows, keyed by its page number. A continuation row is
+  // derived from the page immediately before the one on screen, so a return to
+  // an earlier page cannot inherit the page it came back from.
+  const [pageRows, setPageRows] = useState<ReadonlyMap<number, { page: number; rows: TranscriptListItem[] }>>(
+    () => new Map(),
+  );
+  const [recordedData, setRecordedData] = useState<NonNullable<typeof list.data> | null>(null);
+  const clearPageHistory = () => setPageRows(new Map());
+
+  // Typing settles into the query the list is asked. A changed question resets
+  // the traversal to page one and forgets the page history: groups keyed to a
+  // different result set cannot continue this one.
   useEffect(() => {
     const settled = draft.trim();
     if (settled === query) return;
-    const timer = setTimeout(() => setQuery(settled), SEARCH_SETTLE_MS);
+    const timer = setTimeout(() => {
+      setQuery(settled);
+      setUrlView((current) => {
+        if (current.page === 1) return current;
+        const next = { ...current, page: 1 };
+        writeLibraryViewToUrl(next);
+        return next;
+      });
+      clearPageHistory();
+    }, SEARCH_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [draft, query]);
 
-  // How the table is arranged on this device, read when the body first mounts
-  // and written back on every change. The body only ever mounts in the browser
-  // (the root route renders nothing of it until the session is known), so the
-  // stored view never disagrees with a server render.
-  const [view, setView] = useState<HomeView>(loadHomeView);
-  const updateView = (next: HomeView) => {
-    setView(next);
-    saveHomeView(next);
-  };
   // The projects this visit hides. Not remembered: a project hidden last week
   // must never make a newly published session look missing.
   const [hiddenProjects, setHiddenProjects] = useState<ReadonlySet<string>>(() => new Set());
 
-  const listParams: Record<string, string> =
-    query === "" ? { owner: username } : { owner: username, q: query };
-  const list = useTranscriptPages(listParams, HOME_PAGE_SIZE);
+  const listParams: Record<string, string> = {
+    owner: username,
+    page: String(page),
+    per_page: String(perPage),
+    ...(query === "" ? {} : { q: query }),
+  };
+  const list = useTranscripts(listParams);
+
+  // Two-step client clamp. The server echoes the requested page and answers an
+  // out-of-range one with no rows; it never clamps. A cold URL therefore asks
+  // for the URL page first, reads the echoed total, and asks for the last page
+  // in a second request.
+  //
+  // The adjustment happens during render, guarded by the condition that will
+  // stop being true once the request intent moves: React re-renders immediately
+  // with the last page, and the next request carries it. An effect would render
+  // the empty page once before correcting it, and a synchronous setState in an
+  // effect is the cascading render the hook rules forbid.
+  const observedLast = lastPageIndex(list.data?.total ?? 0, perPage);
+  if (list.data != null && list.data.page > observedLast && page !== observedLast) {
+    setUrlView({ page: observedLast, perPage, groupBy });
+  }
+
+  // Once a reachable page is in hand, the address names it. This is an external
+  // system write (the browser's URL), not state: a copied address reproduces a
+  // page the server served, including the one a clamp settled on. An
+  // out-of-range response is skipped because the render above is already moving
+  // the request intent to the last page.
+  useEffect(() => {
+    // Placeholder data is the PREVIOUS page's object, not this page's answer.
+    // Writing it back after a page-size change (which resets to page one) would
+    // put the old page number back in the address.
+    if (list.data == null || list.isPlaceholderData) return;
+    const last = lastPageIndex(list.data.total, perPage);
+    if (list.data.page > last) return;
+    writeLibraryViewToUrl({ page: list.data.page, perPage, groupBy });
+  }, [list.data, list.isPlaceholderData, perPage, groupBy]);
 
   // The grouped response is the server's own fold of saved helper threads onto
   // their owner rows. It is a second, independent read of the same route: the
-  // paged list above still owns the rows, the ordinary child chip and the
-  // paging, and the helper groups ride on whichever of those rows the server
-  // placed them on. A grouped read that fails contributes no helper groups; the
-  // rows render exactly as they would without it. Explicit grouped continuation
-  // reaches owners and helper-only contexts beyond the first 100 grouped units;
-  // it does not change the flat rows or automatically expand returned groups.
+  // paged list above still owns the rows and the paging, and the helper groups
+  // ride on whichever of those rows the server placed them on. A grouped read
+  // that fails contributes no helper groups; the rows render exactly as they
+  // would without it. The named explicit continuation stays on the collective
+  // and user pages; the Library has no continuation beyond its numbered pages.
   const grouped = useGroupedTranscriptsPaged({ owner: username, limit: "100" });
   const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
@@ -205,11 +291,11 @@ function HomeBody({ username }: { username: string }) {
   const collectives = useGroups();
   const contributions = useMyCollectiveContributions(true);
 
-  // Rows of the list's OWN answer. While a new search loads, the previous
-  // search's rows stay on screen as a placeholder; they describe a different
-  // question, so no failure or count below may be read from them.
+  // Rows of the list's OWN answer. While a new search or page loads, the
+  // previous response stays on screen as a placeholder; it describes a
+  // different question, so no failure or count below may be read from it.
   const own = list.isPlaceholderData ? undefined : list.data;
-  const listKey = `${username}\u0000${query}`;
+  const listKey = `${username}\u0000${query}\u0000${page}`;
 
   // The failure has to OUTLIVE its own retry. With no rows to fall back on, a
   // refetch puts the query back into its pending state, so `isError` goes false
@@ -217,59 +303,91 @@ function HomeBody({ username }: { username: string }) {
   // a loading state the moment the button was pressed, taking the alert, the
   // focus and the retry with it. The cause is therefore remembered until a
   // request actually succeeds, together with the question it answered, so a
-  // failure recorded for one search never describes another.
-  //
-  // A failed `load more` is not a failed list: the rows already shown are
-  // still right, and that failure is said beside the button instead.
-  const listFailed = list.isError && !list.isFetchNextPageError;
-  // What the panel adds to "could not be loaded", or "" when nothing would help.
+  // failure recorded for one question never describes another.
+  const listFailed = list.isError;
   const reportedCause = listFailed ? (transcriptListFailureNote(list.error) ?? "") : null;
   const [remembered, setRemembered] = useState<{ key: string; cause: string } | null>(null);
-  if (reportedCause !== null && (reportedCause !== remembered?.cause || listKey !== remembered?.key)) {
+  if (reportedCause !== null && (remembered?.key !== listKey || remembered?.cause !== reportedCause)) {
     setRemembered({ key: listKey, cause: reportedCause });
   }
-  // Cleared only by a request that actually answered.
   if (!list.isError && own != null && remembered !== null) {
     setRemembered(null);
   }
   const failureCause = remembered?.key === listKey ? remembered.cause : null;
   const failed = failureCause !== null;
 
-  // A retry that fails again produces the SAME alert text, which a screen
-  // reader will not announce a second time and a sighted reader cannot
-  // distinguish from a button that did nothing. So the request being in flight
-  // is its own visible state on the control, and its own polite announcement.
-  const retrying = failed && list.isFetching && !list.isFetchingNextPage;
+  const retrying = failed && list.isFetching;
   const retryText = retrying ? "retrying" : "retry";
 
-  const pages = list.data?.pages ?? [];
-  const loaded = pages.flatMap((page) => page.transcripts);
-  const total = pages[0]?.total ?? 0;
-  const agentTotal = pages[0]?.agent_total ?? 0;
+  const data = list.data;
+  const loaded = data?.transcripts ?? [];
+  const nextItems = data?.next_items ?? [];
+  const total = data?.total ?? 0;
+  const agentTotal = data?.agent_total ?? 0;
+  const lastPage = lastPageIndex(total, perPage);
+  // The first response to an out-of-range cold URL has no rows to show; the
+  // clamp effect is already asking for the last page. Render neither an empty
+  // page nor a "no transcripts" answer while that second request is in flight.
+  const awaitingClamp = data != null && data.page > lastPage;
   const searching = list.isPlaceholderData;
 
   // Grouped BEFORE ranking, so a row is a session the viewer ran rather than a
-  // session one of their runs started. A session started from inside another
-  // one is published as its own transcript; without the fold a single busy run
-  // would fill the list with its own offspring. A row whose parent is not
-  // loaded keeps its ordinary place, so nothing a person published falls out.
-  //
-  // The ranking below is the page's one recency order: every loaded page is
-  // ordered together by it, so the pages read as one list, and a row that
-  // started nothing ranks by its own timestamp.
+  // session one of their runs started.
   const grouping = groupChildSessions(loaded);
   const childSessions = childSessionsByParentID(grouping);
   const rows = mostRecentGroupFirst(grouping.rootItems, childSessions);
   const malformed = loaded.filter((item) => !item.transcript.project_hash).length;
 
   const projects = projectOptions(rows);
-  const visibleRows = hiddenProjects.size === 0 ? rows : rows.filter((item) => !hiddenProjects.has(projectKey(item)));
-  const groups = groupRows(visibleRows, view.groupBy);
-  const isGrouped = view.groupBy !== "none";
-  const openSet = new Set(view.open);
-  const allOpen = isGrouped && groups.length > 0 && groups.every((g) => openSet.has(g.id));
+  const visibleRows =
+    hiddenProjects.size === 0 ? rows : rows.filter((item) => !hiddenProjects.has(projectKey(item)));
+
+  // The following page's group keys: a group with rows there is marked at the
+  // end of its block. `nextItems` is the server's own following page, so no host
+  // derives a group the server did not serve.
+  const nextGroupKeys =
+    nextItems.length > 0 ? groupKeysFor(nextItems, (row) => groupKeysOf(row, groupBy)) : null;
+  // A group that began on the page immediately before this one opens with one
+  // compact continuation row. A cold URL, or a return to an earlier page, has
+  // no adjacent predecessor held, so its groups keep full headers.
+  const settledPage = data != null && !list.isPlaceholderData ? data.page : null;
+  const priorPage = settledPage == null ? undefined : pageRows.get(settledPage - 1);
+  const continuedRows =
+    priorPage !== undefined && settledPage !== null && priorPage.page === settledPage - 1
+      ? priorPage.rows
+      : null;
+  const continuedGroupKeys =
+    continuedRows !== null && continuedRows.length > 0
+      ? groupKeysFor(continuedRows, (row) => groupKeysOf(row, groupBy))
+      : null;
+
+  // The label map resolves a project hash (or a harness id) to what the row
+  // shows. It is built once for the page and its following page, so a group
+  // header and the row's own cell never disagree.
+  const groupLabels = new Map<string, string>();
+  for (const row of [...visibleRows, ...nextItems]) {
+    for (const key of groupKeysOf(row, groupBy)) {
+      const label =
+        groupBy === GroupBy.Project
+          ? projectLabel(row)
+          : groupBy === GroupBy.Agent
+            ? agentLabel(row)
+            : key;
+      groupLabels.set(`${groupBy.wire}:${key}`, label);
+    }
+  }
 
   const [now] = useState(() => Date.now());
+
+  // Record each settled page once its answer is in hand. Placeholder data is
+  // the previous page's object, not an answer, so it is not recorded. The
+  // guarded render update is React's "adjust state when a response changes"
+  // pattern; an effect would have to set state synchronously, which the hook
+  // rules forbid.
+  if (data != null && !list.isPlaceholderData && data !== recordedData) {
+    setRecordedData(data);
+    setPageRows((current) => new Map(current).set(data.page, { page: data.page, rows: data.transcripts }));
+  }
 
   // Mounted on every branch below, not inside one of them: a polite region has
   // to exist BEFORE its content changes for the change to be announced.
@@ -277,9 +395,7 @@ function HomeBody({ username }: { username: string }) {
     ? "reloading your transcripts"
     : searching
       ? "searching your transcripts"
-      : list.isFetchingNextPage
-        ? "loading more transcripts"
-        : "";
+      : "";
 
   const statItems =
     stats.data == null
@@ -295,15 +411,6 @@ function HomeBody({ username }: { username: string }) {
   const libraryEmpty = own != null && total === 0 && agentTotal === 0 && query === "";
   const showStats = statItems.length > 0 && stats.data!.total_transcripts > 0;
 
-  const toggleGroup = (id: string) => {
-    const open = new Set(view.open);
-    if (open.has(id)) open.delete(id);
-    else open.add(id);
-    updateView({ ...view, open: [...open] });
-  };
-  const toggleAllGroups = () => {
-    updateView({ ...view, open: allOpen ? [] : groups.map((g) => g.id) });
-  };
   const toggleProject = (key: string) => {
     const next = new Set(hiddenProjects);
     if (next.has(key)) next.delete(key);
@@ -313,6 +420,162 @@ function HomeBody({ username }: { username: string }) {
   const shownProjects = projects.filter((p) => !hiddenProjects.has(p.key)).length;
   const projectsLabel =
     shownProjects === projects.length ? "all" : shownProjects === 0 ? "none" : `${shownProjects} of ${projects.length}`;
+
+  const goToPage = (index: number) => {
+    const target = Math.min(Math.max(1, Math.floor(index)), lastPage);
+    if (target === page) return;
+    applyUrlView({ page: target, perPage, groupBy });
+  };
+
+  const changePageSize = (size: LibraryUrlView["perPage"]) => {
+    // Page numbers name different row sets at a different size, so no page the
+    // client held is adjacent to anything on the new size.
+    clearPageHistory();
+    applyUrlView({ page: 1, perPage: size, groupBy });
+  };
+
+  const changeView = (next: SavedView<GroupByType, ColumnIdType>) => {
+    const groupingChanged = next.groupBy !== groupBy;
+    const nextPage = groupingChanged ? 1 : page;
+    // A closed id belongs to the grouping that named it: the table reports the
+    // set unchanged, and the host clears it when the grouping changes, so a
+    // group closed under projects cannot close an unrelated agent group.
+    const deviceView: HomeView = {
+      columns: next.visibleColumns,
+      collapsed: groupingChanged ? [] : [...next.collapsed],
+    };
+    setView(deviceView);
+    saveHomeView(deviceView);
+    if (groupingChanged || nextPage !== page) {
+      // A new grouping or page is a different traversal; a column or collapse
+      // change is not, and must keep the current page's continuation marker.
+      clearPageHistory();
+      applyUrlView({ page: nextPage, perPage, groupBy: next.groupBy });
+    }
+  };
+
+  const columns: readonly TranscriptLibraryColumn<TranscriptListItem, ColumnIdType>[] = [
+    {
+      id: ColumnId.Transcript,
+      label: "transcript",
+      align: ColumnAlign.Start,
+      render: (item) => {
+        const t = item.transcript;
+        const started = childSessions.get(t.id);
+        return (
+          <div className="on-cell-title" data-testid="home-transcript-row" data-transcript-id={t.id}>
+            <Link href={transcriptHref(t.id, { kind: "home" })}>{t.title || "untitled"}</Link>
+            {helperGroupSlot(item)}
+            {started !== undefined && started.length > 0 && (
+              <ChildSessionDisclosure
+                parentTranscriptID={t.id}
+                childSessions={started}
+                hideOwner
+                facts={HOME_STARTED_SESSION_FACTS}
+                helperGroupSlot={helperGroupSlot}
+                context={{ kind: "home" }}
+              />
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: ColumnId.Project,
+      label: ColumnId.Project.label,
+      align: ColumnAlign.Start,
+      render: (item) => {
+        const t = item.transcript;
+        const branch = t.git_branch?.trim() ?? "";
+        // A project is routed on its hash. A row that arrived without one is a
+        // server contract violation: it is still listed, and its project is
+        // named but not linked, never folded into a made-up project.
+        return (
+          <>
+            {t.project_hash ? (
+              <Link
+                href={`/users/${encodeURIComponent(username)}/projects/${t.project_hash}`}
+                className="on-cell-link"
+              >
+                {t.project_display_name}
+              </Link>
+            ) : (
+              <span>{t.project_display_name}</span>
+            )}
+            {branch !== "" && <span className="on-sub">{branch}</span>}
+          </>
+        );
+      },
+    },
+    {
+      id: ColumnId.Readers,
+      label: ColumnId.Readers.label,
+      align: ColumnAlign.Start,
+      render: (item) => {
+        const readers = readersOf(item);
+        return readers.length > 0 ? (
+          <span className="on-readers">
+            {readers.map((name) => (
+              <span key={name}>{name}</span>
+            ))}
+          </span>
+        ) : (
+          <span className="on-none">{NO_READERS}</span>
+        );
+      },
+    },
+    {
+      id: ColumnId.Agent,
+      label: ColumnId.Agent.label,
+      align: ColumnAlign.Start,
+      render: (item) =>
+        isHarness(item.transcript.model_provider) ? (
+          <ProviderName harness={item.transcript.model_provider} className="on-agent" />
+        ) : (
+          <span className="on-agent">{agentLabel(item)}</span>
+        ),
+    },
+    {
+      id: ColumnId.PullRequests,
+      label: ColumnId.PullRequests.label,
+      align: ColumnAlign.Start,
+      render: (item) => (
+        <PullRequestCell transcriptID={item.transcript.id} summary={item.pull_requests} />
+      ),
+    },
+    {
+      id: ColumnId.Turns,
+      label: ColumnId.Turns.label,
+      align: ColumnAlign.End,
+      numeric: true,
+      render: (item) =>
+        item.transcript.turn_count == null ? (
+          <span className="on-none">not counted</span>
+        ) : (
+          item.transcript.turn_count.toLocaleString("en-US")
+        ),
+    },
+    {
+      id: ColumnId.When,
+      label: ColumnId.When.label,
+      align: ColumnAlign.End,
+      numeric: true,
+      render: (item) => (
+        <time dateTime={item.transcript.published_at}>
+          {formatRelativeTime(item.transcript.published_at, now)}
+        </time>
+      ),
+    },
+  ];
+
+  function helperGroupSlot(item: TranscriptRow) {
+    return (
+      <ScopedOwnerHelperGroups
+        groups={helperGroups.get(item.transcript.id)}
+        onRefreshOrigin={refreshGrouped}
+      />
+    );
+  }
 
   let listRegion: React.ReactNode;
   if (failed && own == null && !searching) {
@@ -333,7 +596,7 @@ function HomeBody({ username }: { username: string }) {
         />
       </div>
     );
-  } else if (list.data == null) {
+  } else if (list.data == null || awaitingClamp) {
     listRegion = (
       <div className="flex flex-col gap-[var(--sp-2)]" data-testid="home-list-loading" aria-hidden="true">
         <div className="h-11 w-full max-w-[40rem] animate-shimmer" />
@@ -381,7 +644,6 @@ function HomeBody({ username }: { username: string }) {
       </div>
     );
   } else {
-    const more = Math.min(HOME_PAGE_SIZE, Math.max(total - loaded.length, 0));
     listRegion = (
       <div className="on-section" data-testid="home-transcripts" aria-busy={searching || undefined}>
         {failed && (
@@ -389,9 +651,6 @@ function HomeBody({ username }: { username: string }) {
           // kept deliberately: a failed refresh is not news that the library
           // shrank.
           <div data-testid="home-stale-notice" className="on-notice">
-            {/* Only the sentence is the alert. The control sits outside it
-                because its label changes while a retry is in flight, and an
-                atomic alert re-announces the whole notice on that change. */}
             <p role="alert">
               these transcripts could not be refreshed and may be out of date.
               {failureCause ? ` ${failureCause}.` : ""}
@@ -418,52 +677,25 @@ function HomeBody({ username }: { username: string }) {
               </button>
             </div>
           ) : (
-            <HomeTable
-              groups={groups}
-              grouped={isGrouped}
-              isOpen={(id) => openSet.has(id)}
-              onToggle={toggleGroup}
-              columns={view.columns}
-              childSessions={childSessions}
-              viewerUsername={username}
-              now={now}
-              helperGroupSlot={(item) => (
-                <ScopedOwnerHelperGroups
-                  groups={helperGroups.get(item.transcript.id)}
-                  onRefreshOrigin={refreshGrouped}
-                />
-              )}
+            <TranscriptLibraryTable
+              caption="your transcripts"
+              rows={visibleRows}
+              rowKey={(row) => row.transcript.id}
+              columns={columns}
+              groupBy={groupBy}
+              groupByOptions={ALL_GROUP_BYS}
+              groupKeys={(row) => groupKeysOf(row, groupBy)}
+              groupLabel={(id) => groupLabelOf(id, groupBy, groupLabels)}
+              nextGroupKeys={nextGroupKeys}
+              continuedGroupKeys={continuedGroupKeys}
+              page={{ index: list.data!.page, size: perPage, total: list.data!.total }}
+              viewState={{ groupBy, visibleColumns: view.columns, collapsed: view.collapsed }}
+              onViewStateChange={changeView}
+              onPageChange={goToPage}
+              onPageSizeChange={changePageSize}
             />
           )}
           <ScopedContextContainerList items={groupedItems} onRefreshOrigin={refreshGrouped} />
-          <ScopedGroupedContinuation
-            remaining={grouped.remainingItems}
-            busy={grouped.isFetchingNextPage}
-            onLoadMore={() => void grouped.fetchNextPage()}
-          />
-        </div>
-        <div className="on-pager">
-          <span data-testid="home-count">
-            <span className="tabular-nums">{loaded.length.toLocaleString("en-US")}</span> of{" "}
-            <span className="tabular-nums">{total.toLocaleString("en-US")}</span>{" "}
-            {total === 1 ? "transcript" : "transcripts"}
-          </span>
-          {list.hasNextPage && !searching && (
-            <span className="on-row">
-              {list.isFetchNextPageError && (
-                <span role="alert" className="on-muted" data-testid="home-load-more-failed">
-                  the next transcripts could not be loaded:{" "}
-                  {list.error instanceof Error ? list.error.message : "an unknown error"}.
-                </span>
-              )}
-              <RetryButton
-                label={list.isFetchingNextPage ? "loading more" : `show ${more} more`}
-                busy={list.isFetchingNextPage}
-                onRetry={() => list.fetchNextPage()}
-                testId="home-load-more"
-              />
-            </span>
-          )}
         </div>
       </div>
     );
@@ -501,7 +733,6 @@ function HomeBody({ username }: { username: string }) {
           refetch: contributions.refetch,
         }}
       />
-
 
       <section className="on-home-library" aria-labelledby="home-library-title">
       <h2 id="home-library-title" className="on-h2">library</h2>
@@ -541,47 +772,6 @@ function HomeBody({ username }: { username: string }) {
                 </>
               )}
             </ViewMenu>
-          )}
-          <ViewMenu
-            icon={<Layers aria-hidden="true" />}
-            label="group by"
-            value={GROUP_BY_LABELS[view.groupBy]}
-            title="group by"
-            kind="radiogroup"
-            testId="home-group-by"
-          >
-            {(close) =>
-              GROUP_BYS.map((key) => (
-                <RadioRow
-                  key={key}
-                  checked={view.groupBy === key}
-                  onPick={() => {
-                    updateView({ ...view, groupBy: key });
-                    close();
-                  }}
-                >
-                  {GROUP_BY_LABELS[key]}
-                </RadioRow>
-              ))
-            }
-          </ViewMenu>
-          <ViewMenu icon={<SlidersHorizontal aria-hidden="true" />} label="columns" title="show columns" align="end" testId="home-columns">
-            {() =>
-              HOME_COLUMNS.map((key) => (
-                <CheckRow
-                  key={key}
-                  checked={view.columns[key]}
-                  onToggle={() => updateView({ ...view, columns: { ...view.columns, [key]: !view.columns[key] } })}
-                >
-                  {HOME_COLUMN_LABELS[key]}
-                </CheckRow>
-              ))
-            }
-          </ViewMenu>
-          {isGrouped && groups.length > 0 && (
-            <button type="button" className="btn btn-ghost" onClick={toggleAllGroups} data-testid="home-toggle-groups">
-              {allOpen ? "collapse all" : "expand all"}
-            </button>
           )}
         </div>
       )}

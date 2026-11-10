@@ -12,8 +12,10 @@
 
 files:
   - path: ./types.ts
-    known_hand_written_outside_scope: [User, Transcript, TranscriptListResponse]
+    known_hand_written_outside_scope: [User, Transcript]
     aliases:
+      - local: TranscriptListResponse
+        generated: VillageTranscriptListResponse
       - local: Group
         generated: VillageCollective
         declaration: >-

@@ -26,6 +26,7 @@ interface AliasFile {
 
 const requiredAliases: Record<string, string[]> = {
   "./types.ts": [
+    "TranscriptListResponse",
     "Group",
     "VisibleGroup",
     "UserGroupShare",

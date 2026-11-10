@@ -160,7 +160,7 @@ func TestPullRequestReadsRefuseAFailedRead_RealPostgres(t *testing.T) {
 			called := false
 			h.queries = failingReadQuerier{Querier: h.queries, fails: c.Fails, called: &called}
 			target := map[string]string{
-				"list":               "/api/v1/transcripts?limit=100&owner=" + world.logins["author"],
+				"list":               "/api/v1/transcripts?per_page=100&owner=" + world.logins["author"],
 				"collective":         "/api/v1/groups/" + groupID,
 				"collective_grouped": "/api/v1/groups/" + groupID + "?view=grouped",
 				"transcript_pulls":   "/api/v1/transcripts/" + transcriptID + "/pulls",

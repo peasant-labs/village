@@ -1,4 +1,5 @@
-import type { Transcript } from "@/lib/types";
+import type { ProjectHash, SessionID, TranscriptID } from "@peasant-labs/schema";
+import type { Transcript, TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 
 /**
  * One complete `Transcript` wire row, with every field the contract carries
@@ -78,5 +79,42 @@ export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Tran
     license_id: null,
     session_origin: "user",
     ...overrides,
+  };
+}
+
+
+/** One transcript list row as the contract types it. The app's `Transcript` is
+ *  wider in exactly one closed field (`license_id`), so fixtures cross into the
+ *  contract's row type here; `owner_orgs` is the contract field the app's view
+ *  row does not carry. */
+export type TranscriptListRow = TranscriptListResponse["transcripts"][number];
+
+/**
+ * The contract brands three string identities (`TranscriptID`, `SessionID`,
+ * `ProjectHash`); the fixture keeps readable names and the same strings at
+ * runtime. This states each brand once, at the one boundary where a fixture row
+ * crosses into the contract's row type, so every other field of the row is
+ * still checked by the compiler rather than an `as unknown as` cast.
+ */
+function wireTranscript(row: Transcript): TranscriptListRow["transcript"] {
+  return {
+    ...row,
+    id: row.id as TranscriptID,
+    local_id: row.local_id as SessionID,
+    parent_session_id: row.parent_session_id as SessionID | null,
+    parent_transcript_id: row.parent_transcript_id as TranscriptID | null,
+    project_hash: row.project_hash as ProjectHash | null,
+  };
+}
+
+export function asTranscriptListRow(row: TranscriptListItem): TranscriptListRow {
+  return {
+    transcript: wireTranscript(row.transcript),
+    tags: row.tags,
+    owner: row.owner,
+    owner_orgs: [],
+    shares: row.shares ?? null,
+    attestations: row.attestations ?? null,
+    pull_requests: row.pull_requests ?? { count: 0, recent: [] },
   };
 }

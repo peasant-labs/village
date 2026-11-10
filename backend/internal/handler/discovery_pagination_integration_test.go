@@ -52,25 +52,27 @@ type discoveryRow struct {
 
 // discoveryCase is one anonymous read of the shared dataset with an exact
 // expectation: the ordered ids for the requested page plus the wire metadata the
-// response must preserve — total, the echoed page, and the normalized limit.
+// response must preserve — total, the echoed page, and the echoed per_page.
 type discoveryCase struct {
-	Name          string   `yaml:"name"`
-	Sort          string   `yaml:"sort"`
-	Page          int      `yaml:"page"`
-	Limit         int      `yaml:"limit"`
-	ExpectedTotal int64    `yaml:"expectedTotal"`
-	ExpectedPage  int      `yaml:"expectedPage"`
-	ExpectedLimit int      `yaml:"expectedLimit"`
-	ExpectedIDs   []string `yaml:"expectedIds"`
+	Name            string   `yaml:"name"`
+	Sort            string   `yaml:"sort"`
+	Page            int      `yaml:"page"`
+	PerPage         int      `yaml:"per_page"`
+	ExpectedTotal   int64    `yaml:"expectedTotal"`
+	ExpectedPage    int      `yaml:"expectedPage"`
+	ExpectedPerPage int      `yaml:"expectedPerPage"`
+	ExpectedIDs     []string `yaml:"expectedIds"`
 }
 
 // discoveryResponse is the decoded discovery wire under assertion: the ordered
-// ids plus the total/page/limit metadata the endpoint must preserve.
+// ids plus the total/page/per_page metadata the endpoint must preserve, and the
+// following page's ids carried as next_items.
 type discoveryResponse struct {
-	IDs   []string
-	Total int64
-	Page  int
-	Limit int
+	IDs     []string
+	NextIDs []string
+	Total   int64
+	Page    int
+	PerPage int
 }
 
 //go:embed testdata/discovery_pagination/inventory.yaml
@@ -122,11 +124,11 @@ func discoveryInsertRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 }
 
 // discoveryList runs the REAL ListTranscripts handler as an anonymous caller
-// scoped to one owner, returning the ordered transcript ids and the wire
-// total/page/limit metadata the endpoint reports.
-func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, limit int) discoveryResponse {
+// scoped to one owner, returning the ordered transcript ids, the following
+// page's ids, and the wire total/page/per_page metadata the endpoint reports.
+func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, perPage int) discoveryResponse {
 	t.Helper()
-	target := fmt.Sprintf("/api/v1/transcripts?owner=%s&page=%d&limit=%d", ownerUsername, page, limit)
+	target := fmt.Sprintf("/api/v1/transcripts?owner=%s&page=%d&per_page=%d", ownerUsername, page, perPage)
 	if sort != "" {
 		target += "&sort=" + sort
 	}
@@ -136,24 +138,25 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, l
 	if w.Code != http.StatusOK {
 		t.Fatalf("ListTranscripts(%s) status = %d, want 200 (body: %s)", target, w.Code, w.Body.String())
 	}
-	var resp struct {
-		Transcripts []struct {
-			Transcript struct {
-				ID string `json:"id"`
-			} `json:"transcript"`
-		} `json:"transcripts"`
-		Total int64 `json:"total"`
-		Page  int   `json:"page"`
-		Limit int   `json:"limit"`
-	}
+	// Decode the REAL response into the contract's own type and run its
+	// validation: every case below therefore also proves the served envelope is
+	// exactly schema.VillageTranscriptListResponse, not a lookalike.
+	var resp schema.VillageTranscriptListResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode list response for %s: %v\nbody: %s", target, err, w.Body.String())
+		t.Fatalf("decode list response for %s into schema.VillageTranscriptListResponse: %v\nbody: %s", target, err, w.Body.String())
+	}
+	if err := resp.Validate(); err != nil {
+		t.Fatalf("list response for %s does not satisfy schema.VillageTranscriptListResponse.Validate: %v", target, err)
 	}
 	ids := make([]string, 0, len(resp.Transcripts))
 	for _, row := range resp.Transcripts {
-		ids = append(ids, row.Transcript.ID)
+		ids = append(ids, row.Transcript.ID.String())
 	}
-	return discoveryResponse{IDs: ids, Total: resp.Total, Page: resp.Page, Limit: resp.Limit}
+	nextIDs := make([]string, 0, len(resp.NextItems))
+	for _, row := range resp.NextItems {
+		nextIDs = append(nextIDs, row.Transcript.ID.String())
+	}
+	return discoveryResponse{IDs: ids, NextIDs: nextIDs, Total: int64(resp.Total), Page: resp.Page, PerPage: resp.PerPage}
 }
 
 func equalIDs(got, want []string) bool {
@@ -182,10 +185,14 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 	owner := pullInsertUser(t, ctx, pool, 980801, "discovery-order-owner")
 	defer cleanupOwners(t, ctx, pool, owner)
 
-	inventory := loadFixtureRows[discoveryRow](t, discoveryInventoryYAML, 6)
+	inventory := loadFixtureRows[discoveryRow](t, discoveryInventoryYAML, 30)
 	names := make(map[string]bool, len(inventory))
 	ids := make(map[string]bool, len(inventory))
+	publicRows := 0
 	for _, row := range inventory {
+		if row.Visibility == "public" {
+			publicRows++
+		}
 		if row.Name == "" || row.ID == "" {
 			t.Fatalf("inventory row missing name/id: %+v", row)
 		}
@@ -200,19 +207,23 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 		discoveryInsertRow(t, ctx, pool, owner, row)
 	}
 
-	// All six rows (including the private one) are really stored; the anonymous
-	// listing below must still exclude the private row (total 5, never present).
+	// Every row (including the private one) is really stored; the anonymous
+	// listing below must still exclude the private row (total == publicRows, never
+	// present). Derived from the fixture so the expectation moves with it.
 	var stored int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM transcripts WHERE owner_id = $1", owner).Scan(&stored); err != nil {
 		t.Fatalf("count stored transcripts: %v", err)
 	}
-	if stored != 6 {
-		t.Fatalf("stored transcripts = %d, want 6 (fixture insert incomplete)", stored)
+	if stored != len(inventory) {
+		t.Fatalf("stored transcripts = %d, want %d (fixture insert incomplete)", stored, len(inventory))
+	}
+	if publicRows >= len(inventory) {
+		t.Fatalf("fixture public rows = %d of %d; the visibility-filter assertion needs a private row", publicRows, len(inventory))
 	}
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	cases := loadFixtureRows[discoveryCase](t, discoveryCasesYAML, 14)
+	cases := loadFixtureRows[discoveryCase](t, discoveryCasesYAML, 11)
 	caseNames := make(map[string]bool, len(cases))
 	for _, c := range cases {
 		if c.Name == "" {
@@ -223,54 +234,50 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 		}
 		caseNames[c.Name] = true
 
-		got := discoveryList(t, h, "discovery-order-owner", c.Sort, c.Page, c.Limit)
+		got := discoveryList(t, h, "discovery-order-owner", c.Sort, c.Page, c.PerPage)
 		if got.Total != c.ExpectedTotal {
 			t.Errorf("case %q: total = %d, want %d", c.Name, got.Total, c.ExpectedTotal)
 		}
 		if got.Page != c.ExpectedPage {
 			t.Errorf("case %q: wire page = %d, want %d (the response must echo the requested page)", c.Name, got.Page, c.ExpectedPage)
 		}
-		if got.Limit != c.ExpectedLimit {
-			t.Errorf("case %q: wire limit = %d, want %d (the response must preserve/normalize the requested limit)", c.Name, got.Limit, c.ExpectedLimit)
+		if got.PerPage != c.ExpectedPerPage {
+			t.Errorf("case %q: wire per_page = %d, want %d (the response must echo the requested page size)", c.Name, got.PerPage, c.ExpectedPerPage)
 		}
 		if !equalIDs(got.IDs, c.ExpectedIDs) {
 			t.Errorf("case %q: ordered ids = %v, want %v", c.Name, got.IDs, c.ExpectedIDs)
 		}
-		for _, id := range got.IDs {
-			if id == "66666666-6666-6666-6666-666666666666" {
+		for _, id := range append(append([]string{}, got.IDs...), got.NextIDs...) {
+			if id == "00000000-0000-4000-8000-000000000030" {
 				t.Errorf("case %q: private row leaked into anonymous listing", c.Name)
 			}
 		}
 	}
 
 	// Adjacent pages of the default sort must partition the full public ordering
-	// with no duplicate, omission, or leak. Read page 1..3 (limit 2) live and
-	// assert the union is exactly the five public ids with no repeat.
+	// with no duplicate, omission, or leak, and the first page's next_items must
+	// be exactly the second page's rows. Read page 1..2 at the fixture's 25-row
+	// page size live and assert the union is every public id exactly once.
+	pageOne := discoveryList(t, h, "discovery-order-owner", "", 1, 25)
+	pageTwo := discoveryList(t, h, "discovery-order-owner", "", 2, 25)
 	union := make(map[string]int)
-	for page := 1; page <= 3; page++ {
-		got := discoveryList(t, h, "discovery-order-owner", "", page, 2)
-		for _, id := range got.IDs {
-			union[id]++
-		}
+	for _, id := range append(append([]string{}, pageOne.IDs...), pageTwo.IDs...) {
+		union[id]++
 	}
-	if len(union) != 5 {
-		t.Errorf("union of adjacent pages had %d distinct ids, want 5 (rows duplicated or omitted across pages): %v", len(union), union)
+	publicTotal := publicRows
+	if len(union) != publicTotal {
+		t.Errorf("union of adjacent pages had %d distinct ids, want %d (rows duplicated or omitted across pages): %v", len(union), publicTotal, union)
 	}
 	for id, n := range union {
 		if n != 1 {
 			t.Errorf("id %s appeared %d times across adjacent pages, want exactly once", id, n)
 		}
 	}
-	for _, want := range []string{
-		"11111111-1111-1111-1111-111111111111",
-		"22222222-2222-2222-2222-222222222222",
-		"33333333-3333-3333-3333-333333333333",
-		"44444444-4444-4444-4444-444444444444",
-		"55555555-5555-5555-5555-555555555555",
-	} {
-		if union[want] != 1 {
-			t.Errorf("public id %s missing from the adjacent-page union", want)
-		}
+	if !equalIDs(pageOne.NextIDs, pageTwo.IDs) {
+		t.Errorf("page 1 next_items = %v, want page 2 ids %v", pageOne.NextIDs, pageTwo.IDs)
+	}
+	if len(pageOne.NextIDs) > 25 {
+		t.Errorf("page 1 next_items carries %d rows, want at most the page size 25", len(pageOne.NextIDs))
 	}
 }
 

@@ -54,7 +54,7 @@ func TestListTranscripts_LicenseParity_RealPostgres(t *testing.T) {
 	}
 
 	// Anonymous list (public-only path) — the discovery surface under test.
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts?limit=100&owner=list-parity-owner", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts?per_page=100&owner=list-parity-owner", nil)
 	w := httptest.NewRecorder()
 	h.ListTranscripts(w, r)
 	if w.Code != http.StatusOK {

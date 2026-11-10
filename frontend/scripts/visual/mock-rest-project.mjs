@@ -215,7 +215,8 @@ const profileTranscripts = () => ({
   total: sessions.length,
   agent_total: 0,
   page: 1,
-  limit: 20,
+  per_page: 25,
+  next_items: [],
 })
 
 const send = (res, code, body) => {

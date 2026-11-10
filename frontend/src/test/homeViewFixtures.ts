@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
-import { GROUP_BYS, HOME_COLUMNS, type HomeView } from "@/lib/homeView";
+import { ALL_GROUP_BYS, ALL_VILLAGE_COLUMNS } from "@/lib/homeView";
 import type { HomeTranscriptCase } from "@/test/homePageFixtures";
 
 /**
@@ -12,39 +12,44 @@ import type { HomeTranscriptCase } from "@/test/homePageFixtures";
  */
 
 export type HomeViewStep =
-  | { open: "projects" | "group by" | "columns" }
-  | { pick: string }
-  | { toggle: string }
+  | { groupBy: string }
+  | { column: string }
+  | { project: string }
   | { press: string };
 
 export interface HomeViewCase {
   name: string;
   why: string;
+  /** The URL grouping the page mounts with; defaults to project. */
+  url?: string;
+  /** Whether `stored` belongs under the earlier storage key. */
+  legacy?: boolean;
   /** What this browser remembered before the visit: a view, raw text, or nothing. */
-  stored: HomeView | string | null;
+  stored: { columns?: unknown; visibleColumns?: readonly unknown[]; collapsed?: readonly unknown[]; open?: readonly unknown[] } | string | null;
   steps: HomeViewStep[];
   expect: {
     groups: string[];
     rows: string[];
     columns: string[];
-    stored: { groupBy: string; hiddenColumns: string[]; openGroups: number } | null;
+    stored: { hiddenColumns: string[]; collapsedGroups: number } | null;
+    urlGroupBy?: string;
   };
 }
 
 const requiredCaseNames = [
-  "a-first-visit-groups-by-project-with-every-group-closed",
-  "opening-a-group-shows-its-rows-and-is-remembered",
-  "expand-all-then-collapse-all",
-  "grouping-by-collective-files-a-row-under-every-reader",
-  "grouping-by-agent-uses-the-harness-name",
-  "grouping-by-nothing-is-one-flat-list",
+  "a-first-visit-groups-by-project-with-every-group-open",
+  "closing-a-group-hides-its-rows-and-is-remembered",
+  "the-group-picker-regroups-and-the-url-carries-it",
   "the-column-picker-shows-and-hides-columns",
-  "hiding-a-project-hides-its-rows-for-this-visit-only",
-  "hiding-every-project-says-so-and-offers-them-back",
+  "a-saved-columns-record-migrates-to-the-closed-list",
+  "a-saved-visible-columns-array-migrates-and-drops-an-unknown-member",
   "an-unreadable-remembered-view-falls-back-to-the-default",
+  "a-url-grouping-overrides-the-default",
+  "hiding-a-project-narrows-this-visit-only",
+  "hiding-every-project-says-so-and-offers-them-back",
 ];
 
-const MENUS = new Set(["projects", "group by", "columns"]);
+const stepKeys = ["groupBy", "column", "project", "press"];
 
 export function loadHomeViewFixtures(): { rows: HomeTranscriptCase[]; cases: HomeViewCase[] } {
   const parsed = parse(readFileSync(resolve(process.cwd(), "src/testdata/home-view.yaml"), "utf8"), {
@@ -55,33 +60,74 @@ export function loadHomeViewFixtures(): { rows: HomeTranscriptCase[]; cases: Hom
 
   const titles = new Set(parsed.rows.map((row) => row.title));
   for (const c of parsed.cases) {
-    assertExactKeys(c, ["name", "why", "stored", "steps", "expect"], `home-view case ${c.name}`);
-    assertExactKeys(c.expect, ["groups", "rows", "columns", "stored"], `home-view case ${c.name} expect`);
+    const caseKeys = Object.keys(c);
+    const requiredCaseKeys = ["name", "why", "stored", "steps", "expect"];
+    const allowedCaseKeys = [...requiredCaseKeys, "url", "legacy"];
+    if (
+      requiredCaseKeys.some((key) => !caseKeys.includes(key)) ||
+      caseKeys.some((key) => !allowedCaseKeys.includes(key))
+    ) {
+      throw new Error(`home-view case ${c.name} has unknown or missing fields: ${caseKeys.join(", ")}`);
+    }
+    const expectKeys = Object.keys(c.expect);
+    if (expectKeys.some((key) => !["groups", "rows", "columns", "stored", "urlGroupBy"].includes(key))) {
+      throw new Error(`home-view case ${c.name} expect has unknown fields: ${expectKeys.join(", ")}`);
+    }
     if (!c.why?.trim()) throw new Error(`home-view case ${c.name} states no reason it exists`);
+    if (c.url !== undefined) {
+      const params = new URLSearchParams(c.url);
+      for (const key of params.keys()) {
+        if (key !== "groupBy") throw new Error(`home-view case ${c.name}: the URL case carries only groupBy`);
+      }
+      const groupBy = params.get("groupBy");
+      if (groupBy !== null && !ALL_GROUP_BYS.some((member) => member.wire === groupBy)) {
+        throw new Error(`home-view case ${c.name}: ${groupBy} is not a grouping`);
+      }
+    }
     for (const step of c.steps) {
       const keys = Object.keys(step);
-      if (keys.length !== 1 || !["open", "pick", "toggle", "press"].includes(keys[0])) {
-        throw new Error(`home-view case ${c.name}: a step is one of open, pick, toggle or press`);
+      if (keys.length !== 1 || !stepKeys.includes(keys[0])) {
+        throw new Error(`home-view case ${c.name}: a step is one of ${stepKeys.join(", ")}`);
       }
-      if ("open" in step && !MENUS.has(step.open)) throw new Error(`home-view case ${c.name}: no menu named ${step.open}`);
     }
     for (const title of c.expect.rows) {
       if (!titles.has(title)) throw new Error(`home-view case ${c.name}: ${title} is not one of the rows`);
     }
-    const stored = c.expect.stored;
-    if (stored !== null) {
-      assertExactKeys(stored, ["groupBy", "hiddenColumns", "openGroups"], `home-view case ${c.name} stored`);
-      if (!(GROUP_BYS as readonly string[]).includes(stored.groupBy)) {
-        throw new Error(`home-view case ${c.name}: ${stored.groupBy} is not a grouping`);
-      }
-      for (const key of stored.hiddenColumns) {
-        if (!(HOME_COLUMNS as readonly string[]).includes(key)) throw new Error(`home-view case ${c.name}: no column ${key}`);
+    for (const column of c.expect.columns) {
+      if (!ALL_VILLAGE_COLUMNS.some((member) => member.label === column)) {
+        throw new Error(`home-view case ${c.name}: ${column} is not a column label`);
       }
     }
+    const stored = c.expect.stored;
+    if (stored !== null) {
+      assertExactKeys(stored, ["hiddenColumns", "collapsedGroups"], `home-view case ${c.name} stored`);
+      for (const key of stored.hiddenColumns) {
+        if (!ALL_VILLAGE_COLUMNS.some((member) => member.wire === key)) {
+          throw new Error(`home-view case ${c.name}: no column ${key}`);
+        }
+      }
+    }
+    if (c.expect.urlGroupBy !== undefined) {
+      if (!ALL_GROUP_BYS.some((member) => member.wire === c.expect.urlGroupBy)) {
+        throw new Error(`home-view case ${c.name}: ${c.expect.urlGroupBy} is not a grouping`);
+      }
+    }
+    if (c.legacy === true && c.stored === null) {
+      throw new Error(`home-view case ${c.name}: a legacy case must supply a stored view`);
+    }
   }
-  // The first visit has to be in the corpus: it is the arrangement everyone sees.
-  if (!parsed.cases.some((c) => c.stored === null && c.steps.length === 0)) {
+  // The first visit has to be in the corpus: it is the arrangement everyone
+  // sees, and it is the only case that may render every group open.
+  if (!parsed.cases.some((c) => c.stored === null && c.steps.length === 0 && c.url === undefined)) {
     throw new Error("home-view cases must include a first visit with nothing remembered and nothing pressed");
+  }
+  // The migration's two shipped shapes both need a case, or a reader whose
+  // columns were saved by the earlier page could be reset silently.
+  if (!parsed.cases.some((c) => c.legacy === true && typeof c.stored === "object" && c.stored !== null && "columns" in c.stored)) {
+    throw new Error("home-view cases must migrate a stored columns record under the earlier key");
+  }
+  if (!parsed.cases.some((c) => typeof c.stored === "object" && c.stored !== null && "visibleColumns" in c.stored)) {
+    throw new Error("home-view cases must migrate a stored visibleColumns array");
   }
   return parsed;
 }

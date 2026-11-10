@@ -61,7 +61,7 @@ describe("useTranscripts request wiring", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { result } = renderHook(
-      () => useTranscripts({ sort: "recent", page: "1", limit: "24" }),
+      () => useTranscripts({ sort: "recent", page: "1", per_page: "25" }),
       { wrapper: makeQueryClientWrapper() },
     );
 
@@ -75,7 +75,7 @@ describe("useTranscripts request wiring", () => {
   it("keeps distinct page/filter intents on distinct cache entries", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      const page = url.includes("page=2") ? 2 : 1;
+      const page = Number(new URL(url, "http://localhost").searchParams.get("page") ?? 1);
       return new Response(JSON.stringify(response(page)), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -85,22 +85,22 @@ describe("useTranscripts request wiring", () => {
     const wrapper = makeQueryClientWrapper();
 
     const first = renderHook(
-      () => useTranscripts({ sort: "recent", page: "1", limit: "24" }),
+      () => useTranscripts({ sort: "recent", page: "1", per_page: "25" }),
       { wrapper },
     );
     await waitFor(() => expect(first.result.current.data?.page).toBe(1));
 
     const second = renderHook(
-      () => useTranscripts({ sort: "recent", page: "2", limit: "24" }),
+      () => useTranscripts({ sort: "recent", page: "2", per_page: "25" }),
       { wrapper },
     );
     await waitFor(() => expect(second.result.current.data?.page).toBe(2));
 
     // Two distinct request keys resolved to two distinct confirmed pages: the
     // complete key never collapses separate page intents onto one entry.
-    const requestedPages = fetchMock.mock.calls
-      .map(([input]) => String(input))
-      .map((url) => (url.includes("page=2") ? 2 : 1));
+    const requestedPages = fetchMock.mock.calls.map(([input]) =>
+      Number(new URL(String(input), "http://localhost").searchParams.get("page") ?? 1),
+    );
     expect(new Set(requestedPages)).toEqual(new Set([1, 2]));
   });
 });
@@ -118,7 +118,7 @@ describe("useTranscripts response trust boundary", () => {
         const responseFixture = fixture.responses[responseIndex++];
         const makeResponse = () => new Response(
           JSON.stringify(response(responseFixture.page, {
-            limit: responseFixture.limit,
+            per_page: responseFixture.per_page,
             total: responseFixture.total,
           })),
           { status: 200, headers: { "content-type": "application/json" } },

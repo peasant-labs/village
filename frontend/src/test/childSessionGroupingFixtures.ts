@@ -371,9 +371,9 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           } not among the rows that kept their place; home can only show a row the fold left in the list`,
         );
       }
-      // Home lists a page of rows and offers the rest by `load more`; within
-      // what it has loaded it drops none. So its rows are exactly the rows the
-      // fold left in place, only ranked differently.
+      // Home lists one numbered page of rows and drops none of them; the rest
+      // are the next pages. So its rows are exactly the rows the fold left in
+      // place, only ranked differently.
       if (c.expectedHomeRows.length !== c.expectedRootRows.length) {
         throw new Error(
           `case ${c.name}: expectedHomeRows lists ${c.expectedHomeRows.length} rows but the fold leaves ` +

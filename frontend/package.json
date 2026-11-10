@@ -48,8 +48,8 @@
     "shoot:profile-prompt-settings": "node scripts/visual/profile-prompt-settings-shoot.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.60",
-    "@peasant-labs/schema": "0.41.0",
+    "@peasant-labs/fairtrade": "0.0.62",
+    "@peasant-labs/schema": "0.44.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.10.1",
