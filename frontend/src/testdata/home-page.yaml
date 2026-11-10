@@ -659,6 +659,202 @@ homeCases:
         - session 01
     expectRequestedPages: [2, 1]
 
+  - name: a-continuing-group-opens-with-a-compact-continuation-row
+    # One project spans the page boundary. Page two opens with a single
+    # compact continuation row for that project, then its own five sessions.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-30, title: session 30, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-30T10:00:00.000Z" }
+      - { id: t-29, title: session 29, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-29T10:00:00.000Z" }
+      - { id: t-28, title: session 28, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-28T10:00:00.000Z" }
+      - { id: t-27, title: session 27, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-27T10:00:00.000Z" }
+      - { id: t-26, title: session 26, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-26T10:00:00.000Z" }
+      - { id: t-25, title: session 25, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-25T10:00:00.000Z" }
+      - { id: t-24, title: session 24, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-24T10:00:00.000Z" }
+      - { id: t-23, title: session 23, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-23T10:00:00.000Z" }
+      - { id: t-22, title: session 22, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-22T10:00:00.000Z" }
+      - { id: t-21, title: session 21, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-21T10:00:00.000Z" }
+      - { id: t-20, title: session 20, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-20T10:00:00.000Z" }
+      - { id: t-19, title: session 19, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-19T10:00:00.000Z" }
+      - { id: t-18, title: session 18, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-18T10:00:00.000Z" }
+      - { id: t-17, title: session 17, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-17T10:00:00.000Z" }
+      - { id: t-16, title: session 16, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-16T10:00:00.000Z" }
+      - { id: t-15, title: session 15, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-15T10:00:00.000Z" }
+      - { id: t-14, title: session 14, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-14T10:00:00.000Z" }
+      - { id: t-13, title: session 13, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-13T10:00:00.000Z" }
+      - { id: t-12, title: session 12, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-12T10:00:00.000Z" }
+      - { id: t-11, title: session 11, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-11T10:00:00.000Z" }
+      - { id: t-10, title: session 10, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-10T10:00:00.000Z" }
+      - { id: t-09, title: session 09, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-09T10:00:00.000Z" }
+      - { id: t-08, title: session 08, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-08T10:00:00.000Z" }
+      - { id: t-07, title: session 07, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-07T10:00:00.000Z" }
+      - { id: t-06, title: session 06, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-06T10:00:00.000Z" }
+      - { id: t-05, title: session 05, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-05T10:00:00.000Z" }
+      - { id: t-04, title: session 04, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-04T10:00:00.000Z" }
+      - { id: t-03, title: session 03, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-03T10:00:00.000Z" }
+      - { id: t-02, title: session 02, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-02T10:00:00.000Z" }
+      - { id: t-01, title: session 01, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-01T10:00:00.000Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      [session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06]
+    expectProjectLinks: []
+    pages:
+      - page: 1
+        perPage: 25
+        expectRowTitles:
+          [session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06]
+      - page: 2
+        perPage: 25
+        expectRowTitles:
+          [session 05, session 04, session 03, session 02, session 01]
+    expectRequestedPages: [1, 2]
+    groupBy: project
+    expectContinuationRows: true
+
+  - name: returning-to-page-one-restores-full-group-labels
+    # Page one -> page two -> page one. Page one has no page zero, so its
+    # project keeps its full header; nothing is marked continued.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-30, title: session 30, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-30T10:00:00.000Z" }
+      - { id: t-29, title: session 29, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-29T10:00:00.000Z" }
+      - { id: t-28, title: session 28, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-28T10:00:00.000Z" }
+      - { id: t-27, title: session 27, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-27T10:00:00.000Z" }
+      - { id: t-26, title: session 26, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-26T10:00:00.000Z" }
+      - { id: t-25, title: session 25, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-25T10:00:00.000Z" }
+      - { id: t-24, title: session 24, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-24T10:00:00.000Z" }
+      - { id: t-23, title: session 23, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-23T10:00:00.000Z" }
+      - { id: t-22, title: session 22, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-22T10:00:00.000Z" }
+      - { id: t-21, title: session 21, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-21T10:00:00.000Z" }
+      - { id: t-20, title: session 20, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-20T10:00:00.000Z" }
+      - { id: t-19, title: session 19, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-19T10:00:00.000Z" }
+      - { id: t-18, title: session 18, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-18T10:00:00.000Z" }
+      - { id: t-17, title: session 17, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-17T10:00:00.000Z" }
+      - { id: t-16, title: session 16, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-16T10:00:00.000Z" }
+      - { id: t-15, title: session 15, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-15T10:00:00.000Z" }
+      - { id: t-14, title: session 14, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-14T10:00:00.000Z" }
+      - { id: t-13, title: session 13, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-13T10:00:00.000Z" }
+      - { id: t-12, title: session 12, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-12T10:00:00.000Z" }
+      - { id: t-11, title: session 11, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-11T10:00:00.000Z" }
+      - { id: t-10, title: session 10, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-10T10:00:00.000Z" }
+      - { id: t-09, title: session 09, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-09T10:00:00.000Z" }
+      - { id: t-08, title: session 08, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-08T10:00:00.000Z" }
+      - { id: t-07, title: session 07, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-07T10:00:00.000Z" }
+      - { id: t-06, title: session 06, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-06T10:00:00.000Z" }
+      - { id: t-05, title: session 05, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-05T10:00:00.000Z" }
+      - { id: t-04, title: session 04, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-04T10:00:00.000Z" }
+      - { id: t-03, title: session 03, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-03T10:00:00.000Z" }
+      - { id: t-02, title: session 02, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-02T10:00:00.000Z" }
+      - { id: t-01, title: session 01, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-01T10:00:00.000Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      [session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06]
+    expectProjectLinks: []
+    pages:
+      - page: 1
+        perPage: 25
+        expectRowTitles:
+          [session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06]
+      - page: 2
+        perPage: 25
+        expectRowTitles:
+          [session 05, session 04, session 03, session 02, session 01]
+    returnToPage: 1
+    expectRequestedPages: [1, 2, 1]
+    groupBy: project
+    expectContinuationRows: false
+
+  - name: changing-the-page-size-resets-to-the-first-page
+    # A page-size change is a different row set: the table resets to page one,
+    # asks for it at the new size, and the address follows. It must not keep
+    # the page number the old size was on.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-60, title: session 60, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-03-01T10:00:00.000Z" }
+      - { id: t-59, title: session 59, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-28T10:00:00.000Z" }
+      - { id: t-58, title: session 58, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-27T10:00:00.000Z" }
+      - { id: t-57, title: session 57, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-26T10:00:00.000Z" }
+      - { id: t-56, title: session 56, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-25T10:00:00.000Z" }
+      - { id: t-55, title: session 55, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-24T10:00:00.000Z" }
+      - { id: t-54, title: session 54, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-23T10:00:00.000Z" }
+      - { id: t-53, title: session 53, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-22T10:00:00.000Z" }
+      - { id: t-52, title: session 52, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-21T10:00:00.000Z" }
+      - { id: t-51, title: session 51, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-20T10:00:00.000Z" }
+      - { id: t-50, title: session 50, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-19T10:00:00.000Z" }
+      - { id: t-49, title: session 49, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-18T10:00:00.000Z" }
+      - { id: t-48, title: session 48, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-17T10:00:00.000Z" }
+      - { id: t-47, title: session 47, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-16T10:00:00.000Z" }
+      - { id: t-46, title: session 46, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-15T10:00:00.000Z" }
+      - { id: t-45, title: session 45, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-14T10:00:00.000Z" }
+      - { id: t-44, title: session 44, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-13T10:00:00.000Z" }
+      - { id: t-43, title: session 43, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-12T10:00:00.000Z" }
+      - { id: t-42, title: session 42, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-11T10:00:00.000Z" }
+      - { id: t-41, title: session 41, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-10T10:00:00.000Z" }
+      - { id: t-40, title: session 40, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-09T10:00:00.000Z" }
+      - { id: t-39, title: session 39, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-08T10:00:00.000Z" }
+      - { id: t-38, title: session 38, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-07T10:00:00.000Z" }
+      - { id: t-37, title: session 37, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-06T10:00:00.000Z" }
+      - { id: t-36, title: session 36, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-05T10:00:00.000Z" }
+      - { id: t-35, title: session 35, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-04T10:00:00.000Z" }
+      - { id: t-34, title: session 34, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-03T10:00:00.000Z" }
+      - { id: t-33, title: session 33, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-02T10:00:00.000Z" }
+      - { id: t-32, title: session 32, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-02-01T10:00:00.000Z" }
+      - { id: t-31, title: session 31, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-31T10:00:00.000Z" }
+      - { id: t-30, title: session 30, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-30T10:00:00.000Z" }
+      - { id: t-29, title: session 29, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-29T10:00:00.000Z" }
+      - { id: t-28, title: session 28, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-28T10:00:00.000Z" }
+      - { id: t-27, title: session 27, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-27T10:00:00.000Z" }
+      - { id: t-26, title: session 26, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-26T10:00:00.000Z" }
+      - { id: t-25, title: session 25, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-25T10:00:00.000Z" }
+      - { id: t-24, title: session 24, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-24T10:00:00.000Z" }
+      - { id: t-23, title: session 23, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-23T10:00:00.000Z" }
+      - { id: t-22, title: session 22, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-22T10:00:00.000Z" }
+      - { id: t-21, title: session 21, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-21T10:00:00.000Z" }
+      - { id: t-20, title: session 20, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-20T10:00:00.000Z" }
+      - { id: t-19, title: session 19, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-19T10:00:00.000Z" }
+      - { id: t-18, title: session 18, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-18T10:00:00.000Z" }
+      - { id: t-17, title: session 17, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-17T10:00:00.000Z" }
+      - { id: t-16, title: session 16, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-16T10:00:00.000Z" }
+      - { id: t-15, title: session 15, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-15T10:00:00.000Z" }
+      - { id: t-14, title: session 14, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-14T10:00:00.000Z" }
+      - { id: t-13, title: session 13, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-13T10:00:00.000Z" }
+      - { id: t-12, title: session 12, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-12T10:00:00.000Z" }
+      - { id: t-11, title: session 11, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-11T10:00:00.000Z" }
+      - { id: t-10, title: session 10, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-10T10:00:00.000Z" }
+      - { id: t-09, title: session 09, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-09T10:00:00.000Z" }
+      - { id: t-08, title: session 08, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-08T10:00:00.000Z" }
+      - { id: t-07, title: session 07, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-07T10:00:00.000Z" }
+      - { id: t-06, title: session 06, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-06T10:00:00.000Z" }
+      - { id: t-05, title: session 05, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-05T10:00:00.000Z" }
+      - { id: t-04, title: session 04, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-04T10:00:00.000Z" }
+      - { id: t-03, title: session 03, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-03T10:00:00.000Z" }
+      - { id: t-02, title: session 02, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-02T10:00:00.000Z" }
+      - { id: t-01, title: session 01, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-01-01T10:00:00.000Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    startPage: 2
+    expectRowTitles:
+      [session 35, session 34, session 33, session 32, session 31, session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11]
+    expectProjectLinks: []
+    pages:
+      - page: 2
+        perPage: 25
+        expectRowTitles:
+          [session 35, session 34, session 33, session 32, session 31, session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11]
+    pageSizeChanges:
+      - to: 50
+        expectRowTitles:
+          [session 60, session 59, session 58, session 57, session 56, session 55, session 54, session 53, session 52, session 51, session 50, session 49, session 48, session 47, session 46, session 45, session 44, session 43, session 42, session 41, session 40, session 39, session 38, session 37, session 36, session 35, session 34, session 33, session 32, session 31, session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11]
+      - to: 100
+        expectRowTitles:
+          [session 60, session 59, session 58, session 57, session 56, session 55, session 54, session 53, session 52, session 51, session 50, session 49, session 48, session 47, session 46, session 45, session 44, session 43, session 42, session 41, session 40, session 39, session 38, session 37, session 36, session 35, session 34, session 33, session 32, session 31, session 30, session 29, session 28, session 27, session 26, session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16, session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06, session 05, session 04, session 03, session 02, session 01]
+    expectRequestedPages: [2, 1, 1]
+
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
     viewerUsername: newcomer
     transcripts: []

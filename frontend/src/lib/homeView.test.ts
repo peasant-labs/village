@@ -6,7 +6,9 @@ import {
   ALL_GROUP_BYS,
   ALL_VILLAGE_COLUMNS,
   DEFAULT_HOME_VIEW,
+  HOME_VIEW_STORAGE_KEY,
   decodeLibraryView,
+  loadHomeView,
   encodeLibraryView,
   groupKeysOf,
   groupLabelOf,
@@ -58,7 +60,7 @@ describe("the Library URL codec", () => {
       // The codec round-trips its own output, and the output carries exactly the
       // three values the URL owns.
       const encoded = encodeLibraryView(decoded);
-      expect([...encoded.keys()].sort()).toEqual(["groupBy", "page", "per_page"]);
+      expect([...encoded.keys()].sort()).toEqual(["groupBy", "page", "perPage"]);
       expect([...encodeLibraryView(decodeLibraryView(encoded))]).toEqual([...encoded]);
     });
   }
@@ -140,10 +142,36 @@ describe("the stored view migration", () => {
   it("validates a visibleColumns array and falls back for an unreadable value", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const columns = migrateStoredView({ visibleColumns: ["when", "project", "nope"] });
-    expect(columns).toEqual([ALL_VILLAGE_COLUMNS[1], ALL_VILLAGE_COLUMNS[6]]);
+    expect(columns).toEqual([ALL_VILLAGE_COLUMNS[0], ALL_VILLAGE_COLUMNS[1], ALL_VILLAGE_COLUMNS[6]]);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
     expect(migrateStoredView("not a view")).toEqual(DEFAULT_HOME_VIEW.columns);
     expect(migrateStoredView(null)).toEqual(DEFAULT_HOME_VIEW.columns);
+  });
+
+  it("gives both stored shapes the identity column even when it was not named", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const array = migrateStoredView({ visibleColumns: ["when"] });
+    expect(array).toEqual([ALL_VILLAGE_COLUMNS[0], ALL_VILLAGE_COLUMNS[6]]);
+    const record = migrateStoredView({ columns: { when: true } });
+    expect(record).toEqual([ALL_VILLAGE_COLUMNS[0], ALL_VILLAGE_COLUMNS[6]]);
+    warn.mockRestore();
+  });
+
+  it("keeps the shipped default when this browser has no stored view", () => {
+    globalThis.localStorage?.clear();
+    const loaded = loadHomeView();
+    expect(loaded.columns).toEqual(DEFAULT_HOME_VIEW.columns);
+    expect(loaded.collapsed).toEqual([]);
+    // The default is the shipped one: the title plus the four columns the old
+    // home drew, so a reader with no stored view is not reset to fewer.
+    expect(DEFAULT_HOME_VIEW.columns.map((column) => column.wire)).toEqual([
+      "transcript",
+      "project",
+      "readers",
+      "agent",
+      "when",
+    ]);
+    expect(globalThis.localStorage?.getItem(HOME_VIEW_STORAGE_KEY)).toBeNull();
   });
 });

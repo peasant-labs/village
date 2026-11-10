@@ -1,4 +1,4 @@
-import type { Transcript } from "@/lib/types";
+import type { Transcript, TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 
 /**
  * One complete `Transcript` wire row, with every field the contract carries
@@ -79,4 +79,21 @@ export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Tran
     session_origin: "user",
     ...overrides,
   };
+}
+
+
+/** One transcript list row as the contract types it. The app's `Transcript` is
+ *  wider in exactly one closed field (`license_id`), so fixtures cross into the
+ *  contract's row type here; `owner_orgs` is the contract field the app's view
+ *  row does not carry. */
+export type TranscriptListRow = TranscriptListResponse["transcripts"][number];
+
+export function asTranscriptListRow(row: TranscriptListItem): TranscriptListRow {
+  return {
+    ...row,
+    owner_orgs: [],
+    shares: row.shares ?? null,
+    attestations: row.attestations ?? null,
+    pull_requests: row.pull_requests ?? { count: 0, recent: [] },
+  } as unknown as TranscriptListRow;
 }

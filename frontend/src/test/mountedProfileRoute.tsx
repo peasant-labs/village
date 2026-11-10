@@ -4,7 +4,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import UserProfilePage from "@/app/users/[username]/page";
-import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { asTranscriptListRow, makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type {
   CollectiveSubmissionPair,
   ContributedCollective,
@@ -192,15 +192,16 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       }));
       // The server resolves each row's parent within this one owner.
       const resolved = withResolvedParents(listed.map((item) => item.transcript));
-      const rows = listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
+      const rows = listed.map((item, index) =>
+        asTranscriptListRow({ ...item, transcript: resolved[index] }),
+      );
       return json({
         transcripts: rows,
         total: rows.length,
         agent_total: 0,
-      per_page: 25,
-      next_items: [],
+        per_page: 25,
+        next_items: [],
         page: 1,
-        limit: 24,
       });
     }
     if (path.startsWith("/users/")) {

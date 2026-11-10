@@ -155,6 +155,10 @@ describe("mounted home route: your transcripts, their totals and your collective
   for (const c of fixtures.homeCases) {
     it(c.name, async () => {
       const flatPath = showHomeAsFlatList();
+      const basePath =
+        c.groupBy === undefined
+          ? flatPath
+          : flatPath.replace("groupBy=none", `groupBy=${c.groupBy}`);
       const backend = installHomeRouteREST({
         viewerUsername: c.viewerUsername,
         transcripts: c.transcripts,
@@ -164,7 +168,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         collectives: c.collectives,
         contributions: c.contributions,
       });
-      await renderAppRoute(c.startPage === undefined ? flatPath : `${flatPath}&page=${c.startPage}`);
+      await renderAppRoute(c.startPage === undefined ? basePath : `${basePath}&page=${c.startPage}`);
 
       const requested = backend.requested;
       const ownerRequests = () =>
@@ -559,7 +563,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         await waitFor(() =>
           expect(new URL(window.location.href).searchParams.get("page")).toBe(String(c.pages![0].page)),
         );
-        const perPage = new URL(window.location.href).searchParams.get("per_page");
+        const perPage = new URL(window.location.href).searchParams.get("perPage");
         expect(perPage).toBe(String(c.pages[0].perPage));
       }
       if (c.pages !== undefined) {
@@ -583,6 +587,56 @@ describe("mounted home route: your transcripts, their totals and your collective
         expect(ownerRequests().some((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page") === "2")).toBe(false);
       }
 
+      if (c.returnToPage !== undefined && c.pages !== undefined) {
+        const target = c.pages.find((entry) => entry.page === c.returnToPage)!;
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: "previous page" }));
+        });
+        await waitFor(() => expect(tableTitles()).toEqual(target.expectRowTitles));
+        const last = Math.max(1, Math.ceil(c.transcripts.length / target.perPage));
+        expect(pageStatus()).toBe(`page ${target.page} of ${last}`);
+        expect(new URL(window.location.href).searchParams.get("page")).toBe(String(target.page));
+        // The page that was pressed forward FROM is not adjacent to the page
+        // returned to, so its groups keep their full labels.
+        for (const label of document.querySelectorAll('[data-testid="home-transcripts"] .libt-group-label')) {
+          expect(text(label)).not.toContain(", continued");
+        }
+      }
+
+      // A group that began on the immediately preceding page opens with one
+      // compact continuation row; a cold page or a return has no such
+      // predecessor, so nothing is marked.
+      const continuationRows = document.querySelectorAll(
+        '[data-testid="home-transcripts"] tr[data-row-kind="continuation"]',
+      );
+      if (c.expectContinuationRows === true) {
+        expect(continuationRows.length).toBeGreaterThan(0);
+        expect(text(continuationRows[0])).toContain(", continued");
+      } else {
+        expect(continuationRows.length).toBe(0);
+      }
+
+      for (const change of c.pageSizeChanges ?? []) {
+        const select = screen.getByRole("combobox", { name: "page size" });
+        await act(async () => {
+          fireEvent.change(select, { target: { value: String(change.to) } });
+        });
+        await waitFor(() => expect(tableTitles()).toEqual(change.expectRowTitles));
+        const last = Math.max(1, Math.ceil(c.transcripts.length / change.to));
+        expect(pageStatus()).toBe(`page 1 of ${last}`);
+        const url = new URL(window.location.href);
+        expect(url.searchParams.get("page"), "a size change resets to page one").toBe("1");
+        expect(url.searchParams.get("perPage")).toBe(String(change.to));
+        // The request that answered the new view asked for page one at the new
+        // size, not for the page the old size was on.
+        expect(
+          ownerRequests().some((p) => {
+            const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
+            return query.get("page") === "1" && query.get("per_page") === String(change.to);
+          }),
+          `the page-size change to ${change.to} requested page one at the new size`,
+        ).toBe(true);
+      }
 
       if (c.search !== undefined) {
         const box = screen.getByRole("searchbox", { name: "search your transcripts" });

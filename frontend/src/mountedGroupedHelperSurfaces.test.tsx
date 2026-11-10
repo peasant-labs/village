@@ -9,7 +9,7 @@ import ExplorePage from "@/app/explore/ExplorePage";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { renderProfileRoute } from "@/test/mountedProfileRoute";
 import { renderProjectRoute } from "@/test/mountedProjectRoute";
-import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { asTranscriptListRow, makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
 import { transcriptLinkSelector } from "@/test/childSessionDom";
 import {
@@ -182,7 +182,7 @@ function installContinuationREST(testCase: ContinuationCase): string[] {
         }
         return json({
           transcripts: Array.from({ length: testCase.flatTranscripts }, (_, index) =>
-            flatRow(testCase, index),
+            asTranscriptListRow(flatRow(testCase, index)),
           ),
           total: testCase.flatTranscripts,
           agent_total: 0,

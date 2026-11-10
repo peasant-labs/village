@@ -20,6 +20,7 @@ import { ALL_VILLAGE_COLUMNS, DEFAULT_HOME_VIEW, HOME_VIEW_STORAGE_KEY } from "@
 import type { TranscriptListItem, User } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
 import { withResolvedParents } from "@/test/parentTranscriptFixture";
+import { asTranscriptListRow } from "@/test/transcriptRowFixture";
 
 /**
  * Support for tests that mount the REAL root route (`/`), the REAL sign-in
@@ -91,6 +92,8 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
     }),
     tags: [],
     owner: profileOwner(owner),
+    // The contract row's field the home view does not read.
+    attestations: null,
     // As the list serves them: only the collectives that APPROVED the row.
     shares: (t.sharedWith ?? []).map((name, i) => ({
       transcript_id: t.id,
@@ -293,7 +296,9 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
         const listed = slice.map((t) => listItem(t, owner));
         // The server resolves each row's parent within this one owner.
         const resolved = withResolvedParents(listed.map((item) => item.transcript));
-        return listed.map((item, index) => ({ ...item, transcript: resolved[index] }));
+        return listed.map((item, index) =>
+          asTranscriptListRow({ ...item, transcript: resolved[index] }),
+        );
       };
       const rows = build(matching.slice(start, start + perPage));
       const nextItems = build(matching.slice(start + perPage, start + 2 * perPage));

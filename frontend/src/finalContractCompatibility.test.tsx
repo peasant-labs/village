@@ -8,6 +8,7 @@ import { adaptExplore } from "@/lib/adapters/explore";
 import type { Transcript, TranscriptListResponse, User } from "@/lib/types";
 import { loadFinalContractCompatibilityFixtures } from "@/test/finalContractCompatibilityFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { asTranscriptListRow } from "@/test/transcriptRowFixture";
 
 const fixtures = loadFinalContractCompatibilityFixtures();
 
@@ -94,7 +95,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     username_chosen: true,
     provider_username: "fixture-owner",
   };
-  return { transcripts: [{ transcript, tags: [], owner: profileOwner(owner) }], total: 1, agent_total: 0, page: 1, per_page: 25, next_items: [] };
+  return { transcripts: [asTranscriptListRow({ transcript, tags: [], owner: profileOwner(owner) })], total: 1, agent_total: 0, page: 1, per_page: 25, next_items: [] };
 }
 
 function sessionDetail(turnsState: "omitted" | "null" | "nullable-fields", stopReasons?: ["max_turn_requests", "refusal"]): SessionDetailPayload {

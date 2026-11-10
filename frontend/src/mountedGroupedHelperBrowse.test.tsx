@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, expect, it, vi } from "vitest";
 import RootPage from "@/app/page";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { asTranscriptListRow, makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { showHomeAsFlatList } from "@/test/mountedHomeRoute";
 import {
   loadGroupedHelperMountFixtures,
@@ -11,7 +11,7 @@ import {
   memberPageFor,
   memberUUID,
 } from "@/test/groupedHelperMountFixtures";
-import type { TranscriptListItem, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
@@ -114,7 +114,7 @@ function installREST(): Calls {
             helperThreadTotal: fixtures.groups.owner.helperThreadCount + 1,
           });
         }
-        const item: TranscriptListItem = { transcript: ownerTranscript, tags: [], owner: profileOwner(OWNER_USER) };
+        const item = asTranscriptListRow({ transcript: ownerTranscript, tags: [], owner: profileOwner(OWNER_USER) });
         return json({
           transcripts: [item],
           total: 1,

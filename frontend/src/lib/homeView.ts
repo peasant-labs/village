@@ -97,11 +97,15 @@ export const DEFAULT_LIBRARY_URL_VIEW: LibraryUrlView = {
   groupBy: GroupBy.Project,
 };
 
-/** The URL parameter names this codec owns. `page`, `per_page`, and `groupBy`
+/** The URL parameter names this codec owns. `page`, `perPage`, and `groupBy`
  *  are the complete set: the columns and the closed groups never enter a URL,
  *  so a copied URL reproduces the data view and grouping, not the sender's
- *  columns. */
-export const LIBRARY_URL_PARAMS = ["page", "per_page", "groupBy"] as const;
+ *  columns.
+ *
+ *  The address calls the page size `perPage`, the vocabulary the plan and the
+ *  Peasant home use; the wire calls the same value `per_page`. This codec is
+ *  the one place the two names meet. */
+export const LIBRARY_URL_PARAMS = ["page", "perPage", "groupBy"] as const;
 
 /**
  * The columns a stored value names, or the default when it names none.
@@ -130,7 +134,12 @@ export function migrateStoredView(raw: unknown): readonly ColumnId[] {
         dropped.push(value);
       }
     }
-    return ALL_VILLAGE_COLUMNS.filter((column) => members.includes(column));
+    const chosen = ALL_VILLAGE_COLUMNS.filter((column) => members.includes(column));
+    // Both stored shapes agree on the identity column: the title always draws,
+    // whether a stored array named it or not.
+    return chosen.some((column) => column === ColumnIdValues.Transcript)
+      ? chosen
+      : [ColumnIdValues.Transcript, ...chosen];
   };
 
   if (Array.isArray(record.columns)) {
@@ -215,7 +224,7 @@ function positiveInteger(raw: string | null): number | null {
  *  project, so a hand-built URL still asks for a page the server serves. */
 export function decodeLibraryView(params: URLSearchParams): LibraryUrlView {
   const page = positiveInteger(params.get("page")) ?? DEFAULT_LIBRARY_URL_VIEW.page;
-  const perPageValue = Number(params.get("per_page"));
+  const perPageValue = Number(params.get("perPage"));
   const perPage = isPageSize(perPageValue) ? perPageValue : DEFAULT_LIBRARY_URL_VIEW.perPage;
   const groupByWire = params.get("groupBy");
   const groupBy = ALL_GROUP_BYS.find((member) => member.wire === groupByWire) ?? DEFAULT_LIBRARY_URL_VIEW.groupBy;
@@ -227,7 +236,7 @@ export function decodeLibraryView(params: URLSearchParams): LibraryUrlView {
 export function encodeLibraryView(view: LibraryUrlView): URLSearchParams {
   const params = new URLSearchParams();
   params.set("page", String(view.page));
-  params.set("per_page", String(view.perPage));
+  params.set("perPage", String(view.perPage));
   params.set("groupBy", view.groupBy.wire);
   return params;
 }

@@ -14,6 +14,7 @@ import {
   type AgentSessionGroupingCase,
 } from "@/test/agentSessionGroupingFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { asTranscriptListRow } from "@/test/transcriptRowFixture";
 
 /**
  * Mounted evidence for the collapsed group of agent-driven sessions.
@@ -73,7 +74,7 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
 
 function listResponse(ids: string[], origin: SessionOrigin, agentTotal: number): TranscriptListResponse {
   return {
-    transcripts: ids.map((id) => wireItem(id, origin)),
+    transcripts: ids.map((id) => asTranscriptListRow(wireItem(id, origin))),
     total: ids.length,
     agent_total: agentTotal,
     page: 1,

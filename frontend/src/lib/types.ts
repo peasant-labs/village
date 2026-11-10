@@ -1,4 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
+import type { VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -415,37 +416,33 @@ export interface TranscriptRow {
   transcript: Transcript;
   /** The owner as the server resolved them for this viewer. */
   owner: PublicOwner;
-  shares?: { group_name: string }[];
+  /** The contract allows a null shares array; a reader treats null as none. */
+  shares?: { group_name: string }[] | null;
 }
 
 export interface TranscriptListItem {
   transcript: Transcript;
   tags: Tag[];
   owner: PublicOwner;
-  shares?: EnrichedTranscriptShare[];
-  attestations?: AttestationSummary[];
+  /** The contract allows null for either collection; a reader treats null as
+   *  none. */
+  shares?: EnrichedTranscriptShare[] | null;
+  attestations?: AttestationSummary[] | null;
   /** The pull requests this row is attached to that the caller may read: how
    *  many, and up to three of the newest. Absent on a row from a server that
    *  predates the summary, which a reader treats as none. */
   pull_requests?: VillagePullRequestsSummary;
 }
 
-export interface TranscriptListResponse {
-  transcripts: TranscriptListItem[];
-  total: number;
-  /**
-   * How many agent-driven sessions the SAME filters match. The listed rows
-   * never include them, so this is what the collapsed group counts.
-   */
-  agent_total: number;
-  /** The one-based page the server returned, echoed from the request. */
-  page: number;
-  /** The closed page size the page was read at, echoed from the request. */
-  per_page: number;
-  /** The following page's rows, in its order, or none when this page is the
-   *  last one reachable. A host derives the next page's group keys from it. */
-  next_items: TranscriptListItem[];
-}
+/**
+ * One page of the transcript list, derived from the contract rather than
+ * mirrored here: this type IS `schema.VillageTranscriptListResponse`, so a
+ * renamed or dropped field fails the frontend build instead of drifting from
+ * the served document. The explicit page values are held to the request by the
+ * query guard, and the view keeps `TranscriptListItem` for the row shape the
+ * app renders (the contract's row is a superset of it).
+ */
+export type TranscriptListResponse = VillageTranscriptListResponse;
 
 export interface TranscriptDetailResponse {
   transcript: Transcript;

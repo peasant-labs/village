@@ -8,11 +8,11 @@ cases:
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: page-size-and-grouping-round-trip
-    query: "page=3&per_page=50&groupBy=agent"
+    query: "page=3&perPage=50&groupBy=agent"
     expect: { page: 3, perPage: 50, groupBy: agent }
 
   - name: an-out-of-set-size-falls-back-to-twenty-five
-    query: "per_page=26"
+    query: "perPage=26"
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: an-unknown-grouping-falls-back-to-project
@@ -28,5 +28,5 @@ cases:
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: the-nothing-grouping-round-trips
-    query: "groupBy=none&per_page=100"
+    query: "groupBy=none&perPage=100"
     expect: { page: 1, perPage: 100, groupBy: none }

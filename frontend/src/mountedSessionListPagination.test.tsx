@@ -14,6 +14,7 @@ import {
   type PaginationExpect,
 } from "@/test/sessionListPaginationFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { asTranscriptListRow } from "@/test/transcriptRowFixture";
 
 /**
  * Mounted `/` session-pagination evidence.
@@ -74,7 +75,7 @@ function wireItem(id: string): TranscriptListItem {
 }
 
 function buildResponse(data: PaginationData): TranscriptListResponse {
-  return { transcripts: data.ids.map(wireItem), total: TOTAL_ITEMS, agent_total: 0, page: data.page, per_page: PAGE_SIZE, next_items: [] };
+  return { transcripts: data.ids.map((id) => asTranscriptListRow(wireItem(id))), total: TOTAL_ITEMS, agent_total: 0, page: data.page, per_page: PAGE_SIZE, next_items: [] };
 }
 
 function makeRouter(): AppRouterInstance {

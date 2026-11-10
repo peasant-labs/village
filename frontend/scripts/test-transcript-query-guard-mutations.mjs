@@ -7,9 +7,14 @@ const root = parse(await readFile(fixtureURL, "utf8"), { strict: true });
 if (root == null || typeof root !== "object" || Array.isArray(root) || Object.keys(root).join(",") !== "mutations") {
   throw new Error("transcript query guard mutation fixture root must contain only mutations");
 }
-const requiredNames = ["response-pagination-guard-bypass"];
+const requiredNames = [
+  "response-pagination-guard-bypass",
+  "per-page-guard-bypass",
+  "clamp-bypass",
+  "stored-view-order-collapse",
+];
 if (!Array.isArray(root.mutations) || root.mutations.length !== requiredNames.length) {
-  throw new Error(`transcript query guard fixture must contain exactly ${requiredNames.length} mutation`);
+  throw new Error(`transcript query guard fixture must contain exactly ${requiredNames.length} mutations`);
 }
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
@@ -32,7 +37,7 @@ for (const mutation of root.mutations) {
       cwd: new URL("..", import.meta.url),
       encoding: "utf8",
     });
-    if (result.status === 0) throw new Error(`${mutation.name} survived: the mounted mismatch-to-new-page production path remained green`);
+    if (result.status === 0) throw new Error(`${mutation.name} survived: the production path it mutates remained green`);
     process.stdout.write(`mutation killed: ${mutation.name}\n`);
   } finally {
     await writeFile(sourceURL, source);

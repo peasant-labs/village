@@ -109,6 +109,9 @@ export function useTranscripts(
   return useQuery({
     queryKey: ["transcripts", params],
     queryFn: async ({ signal }) => {
+      // The response type is derived from the contract
+      // (VillageTranscriptListResponse); its explicit page values are held to
+      // the request before the page can become cached success data.
       const response = await api<TranscriptListResponse>(
         `/transcripts?${searchParams}`,
         { signal },

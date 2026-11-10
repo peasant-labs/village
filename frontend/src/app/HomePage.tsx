@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileText, Search, Terminal } from "lucide-react";
 import { useTranscripts } from "@/lib/queries/transcripts";
@@ -205,11 +205,18 @@ function HomeBody({ username }: { username: string }) {
     writeLibraryViewToUrl(next);
   };
 
+  // Every settled page's rows, keyed by its page number. A continuation row is
+  // derived from the page immediately before the one on screen, so a return to
+  // an earlier page cannot inherit the page it came back from.
+  const [pageRows, setPageRows] = useState<ReadonlyMap<number, { page: number; rows: TranscriptListItem[] }>>(
+    () => new Map(),
+  );
+  const [recordedData, setRecordedData] = useState<NonNullable<typeof list.data> | null>(null);
+  const clearPageHistory = () => setPageRows(new Map());
+
   // Typing settles into the query the list is asked. A changed question resets
-  // the traversal to page one and forgets the previous page: groups keyed to a
+  // the traversal to page one and forgets the page history: groups keyed to a
   // different result set cannot continue this one.
-  const previousPage = useRef<{ page: number; rows: TranscriptListItem[] } | null>(null);
-  const [continuedRows, setContinuedRows] = useState<TranscriptListItem[] | null>(null);
   useEffect(() => {
     const settled = draft.trim();
     if (settled === query) return;
@@ -221,8 +228,7 @@ function HomeBody({ username }: { username: string }) {
         writeLibraryViewToUrl(next);
         return next;
       });
-      previousPage.current = null;
-      setContinuedRows(null);
+      clearPageHistory();
     }, SEARCH_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [draft, query]);
@@ -260,11 +266,14 @@ function HomeBody({ username }: { username: string }) {
   // out-of-range response is skipped because the render above is already moving
   // the request intent to the last page.
   useEffect(() => {
-    if (list.data == null) return;
+    // Placeholder data is the PREVIOUS page's object, not this page's answer.
+    // Writing it back after a page-size change (which resets to page one) would
+    // put the old page number back in the address.
+    if (list.data == null || list.isPlaceholderData) return;
     const last = lastPageIndex(list.data.total, perPage);
     if (list.data.page > last) return;
     writeLibraryViewToUrl({ page: list.data.page, perPage, groupBy });
-  }, [list.data, perPage, groupBy]);
+  }, [list.data, list.isPlaceholderData, perPage, groupBy]);
 
   // The grouped response is the server's own fold of saved helper threads onto
   // their owner rows. It is a second, independent read of the same route: the
@@ -338,8 +347,15 @@ function HomeBody({ username }: { username: string }) {
   // derives a group the server did not serve.
   const nextGroupKeys =
     nextItems.length > 0 ? groupKeysFor(nextItems, (row) => groupKeysOf(row, groupBy)) : null;
-  // A group that began on the previous page opens with one compact continuation
-  // row. A cold URL passes null, so every group keeps its full header.
+  // A group that began on the page immediately before this one opens with one
+  // compact continuation row. A cold URL, or a return to an earlier page, has
+  // no adjacent predecessor held, so its groups keep full headers.
+  const settledPage = data != null && !list.isPlaceholderData ? data.page : null;
+  const priorPage = settledPage == null ? undefined : pageRows.get(settledPage - 1);
+  const continuedRows =
+    priorPage !== undefined && settledPage !== null && priorPage.page === settledPage - 1
+      ? priorPage.rows
+      : null;
   const continuedGroupKeys =
     continuedRows !== null && continuedRows.length > 0
       ? groupKeysFor(continuedRows, (row) => groupKeysOf(row, groupBy))
@@ -363,15 +379,15 @@ function HomeBody({ username }: { username: string }) {
 
   const [now] = useState(() => Date.now());
 
-  // Remember the last settled page so the next one can mark its continuing
-  // groups. A placeholder keeps the old object, so this only moves when the
-  // server actually answered a different page.
-  useEffect(() => {
-    if (data == null) return;
-    const prior = previousPage.current;
-    if (prior !== null && prior.page !== data.page) setContinuedRows(prior.rows);
-    previousPage.current = { page: data.page, rows: data.transcripts };
-  }, [data]);
+  // Record each settled page once its answer is in hand. Placeholder data is
+  // the previous page's object, not an answer, so it is not recorded. The
+  // guarded render update is React's "adjust state when a response changes"
+  // pattern; an effect would have to set state synchronously, which the hook
+  // rules forbid.
+  if (data != null && !list.isPlaceholderData && data !== recordedData) {
+    setRecordedData(data);
+    setPageRows((current) => new Map(current).set(data.page, { page: data.page, rows: data.transcripts }));
+  }
 
   // Mounted on every branch below, not inside one of them: a polite region has
   // to exist BEFORE its content changes for the change to be announced.
@@ -412,6 +428,9 @@ function HomeBody({ username }: { username: string }) {
   };
 
   const changePageSize = (size: LibraryUrlView["perPage"]) => {
+    // Page numbers name different row sets at a different size, so no page the
+    // client held is adjacent to anything on the new size.
+    clearPageHistory();
     applyUrlView({ page: 1, perPage: size, groupBy });
   };
 
@@ -427,6 +446,9 @@ function HomeBody({ username }: { username: string }) {
     };
     setView(deviceView);
     saveHomeView(deviceView);
+    // The view is a new arrangement; a continuation from the old one is not
+    // evidence about this one.
+    clearPageHistory();
     if (groupingChanged || nextPage !== page) {
       applyUrlView({ page: nextPage, perPage, groupBy: next.groupBy });
     }

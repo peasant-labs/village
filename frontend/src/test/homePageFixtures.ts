@@ -135,6 +135,16 @@ export type HomeCase = {
   /** A cold URL page past the last page: the client asks for it, reads the
    *  echoed total, then asks for the last page in a second request. */
   clampFrom?: number;
+  /** A page the case returns to with the pager after pressing forward. */
+  returnToPage?: number;
+  /** Whether the settled page renders a compact continuation row for a group
+   *  that began on the page immediately before it. */
+  expectContinuationRows?: boolean;
+  /** The URL grouping the case mounts with; defaults to the flat list. */
+  groupBy?: "project" | "collective" | "agent" | "none";
+  /** Page-size changes made from the settled page, in order: the table resets
+   *  to page one at each new size. */
+  pageSizeChanges?: { to: number; expectRowTitles: string[] }[];
   /** The page the URL carries when the page mounts. Defaults to 1. */
   startPage?: number;
   /** Every page the test expects to see requested, in order. */
@@ -271,6 +281,9 @@ const requiredHomeCaseNames = [
   "a-short-library-shows-real-page-numbers",
   "an-out-of-range-page-clamps-to-the-last-page",
   "a-search-resets-to-page-one",
+  "a-continuing-group-opens-with-a-compact-continuation-row",
+  "returning-to-page-one-restores-full-group-labels",
+  "changing-the-page-size-resets-to-the-first-page",
   "recent-sessions-lead-and-projects-follow",
   "public-link-access-is-named-alongside-approved-collectives",
   "pending-private-submission-does-not-claim-author-only-access",
@@ -313,6 +326,10 @@ const optionalHomeCaseKeys = [
   "search",
   "pages",
   "clampFrom",
+  "returnToPage",
+  "expectContinuationRows",
+  "groupBy",
+  "pageSizeChanges",
   "startPage",
   "expectRequestedPages",
   "expectPullRequestCells",
@@ -756,7 +773,15 @@ export function loadHomePageFixtures(): HomePageFixtures {
           );
         }
       }
-      const settled = c.clampFrom === undefined ? pages[0] : pages[pages.length - 1];
+      const settled =
+        c.clampFrom !== undefined
+          ? pages[pages.length - 1]
+          : c.returnToPage !== undefined
+            ? pages.find((entry) => entry.page === c.returnToPage)
+            : pages[0];
+      if (settled === undefined) {
+        throw new Error(`home case ${c.name}: returnToPage ${c.returnToPage} is not a declared page`);
+      }
       if (JSON.stringify(c.expectRowTitles) !== JSON.stringify(settled.expectRowTitles)) {
         throw new Error(
           `home case ${c.name}: expectRowTitles must name the rows the settled page lists ` +
@@ -782,6 +807,36 @@ export function loadHomePageFixtures(): HomePageFixtures {
     }
     if (c.startPage !== undefined && (!Number.isSafeInteger(c.startPage) || c.startPage < 1)) {
       throw new Error(`home case ${c.name}: startPage must be one-based, got ${c.startPage}`);
+    }
+    if (c.returnToPage !== undefined) {
+      if (c.pages === undefined || !c.pages.some((entry) => entry.page === c.returnToPage)) {
+        throw new Error(`home case ${c.name}: returnToPage must name a declared page`);
+      }
+      if (c.returnToPage === c.pages[c.pages.length - 1].page) {
+        throw new Error(`home case ${c.name}: returnToPage must be earlier than the page pressed to`);
+      }
+    }
+    if (c.expectContinuationRows !== undefined && typeof c.expectContinuationRows !== "boolean") {
+      throw new Error(`home case ${c.name}: expectContinuationRows must be a boolean`);
+    }
+    if (c.groupBy !== undefined && !["project", "collective", "agent", "none"].includes(c.groupBy)) {
+      throw new Error(`home case ${c.name}: ${c.groupBy} is not a grouping`);
+    }
+    if (c.expectContinuationRows === true && (c.groupBy === undefined || c.groupBy === "none")) {
+      throw new Error(`home case ${c.name}: a continuation row needs a grouping other than none`);
+    }
+    for (const change of c.pageSizeChanges ?? []) {
+      assertExactKeys(change, ["to", "expectRowTitles"], `home case ${c.name} pageSizeChange`);
+      if (![25, 50, 100].includes(change.to)) {
+        throw new Error(`home case ${c.name}: a page-size change to ${change.to} is not a schema PageSize member`);
+      }
+      const served = newest.slice(0, change.to);
+      if (JSON.stringify(change.expectRowTitles) !== JSON.stringify(served)) {
+        throw new Error(
+          `home case ${c.name}: the first page at ${change.to}/page lists ` +
+            `${served.join(", ") || "nothing"}, not ${change.expectRowTitles.join(", ") || "nothing"}`,
+        );
+      }
     }
     const givenOrder = c.transcripts.map((t) => t.title);
     if (c.transcripts.length > 1 && JSON.stringify(givenOrder) !== JSON.stringify(newest)) {
