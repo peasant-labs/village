@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import {
   zVillageHelperMembersPayload,
   zVillageSessionListPayload,
+  PageSize,
   type HelperGroupSummary,
 } from "@peasant-labs/schema";
 import { useAuth } from "@/providers/AuthProvider";
@@ -31,15 +32,16 @@ export function useGroupedTranscripts(
 ) {
   const { user, isLoading } = useAuth();
   const client = useQueryClient();
-  const queryParams = { ...params, view: "grouped", page: params.page ?? "1", limit: params.limit ?? "20" };
+  const queryParams = { ...params, view: "grouped", page: params.page ?? "1", limit: params.limit ?? String(PageSize.P25) };
   const queryKey = ["transcripts", "grouped", user?.id ?? "anonymous", queryParams] as const;
   const query = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
       const value = await api<unknown>(`/transcripts?${new URLSearchParams(queryParams)}`, { signal });
       const response = zVillageSessionListPayload.parse(value);
+      const paging = adaptTranscriptPaging(response);
       assertPageMatches(Number(queryParams.page), Number(queryParams.limit), response);
-      return { ...response, paging: adaptTranscriptPaging(response) };
+      return { ...response, paging };
     },
     // Never borrow rows or member scopes from another viewer/filter/page.
     enabled: !isLoading && (options.enabled ?? true),
@@ -61,7 +63,7 @@ export function useGroupedTranscripts(
  * only the first 100 grouped top-level units. A later owner or helper-only
  * context container on such a surface would silently lose its grouped exit.
  */
-export const GROUPED_TOP_LEVEL_PAGE_SIZE = 100;
+export const GROUPED_TOP_LEVEL_PAGE_SIZE = PageSize.P100;
 
 /**
  * The global/profile/project grouped read, with a reachable continuation.
@@ -93,8 +95,9 @@ export function useGroupedTranscriptsPaged(
       const requestParams = { ...filterParams, page: String(pageParam) };
       const value = await api<unknown>(`/transcripts?${new URLSearchParams(requestParams)}`, { signal });
       const response = zVillageSessionListPayload.parse(value);
+      const paging = adaptTranscriptPaging(response);
       assertPageMatches(pageParam, limit, response);
-      return { ...response, paging: adaptTranscriptPaging(response) };
+      return { ...response, paging };
     },
     initialPageParam: 1,
     // The server reports how many grouped top-level units the SAME filters

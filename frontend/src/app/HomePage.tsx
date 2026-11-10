@@ -282,7 +282,7 @@ function HomeBody({ username }: { username: string }) {
   // that fails contributes no helper groups; the rows render exactly as they
   // would without it. The named explicit continuation stays on the collective
   // and user pages; the Library has no continuation beyond its numbered pages.
-  const grouped = useGroupedTranscriptsPaged({ owner: username, limit: "100" });
+  const grouped = useGroupedTranscriptsPaged({ owner: username });
   const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
   const refreshGrouped = grouped.refreshOrigin;

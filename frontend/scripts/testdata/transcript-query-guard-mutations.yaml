@@ -1,8 +1,15 @@
 mutations:
+  - name: unsupported-page-size-accepted
+    file: ../../src/lib/queries/transcriptPaging.ts
+    original: "  if (!isPageSize(received)) throw new TranscriptPageSizeError(received);"
+    replacement: "  // Mutant: accept an unchecked wire value."
+    testFile: src/lib/queries/transcriptPaging.test.tsx
+    testName: flat-unsupported-size
+
   - name: response-pagination-guard-bypass
     file: ../../src/lib/queries/transcripts.ts
-    original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return { ...response, paging: adaptTranscriptPaging(response) };"
-    replacement: "      return { ...response, paging: adaptTranscriptPaging(response) };"
+    original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return { ...response, paging };"
+    replacement: "      return { ...response, paging };"
     testFile: src/mountedSessionListPagination.test.tsx
     testName: rejected-mismatch-then-new-page-keeps-last-confirmed-rows
 

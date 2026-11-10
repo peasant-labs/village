@@ -117,8 +117,9 @@ export function useTranscripts(
         `/transcripts?${searchParams}`,
         { signal },
       );
+      const paging = adaptTranscriptPaging(response);
       assertTranscriptListResponseMatchesRequest(params, response);
-      return { ...response, paging: adaptTranscriptPaging(response) };
+      return { ...response, paging };
     },
     placeholderData: (previousData) => previousData,
     enabled: options?.enabled ?? true,

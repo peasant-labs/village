@@ -10,6 +10,7 @@ if (root == null || typeof root !== "object" || Array.isArray(root) || Object.ke
 const requiredNames = [
   "response-pagination-guard-bypass",
   "per-page-guard-bypass",
+  "unsupported-page-size-accepted",
   "clamp-bypass",
   "stored-view-order-collapse",
   "continuation-uses-last-settled-page",

@@ -17,9 +17,9 @@ row:
 cases:
   - {name: nested-independent-scope, kind: members, params: {}, expanded: true, status: 200, nestedStatus: 200, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
   - {name: nested-expiry-keeps-parent, kind: members, params: {}, expanded: true, status: 200, nestedStatus: 409, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
-  - {name: global-query, kind: list, params: {page: '1', limit: '20'}, expanded: false, status: 200, request: {view: grouped, page: '1', limit: '20'}}
-  - {name: profile-query, kind: list, params: {owner: fixture-owner, page: '1', limit: '20'}, expanded: false, status: 200, request: {owner: fixture-owner, view: grouped, page: '1', limit: '20'}}
-  - {name: project-query, kind: list, params: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, expanded: false, status: 200, request: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, view: grouped, page: '1', limit: '20'}}
+  - {name: global-query, kind: list, params: {page: '1', limit: '25'}, expanded: false, status: 200, request: {view: grouped, page: '1', limit: '25'}}
+  - {name: profile-query, kind: list, params: {owner: fixture-owner, page: '1', limit: '25'}, expanded: false, status: 200, request: {owner: fixture-owner, view: grouped, page: '1', limit: '25'}}
+  - {name: project-query, kind: list, params: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, expanded: false, status: 200, request: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, view: grouped, page: '1', limit: '25'}}
   - {name: collapsed-no-member-request, kind: members, params: {}, expanded: false, status: 200, request: {}}
   - {name: exact-member-scope-only, kind: members, params: {}, expanded: true, status: 200, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
   - {name: expired-scope-no-automatic-refresh, kind: members, params: {}, expanded: true, status: 409, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
