@@ -57,3 +57,7 @@
 !baseline/**
 !mock-rest-integrity.mjs
 !integrity-shoot.mjs
+!mock-rest-published-images.mjs
+!published-images-shoot.mjs
+!evidence/
+!evidence/**
