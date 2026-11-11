@@ -3,6 +3,9 @@ import {
   parseTranscriptContentText,
   scanRawJsonText,
   zObservedModelID,
+  OmittedReason,
+  TurnPartType,
+  type SessionDetailPayload,
 } from "@peasant-labs/schema";
 
 const contentPolicy = {
@@ -73,11 +76,11 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
 function publicEvidence(value: unknown): { strict: boolean } {
   let strict = false;
   if (isObject(value)) {
-    strict = "nativeMetadata" in value;
+    strict = "nativeMetadata" in value || "earlierHistory" in value;
     if (Array.isArray(value.turns)) {
       for (const turn of value.turns) {
         if (!isObject(turn)) continue;
-        if ("usage" in turn || "sourceEntryRef" in turn) strict = true;
+        if ("usage" in turn || "sourceEntryRef" in turn || "contentParts" in turn) strict = true;
         if (!Array.isArray(turn.toolCalls)) continue;
         for (const tool of turn.toolCalls) {
           if (!isObject(tool)) continue;
@@ -97,6 +100,25 @@ function publicRootShape(node: Record<string, unknown>): boolean {
     return typeof node.contractVersion === "string" || "nativeMetadata" in node.sessionDetail || publicRootShape(node.sessionDetail);
   }
   return false;
+}
+
+function countPublishedImages(detail: SessionDetailPayload): number {
+  const turns = [...(detail.turns ?? []), ...(detail.earlierHistory ?? []).flatMap((section) => section.turns)];
+  return turns.reduce((count, turn) => count + (turn.contentParts ?? []).filter(
+    (part) => part.type === TurnPartType.Image && part.image?.omittedReason === OmittedReason.NotPublished,
+  ).length, 0);
+}
+
+/** Published mode is reserved for a schema-validated published envelope. */
+export function parseTranscriptRead(text: string, knownHarness?: string): { content: unknown; omittedImages: number; published: boolean } {
+  const content = parseTranscriptResponseText(text, knownHarness);
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return { content, omittedImages: 0, published: false }; }
+  if (!isObject(value) || !("sessionDetail" in value) || !("contractVersion" in value)) return { content, omittedImages: 0, published: false };
+  if (!publicEvidence(value.sessionDetail).strict) return { content, omittedImages: 0, published: false };
+  const detail = parseTranscriptContentText(text).sessionDetail;
+  if (!detail) throw new Error("Published transcript has no session detail; republish it and retry.");
+  return { content: detail, omittedImages: countPublishedImages(detail), published: true };
 }
 
 function legacyMessageShape(node: Record<string, unknown>): boolean {

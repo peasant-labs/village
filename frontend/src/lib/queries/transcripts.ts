@@ -17,7 +17,7 @@ import type {
   ListAnnotationsResponse,
 } from "../annotations";
 import { TRANSCRIPT_LIST_ENDPOINT, TranscriptListQueryErrorCode } from "../transcriptPageRequest";
-import { parseTranscriptResponseText } from "./transcriptContent";
+import { parseTranscriptRead } from "./transcriptContent";
 import { adaptTranscriptPaging } from "./transcriptPaging";
 
 export { TranscriptListQueryErrorCode };
@@ -168,7 +168,7 @@ export function useTranscriptContent(id: string, options: {knownHarness?: string
       // The hash of the bytes just read; the viewer marks flagged turns only
       // when it equals the detail response's content hash.
       const contentHash = readContentHashHeader(res.headers.get("Village-Content-Hash"));
-      return { content: parseTranscriptResponseText(text, options.knownHarness), contentHash };
+      return { ...parseTranscriptRead(text, options.knownHarness), contentHash };
     },
     enabled: !!id && (options.enabled ?? true),
   });

@@ -20,17 +20,7 @@ export type ToolCallKind = typeof ToolCallKind[keyof typeof ToolCallKind];
 
 // -- Entry Type Classification -----------------------------------------------
 
-/** Mirrors @peasant-labs/schema EntryType — content part classification. */
-const EntryType = {
-  Text:       'text',
-  ToolUse:    'tool_use',
-  ToolResult: 'tool_result',
-  Thinking:   'thinking',
-  System:     'system',
-  Error:      'error',
-  Result:     'result',
-} as const;
-type EntryType = typeof EntryType[keyof typeof EntryType];
+import type { EntryType } from '@peasant-labs/schema';
 
 // -- Stop Reason Classification -----------------------------------------------
 
