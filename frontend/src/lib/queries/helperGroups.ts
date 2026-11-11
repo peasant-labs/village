@@ -4,10 +4,12 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import {
   zVillageHelperMembersPayload,
   zVillageSessionListPayload,
+  PageSize,
   type HelperGroupSummary,
 } from "@peasant-labs/schema";
 import { useAuth } from "@/providers/AuthProvider";
 import { api, isApiErrorStatus } from "../api";
+import { adaptTranscriptPaging } from "./transcriptPaging";
 
 function assertPageMatches(page: number, limit: number, response: { page: number; limit: number }) {
   if (response.page !== page || response.limit !== limit) {
@@ -23,12 +25,6 @@ function assertPageMatches(page: number, limit: number, response: { page: number
  * The global/profile/project query uses the server's complete grouped page, not
  * a client fold over a flat page. Owner/project inputs must be settled before
  * enabling the query; an empty owner is global discovery, not an owner lookup.
- *
- * Vocabulary note (follow-up): this envelope is its own contract and still
- * names its page size `limit` and its count `totalItems`, while the flat
- * transcript list now serves `per_page` and `next_items`. Aligning the two
- * vocabularies is a separate contract change; this read must not be renamed
- * ahead of it.
  */
 export function useGroupedTranscripts(
   params: Record<string, string>,
@@ -36,15 +32,16 @@ export function useGroupedTranscripts(
 ) {
   const { user, isLoading } = useAuth();
   const client = useQueryClient();
-  const queryParams = { ...params, view: "grouped", page: params.page ?? "1", limit: params.limit ?? "20" };
+  const queryParams = { ...params, view: "grouped", page: params.page ?? "1", limit: params.limit ?? String(PageSize.P25) };
   const queryKey = ["transcripts", "grouped", user?.id ?? "anonymous", queryParams] as const;
   const query = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
       const value = await api<unknown>(`/transcripts?${new URLSearchParams(queryParams)}`, { signal });
       const response = zVillageSessionListPayload.parse(value);
+      const paging = adaptTranscriptPaging(response);
       assertPageMatches(Number(queryParams.page), Number(queryParams.limit), response);
-      return response;
+      return { ...response, paging };
     },
     // Never borrow rows or member scopes from another viewer/filter/page.
     enabled: !isLoading && (options.enabled ?? true),
@@ -66,7 +63,7 @@ export function useGroupedTranscripts(
  * only the first 100 grouped top-level units. A later owner or helper-only
  * context container on such a surface would silently lose its grouped exit.
  */
-export const GROUPED_TOP_LEVEL_PAGE_SIZE = 100;
+export const GROUPED_TOP_LEVEL_PAGE_SIZE = PageSize.P100;
 
 /**
  * The global/profile/project grouped read, with a reachable continuation.
@@ -98,21 +95,22 @@ export function useGroupedTranscriptsPaged(
       const requestParams = { ...filterParams, page: String(pageParam) };
       const value = await api<unknown>(`/transcripts?${new URLSearchParams(requestParams)}`, { signal });
       const response = zVillageSessionListPayload.parse(value);
+      const paging = adaptTranscriptPaging(response);
       assertPageMatches(pageParam, limit, response);
-      return response;
+      return { ...response, paging };
     },
     initialPageParam: 1,
     // The server reports how many grouped top-level units the SAME filters
     // select, so "is there another page" is its answer, never a client count.
     getNextPageParam: (last) =>
-      last.page * last.limit < last.totalItems ? last.page + 1 : undefined,
+      last.paging.hasMore ? last.paging.page + 1 : undefined,
     // Never borrow rows or member scopes from another viewer/filter/page.
     enabled: !isLoading && (options.enabled ?? true),
     retry: false,
     staleTime: 0,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
-  const totalItems = query.data?.pages[0]?.totalItems ?? 0;
+  const totalItems = query.data?.pages[0]?.paging.total ?? 0;
   return {
     ...query,
     items,

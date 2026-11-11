@@ -1,0 +1,20 @@
+row:
+  id: address-row
+  title: address example
+  projectHash: example-project
+  projectDisplayName: example project
+  modelProvider: claude-code
+  publishedAt: '2026-01-01T10:00:00.000Z'
+cases:
+  - name: default-mount-keeps-the-address-clean
+    path: /
+    expectedAddress: /
+    perPage: '25'
+    groupLabel: example project
+  - name: non-default-deep-link-and-legacy-columns-survive
+    path: /?perPage=50&groupBy=agent&campaign=hello#reading
+    expectedAddress: /?campaign=hello&perPage=50&groupBy=agent#reading
+    perPage: '50'
+    groupLabel: claude-code
+    legacyColumns: { project: true, when: true }
+    expectedColumns: [transcript, project, when]

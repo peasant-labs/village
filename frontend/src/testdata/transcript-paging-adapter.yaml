@@ -1,0 +1,85 @@
+cases:
+  - name: flat-with-following-page
+    kind: flat
+    requested: {page: "1", per_page: "25"}
+    response: {transcripts: [], next_items: [next], total: 51, agent_total: 3, page: 1, per_page: 25}
+    paging: {page: 1, perPage: 25, total: 51, hasMore: true}
+  - name: flat-without-following-page
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 2, per_page: 25}
+    paging: {page: 2, perPage: 25, total: 30, hasMore: false}
+  - name: grouped-with-following-page
+    kind: grouped
+    requested: {page: "1", limit: "25"}
+    response: {items: [], page: 1, limit: 25, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    paging: {page: 1, perPage: 25, total: 30, hasMore: true}
+  - name: grouped-last-page
+    kind: grouped
+    requested: {page: "2", limit: "25"}
+    response: {items: [], page: 2, limit: 25, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    paging: {page: 2, perPage: 25, total: 30, hasMore: false}
+  - name: flat-wrong-echoed-page
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 1, per_page: 25}
+    rejected: true
+  - name: flat-wrong-echoed-size
+    kind: flat
+    requested: {page: "2", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 30, agent_total: 0, page: 2, per_page: 50}
+    rejected: true
+  - name: grouped-wrong-echoed-page
+    kind: grouped
+    requested: {page: "2", limit: "25"}
+    response: {items: [], page: 1, limit: 25, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    rejected: true
+  - name: grouped-wrong-echoed-size
+    kind: grouped
+    requested: {page: "2", limit: "25"}
+    response: {items: [], page: 2, limit: 50, totalItems: 30, ordinarySessionTotal: 25, helperThreadTotal: 5}
+    rejected: true
+  - name: flat-size-50
+    kind: flat
+    requested: {page: "1", per_page: "50"}
+    response: {transcripts: [], next_items: [], total: 0, agent_total: 0, page: 1, per_page: 50}
+    paging: {page: 1, perPage: 50, total: 0, hasMore: false}
+  - name: flat-size-100
+    kind: flat
+    requested: {page: "1", per_page: "100"}
+    response: {transcripts: [], next_items: [], total: 0, agent_total: 0, page: 1, per_page: 100}
+    paging: {page: 1, perPage: 100, total: 0, hasMore: false}
+  - name: grouped-size-50
+    kind: grouped
+    requested: {page: "1", limit: "50"}
+    response: {items: [], page: 1, limit: 50, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0}
+    paging: {page: 1, perPage: 50, total: 0, hasMore: false}
+  - name: grouped-size-100
+    kind: grouped
+    requested: {page: "1", limit: "100"}
+    response: {items: [], page: 1, limit: 100, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0}
+    paging: {page: 1, perPage: 100, total: 0, hasMore: false}
+  - name: flat-unsupported-size
+    kind: flat
+    requested: {page: "1", per_page: "26"}
+    response: {transcripts: [], next_items: [], total: 0, agent_total: 0, page: 1, per_page: 26}
+    rejected: true
+    unsupportedSize: 26
+  - name: grouped-unsupported-size
+    kind: grouped
+    requested: {page: "1", limit: "26"}
+    response: {items: [], page: 1, limit: 26, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0}
+    rejected: true
+    unsupportedSize: 26
+  - name: flat-mismatched-unsupported-size
+    kind: flat
+    requested: {page: "1", per_page: "25"}
+    response: {transcripts: [], next_items: [], total: 0, agent_total: 0, page: 1, per_page: 26}
+    rejected: true
+    unsupportedSize: 26
+  - name: grouped-mismatched-unsupported-size
+    kind: grouped
+    requested: {page: "1", limit: "25"}
+    response: {items: [], page: 1, limit: 26, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0}
+    rejected: true
+    unsupportedSize: 26

@@ -596,7 +596,7 @@ describe("mounted home route: your transcripts, their totals and your collective
           expect(new URL(window.location.href).searchParams.get("page")).toBe(String(c.pages![0].page)),
         );
         const perPage = new URL(window.location.href).searchParams.get("perPage");
-        expect(perPage).toBe(String(c.pages[0].perPage));
+        expect(perPage).toBe(c.pages[0].perPage === 25 ? null : String(c.pages[0].perPage));
       }
       if (c.pages !== undefined) {
         const last = Math.max(1, Math.ceil(c.transcripts.length / c.pages[0].perPage));
@@ -632,7 +632,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         await waitFor(() => expect(tableTitles()).toEqual(target.expectRowTitles));
         const last = Math.max(1, Math.ceil(c.transcripts.length / target.perPage));
         expect(pageStatus()).toBe(`page ${target.page} of ${last}`);
-        expect(new URL(window.location.href).searchParams.get("page")).toBe(String(target.page));
+        expect(new URL(window.location.href).searchParams.get("page")).toBe(target.page === 1 ? null : String(target.page));
         // The page that was pressed forward FROM is not adjacent to the page
         // returned to, so its groups keep their full labels.
         for (const label of document.querySelectorAll('[data-testid="home-transcripts"] .libt-group-label')) {
@@ -654,8 +654,8 @@ describe("mounted home route: your transcripts, their totals and your collective
         const last = Math.max(1, Math.ceil(c.transcripts.length / change.to));
         expect(pageStatus()).toBe(`page 1 of ${last}`);
         const url = new URL(window.location.href);
-        expect(url.searchParams.get("page"), "a size change resets to page one").toBe("1");
-        expect(url.searchParams.get("perPage")).toBe(String(change.to));
+        expect(url.searchParams.get("page"), "a size change resets to page one").toBeNull();
+        expect(url.searchParams.get("perPage")).toBe(change.to === 25 ? null : String(change.to));
         // The request that answered the new view asked for page one at the new
         // size, not for the page the old size was on.
         expect(
