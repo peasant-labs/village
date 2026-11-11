@@ -59,15 +59,23 @@ func advertisedContentCapabilitiesWithEvaluator(evaluator observedModelPreservat
 // The returned list is always the closed inventory in canonical lexicographic
 // order, so it always satisfies schema.ValidateContentCapabilityAdvertisements.
 func advertisedContentCapabilitiesWithEvaluators(evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator, thinkingLevel thinkingLevelPreservationEvaluator) []schema.ContentCapability {
+	return advertisedContentCapabilitiesWithParts(evaluator, provenance, thinkingLevel, productionContentPartsEvaluator{})
+}
+
+func advertisedContentCapabilitiesWithParts(evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator, thinkingLevel thinkingLevelPreservationEvaluator, parts contentPartsEvaluator) []schema.ContentCapability {
 	if err := evaluator.Evaluate(); err != nil {
 		return []schema.ContentCapability{}
 	}
-	capabilities := []schema.ContentCapability{
+	capabilities := []schema.ContentCapability{}
+	if err := parts.Evaluate(); err == nil {
+		capabilities = append(capabilities, schema.ContentCapabilityContentPartsV1)
+	}
+	capabilities = append(capabilities,
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
 		schema.ContentCapabilityRetainedUnknownV1,
-	}
+	)
 	if err := provenance.Evaluate(); err == nil {
 		capabilities = append(capabilities, schema.ContentCapabilitySessionGraphProvenanceV1)
 	}

@@ -64,7 +64,7 @@ func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion,
 	if payload == nil {
 		return nil, publicationDetailError(fmt.Errorf("canonical rewrite requires a non-null durable detail"))
 	}
-	if err := schema.ValidateSessionDetailPayload(*payload); err != nil {
+	if err := schema.ValidatePublishedSessionDetailPayload(*payload); err != nil {
 		return nil, publicationDetailError(err)
 	}
 	encoded, err := marshalTranscriptContentEnvelope(version, payload)
@@ -170,9 +170,14 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 	if len(required) == 0 {
 		return nil
 	}
+	if containsContentCapability(required, schema.ContentCapabilityContentPartsV1) {
+		if err := (productionContentPartsEvaluator{}).Evaluate(); err != nil {
+			return fmt.Errorf("content-parts publish refused before storage because the preservation proof failed; deploy a version that advertises %q and retry: %w", schema.ContentCapabilityContentPartsV1, err)
+		}
+	}
 	shared := make([]schema.ContentCapability, 0, len(required))
 	for _, capability := range required {
-		if capability != schema.ContentCapabilitySessionGraphProvenanceV1 && capability != schema.ContentCapabilityThinkingLevelV1 {
+		if capability != schema.ContentCapabilitySessionGraphProvenanceV1 && capability != schema.ContentCapabilityThinkingLevelV1 && capability != schema.ContentCapabilityContentPartsV1 {
 			shared = append(shared, capability)
 		}
 	}

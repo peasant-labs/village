@@ -38,6 +38,7 @@ func TestBootCachedVerdictsAdvertiseFullInventory(t *testing.T) {
 	}
 	capabilities := advertisedContentCapabilities()
 	want := []schema.ContentCapability{
+		schema.ContentCapabilityContentPartsV1,
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,

@@ -75,6 +75,7 @@ func TestProductionProvenancePreservationProofPasses(t *testing.T) {
 func TestAdvertisedContentCapabilitiesIncludeProvenanceWhenProofsPass(t *testing.T) {
 	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{})
 	want := []schema.ContentCapability{
+		schema.ContentCapabilityContentPartsV1,
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
@@ -97,6 +98,7 @@ func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenItsProofFails(t 
 		t.Fatalf("failing provenance proof still advertised the provenance token: %v", capabilities)
 	}
 	want := []schema.ContentCapability{
+		schema.ContentCapabilityContentPartsV1,
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
