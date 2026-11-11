@@ -41,6 +41,12 @@ const requiredHarnessNames = [
   "opencode",
   "antigravity",
   "pi",
+  "grok-build",
+  "devin-desktop",
+  "cline",
+  "kiro",
+  "kiro-cli",
+  "kiro-crew",
 ] as const;
 const requiredSessionNames = ["omitted-turns", "null-turns", "nullable-turn-fields"] as const;
 const requiredObservedModelSessionNames = [

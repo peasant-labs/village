@@ -15,6 +15,18 @@ harnesses:
     value: antigravity
   - name: pi
     value: pi
+  - name: grok-build
+    value: grok-build
+  - name: devin-desktop
+    value: devin-desktop
+  - name: cline
+    value: cline
+  - name: kiro
+    value: kiro
+  - name: kiro-cli
+    value: kiro-cli
+  - name: kiro-crew
+    value: kiro-crew
 offContractHarness:
   name: rejected-unknown-harness
   value: unknown-agent
