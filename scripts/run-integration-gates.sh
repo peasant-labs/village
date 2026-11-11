@@ -63,7 +63,7 @@ run_package() {
     # the race detector into a no-race pass, parallelize the rest, then bring this
     # budget back down. Peasant followed the same order (peasant#389) and carried a
     # raised cap (#940) while #941 brought the suite back under it.
-    TEST_DATABASE_URL="$database_url" go test -timeout=45m -json -tags=integration -race -count=1 "$package"
+    TEST_DATABASE_URL="$database_url" go test -timeout=45m -json -tags=integration $( [ "${RACE:-0}" = "1" ] && echo -race ) -count=1 "$package"
   ) 2>&1 | (
     cd "$repo_root/backend"
     go run ../scripts/check-go-test-events.go "$package"

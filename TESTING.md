@@ -7,8 +7,12 @@ table - this file holds the **patterns, strategy, and worked examples** that
 those tables point at, and does not repeat them.
 
 All Go commands run from `backend/` (the repo is a `go.work` workspace →
-`use ./backend`, Go 1.25.5). `-race` is mandatory everywhere: CI runs every
-suite under the race detector.
+`use ./backend`, Go 1.25.5). The race detector is **off by default** while the
+test-performance work in `#387` lands: the handler package spends ~19.4m under
+it, and most of that is serial per-test database setup and migration re-runs
+rather than detector work. Run `RACE=1` (or `go test -race ./...`) to get race
+coverage locally; CI restores it explicitly once the suite is measured and
+partitioned.
 
 ## Test documentation map
 
