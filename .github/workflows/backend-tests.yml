@@ -205,7 +205,11 @@ jobs:
         working-directory: backend
         env:
           TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
-        run: go test -race ./...
+        # The race-enabled handler package can exceed Go's ten-minute default on
+        # the shared CI pool; the integration gate already carries -timeout=30m
+        # for the same reason. Keep the budget explicit rather than letting the
+        # harness default decide.
+        run: go test -timeout=30m -race ./...
 
       - name: Formatting
         working-directory: backend
