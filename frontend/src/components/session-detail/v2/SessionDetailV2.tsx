@@ -112,6 +112,7 @@ interface SessionDetailV2Props {
   error?: string | null;
   beforeHeader?: ReactNode;
   omittedImages?: number;
+  publishedContent?: boolean;
   presentation?: 'ledger' | 'classic';
   /** `"full"` (default) is the standalone `/transcripts/{id}` route: every
    *  owner/viewer action, the trajectory graph, and the header action row.
@@ -155,6 +156,7 @@ function SessionDetailV2Content({
   error,
   beforeHeader,
   omittedImages = 0,
+  publishedContent = false,
   presentation,
   variant = "full",
 }: SessionDetailV2Props) {
@@ -234,13 +236,13 @@ function SessionDetailV2Content({
       // Read metadata, not durable content: the adapter cooks the source/
       // starter links and an exact branch anchor only when the navigation it
       // receives still agrees with the durable relationship.
-      { relationshipNavigation },
+      { relationshipNavigation, ...(publishedContent ? { payloadMode: 'published' as const } : {}) },
     );
     // Overlay the stored title onto the hero — see `overlayStoredTitle` for
     // why the composite's own derivation (falling through to the first
     // `role: user` turn) is not safe to let through unmodified (village#32).
     return overlayStoredTitle(adapted, transcriptTitle);
-  }, [detail, turns, transcriptTitle, relationshipNavigation]);
+  }, [detail, turns, transcriptTitle, relationshipNavigation, publishedContent]);
 
   // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
   const toolVMsByTurn = useMemo(

@@ -8,17 +8,25 @@ import { parseTranscriptRead } from '@/lib/queries/transcriptContent';
 
 installMountedRouteTeardown();
 
-it('reports published omissions without requesting image bytes', async () => {
+it('counts omissions in root and retained earlier history without altering either', () => {
   const fixture = parse(readFileSync(resolve(process.cwd(), '../backend/internal/handler/testdata/content_parts_preservation.yaml'), 'utf8'));
   const cases = fixture.cases.filter((entry: { name: string }) => entry.name === 'root_and_earlier_ordered_parts');
   expect(cases).toHaveLength(1);
+  const result = parseTranscriptRead(cases[0].content, 'codex');
+  expect(result.omittedImages).toBe(2);
+  expect(result.content).toEqual(JSON.parse(cases[0].content).sessionDetail);
+});
+
+it('reports published omissions without requesting image bytes', async () => {
+  const fixture = parse(readFileSync(resolve(process.cwd(), 'src/testdata/published-image-reader.yaml'), 'utf8'));
+  const cases = fixture.cases.filter((entry: { name: string }) => entry.name === 'two-published-images');
+  expect(cases).toHaveLength(1);
   const envelope = JSON.parse(cases[0].content);
   const detail = envelope.sessionDetail;
-  const projected = parseTranscriptRead(cases[0].content, 'codex');
-  expect(projected.omittedImages).toBe(2);
-  const content = projected.content as typeof detail;
-  expect(content.turns[0].contentParts.map((part: { text: string }) => part.text)).toEqual(['before', 'image omitted from publication', 'after']);
-  expect(content.earlierHistory[0].turns[0].contentParts.map((part: { text: string }) => part.text)).toEqual(['image omitted from publication', 'old']);
+  const parsed = parseTranscriptRead(cases[0].content, 'codex');
+  expect(parsed.omittedImages).toBe(2);
+  expect(parsed.published).toBe(true);
+  expect(parsed.content).toEqual(detail);
   const id = 'omitted-images';
   const fetchMock = installRESTFixture(id, {
     transcript: { id, local_id: detail.id, model_provider: 'codex', visibility: 'public', title: 'images', description: null, project_name: 'village' },
@@ -26,8 +34,10 @@ it('reports published omissions without requesting image bytes', async () => {
   }, envelope, 'omitted images');
   await renderProductionRoute(id);
   await waitFor(() => expect(document.body.textContent).toContain('2 images omitted'));
-  expect(document.body.textContent).toContain('image omitted from publication');
+  const cards = document.querySelectorAll('[data-image-omitted="not_published"]');
+  expect(cards).toHaveLength(2);
+  cards.forEach((card) => expect(card.textContent).toContain('image not published'));
   const requested = fetchMock.mock.calls.map(([input]) => String(input));
-  expect(requested.some((url) => /attachments|[a-f0-9]{64}/.test(url))).toBe(false);
+  expect(requested.some((url) => /\/api\/v1\/attachments\/|[a-f0-9]{64}/.test(url))).toBe(false);
   expect(document.querySelector('img[src*="attachment"]')).toBeNull();
 });

@@ -6,7 +6,6 @@ import {
   OmittedReason,
   TurnPartType,
   type SessionDetailPayload,
-  type TurnDetail,
 } from "@peasant-labs/schema";
 
 const contentPolicy = {
@@ -103,32 +102,23 @@ function publicRootShape(node: Record<string, unknown>): boolean {
   return false;
 }
 
-/** Project validated published omissions to viewer text without changing the stored wire evidence. */
-export function projectPublishedImages(detail: SessionDetailPayload): { content: SessionDetailPayload; omittedImages: number } {
-  let omittedImages = 0;
-  function projectTurn(turn: TurnDetail): TurnDetail {
-    if (!turn.contentParts) return turn;
-    return { ...turn, contentParts: turn.contentParts.map((part) => {
-      if (part.type !== TurnPartType.Image || part.image?.omittedReason !== OmittedReason.NotPublished) return part;
-      omittedImages++;
-      return { type: TurnPartType.Text, text: "image omitted from publication" };
-    }) };
-  }
-  const turns = detail.turns?.map(projectTurn) ?? detail.turns;
-  const earlierHistory = detail.earlierHistory?.map((section) => ({ ...section, turns: section.turns.map(projectTurn) }));
-  return { content: { ...detail, turns, ...(earlierHistory ? { earlierHistory } : {}) }, omittedImages };
+function countPublishedImages(detail: SessionDetailPayload): number {
+  const turns = [...(detail.turns ?? []), ...(detail.earlierHistory ?? []).flatMap((section) => section.turns)];
+  return turns.reduce((count, turn) => count + (turn.contentParts ?? []).filter(
+    (part) => part.type === TurnPartType.Image && part.image?.omittedReason === OmittedReason.NotPublished,
+  ).length, 0);
 }
 
-/** Only a schema-validated published envelope may receive the viewer projection. */
-export function parseTranscriptRead(text: string, knownHarness?: string): { content: unknown; omittedImages: number } {
+/** Published mode is reserved for a schema-validated published envelope. */
+export function parseTranscriptRead(text: string, knownHarness?: string): { content: unknown; omittedImages: number; published: boolean } {
   const content = parseTranscriptResponseText(text, knownHarness);
   let value: unknown;
-  try { value = JSON.parse(text); } catch { return { content, omittedImages: 0 }; }
-  if (!isObject(value) || !("sessionDetail" in value) || !("contractVersion" in value)) return { content, omittedImages: 0 };
-  if (!publicEvidence(value.sessionDetail).strict) return { content, omittedImages: 0 };
+  try { value = JSON.parse(text); } catch { return { content, omittedImages: 0, published: false }; }
+  if (!isObject(value) || !("sessionDetail" in value) || !("contractVersion" in value)) return { content, omittedImages: 0, published: false };
+  if (!publicEvidence(value.sessionDetail).strict) return { content, omittedImages: 0, published: false };
   const detail = parseTranscriptContentText(text).sessionDetail;
   if (!detail) throw new Error("Published transcript has no session detail; republish it and retry.");
-  return projectPublishedImages(detail);
+  return { content: detail, omittedImages: countPublishedImages(detail), published: true };
 }
 
 function legacyMessageShape(node: Record<string, unknown>): boolean {

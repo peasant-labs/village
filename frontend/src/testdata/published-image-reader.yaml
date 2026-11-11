@@ -1,0 +1,4 @@
+cases:
+  - name: two-published-images
+    content: |
+      {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"550e8400-e29b-41d4-a716-446655440000","harness":"codex","schemaVersion":"0.1.0","startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:14:20Z","durationMins":1,"tokensIn":0,"tokensOut":0,"totalTokens":0,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"user","entryType":"text","timestamp":"2023-11-14T22:13:21Z","depth":0,"content":"before after","contentParts":[{"type":"text","text":"before"},{"type":"image","image":{"omittedReason":"not_published"}},{"type":"text","text":"after"},{"type":"image","image":{"omittedReason":"not_published"}}]}]}}

@@ -184,6 +184,7 @@ export default function TranscriptDetailPage({
         projectHash={t.project_hash}
         detail={detail}
         omittedImages={contentRead?.omittedImages}
+        publishedContent={contentRead?.published}
         relationshipNavigation={data.relationshipNavigation}
         transcriptContentHash={t.content_hash}
         integrity={data.integrity}
