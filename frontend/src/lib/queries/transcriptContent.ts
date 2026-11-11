@@ -3,6 +3,10 @@ import {
   parseTranscriptContentText,
   scanRawJsonText,
   zObservedModelID,
+  OmittedReason,
+  TurnPartType,
+  type SessionDetailPayload,
+  type TurnDetail,
 } from "@peasant-labs/schema";
 
 const contentPolicy = {
@@ -73,11 +77,11 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
 function publicEvidence(value: unknown): { strict: boolean } {
   let strict = false;
   if (isObject(value)) {
-    strict = "nativeMetadata" in value;
+    strict = "nativeMetadata" in value || "earlierHistory" in value;
     if (Array.isArray(value.turns)) {
       for (const turn of value.turns) {
         if (!isObject(turn)) continue;
-        if ("usage" in turn || "sourceEntryRef" in turn) strict = true;
+        if ("usage" in turn || "sourceEntryRef" in turn || "contentParts" in turn) strict = true;
         if (!Array.isArray(turn.toolCalls)) continue;
         for (const tool of turn.toolCalls) {
           if (!isObject(tool)) continue;
@@ -97,6 +101,34 @@ function publicRootShape(node: Record<string, unknown>): boolean {
     return typeof node.contractVersion === "string" || "nativeMetadata" in node.sessionDetail || publicRootShape(node.sessionDetail);
   }
   return false;
+}
+
+/** Project validated published omissions to viewer text without changing the stored wire evidence. */
+export function projectPublishedImages(detail: SessionDetailPayload): { content: SessionDetailPayload; omittedImages: number } {
+  let omittedImages = 0;
+  function projectTurn(turn: TurnDetail): TurnDetail {
+    if (!turn.contentParts) return turn;
+    return { ...turn, contentParts: turn.contentParts.map((part) => {
+      if (part.type !== TurnPartType.Image || part.image?.omittedReason !== OmittedReason.NotPublished) return part;
+      omittedImages++;
+      return { type: TurnPartType.Text, text: "image omitted from publication" };
+    }) };
+  }
+  const turns = detail.turns?.map(projectTurn) ?? detail.turns;
+  const earlierHistory = detail.earlierHistory?.map((section) => ({ ...section, turns: section.turns.map(projectTurn) }));
+  return { content: { ...detail, turns, ...(earlierHistory ? { earlierHistory } : {}) }, omittedImages };
+}
+
+/** Only a schema-validated published envelope may receive the viewer projection. */
+export function parseTranscriptRead(text: string, knownHarness?: string): { content: unknown; omittedImages: number } {
+  const content = parseTranscriptResponseText(text, knownHarness);
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return { content, omittedImages: 0 }; }
+  if (!isObject(value) || !("sessionDetail" in value) || !("contractVersion" in value)) return { content, omittedImages: 0 };
+  if (!publicEvidence(value.sessionDetail).strict) return { content, omittedImages: 0 };
+  const detail = parseTranscriptContentText(text).sessionDetail;
+  if (!detail) throw new Error("Published transcript has no session detail; republish it and retry.");
+  return projectPublishedImages(detail);
 }
 
 function legacyMessageShape(node: Record<string, unknown>): boolean {

@@ -115,6 +115,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       projectName={t.project_display_name}
       projectHash={t.project_hash}
       detail={detail}
+      omittedImages={contentRead?.omittedImages}
       transcriptContentHash={t.content_hash}
       integrity={data.integrity}
       renderedContentHash={contentRead?.contentHash ?? null}

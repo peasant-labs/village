@@ -111,6 +111,7 @@ interface SessionDetailV2Props {
   renderedContentHash?: string | null;
   error?: string | null;
   beforeHeader?: ReactNode;
+  omittedImages?: number;
   presentation?: 'ledger' | 'classic';
   /** `"full"` (default) is the standalone `/transcripts/{id}` route: every
    *  owner/viewer action, the trajectory graph, and the header action row.
@@ -153,6 +154,7 @@ function SessionDetailV2Content({
   renderedContentHash,
   error,
   beforeHeader,
+  omittedImages = 0,
   presentation,
   variant = "full",
 }: SessionDetailV2Props) {
@@ -419,6 +421,11 @@ function SessionDetailV2Content({
           contentHash={renderedContentHash}
           beforeHeader={<>
       {beforeHeader}
+      {omittedImages > 0 && (
+        <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3">
+          {omittedImages} {omittedImages === 1 ? 'image' : 'images'} omitted
+        </p>
+      )}
       {error != null && (
         <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-danger shrink-0">
           connection error; showing the last loaded transcript.
