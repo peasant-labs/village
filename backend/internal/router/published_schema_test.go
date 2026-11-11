@@ -12,7 +12,7 @@ import (
 //go:embed testdata/published_schema.yaml
 var publishedSchemaYAML []byte
 
-// The digest is from the v0.48.0 GitHub release asset
+// The digest is from the v0.49.0 GitHub release asset
 // (village-api-0.38.0.json), not calculated from the server under test.
 func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	fixture, err := decodeSingleYAMLDocument[struct {
@@ -24,7 +24,7 @@ func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Name != "published-village-api-0.38.0" || fixture.Module != "v0.48.0" {
+	if fixture.Name != "published-village-api-0.38.0" || fixture.Module != "v0.49.0" {
 		t.Fatal("published artifact identity changed; review the actual release before updating this fixture")
 	}
 	rec := httptest.NewRecorder()
