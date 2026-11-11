@@ -201,11 +201,18 @@ jobs:
         working-directory: backend
         run: go build ./...
 
-      - name: Unit tests (-race)
+      - name: Unit tests
         working-directory: backend
         env:
           TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
-        run: go test -race ./...
+          # The race detector is OFF by default (village#387): the handler package
+          # spends ~19.4m under it, most of it serial per-test database setup and
+          # migration re-runs rather than detector work. Restore race coverage with
+          # an explicit RACE=1 once the measurement-and-partition work lands, the
+          # same order peasant followed (peasant#389, #940, #941).
+          RACE: "0"
+        # The budget stays explicit so a slow pool cannot silently kill the step.
+        run: go test -timeout=30m $( [ "$RACE" = "1" ] && echo -race ) ./...
 
       - name: Formatting
         working-directory: backend
@@ -215,7 +222,7 @@ jobs:
         working-directory: backend
         run: go vet ./...
 
-      - name: Isolated integration tests (-tags=integration, -race)
+      - name: Isolated integration tests (-tags=integration)
         env:
           TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
           TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable

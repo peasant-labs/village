@@ -24,11 +24,14 @@ import { profileOwner } from "@/test/publicOwnerFixture";
 type CodecCase = {
   name: string;
   query: string;
+  encoded: string;
   expect: { page: number; perPage: number; groupBy: string };
 };
 
 const requiredCodecCases = [
   "omitted-values-take-the-library-defaults",
+  "explicit-defaults-are-omitted",
+  "non-default-page-keeps-only-page",
   "page-size-and-grouping-round-trip",
   "an-out-of-set-size-falls-back-to-twenty-five",
   "an-unknown-grouping-falls-back-to-project",
@@ -44,7 +47,7 @@ function codecCases(): CodecCase[] {
   assertExactKeys(parsed, ["cases"], "library view codec root");
   assertNamesMatch(parsed.cases.map((c) => c.name), requiredCodecCases, "library view codec");
   for (const c of parsed.cases) {
-    assertExactKeys(c, ["name", "query", "expect"], `library view codec ${c.name}`);
+    assertExactKeys(c, ["name", "query", "encoded", "expect"], `library view codec ${c.name}`);
     assertExactKeys(c.expect, ["page", "perPage", "groupBy"], `library view codec ${c.name} expect`);
   }
   return parsed.cases;
@@ -57,10 +60,9 @@ describe("the Library URL codec", () => {
       expect(decoded.page).toBe(c.expect.page);
       expect(decoded.perPage).toBe(c.expect.perPage);
       expect(decoded.groupBy.wire).toBe(c.expect.groupBy);
-      // The codec round-trips its own output, and the output carries exactly the
-      // three values the URL owns.
+      // Defaults are omitted, and non-default values round-trip.
       const encoded = encodeLibraryView(decoded);
-      expect([...encoded.keys()].sort()).toEqual(["groupBy", "page", "perPage"]);
+      expect(encoded.toString()).toBe(c.encoded);
       expect([...encodeLibraryView(decodeLibraryView(encoded))]).toEqual([...encoded]);
     });
   }

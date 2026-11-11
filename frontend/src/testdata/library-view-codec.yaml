@@ -5,28 +5,45 @@
 cases:
   - name: omitted-values-take-the-library-defaults
     query: ""
+    encoded: ""
     expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: explicit-defaults-are-omitted
+    query: "page=1&perPage=25&groupBy=project"
+    encoded: ""
+    expect: { page: 1, perPage: 25, groupBy: project }
+
+  - name: non-default-page-keeps-only-page
+    query: "page=2&perPage=25&groupBy=project"
+    encoded: "page=2"
+    expect: { page: 2, perPage: 25, groupBy: project }
 
   - name: page-size-and-grouping-round-trip
     query: "page=3&perPage=50&groupBy=agent"
+    encoded: "page=3&perPage=50&groupBy=agent"
     expect: { page: 3, perPage: 50, groupBy: agent }
 
   - name: an-out-of-set-size-falls-back-to-twenty-five
     query: "perPage=26"
+    encoded: ""
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: an-unknown-grouping-falls-back-to-project
     query: "groupBy=by-tea-leaves"
+    encoded: ""
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: a-zero-page-falls-back-to-one
     query: "page=0"
+    encoded: ""
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: a-non-number-page-falls-back-to-one
     query: "page=two"
+    encoded: ""
     expect: { page: 1, perPage: 25, groupBy: project }
 
   - name: the-nothing-grouping-round-trips
     query: "groupBy=none&perPage=100"
+    encoded: "perPage=100&groupBy=none"
     expect: { page: 1, perPage: 100, groupBy: none }

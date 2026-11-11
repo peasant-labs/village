@@ -6,6 +6,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { loadHelperGroupQueryFixtures } from "@/test/helperGroupQueryFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { useGroupedTranscripts, useHelperGroupMembers } from "./helperGroups";
+import { PageSize } from "@peasant-labs/schema";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -27,7 +28,7 @@ for (const fixture of fixtures.cases) {
       if (status !== 200) return new Response(JSON.stringify({ code: "group_scope_expired", error: "refresh the originating list; no members returned" }), { status });
       const session = { ...makeTranscriptFixture(fixtures.row), input_submission_count: 0, purpose: fixture.kind === "members" ? "helper_review" : "interaction" };
       const response = fixture.kind === "list"
-        ? { items: [{ kind: "transcript", transcript: { owner: fixtures.owner, session } }], page: 1, limit: 20, totalItems: 1, ordinarySessionTotal: 1, helperThreadTotal: 0 }
+        ? { items: [{ kind: "transcript", transcript: { owner: fixtures.owner, session } }], page: 1, limit: PageSize.P25, totalItems: 1, ordinarySessionTotal: 1, helperThreadTotal: 0 }
         : { members: [{ kind: "transcript", transcript: { owner: fixtures.owner, session }, ...(fixture.nestedStatus ? {helperGroups: [fixtures.nestedGroup]} : {}) }], page: 1, limit: 20, total: 1 };
       return new Response(JSON.stringify(response), { status: 200 });
     }));

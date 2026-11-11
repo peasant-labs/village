@@ -18,6 +18,7 @@ import type {
 } from "../annotations";
 import { TRANSCRIPT_LIST_ENDPOINT, TranscriptListQueryErrorCode } from "../transcriptPageRequest";
 import { parseTranscriptResponseText } from "./transcriptContent";
+import { adaptTranscriptPaging } from "./transcriptPaging";
 
 export { TranscriptListQueryErrorCode };
 
@@ -116,8 +117,9 @@ export function useTranscripts(
         `/transcripts?${searchParams}`,
         { signal },
       );
+      const paging = adaptTranscriptPaging(response);
       assertTranscriptListResponseMatchesRequest(params, response);
-      return response;
+      return { ...response, paging };
     },
     placeholderData: (previousData) => previousData,
     enabled: options?.enabled ?? true,
