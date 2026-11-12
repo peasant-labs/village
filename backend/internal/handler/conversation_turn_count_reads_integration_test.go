@@ -187,8 +187,8 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 					t.Errorf("%s is served as %d row objects, want %d", name, seen[name], s.RowsPerTranscript)
 				}
 			}
-			if s.Order != nil && !reflect.DeepEqual(order, s.Order) {
-				t.Errorf("rows are served in the order %v, want %v", order, s.Order)
+			if s.Order != nil && (len(order) < len(s.Order) || !reflect.DeepEqual(order[:len(s.Order)], s.Order)) {
+				t.Errorf("rows are served in the order %v, want it to start with %v", order, s.Order)
 			}
 			if s.TotalTurns != nil {
 				if len(served.totals) != 1 || int64(served.totals[0]) != *s.TotalTurns {

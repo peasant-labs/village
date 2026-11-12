@@ -8,7 +8,7 @@
 #
 # The three stored turn_count values order the rows one way (measured,
 # measured-none, unmeasured) and the displayed numbers the other way, so a sort
-# or a total that still reads turn_count fails: the totals would say 82.
+# or a total that still reads turn_count fails: the totals would say 77.
 world:
   people: [author]
   collectives:
@@ -18,6 +18,10 @@ world:
     - {name: measured, owner: author, visibility: public, turns: 40, conversation_turns: 9, shares: {team: approved}}
     - {name: unmeasured, owner: author, visibility: public, turns: 12, shares: {team: approved}}
     - {name: measured-none, owner: author, visibility: public, turns: 30, conversation_turns: 0, shares: {team: approved}}
+    # turn_count has no range check. A negative value stored by an older client
+    # shows as zero: the row is served, the lists answer 200 and the totals do
+    # not drop.
+    - {name: negative-legacy, owner: author, visibility: public, turns: -5, shares: {team: approved}}
 
 # What every served row of a transcript states. An omitted
 # conversation_turn_count expects the row to serve null, never an absent key.
@@ -25,13 +29,15 @@ rows:
   measured: {turn_count: 40, conversation_turn_count: 9, displayed_turn_count: 9}
   unmeasured: {turn_count: 12, displayed_turn_count: 12}
   measured-none: {turn_count: 30, conversation_turn_count: 0, displayed_turn_count: 0}
+  negative-legacy: {turn_count: -5, displayed_turn_count: 0}
 
 # One row per mounted read. `{collective}`, `{owner}` and `{transcript}` are
 # filled from the world; a path with `{transcript}` is requested once per
 # transcript. `rows_per_transcript` is how many row objects of one transcript
 # the response carries (a grouped collective row carries the session and its
-# collective arm). `order` is the order the rows are served in; `total_turns`
-# is the one total the response states.
+# collective arm). `order` names the rows served first, in order; the two rows
+# that display zero tie and are left out. `total_turns` is the one total the
+# response states.
 surfaces:
   - name: transcript-detail
     viewer: author
@@ -41,7 +47,7 @@ surfaces:
     viewer: ""
     path: /api/v1/transcripts?owner={owner}&sort=turns
     rows_per_transcript: 1
-    order: [unmeasured, measured, measured-none]
+    order: [unmeasured, measured]
   # The grouped listing keeps its own grouping order, so it states no `order`.
   - name: discovery-grouped
     viewer: ""
