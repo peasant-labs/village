@@ -7,6 +7,7 @@ const FIXTURE = "src/testdata/displayed-turn-count.yaml";
 
 const requiredNames = [
   "a-measured-row-prints-the-conversation-count",
+  "a-measured-row-in-the-thousands-prints-a-grouped-count",
   "a-row-published-before-the-measure-prints-its-stored-count",
   "a-measured-row-with-no-conversation-turns-prints-zero",
   "an-unmeasured-row-prints-no-count",

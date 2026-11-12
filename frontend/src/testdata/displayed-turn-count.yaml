@@ -17,6 +17,12 @@ cases:
     conversationTurnCount: 5
     displayedTurnCount: 5
     shows: 5
+  - name: a-measured-row-in-the-thousands-prints-a-grouped-count
+    why: a table cell groups the digits of a long count as 1,312, and the stored count beside it is larger still
+    turnCount: 4812
+    conversationTurnCount: 1312
+    displayedTurnCount: 1312
+    shows: 1312
   - name: a-row-published-before-the-measure-prints-its-stored-count
     why: the server answers the stored count for a publication that carried no conversation count
     turnCount: 12

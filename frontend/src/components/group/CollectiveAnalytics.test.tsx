@@ -1,0 +1,66 @@
+import { render } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import CollectiveAnalytics from "@/components/group/CollectiveAnalytics";
+import type { GroupTranscript } from "@/lib/types";
+import {
+  loadDisplayedTurnCountFixtures,
+  type DisplayedTurnCountCase,
+} from "@/test/displayedTurnCountFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+
+// The dashboard's turn figures come from the count the server chose for
+// display. Each case is one transcript, so the median and the tail of the
+// "typical vs. tail" turns row are both that transcript's count; a transcript
+// with no displayed count contributes zero, never its stored count.
+
+const fixtures = loadDisplayedTurnCountFixtures();
+
+function groupTranscript(c: DisplayedTurnCountCase): GroupTranscript {
+  return {
+    pull_requests: { count: 0, recent: [] },
+    ...makeTranscriptFixture({
+      // Nothing else on the row may equal a turn count under test.
+      token_count: 900,
+      tool_call_count: null,
+      turn_count: c.turnCount,
+      conversation_turn_count: c.conversationTurnCount,
+      displayed_turn_count: c.displayedTurnCount,
+    }),
+    license_id: null,
+    outcome: null,
+    source_format: null,
+    subagents: null,
+    owner: profileOwner({ id: "user-ada", github_username: "ada" }),
+  };
+}
+
+/** The median and tail figures on the row labelled "turns", as numbers. */
+function typicalTurns(root: ParentNode): number[] {
+  const label = [...root.querySelectorAll("span")].find(
+    (el) => el.children.length === 0 && (el.textContent ?? "").trim() === "turns",
+  );
+  expect(label, "the dashboard draws a turns row under typical vs. tail").toBeDefined();
+  const values = label!.nextElementSibling!;
+  // The median carries a trailing separator in its own element; the figures
+  // themselves may be digit-grouped.
+  const [median, tail] = [...values.children].map((el) =>
+    [...el.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent ?? "")
+      .join("")
+      .trim(),
+  );
+  return [median, tail].map((figure) => {
+    expect(figure, "a turn figure is a whole number, digit-grouped or not").toMatch(/^\d[\d,]*$/);
+    return Number(figure.replace(/,/g, ""));
+  });
+}
+
+describe("the turn count the collective dashboard totals", () => {
+  it.each(fixtures)("typical vs. tail: $name", (c) => {
+    const { container } = render(<CollectiveAnalytics transcripts={[groupTranscript(c)]} />);
+    const counted = c.shows ?? 0;
+    expect(typicalTurns(container)).toEqual([counted, counted]);
+  });
+});

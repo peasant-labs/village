@@ -658,7 +658,16 @@ components, and the explore and collective adapters. The case
 count, a pairing the server never produces, so a surface that fell back on its
 own fails there. The grouped helper corpora serve a stored count 100 larger than
 the displayed one for the same reason, so a helper row that printed the stored
-count fails its existing mounted assertion.
+count fails its existing mounted assertion. The pull request page's transcript
+read (`frontend/src/test/mountedAttachmentSurfaces.tsx`) does the same, so
+`pullRequestPage.test.tsx` fails if the page prints the stored count.
+
+The case `a-measured-row-in-the-thousands-prints-a-grouped-count` holds the
+digit grouping: the home table prints `1,312`, not `1312`.
+`frontend/src/components/group/CollectiveAnalytics.test.tsx` runs the same
+corpus through the collective dashboard and reads the count back from its
+rendered "typical vs. tail" turns row, where a transcript with no displayed
+count contributes zero.
 
 The mounted capture is the `turns` arm of `home-shoot.mjs` against
 `mock-rest-home.mjs` started with `MOCK_TURN_COUNTS=1`. The turns column is not
