@@ -28,7 +28,7 @@ partitioned.
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
 | Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
 | Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
-| Declared-but-unimplemented routes answer 501 (pull request attachment stubs) | none | no | unit | `backend/internal/router/attachment_stubs_test.go`; fixture `testdata/attachment_stub_routes.yaml` |
+| Declared-but-unimplemented routes answer 501 (the segmented transcript reads) | none | no | unit | `backend/internal/router/declared_stubs_test.go`; fixture `testdata/declared_stub_routes.yaml` |
 | Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |
 | Thinking-level preservation gate (`thinking_level_v1` proof, advertisement, publish refusal, read validation) | unit; lifecycle `//go:build integration` | the lifecycle test does (PostgreSQL + S3-compatible storage) | both | [Thinking-level preservation gate](#thinking-level-preservation-gate) below |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |

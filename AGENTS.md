@@ -129,7 +129,7 @@ bodies are capped at 1 MiB (413 above it) and a contract violation answers
 400 with the field and the reason; only the publish and annotation paths
 answer 422. Routes the contract declares before their handlers exist are
 mounted as 501 stubs and pinned, with their auth expectations, in
-`backend/internal/router/testdata/attachment_stub_routes.yaml`; landing a
+`backend/internal/router/testdata/declared_stub_routes.yaml`; landing a
 real handler deletes its row.
 
 When adding a license:
