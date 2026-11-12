@@ -31,7 +31,8 @@ rows:
   measured-none: {turn_count: 30, conversation_turn_count: 0, displayed_turn_count: 0}
   negative-legacy: {turn_count: -5, displayed_turn_count: 0}
 
-# One row per mounted read. `{collective}`, `{owner}` and `{transcript}` are
+# One row per mounted read. `shape` names the contract response the route
+# serves; the test decodes the body into that type. `{collective}`, `{owner}` and `{transcript}` are
 # filled from the world; a path with `{transcript}` is requested once per
 # transcript. `rows_per_transcript` is how many row objects of one transcript
 # the response carries (a grouped collective row carries the session and its
@@ -42,37 +43,45 @@ surfaces:
   - name: transcript-detail
     viewer: author
     path: /api/v1/transcripts/{transcript}
+    shape: transcript-detail
     rows_per_transcript: 1
   - name: discovery-most-turns-flat
     viewer: ""
     path: /api/v1/transcripts?owner={owner}&sort=turns
+    shape: transcript-list
     rows_per_transcript: 1
     order: [unmeasured, measured]
   # The grouped listing keeps its own grouping order, so it states no `order`.
   - name: discovery-grouped
     viewer: ""
     path: /api/v1/transcripts?owner={owner}&view=grouped
+    shape: session-list
     rows_per_transcript: 1
   - name: collective-flat
     viewer: author
     path: /api/v1/collectives/{collective}
+    shape: collective-detail
     rows_per_transcript: 1
     total_turns: 21
   - name: collective-grouped
     viewer: author
     path: /api/v1/collectives/{collective}?view=grouped
+    shape: collective-grouped
     rows_per_transcript: 2
     total_turns: 21
   - name: my-shares-flat
     viewer: author
     path: /api/v1/collectives/{collective}/my-shares
+    shape: my-shares
     rows_per_transcript: 1
   - name: my-shares-grouped
     viewer: author
     path: /api/v1/collectives/{collective}/my-shares?view=grouped
+    shape: session-list
     rows_per_transcript: 2
   - name: personal-totals
     viewer: author
     path: /api/v1/users/me/stats
+    shape: user-stats
     rows_per_transcript: 0
     total_turns: 21

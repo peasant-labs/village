@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import CollectiveAnalytics from "@/components/group/CollectiveAnalytics";
 import type { GroupTranscript } from "@/lib/types";
@@ -35,13 +35,16 @@ function groupTranscript(c: DisplayedTurnCountCase): GroupTranscript {
   };
 }
 
-/** The median and tail figures on the row labelled "turns", as numbers. */
-function typicalTurns(root: ParentNode): number[] {
-  const label = [...root.querySelectorAll("span")].find(
-    (el) => el.children.length === 0 && (el.textContent ?? "").trim() === "turns",
-  );
-  expect(label, "the dashboard draws a turns row under typical vs. tail").toBeDefined();
-  const values = label!.nextElementSibling!;
+// The "typical vs. tail" rows are drawn inside the design system's
+// `<ProjectOverview>`, which takes no test id and gives a row no role, and the
+// package exports no name for a row. The row's own label is therefore the only
+// handle this app has; it is stated once, here, and is the design system's copy.
+const TYPICAL_TURNS_ROW_LABEL = "turns";
+
+/** The median and tail figures on the turns row, as numbers. */
+function typicalTurns(root: HTMLElement): number[] {
+  const label = within(root).getByText(TYPICAL_TURNS_ROW_LABEL, { selector: "span" });
+  const values = label.nextElementSibling!;
   // The median carries a trailing separator in its own element; the figures
   // themselves may be digit-grouped.
   const [median, tail] = [...values.children].map((el) =>

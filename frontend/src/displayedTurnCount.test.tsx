@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import TranscriptCard from "@/components/transcript/TranscriptCard";
-import TranscriptList from "@/components/transcript/TranscriptList";
-import TranscriptRow from "@/components/transcript/TranscriptRow";
+import { HomeTestId } from "@/app/homeTestId";
+import TranscriptCard, { TranscriptCardTestId } from "@/components/transcript/TranscriptCard";
+import TranscriptList, { TranscriptListTestId } from "@/components/transcript/TranscriptList";
+import TranscriptRow, { TranscriptRowTestId } from "@/components/transcript/TranscriptRow";
 import { collectiveTranscriptRow, pullRequestCells } from "@/lib/adapters/collective";
 import { adaptExplore } from "@/lib/adapters/explore";
+import { ColumnId } from "@/lib/homeView";
 import type { GroupTranscript, Transcript, TranscriptListItem } from "@/lib/types";
 import { AuthProvider } from "@/providers/AuthProvider";
 import {
@@ -62,20 +64,17 @@ function groupTranscript(c: DisplayedTurnCountCase): GroupTranscript {
   };
 }
 
-/** Every "<n> turns" statement drawn under `root`, as the numbers stated. Each
- *  is read from its own element: neighbouring facts share a line with no space
- *  between them, so the line's joined text has no reliable word boundary. */
-function statedTurnCounts(root: ParentNode): number[] {
-  return [...root.querySelectorAll("span")].flatMap((el) => {
-    // A wrapper around the stating element reads the same text; count the innermost.
-    if (el.querySelector("span") !== null) return [];
-    const stated = /^(\d[\d,]*) turns?$/.exec((el.textContent ?? "").trim());
-    return stated === null ? [] : [Number(stated[1].replace(/,/g, ""))];
-  });
+/** What each turn count element under `root` states, found by the test id its
+ *  component renders. */
+function statedTurnCounts(root: HTMLElement, turns: { readonly wire: string }): string[] {
+  return within(root)
+    .queryAllByTestId(turns.wire)
+    .map((el) => (el.textContent ?? "").trim());
 }
 
-function expected(c: DisplayedTurnCountCase): number[] {
-  return c.shows === null ? [] : [c.shows];
+/** The exact copy a row, card or list prints for the case, or nothing. */
+function expected(c: DisplayedTurnCountCase): string[] {
+  return c.shows === null ? [] : [`${c.shows} turns`];
 }
 
 describe("the turn count a transcript row prints", () => {
@@ -98,16 +97,15 @@ describe("the turn count a transcript row prints", () => {
       ],
     });
     await renderAppRoute(showHomeAsFlatList());
-    await waitFor(() =>
-      expect(document.querySelector('[data-testid="home-transcript-row"]')).not.toBeNull(),
-    );
-    const table = document.querySelector('[data-testid="home-transcripts"] table')!;
-    const column = [...table.querySelectorAll("thead th")].findIndex(
-      (th) => (th.textContent ?? "").trim() === "turns",
-    );
-    expect(column, "the home table draws a turns column").toBeGreaterThanOrEqual(0);
-    const row = document.querySelector('[data-testid="home-transcript-row"]')!.closest("tr")!;
-    const cell = row.children[column];
+    const title = await screen.findByTestId(HomeTestId.TranscriptRow.wire);
+    const table = within(screen.getByTestId(HomeTestId.Transcripts.wire)).getByRole("table");
+    // The column is the one the page declares as `ColumnId.Turns`; its header
+    // carries that member's label.
+    const header = within(table).getByRole<HTMLTableCellElement>("columnheader", {
+      name: ColumnId.Turns.label,
+    });
+    const row = title.closest("tr")!;
+    const cell = row.cells[header.cellIndex];
     expect((cell.textContent ?? "").trim()).toBe(
       c.shows === null ? "not counted" : c.shows.toLocaleString("en-US"),
     );
@@ -123,21 +121,19 @@ describe("the turn count a transcript row prints", () => {
         </AuthProvider>
       </QueryClientProvider>,
     );
-    const title = await screen.findByText(TITLE);
-    const list = title.closest(".divide-y")!;
-    expect(statedTurnCounts(list)).toEqual(expected(c));
-    const stated = [...list.querySelectorAll("span")].find(
-      (el) => el.querySelector("span") === null && /^\d+ turns$/.test(el.textContent ?? ""),
-    );
-    if (c.shows !== null) expect(stated?.className).toContain("tabular-nums");
+    await screen.findByText(TITLE);
+    expect(statedTurnCounts(document.body, TranscriptListTestId.Turns)).toEqual(expected(c));
+    for (const stated of screen.queryAllByTestId(TranscriptListTestId.Turns.wire)) {
+      expect(stated.className).toContain("tabular-nums");
+    }
   });
 
   it.each(fixtures)("row and card: $name", (c) => {
     const row = render(<TranscriptRow item={listItem(c)} />);
-    expect(statedTurnCounts(row.container)).toEqual(expected(c));
+    expect(statedTurnCounts(row.container, TranscriptRowTestId.Turns)).toEqual(expected(c));
     row.unmount();
     const card = render(<TranscriptCard item={listItem(c)} />);
-    expect(statedTurnCounts(card.container)).toEqual(expected(c));
+    expect(statedTurnCounts(card.container, TranscriptCardTestId.Turns)).toEqual(expected(c));
   });
 
   it.each(fixtures)("explore and collective adapters: $name", (c) => {

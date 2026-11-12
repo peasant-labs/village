@@ -5,6 +5,7 @@ package handler
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/peasant-labs/schema"
 )
 
 //go:embed testdata/conversation-turn-count-reads.yaml
@@ -36,57 +38,190 @@ type conversationTurnCountRow struct {
 	DisplayedTurnCount    int64  `yaml:"displayed_turn_count"`
 }
 
+// turnCountReadShape names the response a read serves. Each member decodes the
+// body into that route's contract type, so every field the test reads is a
+// compile-checked struct field and a renamed wire field stops the decode from
+// filling it.
+type turnCountReadShape string
+
+const (
+	turnCountShapeTranscriptDetail  turnCountReadShape = "transcript-detail"
+	turnCountShapeTranscriptList    turnCountReadShape = "transcript-list"
+	turnCountShapeSessionList       turnCountReadShape = "session-list"
+	turnCountShapeCollectiveDetail  turnCountReadShape = "collective-detail"
+	turnCountShapeCollectiveGrouped turnCountReadShape = "collective-grouped"
+	turnCountShapeMyShares          turnCountReadShape = "my-shares"
+	turnCountShapeUserStats         turnCountReadShape = "user-stats"
+)
+
+// turnCountReadShapes maps every shape to its decoder. A fixture shape outside
+// this set is refused before any request is made.
+var turnCountReadShapes = map[turnCountReadShape]func(body []byte, into *servedTurnCounts) error{
+	turnCountShapeTranscriptDetail: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageTranscriptMetadataResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		into.addTranscript(response.Transcript)
+		return nil
+	},
+	turnCountShapeTranscriptList: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageTranscriptListResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		for _, row := range response.Transcripts {
+			into.addTranscript(row.Transcript)
+		}
+		for _, row := range response.NextItems {
+			into.addTranscript(row.Transcript)
+		}
+		return nil
+	},
+	turnCountShapeSessionList: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageSessionListPayload
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		into.addSessionList(response)
+		return nil
+	},
+	turnCountShapeCollectiveDetail: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageCollectiveDetailResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		for _, row := range response.Transcripts {
+			into.addCollective(row)
+		}
+		into.totals = append(into.totals, response.Stats.TotalTurns)
+		return nil
+	},
+	turnCountShapeCollectiveGrouped: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageGroupedCollectiveDetailResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		into.addSessionList(response.TranscriptList)
+		into.totals = append(into.totals, response.Stats.TotalTurns)
+		return nil
+	},
+	turnCountShapeMyShares: func(body []byte, into *servedTurnCounts) error {
+		var response []schema.VillageUserCollectiveShare
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		for _, row := range response {
+			into.addMyShare(row)
+		}
+		return nil
+	},
+	turnCountShapeUserStats: func(body []byte, into *servedTurnCounts) error {
+		var response schema.VillageUserStats
+		if err := json.Unmarshal(body, &response); err != nil {
+			return err
+		}
+		into.totals = append(into.totals, response.TotalTurns)
+		return nil
+	},
+}
+
 type conversationTurnCountReadsFixture struct {
 	World    prWorld                             `yaml:"world"`
 	Rows     map[string]conversationTurnCountRow `yaml:"rows"`
 	Surfaces []struct {
-		Name              string   `yaml:"name"`
-		Viewer            string   `yaml:"viewer"`
-		Path              string   `yaml:"path"`
-		RowsPerTranscript int      `yaml:"rows_per_transcript"`
-		Order             []string `yaml:"order"`
-		TotalTurns        *int64   `yaml:"total_turns"`
+		Name              string             `yaml:"name"`
+		Viewer            string             `yaml:"viewer"`
+		Path              string             `yaml:"path"`
+		Shape             turnCountReadShape `yaml:"shape"`
+		RowsPerTranscript int                `yaml:"rows_per_transcript"`
+		Order             []string           `yaml:"order"`
+		TotalTurns        *int64             `yaml:"total_turns"`
 	} `yaml:"surfaces"`
 }
 
-// servedTurnCounts is what a response states about turns: every row object of
-// a world transcript, in document order, and every total_turns value.
+// servedTurnCounts is what a response states about turns: every row of a world
+// transcript, in the order the response lists them, and every turn total.
 type servedTurnCounts struct {
+	// names maps a world transcript's id to its fixture name.
+	names  map[schema.TranscriptID]string
 	rows   []servedTurnCountRow
-	totals []float64
+	totals []int64
 }
 
 type servedTurnCountRow struct {
-	transcript string
-	object     map[string]any
+	transcript   string
+	turnCount    *int32
+	conversation *int64
+	displayed    *int64
 }
 
-// collectServedTurnCounts walks a decoded response. A row object is any object
-// whose id is a world transcript and that carries turn_count, so each of the
-// row types is found wherever a route nests it.
-func collectServedTurnCounts(value any, names map[string]string, into *servedTurnCounts) {
-	switch typed := value.(type) {
-	case []any:
-		for _, element := range typed {
-			collectServedTurnCounts(element, names, into)
+func (s *servedTurnCounts) add(id schema.TranscriptID, turnCount *int32, conversation, displayed *int64) {
+	if name, known := s.names[id]; known {
+		s.rows = append(s.rows, servedTurnCountRow{transcript: name, turnCount: turnCount, conversation: conversation, displayed: displayed})
+	}
+}
+
+func (s *servedTurnCounts) addTranscript(row schema.VillageTranscript) {
+	s.add(row.ID, row.TurnCount, row.ConversationTurnCount, row.DisplayedTurnCount)
+}
+
+func (s *servedTurnCounts) addCollective(row schema.VillageCollectiveTranscript) {
+	s.add(row.ID, row.TurnCount, row.ConversationTurnCount, row.DisplayedTurnCount)
+}
+
+func (s *servedTurnCounts) addMyShare(row schema.VillageUserCollectiveShare) {
+	s.add(row.ID, row.TurnCount, row.ConversationTurnCount, row.DisplayedTurnCount)
+}
+
+// addSessionList adds each grouped row's session and the route arm beside it
+// that restates the counts.
+func (s *servedTurnCounts) addSessionList(list schema.VillageSessionListPayload) {
+	for _, item := range list.Items {
+		if item.Transcript == nil {
+			continue
 		}
-	case map[string]any:
-		if id, ok := typed["id"].(string); ok {
-			if name, known := names[id]; known {
-				if _, isRow := typed["turn_count"]; isRow {
-					into.rows = append(into.rows, servedTurnCountRow{transcript: name, object: typed})
-				}
-			}
+		s.addTranscript(item.Transcript.Session)
+		if item.Transcript.Collective != nil {
+			s.addCollective(*item.Transcript.Collective)
 		}
-		if total, ok := typed["total_turns"].(float64); ok {
-			into.totals = append(into.totals, total)
-		}
-		// encoding/json decodes object keys into a map; arrays keep their order,
-		// which is the only order a list response states.
-		for _, element := range typed {
-			collectServedTurnCounts(element, names, into)
+		if item.Transcript.MyShare != nil {
+			s.addMyShare(*item.Transcript.MyShare)
 		}
 	}
+}
+
+// conversationTurnCountKey is the wire name of the conversation count on a
+// served row, read from the contract type.
+var conversationTurnCountKey = wireKeyOf(schema.VillageTranscript{}, schema.VillageTranscript{ConversationTurnCount: new(int64)})
+
+// countObjectsWithKey counts the JSON objects in a document that carry key,
+// whatever its value. A typed decode reads an absent key and a null alike, so
+// this is what tells "served as null" from "not served".
+func countObjectsWithKey(document []byte, key string) (int, error) {
+	var value any
+	if err := json.Unmarshal(document, &value); err != nil {
+		return 0, err
+	}
+	var count func(any) int
+	count = func(value any) int {
+		total := 0
+		switch typed := value.(type) {
+		case []any:
+			for _, element := range typed {
+				total += count(element)
+			}
+		case map[string]any:
+			if _, carries := typed[key]; carries {
+				total++
+			}
+			for _, element := range typed {
+				total += count(element)
+			}
+		}
+		return total
+	}
+	return count(value), nil
 }
 
 // TestConversationTurnCountReads_RealPostgres proves that every mounted read
@@ -121,14 +256,18 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 	pool := govTestPool(t)
 	t.Cleanup(pool.Close)
 	world := buildPRWorld(t, pool, fixture.World, "conversation-turn-count-reads")
-	names := map[string]string{}
+	names := map[schema.TranscriptID]string{}
 	for name, id := range world.transcripts {
-		names[uuid.UUID(id.Bytes).String()] = name
+		names[schema.TranscriptID(uuid.UUID(id.Bytes).String())] = name
 	}
 	collective := uuid.UUID(world.collectives["team"].Bytes).String()
 
 	for _, s := range fixture.Surfaces {
 		t.Run(s.Name, func(t *testing.T) {
+			decode, known := turnCountReadShapes[s.Shape]
+			if !known {
+				t.Fatalf("testdata/conversation-turn-count-reads.yaml surface %q names shape %q, which is not a turnCountReadShape; name the response the route serves", s.Name, s.Shape)
+			}
 			h := world.handler(t, pool)
 			routes := chi.NewRouter()
 			routes.Route("/api/v1", func(r chi.Router) {
@@ -142,20 +281,29 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 			if strings.Contains(base, "{transcript}") {
 				targets = targets[:0]
 				for id := range names {
-					targets = append(targets, strings.ReplaceAll(base, "{transcript}", id))
+					targets = append(targets, strings.ReplaceAll(base, "{transcript}", string(id)))
 				}
 			}
-			var served servedTurnCounts
+			served := servedTurnCounts{names: names}
+			carryingConversationKey := 0
 			for _, target := range targets {
 				rec := world.get(t, h, routes, s.Viewer, target)
 				if rec.Code != http.StatusOK {
 					t.Fatalf("GET %s = %d (%s), want 200", target, rec.Code, rec.Body.String())
 				}
-				var decoded any
-				if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+				if err := decode(rec.Body.Bytes(), &served); err != nil {
+					t.Fatalf("decode GET %s as %q: %v", target, s.Shape, err)
+				}
+				carrying, err := countObjectsWithKey(rec.Body.Bytes(), conversationTurnCountKey)
+				if err != nil {
 					t.Fatalf("decode GET %s: %v", target, err)
 				}
-				collectServedTurnCounts(decoded, names, &served)
+				carryingConversationKey += carrying
+			}
+			// Every served row states the conversation count, as a number or as
+			// null; none leaves the key out.
+			if carryingConversationKey != len(served.rows) {
+				t.Errorf("%d objects carry %s for %d served rows; every row must serve the key, null when unmeasured", carryingConversationKey, conversationTurnCountKey, len(served.rows))
 			}
 
 			seen := map[string]int{}
@@ -166,20 +314,17 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 					order = append(order, row.transcript)
 				}
 				seen[row.transcript]++
-				if got, _ := row.object["turn_count"].(float64); int64(got) != want.TurnCount {
-					t.Errorf("%s: turn_count = %v, want the stored %d unchanged", row.transcript, row.object["turn_count"], want.TurnCount)
+				if row.turnCount == nil || int64(*row.turnCount) != want.TurnCount {
+					t.Errorf("%s: turn_count = %s, want the stored %d unchanged", row.transcript, formatCount(row.turnCount), want.TurnCount)
 				}
-				if got, ok := row.object["displayed_turn_count"].(float64); !ok || int64(got) != want.DisplayedTurnCount {
-					t.Errorf("%s: displayed_turn_count = %v, want %d", row.transcript, row.object["displayed_turn_count"], want.DisplayedTurnCount)
+				if row.displayed == nil || *row.displayed != want.DisplayedTurnCount {
+					t.Errorf("%s: displayed_turn_count = %s, want %d", row.transcript, formatCount(row.displayed), want.DisplayedTurnCount)
 				}
-				got, served := row.object["conversation_turn_count"]
 				switch {
-				case want.ConversationTurnCount == nil && (!served || got != nil):
-					t.Errorf("%s: conversation_turn_count = %v (key present: %v), want null for an unmeasured transcript", row.transcript, got, served)
-				case want.ConversationTurnCount != nil:
-					if number, ok := got.(float64); !ok || int64(number) != *want.ConversationTurnCount {
-						t.Errorf("%s: conversation_turn_count = %v, want %d", row.transcript, got, *want.ConversationTurnCount)
-					}
+				case want.ConversationTurnCount == nil && row.conversation != nil:
+					t.Errorf("%s: conversation_turn_count = %d, want null for an unmeasured transcript", row.transcript, *row.conversation)
+				case want.ConversationTurnCount != nil && (row.conversation == nil || *row.conversation != *want.ConversationTurnCount):
+					t.Errorf("%s: conversation_turn_count = %s, want %d", row.transcript, formatCount(row.conversation), *want.ConversationTurnCount)
 				}
 			}
 			for name := range fixture.Rows {
@@ -191,7 +336,7 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 				t.Errorf("rows are served in the order %v, want it to start with %v", order, s.Order)
 			}
 			if s.TotalTurns != nil {
-				if len(served.totals) != 1 || int64(served.totals[0]) != *s.TotalTurns {
+				if len(served.totals) != 1 || served.totals[0] != *s.TotalTurns {
 					t.Errorf("total_turns = %v, want exactly one total of %d", served.totals, *s.TotalTurns)
 				}
 			} else if len(served.totals) != 0 {
@@ -199,4 +344,12 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 			}
 		})
 	}
+}
+
+// formatCount prints a served count, or "null" when the row serves none.
+func formatCount[T int32 | int64](count *T) string {
+	if count == nil {
+		return "null"
+	}
+	return fmt.Sprint(*count)
 }

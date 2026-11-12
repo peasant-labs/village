@@ -29,6 +29,17 @@
 import { mkdirSync, statSync } from 'node:fs'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
+// The page's own test ids and Library view names. Both modules import nothing
+// from the app, so Node loads the TypeScript source directly (it strips the
+// types) and this script cannot drift from what the page renders and stores.
+import { HomeTestId } from '../../src/app/homeTestId.ts'
+import {
+  ALL_VILLAGE_COLUMNS,
+  ColumnId,
+  GROUP_BY_URL_PARAM,
+  GroupBy,
+  HOME_VIEW_STORAGE_KEY,
+} from '../../src/lib/homeViewSets.ts'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 const CHROME = process.env.CHROME_PATH
@@ -436,23 +447,21 @@ if (MODE === 'turns') {
      print the DISPLAYED count and the unmeasured row prints no number: a build
      that still printed the stored count would produce a capture that looks
      right and evidences the wrong thing. */
-  await page.evaluate(() => {
-    localStorage.setItem(
-      'peasant-online.library',
-      JSON.stringify({
-        columns: ['transcript', 'project', 'readers', 'agent', 'pullRequests', 'turns', 'when'],
-        collapsed: [],
-      }),
-    )
-  })
+  await page.evaluate(
+    (key, view) => localStorage.setItem(key, view),
+    HOME_VIEW_STORAGE_KEY,
+    // A closed value serializes as its wire, the form the page stores.
+    JSON.stringify({ columns: ALL_VILLAGE_COLUMNS, collapsed: [] }),
+  )
   const flat = new globalThis.URL(URL)
-  flat.searchParams.set('groupBy', 'none')
+  flat.searchParams.set(GROUP_BY_URL_PARAM, GroupBy.None.wire)
   await page.goto(flat.href, { waitUntil: 'networkidle0' })
-  const table = await waitFor('[data-testid="home-transcripts"] table')
+  const tableSel = `[data-testid="${HomeTestId.Transcripts.wire}"] table`
+  const table = await waitFor(tableSel)
   if (!table) {
     await fail(
       `ERROR [home-shoot.mjs] the home table never mounted at ${flat.href}.
-  What failed: no table under [data-testid="home-transcripts"].
+  What failed: no element matches ${tableSel}.
   Why: the served build does not render the home table, or the visitor is not signed in.
   Where: home-shoot.mjs turns-arm readiness wait.
   Means: the capture would not show the turns column.
@@ -468,10 +477,12 @@ if (MODE === 'turns') {
     { title: 'Governance audit trigger, fail closed', prints: 'not counted', stored: null },
     { title: 'Group a project contribution by session', prints: '24', stored: null },
   ]
-  const cells = await page.evaluate(() => {
-    const root = document.querySelector('[data-testid="home-transcripts"] table')
+  // The column is the one the page declares as `ColumnId.Turns`; its header
+  // carries that member's label.
+  const cells = await page.evaluate((tableSel, rowTitleSel, turnsLabel) => {
+    const root = document.querySelector(tableSel)
     const column = [...root.querySelectorAll('thead th')].findIndex(
-      (th) => (th.textContent ?? '').trim() === 'turns',
+      (th) => (th.textContent ?? '').trim() === turnsLabel,
     )
     return {
       column,
@@ -481,14 +492,14 @@ if (MODE === 'turns') {
         // on that wrapper, so that is the element whose style is read.
         const figures = cell?.firstElementChild ?? cell
         return {
-          title: (tr.querySelector('[data-testid="home-transcript-row"] > a')?.textContent ?? '').trim(),
+          title: (tr.querySelector(rowTitleSel)?.textContent ?? '').trim(),
           text: (cell?.textContent ?? '').trim(),
           fontVariantNumeric: figures ? getComputedStyle(figures).fontVariantNumeric : null,
           textAlign: cell ? getComputedStyle(cell).textAlign : null,
         }
       }),
     }
-  })
+  }, tableSel, `[data-testid="${HomeTestId.TranscriptRow.wire}"] > a`, ColumnId.Turns.label)
   const wrong = expectRows.filter((want) => {
     const got = cells.rows.find((row) => row.title === want.title)
     return got == null || got.text !== want.prints
@@ -521,7 +532,7 @@ if (MODE === 'turns') {
   const tableFile = `${out}/village-home-turns-table.png`
   await table.screenshot({ path: tableFile })
   await gate.assert('village-home-turns-table', tableFile, {
-    sel: '[data-testid="home-transcripts"] table',
+    sel: tableSel,
     where: 'home-shoot.mjs',
   })
   console.log('shot', 'village-home-turns'.padEnd(26), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
