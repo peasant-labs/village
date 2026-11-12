@@ -1,0 +1,7 @@
+required_names:
+  - publish-accepts-new-antigravity-cli
+  - publish-accepts-new-antigravity-ide
+  - publish-accepts-archived-antigravity
+  - publish-accepts-archived-gemini-cli
+  - publish-accepts-harvestable-claude-code
+  - publish-refuses-an-unknown-harness
