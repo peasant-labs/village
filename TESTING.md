@@ -1750,11 +1750,9 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published backend module pin is Schema v0.52.0 and the literal
-served/enforced contract expectation is Village API 0.40.0; the frontend package
-pin remains `@peasant-labs/schema` 0.51.0 pending a Fairtrade release. No
-producer emits the new Antigravity harness values yet. Mounted contract
-bytes are pinned against the independently downloaded GitHub release asset in
+The current backend module pin, its Village API version and the frontend
+package pin are stated once, in AGENTS.md "Shared wire contract and licensing";
+this file does not repeat them. Mounted contract bytes are pinned against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition
 preserves `groupId` on deprecated `/groups` and requires `group_id` on canonical
