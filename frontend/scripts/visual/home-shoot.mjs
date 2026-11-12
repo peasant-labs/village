@@ -19,7 +19,8 @@
    renders "nothing published yet" on a failed request cannot produce a PNG.
 
    env:
-     HOME_SHOOT_MODE surface arm: `home` (default), `failure`, or `no-handle`
+     HOME_SHOOT_MODE surface arm: `home` (default), `failure`, `no-handle`,
+                     `helpers`, or `turns` (with MOCK_TURN_COUNTS=1 on the mock)
      VILLAGE_URL     app URL (default http://localhost:3000/)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
@@ -34,7 +35,7 @@ const CHROME = process.env.CHROME_PATH
 const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
 const theme = process.argv[2] || 'dark'
 const MODE = process.env.HOME_SHOOT_MODE || 'home'
-const MODES = ['home', 'failure', 'no-handle', 'helpers']
+const MODES = ['home', 'failure', 'no-handle', 'helpers', 'turns']
 if (!MODES.includes(MODE)) {
   console.error(`ERROR [home-shoot.mjs] HOME_SHOOT_MODE=${MODE} is not one of ${MODES.join(', ')}.`)
   process.exit(1)
@@ -420,6 +421,112 @@ if (MODE === 'helpers') {
   console.log('shot', 'village-home-helpers'.padEnd(30), `${Math.round(panelBox.width)}x${Math.round(panelBox.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
   console.log('helpers provenance:', JSON.stringify({ before, opened }))
   console.log('computed helper-group count style:', JSON.stringify(groupStyle))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
+}
+
+if (MODE === 'turns') {
+  /* Which turn count the table prints. The turns column is not in the default
+     view, so the arm arranges the table the way a person would (every column,
+     one flat list) through the same stored view the page reads, then reloads.
+
+     The mock serves rows whose stored count and displayed count differ, plus a
+     row with no count. The arm refuses to write a PNG unless the measured rows
+     print the DISPLAYED count and the unmeasured row prints no number: a build
+     that still printed the stored count would produce a capture that looks
+     right and evidences the wrong thing. */
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'peasant-online.library',
+      JSON.stringify({
+        columns: ['transcript', 'project', 'readers', 'agent', 'pullRequests', 'turns', 'when'],
+        collapsed: [],
+      }),
+    )
+  })
+  const flat = new globalThis.URL(URL)
+  flat.searchParams.set('groupBy', 'none')
+  await page.goto(flat.href, { waitUntil: 'networkidle0' })
+  const table = await waitFor('[data-testid="home-transcripts"] table')
+  if (!table) {
+    await fail(
+      `ERROR [home-shoot.mjs] the home table never mounted at ${flat.href}.
+  What failed: no table under [data-testid="home-transcripts"].
+  Why: the served build does not render the home table, or the visitor is not signed in.
+  Where: home-shoot.mjs turns-arm readiness wait.
+  Means: the capture would not show the turns column.
+  Fix: start the home mock with MOCK_TURN_COUNTS=1, rebuild from this worktree, and retry.`,
+      2,
+    )
+  }
+  // What the mock serves, restated as what each row must print. `stored` is the
+  // number a build that ignored the displayed count would print instead.
+  const expectRows = [
+    { title: 'Publish wizard: consent and receipt copy', prints: '38', stored: '212' },
+    { title: 'Observed model on the session stats', prints: '1,312', stored: '4,812' },
+    { title: 'Governance audit trigger, fail closed', prints: 'not counted', stored: null },
+    { title: 'Group a project contribution by session', prints: '24', stored: null },
+  ]
+  const cells = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="home-transcripts"] table')
+    const column = [...root.querySelectorAll('thead th')].findIndex(
+      (th) => (th.textContent ?? '').trim() === 'turns',
+    )
+    return {
+      column,
+      rows: [...root.querySelectorAll('tr[data-row-kind="row"]')].map((tr) => {
+        const cell = column < 0 ? null : tr.children[column]
+        // The shared table wraps a numeric cell's value; the figures are styled
+        // on that wrapper, so that is the element whose style is read.
+        const figures = cell?.firstElementChild ?? cell
+        return {
+          title: (tr.querySelector('[data-testid="home-transcript-row"] > a')?.textContent ?? '').trim(),
+          text: (cell?.textContent ?? '').trim(),
+          fontVariantNumeric: figures ? getComputedStyle(figures).fontVariantNumeric : null,
+          textAlign: cell ? getComputedStyle(cell).textAlign : null,
+        }
+      }),
+    }
+  })
+  const wrong = expectRows.filter((want) => {
+    const got = cells.rows.find((row) => row.title === want.title)
+    return got == null || got.text !== want.prints
+  })
+  // A count must sit in tabular figures, or a column of them does not line up.
+  const untabular = cells.rows.filter(
+    (row) => /^\d/.test(row.text) && !/tabular-nums/.test(row.fontVariantNumeric ?? ''),
+  )
+  if (cells.column < 0 || wrong.length > 0 || untabular.length > 0) {
+    await fail(
+      `ERROR [home-shoot.mjs] the turns column does not print the count the server chose for display.
+  What failed: expected ${JSON.stringify(expectRows.map(({ title, prints }) => ({ title, prints })))}; rendered ${JSON.stringify(cells)}.
+  Why: the served build prints the stored count (${expectRows.map((r) => r.stored).filter(Boolean).join(', ')}), the mock is not serving differing counts, or a count lost its tabular figures.
+  Where: home-shoot.mjs turns-arm build-provenance check.
+  Means: the capture would evidence the wrong count, or a build from another worktree.
+  Fix: restart the mock with MOCK_TURN_COUNTS=1, rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
+  const body = await page.$('body')
+  const bodyBox = await body.boundingBox()
+  if (!bodyBox || bodyBox.width < 4 || bodyBox.height < 4) {
+    await fail(`ERROR [home-shoot.mjs] body resolved to a blank box at ${flat.href}.`, 1)
+  }
+  const file = `${out}/village-home-turns.png`
+  await body.screenshot({ path: file, captureBeyondViewport: true })
+  const r = await gate.assert('village-home-turns', file, { sel: 'body', where: 'home-shoot.mjs' })
+  const tableFile = `${out}/village-home-turns-table.png`
+  await table.screenshot({ path: tableFile })
+  await gate.assert('village-home-turns-table', tableFile, {
+    sel: '[data-testid="home-transcripts"] table',
+    where: 'home-shoot.mjs',
+  })
+  console.log('shot', 'village-home-turns'.padEnd(26), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
+  console.log('shot', 'village-home-turns-table'.padEnd(26), `${(statSync(tableFile).size / 1024).toFixed(1)}KB`)
+  console.log('turns column:', JSON.stringify(cells))
   console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
   await browser.close()
   process.exit(0)

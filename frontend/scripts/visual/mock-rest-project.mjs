@@ -131,6 +131,8 @@ const transcript = (s, i) => ({
   session_start: s.published,
   session_end: s.published,
   turn_count: s.turns,
+  conversation_turn_count: null,
+  displayed_turn_count: s.turns,
   token_count: 12000,
   blob_size_bytes: null,
   schema_version: '0.13.0',

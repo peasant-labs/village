@@ -629,6 +629,8 @@ under review.
 
 `HOME_SHOOT_MODE` selects the arm: `home` (default), `failure`
 (with `MOCK_OWNER_LIST_FAILS=1`), or `no-handle` (with `MOCK_BLANK_HANDLE=1`).
+The `turns` arm (with `MOCK_TURN_COUNTS=1`) is about which turn count a row
+prints; see "Which turn count a row prints" below.
 Each arm refuses to write a PNG from a build that does not render its surface -
 the failure arm requires the panel, the reassurance sentence, a retry, and no
 empty state or rows; the no-handle arm requires a terminated surface with no
@@ -636,6 +638,34 @@ shimmer left. All three assert computed styles through one shared helper, so a
 surface that ships unstyled cannot produce a plausible-looking capture. The two
 sparse arms gate the non-empty check on their PANEL rather than the page, whose
 emptiness is the intended design.
+
+### Which turn count a row prints
+
+A transcript row carries three counts: `turn_count` (every folded turn the
+publication recorded), `conversation_turn_count` (user and assistant text or
+image turns; null when the publication did not measure it) and
+`displayed_turn_count`, which the server derives from those two. Every surface
+prints `displayed_turn_count` and nothing else; null prints no count. The
+fallback to the stored count for a publication that carried no conversation
+count is the server's, and the browser writes none of its own.
+
+`frontend/src/testdata/displayed-turn-count.yaml` +
+`frontend/src/test/displayedTurnCountFixtures.ts` hold the cases, guarded by a
+required-NAME manifest, and `frontend/src/displayedTurnCount.test.tsx` runs each
+one on the mounted home route, the transcript list, the row and card
+components, and the explore and collective adapters. The case
+`the-browser-derives-nothing` serves a stored count beside a null displayed
+count, a pairing the server never produces, so a surface that fell back on its
+own fails there. The grouped helper corpora serve a stored count 100 larger than
+the displayed one for the same reason, so a helper row that printed the stored
+count fails its existing mounted assertion.
+
+The mounted capture is the `turns` arm of `home-shoot.mjs` against
+`mock-rest-home.mjs` started with `MOCK_TURN_COUNTS=1`. The turns column is not
+in the default view, so the arm stores the every-column view and opens the flat
+list. It refuses to write a PNG unless the measured rows print the displayed
+count (not the larger stored one), the unmeasured row prints `not counted`, and
+every count sits in tabular figures.
 
 ### Sessions started by another session: one corpus, three mounted routes
 
@@ -1751,7 +1781,7 @@ encoder withholds capabilities and refuses enriched publication before writes.
 
 The published backend module pin is Schema v0.51.0 and the literal
 served/enforced contract expectation is Village API 0.39.0; the frontend package
-pin is still Schema 0.49.0 and moves in its own change. Mounted contract
+pin is `@peasant-labs/schema` 0.51.0, the same release. Mounted contract
 bytes are pinned against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition

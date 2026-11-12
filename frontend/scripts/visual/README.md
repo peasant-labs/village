@@ -967,6 +967,21 @@ CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ \
   node scripts/visual/home-shoot.mjs light /tmp/village-home-light
 ```
 
+For the turns arm, restart the mock with `MOCK_TURN_COUNTS=1` on the same port
+the build was pointed at. It serves two measured rows whose stored count is
+larger than the count the server chose for display, one row with no count, and
+the rest as rows published before the conversation count existed. The arm
+stores the every-column view (the turns column is not in the default one),
+opens the flat list, and refuses to write a PNG unless each of those rows prints
+the displayed count in tabular figures:
+
+```sh
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=turns \
+  node scripts/visual/home-shoot.mjs dark /tmp/village-home-turns-dark
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=turns \
+  node scripts/visual/home-shoot.mjs light /tmp/village-home-turns-light
+```
+
 For the failure arm, restart the mock with `MOCK_OWNER_LIST_FAILS=1` on the same
 port the build was pointed at, then:
 

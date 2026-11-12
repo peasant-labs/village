@@ -23,6 +23,7 @@
      MOCK_REST_PORT=8791 MOCK_HELPER_GROUPS=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_HELPER_GROUPS=1 MOCK_MEMBER_STATUS=403 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_GROUPED_SURFACES=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_TURN_COUNTS=1 node scripts/visual/mock-rest-home.mjs
 */
 import { createServer } from 'node:http'
 
@@ -56,6 +57,13 @@ const HELPER_GROUPS = process.env.MOCK_HELPER_GROUPS === '1'
 // container, so a capture can show the continuation that reaches it. Off by
 // default: those surfaces' own captures keep the single grouped page.
 const GROUPED_SURFACES = process.env.MOCK_GROUPED_SURFACES === '1'
+
+// Serve rows whose three turn counts differ, so a capture can show which one
+// the table prints: two measured rows (the stored count is larger than the
+// conversation count), one unmeasured row (no count at all), and the rest as
+// rows published before the conversation count existed. Off by default: every
+// other capture keeps one uniform count.
+const TURN_COUNTS = process.env.MOCK_TURN_COUNTS === '1'
 
 // When set, the registered member endpoint refuses with this status instead of
 // serving members, so a capture can show the host's own member-load failure
@@ -119,6 +127,19 @@ const startedSessions = [
 const unmatchedChild = [
   ['a8', 'Bisect the flaky publish test', HASH_PEASANT, 'peasant', '2026-08-26T20:00:00Z', 'opencode', 'never-published-here'],
 ]
+
+/* What the server serves for a row's turn counts. `displayed` is the server's
+   own choice between the other two and is stated here as a served value, never
+   derived by this mock or by the app: `conversation` when the publication
+   measured it, else `stored`. */
+const PUBLISHED_BEFORE_THE_MEASURE = { stored: 24, conversation: null, displayed: 24 }
+const TURN_COUNTS_BY_ROW = {
+  a2: { stored: 212, conversation: 38, displayed: 38 },
+  a3: { stored: null, conversation: null, displayed: null },
+  a4: { stored: 4812, conversation: 1312, displayed: 1312 },
+}
+const turnCountsFor = (id) =>
+  (TURN_COUNTS ? TURN_COUNTS_BY_ROW[id] : undefined) ?? PUBLISHED_BEFORE_THE_MEASURE
 
 const servedSessions = CHILD_SESSIONS
   ? [...sessions, ...startedSessions, ...unmatchedChild]
@@ -237,7 +258,9 @@ const toListItem = ([id, title, hash, project, publishedAt, provider, parentSess
     harness_version: '2026.08',
     session_start: publishedAt,
     session_end: publishedAt,
-    turn_count: 24,
+    turn_count: turnCountsFor(id).stored,
+    conversation_turn_count: turnCountsFor(id).conversation,
+    displayed_turn_count: turnCountsFor(id).displayed,
     token_count: 120000,
     blob_size_bytes: 0,
     schema_version: '0.13.0',
@@ -312,6 +335,8 @@ const helperMemberSession = () => ({
   session_start: '2026-08-27T14:30:00Z',
   session_end: '2026-08-27T14:35:00Z',
   turn_count: 5,
+  conversation_turn_count: null,
+  displayed_turn_count: 5,
   input_submission_count: 1,
   purpose: 'helper_review',
 })
