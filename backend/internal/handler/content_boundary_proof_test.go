@@ -6,35 +6,27 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/peasant-labs/schema"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/dispatch_mutations.yaml
 var dispatchMutationYAML []byte
 
 func TestContentBoundaryMutationsWithholdCapabilities(t *testing.T) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []struct {
 			Name      string `yaml:"name"`
 			Target    string `yaml:"target"`
 			Operation string `yaml:"operation"`
 		} `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(dispatchMutationYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected one mutation fixture document")
+	}](dispatchMutationYAML)
+	if err != nil {
+		t.Fatalf("decode the dispatch mutation fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, mutation := range corpus.Cases {

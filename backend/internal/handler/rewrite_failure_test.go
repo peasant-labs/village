@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"strings"
 	"testing"
@@ -16,7 +15,6 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/rewrite_failures.yaml
@@ -106,15 +104,9 @@ func TestMountedRewriteFailurePolicy(t *testing.T) {
 
 func loadRewriteFailureFixtures(t *testing.T) []rewriteFailureCase {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(rewriteFailureFixtureYAML))
-	decoder.KnownFields(true)
-	var fixture rewriteFailureFixture
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("fixture must have one document: %v", err)
+	fixture, err := decodeFixtureDocument[rewriteFailureFixture](rewriteFailureFixtureYAML)
+	if err != nil {
+		t.Fatalf("decode the rewrite failure fixture: %v", err)
 	}
 	if len(fixture.Cases) != len(rewriteFailureNames) {
 		t.Fatalf("case count=%d want=%d", len(fixture.Cases), len(rewriteFailureNames))

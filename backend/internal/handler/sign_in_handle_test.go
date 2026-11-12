@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/oauth2"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -59,11 +57,9 @@ type signInHandleCorpus struct {
 
 func loadSignInHandleFixtures(t *testing.T) signInHandleCorpus {
 	t.Helper()
-	var corpus signInHandleCorpus
-	d := yaml.NewDecoder(bytes.NewReader(signInHandleFixtures))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
+	corpus, err := decodeFixtureDocument[signInHandleCorpus](signInHandleFixtures)
+	if err != nil {
+		t.Fatalf("decode the sign-in-handle fixture: %v", err)
 	}
 	if len(corpus.Required) == 0 {
 		t.Fatal("sign-in-handle fixture has no required-name manifest")

@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/publish_harness_acceptance.yaml
@@ -42,24 +39,16 @@ type publishHarnessFixture struct {
 
 func loadPublishHarnessCases(t *testing.T) publishHarnessFixture {
 	t.Helper()
-	var fixture publishHarnessFixture
-	var manifest struct {
+	fixture, err := decodeFixtureDocument[publishHarnessFixture](publishHarnessAcceptanceYAML)
+	if err != nil {
+		t.Fatalf("decode testdata/publish_harness_acceptance.yaml: %v", err)
+	}
+	manifest, err := decodeFixtureDocument[struct {
 		RequiredNames []string `yaml:"required_names"`
+	}](publishHarnessAcceptanceManifestYAML)
+	if err != nil {
+		t.Fatalf("decode testdata/publish_harness_acceptance.manifest.yaml: %v", err)
 	}
-	decode := func(raw []byte, dest any) {
-		t.Helper()
-		decoder := yaml.NewDecoder(bytes.NewReader(raw))
-		decoder.KnownFields(true)
-		if err := decoder.Decode(dest); err != nil {
-			t.Fatal(err)
-		}
-		var extra any
-		if err := decoder.Decode(&extra); err != io.EOF {
-			t.Fatalf("fixture must contain one YAML document: %v", err)
-		}
-	}
-	decode(publishHarnessAcceptanceYAML, &fixture)
-	decode(publishHarnessAcceptanceManifestYAML, &manifest)
 	if fixture.SessionID == "" || strings.Count(fixture.ContentTemplate, "__SESSION_ID__") != 1 || strings.Count(fixture.ContentTemplate, "__HARNESS__") != 1 {
 		t.Fatal("publish harness content must carry exactly one session and one harness placeholder")
 	}

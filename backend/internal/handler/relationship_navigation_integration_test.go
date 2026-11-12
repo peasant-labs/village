@@ -20,7 +20,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/storage"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/relationship-navigation-integration.yaml
@@ -125,10 +124,8 @@ type relationshipNavigationCreateDecl struct {
 
 func loadRelationshipNavigationIntegrationFixture(t *testing.T) relationshipNavigationIntegrationFixture {
 	t.Helper()
-	var fixture relationshipNavigationIntegrationFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(relationshipNavigationIntegrationYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[relationshipNavigationIntegrationFixture](relationshipNavigationIntegrationYAML)
+	if err != nil {
 		t.Fatalf("relationship-navigation integration fixture: decode: %v", err)
 	}
 	if len(fixture.Required) == 0 {

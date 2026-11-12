@@ -3,12 +3,10 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,7 +23,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/helper_group_listing.yaml
@@ -71,18 +68,12 @@ type helperListingCase struct {
 
 func loadHelperListingFixtures(t *testing.T) (map[string]helperListingRow, []helperListingCase) {
 	t.Helper()
-	var fixture struct {
+	fixture, err := decodeFixtureDocument[struct {
 		Rows  []helperListingRow  `yaml:"rows"`
 		Cases []helperListingCase `yaml:"cases"`
-	}
-	decoder := yaml.NewDecoder(bytes.NewReader(helperGroupListingYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		t.Fatalf("unexpected trailing YAML: %v", err)
+	}](helperGroupListingYAML)
+	if err != nil {
+		t.Fatalf("decode the helper group listing fixture: %v", err)
 	}
 	rows := map[string]helperListingRow{}
 	for _, row := range fixture.Rows {

@@ -3,11 +3,9 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -19,7 +17,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/collective_detail_wire.yaml
@@ -67,15 +64,9 @@ var requiredCollectiveDetailWireCases = []string{
 
 func loadCollectiveDetailWireFixtures(t *testing.T) collectiveDetailWireFixtures {
 	t.Helper()
-	d := yaml.NewDecoder(bytes.NewReader(collectiveDetailWireYAML))
-	d.KnownFields(true)
-	var fixture collectiveDetailWireFixtures
-	if err := d.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		t.Fatalf("expected one wire fixture document: %v", err)
+	fixture, err := decodeFixtureDocument[collectiveDetailWireFixtures](collectiveDetailWireYAML)
+	if err != nil {
+		t.Fatalf("decode the collective detail wire fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range fixture.Cases {

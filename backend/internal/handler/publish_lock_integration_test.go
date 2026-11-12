@@ -7,7 +7,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,7 +22,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -78,15 +76,9 @@ type publishLockInvalidCase struct {
 const publishLockFixturePath = "testdata/association_annotation_ingress/publish_lock_cases.yaml"
 
 func decodePublishLockFixture(raw []byte) (publishLockFixture, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(raw))
-	decoder.KnownFields(true)
-	var fixture publishLockFixture
-	if err := decoder.Decode(&fixture); err != nil {
-		return publishLockFixture{}, fmt.Errorf("publish lock fixture %s could not be decoded with known fields; correct the named YAML field and value: %w", publishLockFixturePath, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return publishLockFixture{}, fmt.Errorf("publish lock fixture %s must contain exactly one YAML document; remove the trailing document: %v", publishLockFixturePath, err)
+	fixture, err := decodeFixtureDocument[publishLockFixture](raw)
+	if err != nil {
+		return publishLockFixture{}, fmt.Errorf("publish lock fixture %s: %w", publishLockFixturePath, err)
 	}
 	if len(fixture.Cases) != fixture.ExpectedCaseCount || fixture.ExpectedCaseCount != 5 {
 		return publishLockFixture{}, fmt.Errorf("publish lock fixture %s field expectedCaseCount=%d does not match cases=%d and required count 5; update the declaration and complete case corpus together", publishLockFixturePath, fixture.ExpectedCaseCount, len(fixture.Cases))

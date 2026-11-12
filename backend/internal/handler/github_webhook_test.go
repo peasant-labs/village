@@ -15,8 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	gh "github.com/peasant-labs/village/backend/internal/github"
 )
@@ -50,10 +48,8 @@ var requiredGitHubWebhookCaseNames = []string{
 // dispatch target is neither a subscribed method nor "none".
 func loadGitHubWebhookCases(t *testing.T) []githubWebhookCase {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(githubWebhookCasesYAML))
-	decoder.KnownFields(true)
-	var file githubWebhookCaseFile
-	if err := decoder.Decode(&file); err != nil {
+	file, err := decodeFixtureDocument[githubWebhookCaseFile](githubWebhookCasesYAML)
+	if err != nil {
 		t.Fatalf("decode the github webhook fixture: %v", err)
 	}
 	if len(file.Cases) == 0 {

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/peasant-labs/schema"
-	"gopkg.in/yaml.v3"
 )
 
 // publishLimitMetadataBase is the shortest metadata document that passes the
@@ -261,15 +260,9 @@ func (r *publishLimitFiller) Read(p []byte) (int, error) {
 func loadPublishMultipartLimitFixture(t *testing.T) publishMultipartLimitFixture {
 	t.Helper()
 
-	var fixture publishMultipartLimitFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(publishMultipartLimitFixtureYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("publish multipart limit fixture requires exactly one YAML document; trailing decode err = %v", err)
+	fixture, err := decodeFixtureDocument[publishMultipartLimitFixture](publishMultipartLimitFixtureYAML)
+	if err != nil {
+		t.Fatalf("decode the publish multipart limit fixture: %v", err)
 	}
 	if len(fixture.RequiredNames) == 0 {
 		t.Fatal("publish multipart limit fixture has no required-name manifest")

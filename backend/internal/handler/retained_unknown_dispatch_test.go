@@ -1,10 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	_ "embed"
-	"gopkg.in/yaml.v3"
-	"io"
 	"strings"
 	"testing"
 )
@@ -13,20 +10,14 @@ import (
 var retainedDispatchYAML []byte
 
 func TestRetainedUnknownDispatchKeepsNativeDataOpaque(t *testing.T) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []struct {
 			Name    string `yaml:"name"`
 			Content string `yaml:"content"`
 		} `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(retainedDispatchYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected one fixture document")
+	}](retainedDispatchYAML)
+	if err != nil {
+		t.Fatalf("decode the retained dispatch fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {

@@ -22,11 +22,9 @@ package handler
 // edges that define the shape instead of forking the content contract.
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -42,7 +40,6 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/storage"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/published_grouped_shape_oracles.yaml
@@ -89,15 +86,9 @@ type publishedShapeFixture struct {
 // deletion guard, so removing a case fails by name.
 func loadPublishedShapeFixtures(t *testing.T) (map[string]publishedShapeSession, []publishedShapeCase) {
 	t.Helper()
-	var fixture publishedShapeFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(publishedGroupedShapeYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		t.Fatalf("unexpected trailing YAML: %v", err)
+	fixture, err := decodeFixtureDocument[publishedShapeFixture](publishedGroupedShapeYAML)
+	if err != nil {
+		t.Fatalf("decode the published grouped shape fixture: %v", err)
 	}
 	sessions := map[string]publishedShapeSession{}
 	for _, session := range fixture.Sessions {

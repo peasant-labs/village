@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -19,7 +18,6 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/negative.yaml
@@ -494,15 +492,9 @@ func loadObservedModelPublishGateFixtures(t *testing.T) observedModelPublishGate
 }
 
 func decodeObservedModelPublishGateFixtures(data []byte) (observedModelPublishGateFixture, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var fixture observedModelPublishGateFixture
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[observedModelPublishGateFixture](data)
+	if err != nil {
 		return fixture, fmt.Errorf("decode observed-model publish fixtures: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return fixture, fmt.Errorf("observed-model publish fixtures require exactly one YAML document: %w", err)
 	}
 	if len(fixture.Cases) != observedModelPublishGateCaseCount {
 		return fixture, fmt.Errorf("observed-model publish fixture count=%d, want %d", len(fixture.Cases), observedModelPublishGateCaseCount)
@@ -757,15 +749,9 @@ func loadObservedModelNegativeFixtures(t *testing.T) []observedModelNegativeCase
 }
 
 func decodeObservedModelNegativeFixtures(data []byte) ([]observedModelNegativeCase, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var fixture observedModelNegativeFixture
-	if err := decoder.Decode(&fixture); err != nil {
-		return nil, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return nil, errors.New("observed-model negative fixtures must contain exactly one document")
+	fixture, err := decodeFixtureDocument[observedModelNegativeFixture](data)
+	if err != nil {
+		return nil, fmt.Errorf("decode observed-model negative fixtures: %w", err)
 	}
 	if len(fixture.Cases) != observedModelNegativeCaseCount {
 		return nil, fmt.Errorf("observed-model negative fixture count=%d, want exactly %d", len(fixture.Cases), observedModelNegativeCaseCount)
