@@ -629,8 +629,6 @@ under review.
 
 `HOME_SHOOT_MODE` selects the arm: `home` (default), `failure`
 (with `MOCK_OWNER_LIST_FAILS=1`), or `no-handle` (with `MOCK_BLANK_HANDLE=1`).
-The `turns` arm (with `MOCK_TURN_COUNTS=1`) is about which turn count a row
-prints; see "Which turn count a row prints" below.
 Each arm refuses to write a PNG from a build that does not render its surface -
 the failure arm requires the panel, the reassurance sentence, a retry, and no
 empty state or rows; the no-handle arm requires a terminated surface with no
@@ -638,43 +636,6 @@ shimmer left. All three assert computed styles through one shared helper, so a
 surface that ships unstyled cannot produce a plausible-looking capture. The two
 sparse arms gate the non-empty check on their PANEL rather than the page, whose
 emptiness is the intended design.
-
-### Which turn count a row prints
-
-A transcript row carries three counts: `turn_count` (every folded turn the
-publication recorded), `conversation_turn_count` (user and assistant text or
-image turns; null when the publication did not measure it) and
-`displayed_turn_count`, which the server derives from those two. Every surface
-prints `displayed_turn_count` and nothing else; null prints no count. The
-fallback to the stored count for a publication that carried no conversation
-count is the server's, and the browser writes none of its own.
-
-`frontend/src/testdata/displayed-turn-count.yaml` +
-`frontend/src/test/displayedTurnCountFixtures.ts` hold the cases, guarded by a
-required-NAME manifest, and `frontend/src/displayedTurnCount.test.tsx` runs each
-one on the mounted home route, the transcript list, the row and card
-components, and the explore and collective adapters. The case
-`the-browser-derives-nothing` serves a stored count beside a null displayed
-count, a pairing the server never produces, so a surface that fell back on its
-own fails there. The grouped helper corpora serve a stored count 100 larger than
-the displayed one for the same reason, so a helper row that printed the stored
-count fails its existing mounted assertion. The pull request page's transcript
-read (`frontend/src/test/mountedAttachmentSurfaces.tsx`) does the same, so
-`pullRequestPage.test.tsx` fails if the page prints the stored count.
-
-The case `a-measured-row-in-the-thousands-prints-a-grouped-count` holds the
-digit grouping: the home table prints `1,312`, not `1312`.
-`frontend/src/components/group/CollectiveAnalytics.test.tsx` runs the same
-corpus through the collective dashboard and reads the count back from its
-rendered "typical vs. tail" turns row, where a transcript with no displayed
-count contributes zero.
-
-The mounted capture is the `turns` arm of `home-shoot.mjs` against
-`mock-rest-home.mjs` started with `MOCK_TURN_COUNTS=1`. The turns column is not
-in the default view, so the arm stores the every-column view and opens the flat
-list. It refuses to write a PNG unless the measured rows print the displayed
-count (not the larger stored one), the unmeasured row prints `not counted`, and
-every count sits in tabular figures.
 
 ### Sessions started by another session: one corpus, three mounted routes
 
@@ -1186,25 +1147,6 @@ Newer real-Postgres families worth knowing when touching those paths:
   `would_update`, `updated`, and `failed`. A failed row remains unchanged and
   stays fully visible, later rows still run, and the process exits nonzero only
   after the full scan.
-
-### The conversation turn count: publish, rows, totals and the sort
-
-`transcripts.conversation_turn_count` and the generated `displayed_turn_count`
-(migration 050; `docs/database-invariants.md` section 2) have four fixtures.
-Every row states a conversation count that differs from its `turn_count`, so a
-read or a write that takes the wrong number fails.
-
-| Fixture | Test | Proves |
-|---|---|---|
-| `database/testdata/conversation_turn_count.yaml` | `TestMigration050ConversationTurnCount*` | the range CHECK, NULL against measured zero, the generated value, and that a direct write of `displayed_turn_count` is refused |
-| `handler/testdata/schema_mapping/conversation_turn_counts.yaml` | `TestSchemaToTranscriptParamsConversationTurnCount` (unit) | absent maps to SQL NULL, a measured zero to `0` |
-| `handler/testdata/conversation-turn-count-publication.yaml` | `TestConversationTurnCountPublication_RealPostgres` | ordered publishes of one session: the stored value, the contract 422 for null, a fraction, a negative and an unsafe value with no row, audit, share or object change, a republish without the value clearing it, and a legacy publish storing none |
-| `handler/testdata/conversation-turn-count-reads.yaml` | `TestConversationTurnCountReads_RealPostgres` | every mounted read serves both fields on each row type; the discovery "turns" sort and both totals use the displayed number |
-
-The publication steps share one transcript and run in order; a failed step
-stops the sequence. The reads test finds row objects by transcript id wherever a
-route nests them, and each surface states how many row objects it serves per
-transcript, so a route that drops an arm fails.
 
 ### Migrate first, then run
 
