@@ -60,6 +60,8 @@ function wireItem(id: string): TranscriptListItem {
       session_start: "2026-08-14T09:00:00Z",
       session_end: "2026-08-14T09:05:00Z",
       turn_count: 4,
+      conversation_turn_count: null,
+      displayed_turn_count: 4,
       token_count: 100,
       tool_call_count: 1,
       duration_ms: 300000,

@@ -49,7 +49,7 @@ export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
 
       <div className="flex items-center gap-3 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
         {t.duration_ms != null && <span>{formatDuration(t.duration_ms)}</span>}
-        {t.turn_count != null && <span>{t.turn_count} turns</span>}
+        {t.displayed_turn_count != null && <span>{t.displayed_turn_count} turns</span>}
         {t.tool_call_count != null && <span>{t.tool_call_count} tools</span>}
       </div>
 

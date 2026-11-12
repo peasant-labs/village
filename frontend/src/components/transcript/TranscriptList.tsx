@@ -246,8 +246,8 @@ function factNode(fact: TranscriptRowFact, t: Transcript): React.ReactNode {
         </span>
       );
     case "turns":
-      return t.turn_count == null ? null : (
-        <span className="font-mono tabular-nums">{t.turn_count} turns</span>
+      return t.displayed_turn_count == null ? null : (
+        <span className="font-mono tabular-nums">{t.displayed_turn_count} turns</span>
       );
     case "tokens": {
       // A transcript with no counted tokens at all states nothing rather than

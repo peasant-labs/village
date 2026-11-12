@@ -25,6 +25,8 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     session_start: null,
     session_end: null,
     turn_count: 0,
+    conversation_turn_count: null,
+    displayed_turn_count: 0,
     token_count: 0,
     blob_size_bytes: 0,
     schema_version: "0.1.0",

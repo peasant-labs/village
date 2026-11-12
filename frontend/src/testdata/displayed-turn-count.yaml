@@ -1,0 +1,43 @@
+# Which turn count a transcript row prints.
+#
+# A row carries three counts. `turnCount` is every folded turn the publication
+# recorded. `conversationTurnCount` is the user and assistant text or image
+# turns, and is null for a publication that did not measure it. `displayedTurnCount`
+# is the one the server derives from those two, and the only one a surface prints.
+#
+# `shows` is the number the surface must print, or null when it must print no
+# count at all. The browser never derives it: the case named
+# `the-browser-derives-nothing` serves a stored count beside a null displayed
+# count, a pairing the server does not produce, so a surface that fell back to
+# the stored count on its own would print 12 and fail.
+cases:
+  - name: a-measured-row-prints-the-conversation-count
+    why: the stored count includes tool and system rows, so it is larger than what a person reads as turns
+    turnCount: 12
+    conversationTurnCount: 5
+    displayedTurnCount: 5
+    shows: 5
+  - name: a-row-published-before-the-measure-prints-its-stored-count
+    why: the server answers the stored count for a publication that carried no conversation count
+    turnCount: 12
+    conversationTurnCount: null
+    displayedTurnCount: 12
+    shows: 12
+  - name: a-measured-row-with-no-conversation-turns-prints-zero
+    why: zero means measured none, which is a count and not an absence
+    turnCount: 3
+    conversationTurnCount: 0
+    displayedTurnCount: 0
+    shows: 0
+  - name: an-unmeasured-row-prints-no-count
+    why: null means unmeasured, and a surface states nothing instead of claiming zero
+    turnCount: null
+    conversationTurnCount: null
+    displayedTurnCount: null
+    shows: null
+  - name: the-browser-derives-nothing
+    why: the fallback to the stored count is the server's alone, so a null displayed count prints nothing even beside a stored one
+    turnCount: 12
+    conversationTurnCount: null
+    displayedTurnCount: null
+    shows: null

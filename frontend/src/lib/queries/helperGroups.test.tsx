@@ -55,7 +55,7 @@ for (const fixture of fixtures.cases) {
           expect(view.result.current.members.data?.members[0].kind).toBe("transcript");
           expect(view.result.current.members.data?.members[0].transcript?.session.id).toBe(fixtures.row.id);
           expect(view.result.current.members.data?.members[0].transcript?.session.input_submission_count).toBe(0);
-          expect(view.result.current.members.data?.members[0].transcript?.session.turn_count).toBe(5);
+          expect(view.result.current.members.data?.members[0].transcript?.session.displayed_turn_count).toBe(5);
         }
       }
       if (fixture.refetchStatus) {

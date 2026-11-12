@@ -250,6 +250,8 @@ function myShareArm(row: {
     visibility: "shared",
     published_at: MY_SHARES_PUBLISHED_AT,
     turn_count: 12,
+    conversation_turn_count: null,
+    displayed_turn_count: 12,
     tokens_in: null,
     tokens_out: null,
     status: row.status,

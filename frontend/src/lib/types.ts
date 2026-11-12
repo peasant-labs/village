@@ -136,7 +136,16 @@ export interface Transcript {
   harness_version: string | null;
   session_start: string | null;
   session_end: string | null;
+  /** Every folded turn the publication recorded, system and tool rows included.
+   *  Stored and served; no surface prints it. */
   turn_count: number | null;
+  /** User and assistant text or image turns, as the publication measured them.
+   *  Null when the publication did not carry the count. */
+  conversation_turn_count: number | null;
+  /** The one count every surface prints. The server derives it from the two
+   *  counts above; null means unmeasured, zero means measured none. Never
+   *  recomputed here. */
+  displayed_turn_count: number | null;
   token_count: number | null;
   blob_size_bytes: number | null;
   schema_version: string;

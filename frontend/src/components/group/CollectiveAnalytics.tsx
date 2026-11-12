@@ -53,7 +53,7 @@ export default function CollectiveAnalytics({
           contributorId: publicProfile(t.owner)?.id ?? "",
           durationMins,
           totalTokens,
-          turnCount: t.turn_count ?? 0,
+          turnCount: t.displayed_turn_count ?? 0,
           toolCallCount: t.tool_call_count ?? 0,
         };
       }),

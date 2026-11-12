@@ -549,10 +549,10 @@ function HomeBody({ username }: { username: string }) {
       align: ColumnAlign.End,
       numeric: true,
       render: (item) =>
-        item.transcript.turn_count == null ? (
+        item.transcript.displayed_turn_count == null ? (
           <span className="on-none">not counted</span>
         ) : (
-          item.transcript.turn_count.toLocaleString("en-US")
+          item.transcript.displayed_turn_count.toLocaleString("en-US")
         ),
     },
     {

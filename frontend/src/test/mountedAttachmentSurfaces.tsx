@@ -113,6 +113,8 @@ function transcriptReadResponse(read: TranscriptReadFixture) {
       session_start: "2026-01-01T00:00:00Z",
       session_end: null,
       turn_count: 2,
+      conversation_turn_count: null,
+      displayed_turn_count: 2,
     },
     tags: [],
     shares: [],

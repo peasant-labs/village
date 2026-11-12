@@ -377,7 +377,11 @@ export function memberItem(spec: MemberSpec) {
         id: memberUUID(spec.id),
         local_id: memberLocalID(spec.id),
         title: spec.title,
-        turn_count: spec.turnCount,
+        // The stored count is deliberately larger than the conversation count, as it
+        // is for a session with tool rows: the row must print the displayed one.
+        turn_count: spec.turnCount + 100,
+        conversation_turn_count: spec.turnCount,
+        displayed_turn_count: spec.turnCount,
         ...(spec.inputSubmissionCount === null
           ? {}
           : { input_submission_count: spec.inputSubmissionCount }),

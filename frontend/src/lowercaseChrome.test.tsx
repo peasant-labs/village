@@ -178,6 +178,8 @@ function myShare(id: string, status: "approved" | "pending"): UserGroupShare {
     visibility: "shared",
     published_at: WHEN,
     turn_count: 12,
+    conversation_turn_count: null,
+    displayed_turn_count: 12,
     tokens_in: null,
     tokens_out: null,
     status,

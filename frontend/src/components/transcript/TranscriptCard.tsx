@@ -119,7 +119,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
         <div className="flex items-center gap-3 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
           {t.duration_ms != null && <span>{formatDuration(t.duration_ms)}</span>}
           {t.tool_call_count != null && <span>{t.tool_call_count} tools</span>}
-          {t.turn_count != null && <span>{t.turn_count} turns</span>}
+          {t.displayed_turn_count != null && <span>{t.displayed_turn_count} turns</span>}
           {attestations && attestations.length > 0 && (
             <span className="flex items-center gap-1 text-success">
               <ShieldCheck size={11} strokeWidth={1.75} />
