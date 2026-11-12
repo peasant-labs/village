@@ -50,7 +50,7 @@ func loadConversationTurnCountFixtures(t *testing.T) conversationTurnCountFixtur
 		}
 		names[c.Name] = true
 	}
-	for _, name := range strings.Fields("historical-absence measured-zero measured-positive safe-maximum negative-count unsafe-count fraction-count displayed-falls-back-to-turn-count displayed-prefers-conversation-count") {
+	for _, name := range strings.Fields("historical-absence measured-zero measured-positive safe-maximum negative-count unsafe-count fraction-count displayed-falls-back-to-turn-count displayed-prefers-conversation-count displayed-clamps-negative-turn-count") {
 		if !names[name] {
 			t.Fatalf("missing required conversation turn count fixture %q", name)
 		}

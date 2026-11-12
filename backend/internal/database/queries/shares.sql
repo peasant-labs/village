@@ -215,12 +215,12 @@ ORDER BY latest.recorded_at DESC, latest.transcript_id;
 
 -- name: GetGroupTranscriptStats :one
 -- Turns are the displayed count (the conversation count when measured, else
--- the stored turn_count), as GetOwnerTranscriptTotals sums them. The stored
--- turn_count has no range check, so a negative value counts as zero.
+-- the stored turn_count), as GetOwnerTranscriptTotals sums them. The column is
+-- never negative, so a negative stored turn_count counts as zero.
 SELECT
   COUNT(*)::int AS total_transcripts,
   COUNT(DISTINCT t.owner_id)::int AS contributor_count,
-  COALESCE(SUM(GREATEST(t.displayed_turn_count, 0)), 0)::bigint AS total_turns,
+  COALESCE(SUM(t.displayed_turn_count), 0)::bigint AS total_turns,
   COALESCE(SUM(t.duration_ms), 0)::bigint AS total_duration_ms,
   COALESCE(SUM(COALESCE(t.tokens_in, 0) + COALESCE(t.tokens_out, 0)), 0)::bigint AS total_tokens
 FROM transcripts t

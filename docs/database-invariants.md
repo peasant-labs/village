@@ -414,8 +414,8 @@ Migration 050 adds two columns to `transcripts`.
 `conversation_turn_count` (nullable BIGINT, range 0 through 9007199254740991)
 is the publication's `stats.conversationTurnCount`: the number of conversation
 turns, the count a reader is shown. `displayed_turn_count` (BIGINT) is
-`GENERATED ALWAYS AS (COALESCE(conversation_turn_count, turn_count::bigint))
-STORED`. It is the one definition of the number a row shows, a total sums and
+`GENERATED ALWAYS AS (COALESCE(conversation_turn_count, CASE WHEN turn_count < 0
+THEN 0 ELSE turn_count::bigint END)) STORED`. It is the one definition of the number a row shows, a total sums and
 the "most turns" sort orders by.
 
 - Both columns are query projections of the schema-validated publication, not
@@ -445,10 +445,16 @@ the "most turns" sort orders by.
   direct write, so no writer, repair or test fixture can make the displayed
   number disagree with the two columns it is derived from. No read restates the
   fallback: rows serve the column, `GetOwnerTranscriptTotals` and
-  `GetGroupTranscriptStats` sum `GREATEST(displayed_turn_count, 0)`, and the
+  `GetGroupTranscriptStats` sum it, and the
   discovery "turns" sort orders by it.
-- Both totals keep `GREATEST(..., 0)` because `turn_count` has no range check:
-  a negative stored value counts as zero instead of making a total negative.
+- `displayed_turn_count` is never negative. `turn_count` has no range check, so
+  an older publication can hold a negative value; the generated expression
+  clamps it to zero. The clamp is a CASE, not `GREATEST(..., 0)`: PostgreSQL's
+  GREATEST ignores NULL, so it would show zero for a row that stores neither
+  count, where the value is NULL (unknown). A served row must satisfy the contract's minimum of zero,
+  and one malformed row must not make a list unservable or a total negative.
+  The clamp lives in the column, so the totals sum the column as it is and no
+  read repeats it.
 - No index backs the sort. The ordering is correct without one; add an index
   only when a measured listing cost calls for it.
 - These columns add no governance axis, trigger writer, GUC, or permission. An

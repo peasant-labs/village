@@ -399,7 +399,7 @@ ORDER BY t.session_start ASC NULLS LAST, t.id ASC;
 -- metrics) counts as zero, so one malformed transcript cannot make a total
 -- negative and the whole response unservable.
 SELECT COUNT(*)::int AS total_transcripts,
-       COALESCE(SUM(GREATEST(displayed_turn_count, 0)), 0)::bigint AS total_turns,
+       COALESCE(SUM(displayed_turn_count), 0)::bigint AS total_turns,
        COALESCE(SUM(GREATEST(duration_ms, 0)), 0)::bigint AS total_duration_ms,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts

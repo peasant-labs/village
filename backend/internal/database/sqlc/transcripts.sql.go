@@ -327,7 +327,7 @@ func (q *Queries) DeleteTranscript(ctx context.Context, id pgtype.UUID) error {
 
 const getOwnerTranscriptTotals = `-- name: GetOwnerTranscriptTotals :one
 SELECT COUNT(*)::int AS total_transcripts,
-       COALESCE(SUM(GREATEST(displayed_turn_count, 0)), 0)::bigint AS total_turns,
+       COALESCE(SUM(displayed_turn_count), 0)::bigint AS total_turns,
        COALESCE(SUM(GREATEST(duration_ms, 0)), 0)::bigint AS total_duration_ms,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts

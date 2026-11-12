@@ -7,7 +7,7 @@ required_up:
   - CHECK (conversation_turn_count BETWEEN 0 AND 9007199254740991)
   - transcripts_conversation_turn_count_range
   - ADD COLUMN displayed_turn_count BIGINT
-  - GENERATED ALWAYS AS (COALESCE(conversation_turn_count, turn_count::bigint)) STORED
+  - GENERATED ALWAYS AS (COALESCE(conversation_turn_count, CASE WHEN turn_count < 0 THEN 0 ELSE turn_count::bigint END)) STORED
 required_down:
   - DROP COLUMN displayed_turn_count
   - DROP COLUMN conversation_turn_count
@@ -59,3 +59,10 @@ cases:
     turn_count: 12
     accepted: true
     displayed: 5
+  # turn_count has no range check. A negative value stored by an older client
+  # shows as zero, so the row stays servable.
+  - name: displayed-clamps-negative-turn-count
+    count: null
+    turn_count: -5
+    accepted: true
+    displayed: 0
