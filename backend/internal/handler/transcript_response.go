@@ -11,27 +11,34 @@ import (
 // transcriptResponse is the single public projection of a transcript row.
 // Storage locations and source-machine paths remain internal database state.
 type transcriptResponse struct {
-	ID                   pgtype.UUID           `json:"id"`
-	LocalID              string                `json:"local_id"`
-	Title                pgtype.Text           `json:"title"`
-	Description          pgtype.Text           `json:"description"`
-	Visibility           string                `json:"visibility"`
-	ModelProvider        string                `json:"model_provider"`
-	ModelName            pgtype.Text           `json:"model_name"`
-	HarnessVersion       pgtype.Text           `json:"harness_version"`
-	SessionStart         pgtype.Timestamptz    `json:"session_start"`
-	SessionEnd           pgtype.Timestamptz    `json:"session_end"`
-	TurnCount            pgtype.Int4           `json:"turn_count"`
-	InputSubmissionCount *int64                `json:"input_submission_count,omitempty"`
-	RootSessionID        *schema.SessionID     `json:"root_session_id,omitempty"`
-	Purpose              schema.SessionPurpose `json:"purpose,omitempty"`
-	Relationships        json.RawMessage       `json:"relationships,omitempty"`
-	TokenCount           pgtype.Int4           `json:"token_count"`
-	BlobSizeBytes        pgtype.Int8           `json:"blob_size_bytes"`
-	SchemaVersion        string                `json:"schema_version"`
-	PublishedAt          pgtype.Timestamptz    `json:"published_at"`
-	UpdatedAt            pgtype.Timestamptz    `json:"updated_at"`
-	ParentSessionID      pgtype.Text           `json:"parent_session_id"`
+	ID             pgtype.UUID        `json:"id"`
+	LocalID        string             `json:"local_id"`
+	Title          pgtype.Text        `json:"title"`
+	Description    pgtype.Text        `json:"description"`
+	Visibility     string             `json:"visibility"`
+	ModelProvider  string             `json:"model_provider"`
+	ModelName      pgtype.Text        `json:"model_name"`
+	HarnessVersion pgtype.Text        `json:"harness_version"`
+	SessionStart   pgtype.Timestamptz `json:"session_start"`
+	SessionEnd     pgtype.Timestamptz `json:"session_end"`
+	TurnCount      pgtype.Int4        `json:"turn_count"`
+	// ConversationTurnCount is the conversation turn count as published; it is
+	// omitted when the publishing client did not measure it. DisplayedTurnCount
+	// is the number a reader is shown, resolved by the database: the
+	// conversation count when measured, else turn_count. Clients print it and
+	// write no fallback of their own.
+	ConversationTurnCount *int64                `json:"conversation_turn_count,omitempty"`
+	DisplayedTurnCount    *int64                `json:"displayed_turn_count,omitempty"`
+	InputSubmissionCount  *int64                `json:"input_submission_count,omitempty"`
+	RootSessionID         *schema.SessionID     `json:"root_session_id,omitempty"`
+	Purpose               schema.SessionPurpose `json:"purpose,omitempty"`
+	Relationships         json.RawMessage       `json:"relationships,omitempty"`
+	TokenCount            pgtype.Int4           `json:"token_count"`
+	BlobSizeBytes         pgtype.Int8           `json:"blob_size_bytes"`
+	SchemaVersion         string                `json:"schema_version"`
+	PublishedAt           pgtype.Timestamptz    `json:"published_at"`
+	UpdatedAt             pgtype.Timestamptz    `json:"updated_at"`
+	ParentSessionID       pgtype.Text           `json:"parent_session_id"`
 	// ParentTranscriptID is the transcript published from ParentSessionID
 	// within the same owner, when this viewer may read it, resolved at read
 	// time (resolveParentTranscripts); null otherwise. It lets a reader fold a
@@ -155,11 +162,13 @@ func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
 		M5ContextUtilizationPct: r.M5ContextUtilizationPct, M5PeakContextTokens: r.M5PeakContextTokens, M5AvgMessageTokens: r.M5AvgMessageTokens, M6OutputSurvivalPct: r.M6OutputSurvivalPct,
 		M6LinesSurvived: r.M6LinesSurvived, M6LinesTotal: r.M6LinesTotal, M7SpecWordCount: r.M7SpecWordCount, M7SpecHasExamples: r.M7SpecHasExamples, M7SpecHasConstraints: r.M7SpecHasConstraints,
 		ComputedAt: r.ComputedAt, ComputeVersion: r.ComputeVersion, ContentHash: r.ContentHash, LicenseID: r.LicenseID,
-		SessionOrigin:        r.SessionOrigin,
-		InputSubmissionCount: pgInt8ToInt64Ptr(r.InputSubmissionCount),
-		RootSessionID:        pgTextToSessionIDPtr(r.RootSessionID),
-		Purpose:              schema.SessionPurpose(r.SessionPurpose.String),
-		Relationships:        graphRelationshipsResponse(r.SessionRelationships),
+		SessionOrigin:         r.SessionOrigin,
+		InputSubmissionCount:  pgInt8ToInt64Ptr(r.InputSubmissionCount),
+		ConversationTurnCount: pgInt8ToInt64Ptr(r.ConversationTurnCount),
+		DisplayedTurnCount:    pgInt8ToInt64Ptr(r.DisplayedTurnCount),
+		RootSessionID:         pgTextToSessionIDPtr(r.RootSessionID),
+		Purpose:               schema.SessionPurpose(r.SessionPurpose.String),
+		Relationships:         graphRelationshipsResponse(r.SessionRelationships),
 	}
 }
 
@@ -222,6 +231,7 @@ func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow, owner schema.Villa
 		WrappedDataKey: row.WrappedDataKey, EncryptionAlgorithm: row.EncryptionAlgorithm, KeyVersion: row.KeyVersion,
 		InputSubmissionCount: row.InputSubmissionCount, RootSessionID: row.RootSessionID,
 		SessionPurpose: row.SessionPurpose, SessionRelationships: row.SessionRelationships,
+		ConversationTurnCount: row.ConversationTurnCount, DisplayedTurnCount: row.DisplayedTurnCount,
 	}
 	return groupTranscriptResponse{
 		transcriptResponse: toTranscriptResponse(dbRow),

@@ -44,6 +44,7 @@ func collectiveSessionRow(s schema.VillageTranscript, owner schema.VillagePublic
 		ComputeVersion: s.ComputeVersion, ContentHash: s.ContentHash, LicenseID: s.LicenseID,
 		SessionOrigin: s.SessionOrigin, InputSubmissionCount: s.InputSubmissionCount,
 		RootSessionID: s.RootSessionID, Purpose: s.Purpose, Relationships: s.Relationships,
+		ConversationTurnCount: s.ConversationTurnCount, DisplayedTurnCount: s.DisplayedTurnCount,
 		Owner:        owner,
 		PullRequests: emptyPullRequestsSummary(),
 	}}
@@ -64,6 +65,7 @@ func myShareSessionRow(s schema.VillageTranscript, owner schema.VillagePublicOwn
 	return schema.VillageSessionRow{Session: s, Owner: owner, MyShare: &schema.VillageUserCollectiveShare{
 		ID: s.ID, Title: s.Title, ModelProvider: s.ModelProvider, ModelName: s.ModelName,
 		Visibility: s.Visibility, PublishedAt: s.PublishedAt, TurnCount: s.TurnCount,
+		ConversationTurnCount: s.ConversationTurnCount, DisplayedTurnCount: s.DisplayedTurnCount,
 		TokensIn: s.TokensIn, TokensOut: s.TokensOut, Owner: owner, LocalID: s.LocalID,
 		ParentSessionID: s.ParentSessionID, ParentTranscriptID: s.ParentTranscriptID, Status: status, SharedAt: sharedAt,
 		InputSubmissionCount: s.InputSubmissionCount, RootSessionID: s.RootSessionID,

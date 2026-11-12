@@ -9,7 +9,7 @@
   wantClause: " ORDER BY t.published_at DESC, t.id DESC"
 - name: turns_sort
   sort: "turns"
-  wantClause: " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+  wantClause: " ORDER BY t.displayed_turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
 - name: tokens_sort
   sort: "tokens"
   wantClause: " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"

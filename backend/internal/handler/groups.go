@@ -653,18 +653,21 @@ type pendingShareResponse struct {
 // myShareResponse is one flat row of the caller's own submissions to a
 // collective. Owner is the caller's own profile.
 type myShareResponse struct {
-	ID              pgtype.UUID               `json:"id"`
-	Title           pgtype.Text               `json:"title"`
-	ModelProvider   string                    `json:"model_provider"`
-	ModelName       pgtype.Text               `json:"model_name"`
-	Visibility      string                    `json:"visibility"`
-	PublishedAt     pgtype.Timestamptz        `json:"published_at"`
-	TurnCount       pgtype.Int4               `json:"turn_count"`
-	TokensIn        pgtype.Int8               `json:"tokens_in"`
-	TokensOut       pgtype.Int8               `json:"tokens_out"`
-	Owner           schema.VillagePublicOwner `json:"owner"`
-	LocalID         string                    `json:"local_id"`
-	ParentSessionID pgtype.Text               `json:"parent_session_id"`
+	ID            pgtype.UUID        `json:"id"`
+	Title         pgtype.Text        `json:"title"`
+	ModelProvider string             `json:"model_provider"`
+	ModelName     pgtype.Text        `json:"model_name"`
+	Visibility    string             `json:"visibility"`
+	PublishedAt   pgtype.Timestamptz `json:"published_at"`
+	TurnCount     pgtype.Int4        `json:"turn_count"`
+	// See transcriptResponse.ConversationTurnCount and DisplayedTurnCount.
+	ConversationTurnCount *int64                    `json:"conversation_turn_count,omitempty"`
+	DisplayedTurnCount    *int64                    `json:"displayed_turn_count,omitempty"`
+	TokensIn              pgtype.Int8               `json:"tokens_in"`
+	TokensOut             pgtype.Int8               `json:"tokens_out"`
+	Owner                 schema.VillagePublicOwner `json:"owner"`
+	LocalID               string                    `json:"local_id"`
+	ParentSessionID       pgtype.Text               `json:"parent_session_id"`
 	// ParentTranscriptID: see transcriptResponse.ParentTranscriptID.
 	ParentTranscriptID *schema.TranscriptID `json:"parent_transcript_id"`
 	Status             string               `json:"status"`
@@ -1155,6 +1158,7 @@ func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
 		response = append(response, myShareResponse{
 			ID: row.ID, Title: row.Title, ModelProvider: row.ModelProvider, ModelName: row.ModelName,
 			Visibility: row.Visibility, PublishedAt: row.PublishedAt, TurnCount: row.TurnCount,
+			ConversationTurnCount: pgInt8ToInt64Ptr(row.ConversationTurnCount), DisplayedTurnCount: pgInt8ToInt64Ptr(row.DisplayedTurnCount),
 			TokensIn: row.TokensIn, TokensOut: row.TokensOut, Owner: owner, LocalID: row.LocalID,
 			ParentSessionID: row.ParentSessionID, ParentTranscriptID: parents.of(row.ID), Status: row.Status, SharedAt: row.SharedAt,
 		})

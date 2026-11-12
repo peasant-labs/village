@@ -63,16 +63,19 @@ type prWorldRepo struct {
 }
 
 type prWorldTranscript struct {
-	Name       string            `yaml:"name"`
-	Owner      string            `yaml:"owner"`
-	Visibility string            `yaml:"visibility"`
-	Remote     string            `yaml:"remote"`
-	Turns      *int32            `yaml:"turns"`
-	DurationMs *int64            `yaml:"duration_ms"`
-	TokensIn   *int64            `yaml:"tokens_in"`
-	TokensOut  *int64            `yaml:"tokens_out"`
-	Shares     map[string]string `yaml:"shares"`
-	Tags       []string          `yaml:"tags"`
+	Name       string `yaml:"name"`
+	Owner      string `yaml:"owner"`
+	Visibility string `yaml:"visibility"`
+	Remote     string `yaml:"remote"`
+	Turns      *int32 `yaml:"turns"`
+	// ConversationTurns is the published conversation turn count; omitted means
+	// the publishing client did not measure it (SQL NULL).
+	ConversationTurns *int64            `yaml:"conversation_turns"`
+	DurationMs        *int64            `yaml:"duration_ms"`
+	TokensIn          *int64            `yaml:"tokens_in"`
+	TokensOut         *int64            `yaml:"tokens_out"`
+	Shares            map[string]string `yaml:"shares"`
+	Tags              []string          `yaml:"tags"`
 }
 
 type prWorldAttachment struct {
@@ -367,11 +370,11 @@ func insertPRWorldTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes,
 		                         schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version, project_hash,
-		                         git_remote, turn_count, duration_ms, tokens_in, tokens_out, session_origin)
+		                         git_remote, turn_count, duration_ms, tokens_in, tokens_out, session_origin, conversation_turn_count)
 		VALUES ($1, $2, $3, $4, $5, 'claude-code', 'model', $6, 1, '0.1.0', $7, $8, 'aes-256-gcm-random-nonce-v1', 1, $9,
-		        $10, $11, $12, $13, $14, 'user')
+		        $10, $11, $12, $13, $14, 'user', $15)
 	`, id, owner, localID, "t-"+tr.Name, tr.Visibility, "transcripts/"+uuid.UUID(id.Bytes).String()+".bin", schema.ComputeTranscriptHash([]byte(localID)),
-		[]byte("fixture-wrapped-data-key"), fixtureProjectHash(localID), nullableText(tr.Remote), tr.Turns, tr.DurationMs, tr.TokensIn, tr.TokensOut); err != nil {
+		[]byte("fixture-wrapped-data-key"), fixtureProjectHash(localID), nullableText(tr.Remote), tr.Turns, tr.DurationMs, tr.TokensIn, tr.TokensOut, tr.ConversationTurns); err != nil {
 		t.Fatalf("insert transcript %s: %v", tr.Name, err)
 	}
 	if err := tx.Commit(ctx); err != nil {

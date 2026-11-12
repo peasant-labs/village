@@ -122,8 +122,8 @@ func loadTranscriptResponseContract(t *testing.T) transcriptResponseContract {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		t.Fatalf("transcript response contract must contain exactly one YAML document; got %v", err)
 	}
-	if len(fixture.AllowedFields) != 61 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 || len(fixture.JSONColumnFields) != 2 {
-		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 61/5/5/2/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))
+	if len(fixture.AllowedFields) != 63 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 || len(fixture.JSONColumnFields) != 2 {
+		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 63/5/5/2/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))
 	}
 	return fixture
 }
