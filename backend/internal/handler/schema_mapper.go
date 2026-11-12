@@ -73,14 +73,17 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		// rejected any out-of-menu value at the 422 gate, so this is either empty
 		// (→ NULL, legacy/unset) or a valid seeded licenses.id (FK-safe). Changing
 		// it after publish is governed separately and writes an audit event.
-		LicenseID:               pgtype.Text{String: string(req.License), Valid: req.License != ""},
-		ModelProvider:           string(req.Model.Harness),
-		ModelName:               pgtype.Text{String: string(req.Model.Model), Valid: req.Model.Model != ""},
-		HarnessVersion:          pgtype.Text{String: req.Model.HarnessVersion, Valid: req.Model.HarnessVersion != ""},
-		SessionStart:            int64ToTimestamptz(req.Timestamp.Start),
-		SessionEnd:              int64ToTimestamptz(req.Timestamp.End),
-		TurnCount:               intToPgInt4(req.Stats.TurnCount),
-		InputSubmissionCount:    int64PtrToPgInt8(req.Stats.InputSubmissionCount),
+		LicenseID:            pgtype.Text{String: string(req.License), Valid: req.License != ""},
+		ModelProvider:        string(req.Model.Harness),
+		ModelName:            pgtype.Text{String: string(req.Model.Model), Valid: req.Model.Model != ""},
+		HarnessVersion:       pgtype.Text{String: req.Model.HarnessVersion, Valid: req.Model.HarnessVersion != ""},
+		SessionStart:         int64ToTimestamptz(req.Timestamp.Start),
+		SessionEnd:           int64ToTimestamptz(req.Timestamp.End),
+		TurnCount:            intToPgInt4(req.Stats.TurnCount),
+		InputSubmissionCount: int64PtrToPgInt8(req.Stats.InputSubmissionCount),
+		// Absent stays SQL NULL (unmeasured) on a first publish and on a
+		// republish alike; a measured zero is a present value.
+		ConversationTurnCount:   int64PtrToPgInt8(req.Stats.ConversationTurnCount),
 		TokenCount:              pgtype.Int4{Valid: false},
 		BlobKey:                 blobKey,
 		BlobSizeBytes:           int64ToPgInt8(blobSize),
@@ -494,13 +497,14 @@ func transcriptToSchema(t sqlc.Transcript) schema.PublishRequest {
 			Name:     t.ProjectName.String,
 		},
 		Stats: schema.SessionStats{
-			InputSubmissionCount: pgInt8ToInt64Ptr(t.InputSubmissionCount),
-			TurnCount:            pgInt4ToInt(t.TurnCount),
-			ToolCallCount:        pgInt4ToInt(t.ToolCallCount),
-			SubagentCount:        pgInt4ToInt(t.SubagentCount),
-			DurationMs:           pgInt8ToInt64(t.DurationMs),
-			TokensIn:             int(pgInt8ToInt64(t.TokensIn)),
-			TokensOut:            int(pgInt8ToInt64(t.TokensOut)),
+			InputSubmissionCount:  pgInt8ToInt64Ptr(t.InputSubmissionCount),
+			ConversationTurnCount: pgInt8ToInt64Ptr(t.ConversationTurnCount),
+			TurnCount:             pgInt4ToInt(t.TurnCount),
+			ToolCallCount:         pgInt4ToInt(t.ToolCallCount),
+			SubagentCount:         pgInt4ToInt(t.SubagentCount),
+			DurationMs:            pgInt8ToInt64(t.DurationMs),
+			TokensIn:              int(pgInt8ToInt64(t.TokensIn)),
+			TokensOut:             int(pgInt8ToInt64(t.TokensOut)),
 		},
 		Quality: &schema.QualityMetrics{
 			TitleGenerated:          pgTextToStringPtr(t.TitleGenerated),

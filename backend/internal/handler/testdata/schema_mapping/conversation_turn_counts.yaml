@@ -1,0 +1,22 @@
+# stats.conversationTurnCount -> the conversation_turn_count insert parameter.
+# `count` omitted means the publication did not carry the field, which must
+# reach SQL as NULL (unmeasured) and never as zero. turn_count differs from
+# every count so a mapper that read the wrong field is caught.
+- name: absent-count-is-sql-null
+  turn_count: 12
+  want_valid: false
+- name: measured-zero-is-a-value
+  turn_count: 12
+  count: 0
+  want_valid: true
+  want_value: 0
+- name: measured-positive
+  turn_count: 12
+  count: 5
+  want_valid: true
+  want_value: 5
+- name: safe-maximum
+  turn_count: 12
+  count: 9007199254740991
+  want_valid: true
+  want_value: 9007199254740991

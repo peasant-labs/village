@@ -220,7 +220,7 @@ export function adaptManage(data: ManageAdapterInput): ManagePayload {
       modelProvider: transcript.model_provider,
       modelName: transcript.model_name,
       sessionStart: transcript.session_start,
-      turnCount: transcript.turn_count,
+      turnCount: transcript.displayed_turn_count,
       tokenCount: transcript.token_count,
       ownerUsername: personPayload(transcript.owner).githubUsername,
       ownerAvatarUrl: personPayload(transcript.owner).avatarUrl,

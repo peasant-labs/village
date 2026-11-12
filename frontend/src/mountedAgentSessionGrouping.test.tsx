@@ -48,6 +48,8 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
       session_end: "2026-08-24T09:05:00Z",
       published_at: "2026-08-24T09:05:00Z",
       turn_count: 4,
+      conversation_turn_count: null,
+      displayed_turn_count: 4,
       token_count: 100,
       tool_call_count: 1,
       duration_ms: 300000,

@@ -218,7 +218,7 @@ export function ScopedHelperGroup({
           title={session.title ?? "untitled transcript"}
           provider={session.model_provider}
           inputSubmissionCount={session.input_submission_count ?? undefined}
-          turnCount={session.turn_count ?? undefined}
+          turnCount={session.displayed_turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
           selected={selection == null ? undefined : selected}
           selectionDisabled={selection?.isDisabled?.(member) ?? false}
@@ -469,7 +469,7 @@ export function ScopedHelperGroupedRow({
           title={session.title ?? "untitled transcript"}
           provider={session.model_provider}
           inputSubmissionCount={session.input_submission_count ?? undefined}
-          turnCount={session.turn_count ?? undefined}
+          turnCount={session.displayed_turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
           selected={ownerSelection?.selectedIds.has(session.id)}
           selectionDisabled={ownerSelection?.isDisabled?.(item) ?? false}

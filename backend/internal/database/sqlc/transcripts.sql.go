@@ -53,13 +53,15 @@ INSERT INTO transcripts (
     m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints,
     computed_at, compute_version, license_id,
     content_hash, wrapped_data_key, encryption_algorithm, key_version,
-    session_origin, input_submission_count, root_session_id, session_purpose, session_relationships
+    session_origin, input_submission_count, root_session_id, session_purpose, session_relationships,
+    conversation_turn_count
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
     $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
     $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61,
-    $62, $63, $64, $65, $66, $67, $68, $69, $70, COALESCE($71::jsonb, '[]'::jsonb)
+    $62, $63, $64, $65, $66, $67, $68, $69, $70, COALESCE($71::jsonb, '[]'::jsonb),
+    $72
 ) RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -75,7 +77,8 @@ INSERT INTO transcripts (
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count
 `
 
 type CreateTranscriptParams struct {
@@ -150,6 +153,7 @@ type CreateTranscriptParams struct {
 	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
 	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
 	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
+	ConversationTurnCount   pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
 }
 
 func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptParams) (Transcript, error) {
@@ -225,6 +229,7 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		arg.RootSessionID,
 		arg.SessionPurpose,
 		arg.SessionRelationships,
+		arg.ConversationTurnCount,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -305,6 +310,8 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.PublishMetadataKey,
 		&i.PublishMetadataHash,
 		&i.PublishMetadataSize,
+		&i.ConversationTurnCount,
+		&i.DisplayedTurnCount,
 	)
 	return i, err
 }
@@ -320,7 +327,7 @@ func (q *Queries) DeleteTranscript(ctx context.Context, id pgtype.UUID) error {
 
 const getOwnerTranscriptTotals = `-- name: GetOwnerTranscriptTotals :one
 SELECT COUNT(*)::int AS total_transcripts,
-       COALESCE(SUM(GREATEST(turn_count, 0)), 0)::bigint AS total_turns,
+       COALESCE(SUM(displayed_turn_count), 0)::bigint AS total_turns,
        COALESCE(SUM(GREATEST(duration_ms, 0)), 0)::bigint AS total_duration_ms,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts
@@ -368,7 +375,8 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count
 FROM transcripts WHERE id = $1
 `
 
@@ -453,6 +461,8 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.PublishMetadataKey,
 		&i.PublishMetadataHash,
 		&i.PublishMetadataSize,
+		&i.ConversationTurnCount,
+		&i.DisplayedTurnCount,
 	)
 	return i, err
 }
@@ -877,7 +887,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.wrapped_data_key, t.encryption_algorithm, t.key_version,
     t.accepted_request_operation_fingerprint, t.session_origin,
     t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
+    t.conversation_turn_count, t.displayed_turn_count
 FROM transcripts t
 WHERE t.owner_id = $1
   AND t.project_hash = $2
@@ -996,6 +1007,8 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.PublishMetadataKey,
 			&i.PublishMetadataHash,
 			&i.PublishMetadataSize,
+			&i.ConversationTurnCount,
+			&i.DisplayedTurnCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1203,6 +1216,10 @@ UPDATE transcripts SET
     root_session_id = COALESCE($68, root_session_id),
     session_purpose = COALESCE($69, session_purpose),
     session_relationships = COALESCE($70::jsonb, session_relationships),
+    -- Not coalesced, unlike the graph columns above: this counts the content
+    -- this statement replaces, so a republish that does not carry it clears the
+    -- stored value instead of keeping a count of content that is gone.
+    conversation_turn_count = $71,
     updated_at = now()
 WHERE owner_id = $1 AND local_id = $2
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
@@ -1220,7 +1237,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -1294,6 +1312,7 @@ type UpdateTranscriptByOwnerAndLocalIDParams struct {
 	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
 	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
 	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
+	ConversationTurnCount   pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
 }
 
 func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg UpdateTranscriptByOwnerAndLocalIDParams) (Transcript, error) {
@@ -1368,6 +1387,7 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		arg.RootSessionID,
 		arg.SessionPurpose,
 		arg.SessionRelationships,
+		arg.ConversationTurnCount,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -1448,6 +1468,8 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.PublishMetadataKey,
 		&i.PublishMetadataHash,
 		&i.PublishMetadataSize,
+		&i.ConversationTurnCount,
+		&i.DisplayedTurnCount,
 	)
 	return i, err
 }
@@ -1475,7 +1497,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -1573,6 +1596,8 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.PublishMetadataKey,
 		&i.PublishMetadataHash,
 		&i.PublishMetadataSize,
+		&i.ConversationTurnCount,
+		&i.DisplayedTurnCount,
 	)
 	return i, err
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import { useState } from "react";
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
@@ -19,6 +20,14 @@ import { isOwnedBy } from "@/lib/publicOwner";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { transcriptHref, type TranscriptContext } from "@/lib/transcriptContext";
+
+/** The test ids this component renders. */
+const TranscriptListTestIdValues = {
+  Turns: closed("transcript-list-turns", "the turn count a list row states"),
+} as const;
+
+export type TranscriptListTestId = (typeof TranscriptListTestIdValues)[keyof typeof TranscriptListTestIdValues];
+export const TranscriptListTestId = TranscriptListTestIdValues;
 
 /**
  * One fact a row can state on the line under its title.
@@ -246,8 +255,10 @@ function factNode(fact: TranscriptRowFact, t: Transcript): React.ReactNode {
         </span>
       );
     case "turns":
-      return t.turn_count == null ? null : (
-        <span className="font-mono tabular-nums">{t.turn_count} turns</span>
+      return t.displayed_turn_count == null ? null : (
+        <span className="font-mono tabular-nums" data-testid={TranscriptListTestId.Turns.wire}>
+          {t.displayed_turn_count} turns
+        </span>
       );
     case "tokens": {
       // A transcript with no counted tokens at all states nothing rather than

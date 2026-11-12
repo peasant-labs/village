@@ -301,7 +301,7 @@ export function collectiveTranscriptRow(
     id: t.id,
     title: t.title || "untitled",
     harness: t.model_provider,
-    turns: t.turn_count ?? undefined,
+    turns: t.displayed_turn_count ?? undefined,
     author: ownerHandle(t.owner),
     pullRequests: prs?.labels ?? [],
     repo: prs?.repo ?? null,

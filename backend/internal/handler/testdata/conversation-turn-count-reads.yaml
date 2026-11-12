@@ -1,0 +1,87 @@
+# The conversation turn count on reads, against real PostgreSQL.
+#
+# Every transcript states two different numbers: `turns` is the stored
+# turn_count and `conversation_turns` the published conversation turn count. A
+# row serves conversation_turn_count as published (null when unmeasured) and
+# displayed_turn_count as the database resolved it: the conversation count when
+# measured, else turn_count. A measured zero is a value, not an absence.
+#
+# The three stored turn_count values order the rows one way (measured,
+# measured-none, unmeasured) and the displayed numbers the other way, so a sort
+# or a total that still reads turn_count fails: the totals would say 77.
+world:
+  people: [author]
+  collectives:
+    - name: team
+      created_by: author
+  transcripts:
+    - {name: measured, owner: author, visibility: public, turns: 40, conversation_turns: 9, shares: {team: approved}}
+    - {name: unmeasured, owner: author, visibility: public, turns: 12, shares: {team: approved}}
+    - {name: measured-none, owner: author, visibility: public, turns: 30, conversation_turns: 0, shares: {team: approved}}
+    # turn_count has no range check. A negative value stored by an older client
+    # shows as zero: the row is served, the lists answer 200 and the totals do
+    # not drop.
+    - {name: negative-legacy, owner: author, visibility: public, turns: -5, shares: {team: approved}}
+
+# What every served row of a transcript states. An omitted
+# conversation_turn_count expects the row to serve null, never an absent key.
+rows:
+  measured: {turn_count: 40, conversation_turn_count: 9, displayed_turn_count: 9}
+  unmeasured: {turn_count: 12, displayed_turn_count: 12}
+  measured-none: {turn_count: 30, conversation_turn_count: 0, displayed_turn_count: 0}
+  negative-legacy: {turn_count: -5, displayed_turn_count: 0}
+
+# One row per mounted read. `shape` names the contract response the route
+# serves; the test decodes the body into that type. `{collective}`, `{owner}` and `{transcript}` are
+# filled from the world; a path with `{transcript}` is requested once per
+# transcript. `rows_per_transcript` is how many row objects of one transcript
+# the response carries (a grouped collective row carries the session and its
+# collective arm). `order` names the rows served first, in order; the two rows
+# that display zero tie and are left out. `total_turns` is the one total the
+# response states.
+surfaces:
+  - name: transcript-detail
+    viewer: author
+    path: /api/v1/transcripts/{transcript}
+    shape: transcript-detail
+    rows_per_transcript: 1
+  - name: discovery-most-turns-flat
+    viewer: ""
+    path: /api/v1/transcripts?owner={owner}&sort=turns
+    shape: transcript-list
+    rows_per_transcript: 1
+    order: [unmeasured, measured]
+  # The grouped listing keeps its own grouping order, so it states no `order`.
+  - name: discovery-grouped
+    viewer: ""
+    path: /api/v1/transcripts?owner={owner}&view=grouped
+    shape: session-list
+    rows_per_transcript: 1
+  - name: collective-flat
+    viewer: author
+    path: /api/v1/collectives/{collective}
+    shape: collective-detail
+    rows_per_transcript: 1
+    total_turns: 21
+  - name: collective-grouped
+    viewer: author
+    path: /api/v1/collectives/{collective}?view=grouped
+    shape: collective-grouped
+    rows_per_transcript: 2
+    total_turns: 21
+  - name: my-shares-flat
+    viewer: author
+    path: /api/v1/collectives/{collective}/my-shares
+    shape: my-shares
+    rows_per_transcript: 1
+  - name: my-shares-grouped
+    viewer: author
+    path: /api/v1/collectives/{collective}/my-shares?view=grouped
+    shape: session-list
+    rows_per_transcript: 2
+  - name: personal-totals
+    viewer: author
+    path: /api/v1/users/me/stats
+    shape: user-stats
+    rows_per_transcript: 0
+    total_turns: 21

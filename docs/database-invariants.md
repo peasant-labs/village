@@ -329,6 +329,9 @@ boundary are documented in
   class). The view `transcript_integrity_open_flags` holds the open-flag rule.
   The down migration drops the view and the four tables. Details: §3, "Transcript
   integrity (migration 049)".
+- **050 adds `transcripts.conversation_turn_count` and the generated
+  `transcripts.displayed_turn_count`.** No index, trigger, backfill or GUC. See
+  section 2, "Conversation turn count (migration 050)".
 
 ## 2. Licensing data model
 
@@ -392,7 +395,8 @@ preserves the previously stored count, root, purpose, and relationships instead
 of resetting them, while a first-time publish with no evidence inserts the
 historical absent shape (three NULLs and the default empty relationships array).
 The projection is per column, so a payload that carries one member does not clear
-the others.
+the others. The one deliberate exception is `conversation_turn_count`
+(migration 050, below), which a republish without the value clears.
 
 Graph targets are owner-local IDs without target foreign keys. Missing parents
 do not prevent publication; later publication changes authorized navigation, not
@@ -402,6 +406,59 @@ idempotency key; equal bodies never merge sessions. Read navigation is never
 stored in the encrypted durable envelope. These columns add no governance axis,
 trigger writer, GUC, or permission: existing actor attribution, encrypted-writer
 fences, append-only audit, and private-before-replacement rules remain in force.
+
+### Conversation turn count (migration 050)
+
+Migration 050 adds two columns to `transcripts`.
+
+`conversation_turn_count` (nullable BIGINT, range 0 through 9007199254740991)
+is the publication's `stats.conversationTurnCount`: the number of conversation
+turns, the count a reader is shown. `displayed_turn_count` (BIGINT) is
+`GENERATED ALWAYS AS (COALESCE(conversation_turn_count, CASE WHEN turn_count < 0
+THEN 0 ELSE turn_count::bigint END)) STORED`. It is the one definition of the number a row shows, a total sums and
+the "most turns" sort orders by.
+
+- Both columns are query projections of the schema-validated publication, not
+  independently inferred facts. The canonical schema boundary refuses a null,
+  non-integer, negative or out-of-range value before any publication side
+  effect; the CHECK is the SQL shape backstop.
+- NULL means unmeasured: the publishing client is older than the field. Numeric
+  zero means measured none. The two are never merged.
+- Only an authoritative publish stores the value. Its decoder is the one that
+  enforces the field. The byte-frozen legacy compatibility contract does not
+  define it, so nothing validates a value sent on that path (a JSON null would
+  read as absent) and the handler stores none: a legacy publish always writes
+  NULL.
+- Nothing is backfilled from `turn_count`. A row published before this migration
+  keeps a NULL `conversation_turn_count` and shows its stored `turn_count`
+  through `displayed_turn_count`. `turn_count` is a different unit (every folded
+  turn, system and tool rows included, and other units from older clients), so
+  copying it would state a measurement nobody made.
+- **A republish that does not carry the value writes NULL.** This is a
+  deliberate exception to the migration 039 rule above that absence never
+  erases durable evidence. The graph columns describe the session and stay true
+  when its content is replaced; this column counts the content that was just
+  replaced, so keeping it would show a count of content that is gone. The update
+  therefore assigns the parameter directly and does not coalesce it to the
+  stored column.
+- `displayed_turn_count` is generated and never written. PostgreSQL refuses a
+  direct write, so no writer, repair or test fixture can make the displayed
+  number disagree with the two columns it is derived from. No read restates the
+  fallback: rows serve the column, `GetOwnerTranscriptTotals` and
+  `GetGroupTranscriptStats` sum it, and the
+  discovery "turns" sort orders by it.
+- `displayed_turn_count` is never negative. `turn_count` has no range check, so
+  an older publication can hold a negative value; the generated expression
+  clamps it to zero. The clamp is a CASE, not `GREATEST(..., 0)`: PostgreSQL's
+  GREATEST ignores NULL, so it would show zero for a row that stores neither
+  count, where the value is NULL (unknown). A served row must satisfy the contract's minimum of zero,
+  and one malformed row must not make a list unservable or a total negative.
+  The clamp lives in the column, so the totals sum the column as it is and no
+  read repeats it.
+- No index backs the sort. The ordering is correct without one; add an index
+  only when a measured listing cost calls for it.
+- These columns add no governance axis, trigger writer, GUC, or permission. An
+  update of `conversation_turn_count` is not a governance event.
 
 - **`licenses`** is the home of license OBLIGATIONS (BCNF: `id` is the key and
   determines every column). The **id set's source of truth is the

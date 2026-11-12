@@ -49,7 +49,8 @@ const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.descri
 	t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version,
 	t.accepted_request_operation_fingerprint, t.session_origin,
 	t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-	t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size`
+	t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
+	t.conversation_turn_count, t.displayed_turn_count`
 
 // publishRequest is the v2 nested metadata schema from the local transcript store.
 type publishRequest struct {
@@ -246,9 +247,17 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req, publishMetadata = projected, stored
-	} else if err := json.Unmarshal(metaBytes, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid legacy metadata JSON")
-		return
+	} else {
+		if err := json.Unmarshal(metaBytes, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid legacy metadata JSON")
+			return
+		}
+		// The byte-frozen legacy contract does not define
+		// stats.conversationTurnCount, so nothing validated a value found here
+		// (a JSON null would read as absent, a negative number as a count). Only
+		// the authoritative decoder enforces the field, so only an authoritative
+		// publish stores it; a legacy publish stores none (SQL NULL, unmeasured).
+		req.Stats.ConversationTurnCount = nil
 	}
 
 	// Session identity is a handler-owned precondition with a field-level error.
@@ -625,6 +634,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
 				InputSubmissionCount:    params.InputSubmissionCount,
+				ConversationTurnCount:   params.ConversationTurnCount,
 				RootSessionID:           params.RootSessionID,
 				SessionPurpose:          params.SessionPurpose,
 				SessionRelationships:    params.SessionRelationships,
@@ -742,6 +752,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
 				InputSubmissionCount:    params.InputSubmissionCount,
+				ConversationTurnCount:   params.ConversationTurnCount,
 				RootSessionID:           params.RootSessionID,
 				SessionPurpose:          params.SessionPurpose,
 				SessionRelationships:    params.SessionRelationships,
@@ -2398,17 +2409,21 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 // discovery listing. Each sort mode keeps its user-selected primary column but
 // ends with two deterministic tie-breakers: published_at DESC then the primary
 // key t.id DESC. Because t.id is unique and NOT NULL it is a total order, so rows
-// that tie on the primary sort column (equal published_at, turn_count,
+// that tie on the primary sort column (equal published_at, displayed_turn_count,
 // token_count, or duration_ms) always take the same position across repeated
 // reads and adjacent offset pages — offset pagination can no longer duplicate,
 // omit, or reorder a tied row the way an ambiguous ORDER BY silently did. The
 // primary key tie-break mirrors the pull surface (transcripts_pull.sql), which
 // already orders published_at DESC, id. The NULLS LAST handling on the optional
 // metric columns and the published_at-first primary ordering are unchanged.
+//
+// "turns" orders by displayed_turn_count, the number a row shows: the published
+// conversation turn count when measured, else the stored turn_count. The column
+// is generated in the database, so the order and the display cannot disagree.
 func discoveryOrderClause(sort string) string {
 	switch sort {
 	case "turns":
-		return " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+		return " ORDER BY t.displayed_turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
 	case "tokens":
 		return " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
 	case "duration":

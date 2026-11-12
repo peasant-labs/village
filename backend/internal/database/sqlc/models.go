@@ -295,6 +295,8 @@ type Transcript struct {
 	PublishMetadataKey                  pgtype.Text        `db:"publish_metadata_key" json:"publish_metadata_key"`
 	PublishMetadataHash                 pgtype.Text        `db:"publish_metadata_hash" json:"publish_metadata_hash"`
 	PublishMetadataSize                 pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
+	ConversationTurnCount               pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
+	DisplayedTurnCount                  pgtype.Int8        `db:"displayed_turn_count" json:"displayed_turn_count"`
 }
 
 type TranscriptAssociation struct {

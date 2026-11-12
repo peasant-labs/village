@@ -132,6 +132,13 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		h.RegisterTranscriptBrowseRoutes(r)
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
+		// Segmented reads. The served contract declares these three routes; each
+		// answers 501 until its handler lands, so contract and server agree now.
+		// They carry the access rule of the content read above, so auth is
+		// optional. Pinned in testdata/declared_stub_routes.yaml.
+		r.With(h.AuthOptional).Get("/transcripts/{id}/segments", h.TranscriptSegmentedReadNotImplemented)
+		r.With(h.AuthOptional).Get("/transcripts/{id}/segments/{index}", h.TranscriptSegmentedReadNotImplemented)
+		r.With(h.AuthOptional).Get("/transcripts/{id}/window", h.TranscriptSegmentedReadNotImplemented)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)

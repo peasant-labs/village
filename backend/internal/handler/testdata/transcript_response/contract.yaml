@@ -60,6 +60,11 @@ allowed_fields:
   - content_hash
   - license_id
   - session_origin
+  # The published conversation turn count and the number a reader is shown.
+  # The source row states a displayed count that differs from turn_count, so a
+  # route that served turn_count in its place is caught.
+  - conversation_turn_count
+  - displayed_turn_count
 # Resolved project identity. These three are layered OVER the raw project_name /
 # project_hash / git_remote in allowed_fields, which stay exactly as published;
 # they carry the ONE display name every surface renders, the tier that name came
@@ -194,6 +199,8 @@ source_row:
   content_hash: source-content-hash-64
   license_id: CC-BY-4.0
   session_origin: agent
+  conversation_turn_count: 7
+  displayed_turn_count: 7
   wrapped_data_key: AQIDBA==
   encryption_algorithm: aes-256-gcm-random-nonce-v1
   key_version: 7

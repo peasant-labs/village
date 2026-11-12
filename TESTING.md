@@ -28,7 +28,7 @@ partitioned.
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
 | Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
 | Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
-| Declared-but-unimplemented routes answer 501 (pull request attachment stubs) | none | no | unit | `backend/internal/router/attachment_stubs_test.go`; fixture `testdata/attachment_stub_routes.yaml` |
+| Declared-but-unimplemented routes answer 501 (the segmented transcript reads) | none | no | unit | `backend/internal/router/declared_stubs_test.go`; fixture `testdata/declared_stub_routes.yaml` |
 | Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |
 | Thinking-level preservation gate (`thinking_level_v1` proof, advertisement, publish refusal, read validation) | unit; lifecycle `//go:build integration` | the lifecycle test does (PostgreSQL + S3-compatible storage) | both | [Thinking-level preservation gate](#thinking-level-preservation-gate) below |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
@@ -1730,8 +1730,9 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published module and frontend package pin is Schema v0.49.0 and the literal
-served/enforced contract expectation is Village API 0.38.0. Mounted contract
+The published backend module pin is Schema v0.51.0 and the literal
+served/enforced contract expectation is Village API 0.39.0; the frontend package
+pin is `@peasant-labs/schema` 0.51.0, the same release. Mounted contract
 bytes are pinned against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition

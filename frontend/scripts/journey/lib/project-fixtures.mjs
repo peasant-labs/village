@@ -55,6 +55,8 @@ const transcript = (overrides) => ({
   session_start: '2026-08-20T09:00:00Z',
   session_end: '2026-08-20T09:30:00Z',
   turn_count: 12,
+  conversation_turn_count: null,
+  displayed_turn_count: 12,
   token_count: 900,
   blob_size_bytes: null,
   schema_version: '0.14.0',

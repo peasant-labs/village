@@ -1,0 +1,58 @@
+# stats.conversationTurnCount on POST /api/v1/transcripts/publish, against real
+# PostgreSQL and the encrypted object store.
+#
+# The steps run in order on ONE session of one owner, so every step after the
+# first is a republish of the same transcript. `turn_count` is the
+# stats.turnCount every step sends; it differs from every conversation count so
+# the two numbers cannot be confused.
+#
+# `count_json` is the raw JSON written at stats.conversationTurnCount; an empty
+# value omits the key. An accepted step states the stored column (`stored`,
+# omitted for SQL NULL) and the generated displayed_turn_count. A refused step
+# states a substring of the 422 body and must change no row, audit entry, share
+# attempt or stored object.
+#
+# Every step sends the authoritative request, whose decoder enforces the count,
+# except a `legacy: true` step. That one sends the frozen compatibility request,
+# which does not define the count: nothing validates a value sent there, so none
+# is stored.
+turn_count: 12
+steps:
+  - name: first-publish-without-the-count-stores-null
+    accepted: true
+    displayed: 12
+  - name: republish-with-the-count-stores-it
+    count_json: '5'
+    accepted: true
+    stored: 5
+    displayed: 5
+  - name: null-is-refused
+    count_json: 'null'
+    error: conversationTurnCount
+  - name: fraction-is-refused
+    count_json: '1.5'
+    error: conversationTurnCount
+  - name: negative-is-refused
+    count_json: '-1'
+    error: conversationTurnCount
+  - name: above-the-safe-maximum-is-refused
+    count_json: '9007199254740992'
+    error: conversationTurnCount
+  - name: republish-without-the-count-clears-it
+    accepted: true
+    displayed: 12
+  - name: measured-zero-is-stored-as-zero
+    count_json: '0'
+    accepted: true
+    stored: 0
+    displayed: 0
+  - name: safe-maximum-is-stored
+    count_json: '9007199254740991'
+    accepted: true
+    stored: 9007199254740991
+    displayed: 9007199254740991
+  - name: legacy-publish-stores-no-count
+    legacy: true
+    count_json: '7'
+    accepted: true
+    displayed: 12

@@ -186,7 +186,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size;
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count;
 
 -- name: ListTranscriptDescriptorsForRewrap :many
 SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version
@@ -212,4 +213,5 @@ WHERE id = @id
 DELETE FROM transcripts
 WHERE id = @id
 RETURNING blob_key, wrapped_data_key, encryption_algorithm, key_version,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size;
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count;

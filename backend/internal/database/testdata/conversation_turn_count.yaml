@@ -1,0 +1,81 @@
+# Migration 050: the published conversation turn count and the generated
+# displayed count. `count` is written as text and cast, so a fraction reaches
+# PostgreSQL as written. `displayed` is the generated column's value after an
+# accepted write; an omitted `displayed` expects SQL NULL.
+required_up:
+  - ADD COLUMN conversation_turn_count BIGINT
+  - CHECK (conversation_turn_count BETWEEN 0 AND 9007199254740991)
+  - transcripts_conversation_turn_count_range
+  - ADD COLUMN displayed_turn_count BIGINT
+  - GENERATED ALWAYS AS (COALESCE(conversation_turn_count, CASE WHEN turn_count < 0 THEN 0 ELSE turn_count::bigint END)) STORED
+required_down:
+  - DROP COLUMN displayed_turn_count
+  - DROP COLUMN conversation_turn_count
+forbidden_up:
+  - UPDATE transcripts
+  - DELETE FROM transcripts
+  - CREATE INDEX
+  - NOT NULL
+  - DEFAULT
+# Every case below is named here and every name here has a case; the test
+# refuses a difference in either direction.
+required_names:
+  - historical-absence
+  - measured-zero
+  - measured-positive
+  - safe-maximum
+  - negative-count
+  - unsafe-count
+  - fraction-count
+  - displayed-falls-back-to-turn-count
+  - displayed-prefers-conversation-count
+  - displayed-clamps-negative-turn-count
+cases:
+  - name: historical-absence
+    count: null
+    turn_count: null
+    accepted: true
+  - name: measured-zero
+    count: '0'
+    turn_count: 12
+    accepted: true
+    displayed: 0
+  - name: measured-positive
+    count: '1'
+    turn_count: 12
+    accepted: true
+    displayed: 1
+  - name: safe-maximum
+    count: '9007199254740991'
+    turn_count: 12
+    accepted: true
+    displayed: 9007199254740991
+  - name: negative-count
+    count: '-1'
+    turn_count: 12
+    accepted: false
+  - name: unsafe-count
+    count: '9007199254740992'
+    turn_count: 12
+    accepted: false
+  - name: fraction-count
+    count: '0.5'
+    turn_count: 12
+    accepted: false
+  - name: displayed-falls-back-to-turn-count
+    count: null
+    turn_count: 12
+    accepted: true
+    displayed: 12
+  - name: displayed-prefers-conversation-count
+    count: '5'
+    turn_count: 12
+    accepted: true
+    displayed: 5
+  # turn_count has no range check. A negative value stored by an older client
+  # shows as zero, so the row stays servable.
+  - name: displayed-clamps-negative-turn-count
+    count: null
+    turn_count: -5
+    accepted: true
+    displayed: 0

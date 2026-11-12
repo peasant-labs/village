@@ -64,7 +64,7 @@ const getGroupTranscriptStats = `-- name: GetGroupTranscriptStats :one
 SELECT
   COUNT(*)::int AS total_transcripts,
   COUNT(DISTINCT t.owner_id)::int AS contributor_count,
-  COALESCE(SUM(t.turn_count), 0)::bigint AS total_turns,
+  COALESCE(SUM(t.displayed_turn_count), 0)::bigint AS total_turns,
   COALESCE(SUM(t.duration_ms), 0)::bigint AS total_duration_ms,
   COALESCE(SUM(COALESCE(t.tokens_in, 0) + COALESCE(t.tokens_out, 0)), 0)::bigint AS total_tokens
 FROM transcripts t
@@ -80,6 +80,9 @@ type GetGroupTranscriptStatsRow struct {
 	TotalTokens      int64 `db:"total_tokens" json:"total_tokens"`
 }
 
+// Turns are the displayed count (the conversation count when measured, else
+// the stored turn_count), as GetOwnerTranscriptTotals sums them. The column is
+// never negative, so a negative stored turn_count counts as zero.
 func (q *Queries) GetGroupTranscriptStats(ctx context.Context, groupID pgtype.UUID) (GetGroupTranscriptStatsRow, error) {
 	row := q.db.QueryRow(ctx, getGroupTranscriptStats, groupID)
 	var i GetGroupTranscriptStatsRow
@@ -261,7 +264,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
        t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
+    t.conversation_turn_count, t.displayed_turn_count
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
@@ -352,6 +356,8 @@ type ListGroupTranscriptsRow struct {
 	PublishMetadataKey      pgtype.Text        `db:"publish_metadata_key" json:"publish_metadata_key"`
 	PublishMetadataHash     pgtype.Text        `db:"publish_metadata_hash" json:"publish_metadata_hash"`
 	PublishMetadataSize     pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
+	ConversationTurnCount   pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
+	DisplayedTurnCount      pgtype.Int8        `db:"displayed_turn_count" json:"displayed_turn_count"`
 }
 
 // The pull-share query ListApprovedTranscriptShareGroups lives in the sibling
@@ -444,6 +450,8 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 			&i.PublishMetadataKey,
 			&i.PublishMetadataHash,
 			&i.PublishMetadataSize,
+			&i.ConversationTurnCount,
+			&i.DisplayedTurnCount,
 		); err != nil {
 			return nil, err
 		}
@@ -799,7 +807,8 @@ func (q *Queries) ListTranscriptShares(ctx context.Context, transcriptID pgtype.
 
 const listUserSharesInGroup = `-- name: ListUserSharesInGroup :many
 SELECT t.id, t.title, t.model_provider, t.model_name, t.visibility,
-       t.published_at, t.turn_count, t.tokens_in, t.tokens_out,
+       t.published_at, t.turn_count, t.conversation_turn_count, t.displayed_turn_count,
+       t.tokens_in, t.tokens_out,
        t.owner_id, t.local_id, t.parent_session_id,
        ts.status, ts.shared_at
 FROM transcript_shares ts
@@ -814,20 +823,22 @@ type ListUserSharesInGroupParams struct {
 }
 
 type ListUserSharesInGroupRow struct {
-	ID              pgtype.UUID        `db:"id" json:"id"`
-	Title           pgtype.Text        `db:"title" json:"title"`
-	ModelProvider   string             `db:"model_provider" json:"model_provider"`
-	ModelName       pgtype.Text        `db:"model_name" json:"model_name"`
-	Visibility      string             `db:"visibility" json:"visibility"`
-	PublishedAt     pgtype.Timestamptz `db:"published_at" json:"published_at"`
-	TurnCount       pgtype.Int4        `db:"turn_count" json:"turn_count"`
-	TokensIn        pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
-	TokensOut       pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
-	OwnerID         pgtype.UUID        `db:"owner_id" json:"owner_id"`
-	LocalID         string             `db:"local_id" json:"local_id"`
-	ParentSessionID pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
-	Status          string             `db:"status" json:"status"`
-	SharedAt        pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+	ID                    pgtype.UUID        `db:"id" json:"id"`
+	Title                 pgtype.Text        `db:"title" json:"title"`
+	ModelProvider         string             `db:"model_provider" json:"model_provider"`
+	ModelName             pgtype.Text        `db:"model_name" json:"model_name"`
+	Visibility            string             `db:"visibility" json:"visibility"`
+	PublishedAt           pgtype.Timestamptz `db:"published_at" json:"published_at"`
+	TurnCount             pgtype.Int4        `db:"turn_count" json:"turn_count"`
+	ConversationTurnCount pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
+	DisplayedTurnCount    pgtype.Int8        `db:"displayed_turn_count" json:"displayed_turn_count"`
+	TokensIn              pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
+	TokensOut             pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
+	OwnerID               pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID               string             `db:"local_id" json:"local_id"`
+	ParentSessionID       pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	Status                string             `db:"status" json:"status"`
+	SharedAt              pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 }
 
 // Returns the caller's own transcripts shared with a given collective
@@ -850,6 +861,8 @@ func (q *Queries) ListUserSharesInGroup(ctx context.Context, arg ListUserSharesI
 			&i.Visibility,
 			&i.PublishedAt,
 			&i.TurnCount,
+			&i.ConversationTurnCount,
+			&i.DisplayedTurnCount,
 			&i.TokensIn,
 			&i.TokensOut,
 			&i.OwnerID,

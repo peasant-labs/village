@@ -368,7 +368,11 @@ export function ownerItem(
         id: memberUUID(ownerKey),
         local_id: `ses_${ownerKey.replace(/[^a-zA-Z0-9]/g, "")}`,
         title: owner.title,
-        turn_count: owner.turnCount,
+        // The stored count is deliberately larger than the conversation count, as it
+        // is for a session with tool rows: the row must print the displayed one.
+        turn_count: owner.turnCount + 100,
+        conversation_turn_count: owner.turnCount,
+        displayed_turn_count: owner.turnCount,
         ...(owner.inputSubmissionCount === null
           ? {}
           : { input_submission_count: owner.inputSubmissionCount }),

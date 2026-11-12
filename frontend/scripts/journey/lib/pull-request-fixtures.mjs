@@ -128,7 +128,11 @@ function transcriptRead(row) {
       harness_version: null,
       session_start: '2026-09-28T10:00:00Z',
       session_end: null,
-      turn_count: 40,
+      // The stored count includes system and tool rows; the page prints the
+      // count the server chose for display, so the two differ here on purpose.
+      turn_count: 52,
+      conversation_turn_count: 40,
+      displayed_turn_count: 40,
     },
     tags: [],
     shares: [],

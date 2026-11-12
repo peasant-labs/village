@@ -3,6 +3,7 @@
 // Deprecated compatibility component superseded by the shared fairtrade
 // <Explore> transcript cards. It has no remaining import sites.
 
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import Link from "next/link";
 import Image from "next/image";
 import { ShieldCheck } from "lucide-react";
@@ -10,6 +11,14 @@ import { ProviderTag, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
 import { describeNameSource, resolveAttribution } from "@/lib/format";
+
+/** The test ids this component renders. */
+const TranscriptCardTestIdValues = {
+  Turns: closed("transcript-card-turns", "the turn count a card states"),
+} as const;
+
+export type TranscriptCardTestId = (typeof TranscriptCardTestIdValues)[keyof typeof TranscriptCardTestIdValues];
+export const TranscriptCardTestId = TranscriptCardTestIdValues;
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -119,7 +128,9 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
         <div className="flex items-center gap-3 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
           {t.duration_ms != null && <span>{formatDuration(t.duration_ms)}</span>}
           {t.tool_call_count != null && <span>{t.tool_call_count} tools</span>}
-          {t.turn_count != null && <span>{t.turn_count} turns</span>}
+          {t.displayed_turn_count != null && (
+            <span data-testid={TranscriptCardTestId.Turns.wire}>{t.displayed_turn_count} turns</span>
+          )}
           {attestations && attestations.length > 0 && (
             <span className="flex items-center gap-1 text-success">
               <ShieldCheck size={11} strokeWidth={1.75} />

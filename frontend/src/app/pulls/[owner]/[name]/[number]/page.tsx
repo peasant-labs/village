@@ -577,10 +577,10 @@ function TranscriptRow({
         <span key="agent">{harness}</span>
       ),
     );
-    if (detail.transcript.turn_count != null) {
+    if (detail.transcript.displayed_turn_count != null) {
       parts.push(
         <span key="turns" className="on-pr-n">
-          {detail.transcript.turn_count} {plural(detail.transcript.turn_count, "turn", "turns")}
+          {detail.transcript.displayed_turn_count} {plural(detail.transcript.displayed_turn_count, "turn", "turns")}
         </span>,
       );
     }

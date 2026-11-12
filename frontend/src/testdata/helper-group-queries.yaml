@@ -6,13 +6,17 @@ nestedRow:
   id: 12345678-1234-4234-8234-123456789014
   local_id: ses_G3
   title: nested saved review
-  turn_count: 5
+  turn_count: 9
+  conversation_turn_count: 5
+  displayed_turn_count: 5
   session_origin: agent
 row:
   id: 12345678-1234-4234-8234-123456789012
   local_id: ses_G2
   title: identical saved review
-  turn_count: 5
+  turn_count: 9
+  conversation_turn_count: 5
+  displayed_turn_count: 5
   session_origin: agent
 cases:
   - {name: nested-independent-scope, kind: members, params: {}, expanded: true, status: 200, nestedStatus: 200, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}

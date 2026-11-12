@@ -61,7 +61,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
        t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
+    t.conversation_turn_count, t.displayed_turn_count
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
@@ -213,10 +214,13 @@ FROM (
 ORDER BY latest.recorded_at DESC, latest.transcript_id;
 
 -- name: GetGroupTranscriptStats :one
+-- Turns are the displayed count (the conversation count when measured, else
+-- the stored turn_count), as GetOwnerTranscriptTotals sums them. The column is
+-- never negative, so a negative stored turn_count counts as zero.
 SELECT
   COUNT(*)::int AS total_transcripts,
   COUNT(DISTINCT t.owner_id)::int AS contributor_count,
-  COALESCE(SUM(t.turn_count), 0)::bigint AS total_turns,
+  COALESCE(SUM(t.displayed_turn_count), 0)::bigint AS total_turns,
   COALESCE(SUM(t.duration_ms), 0)::bigint AS total_duration_ms,
   COALESCE(SUM(COALESCE(t.tokens_in, 0) + COALESCE(t.tokens_out, 0)), 0)::bigint AS total_tokens
 FROM transcripts t
@@ -248,7 +252,8 @@ ORDER BY transcript_count DESC;
 -- (both approved and pending). Used to power the "Your contributions" card
 -- on the collective page.
 SELECT t.id, t.title, t.model_provider, t.model_name, t.visibility,
-       t.published_at, t.turn_count, t.tokens_in, t.tokens_out,
+       t.published_at, t.turn_count, t.conversation_turn_count, t.displayed_turn_count,
+       t.tokens_in, t.tokens_out,
        t.owner_id, t.local_id, t.parent_session_id,
        ts.status, ts.shared_at
 FROM transcript_shares ts

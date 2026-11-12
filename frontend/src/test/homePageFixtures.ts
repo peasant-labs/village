@@ -58,6 +58,10 @@ export type HomeTranscriptCase = {
   /** The row's own visibility. Absent means private. */
   visibility?: "private" | "shared" | "public";
   modelProvider?: string;
+  /** The row's three turn counts as the server serves them. Absent means the
+   *  shared fixture row's own. Not a `home-page.yaml` field: only the corpus
+   *  about which count a row prints supplies it. */
+  turnCounts?: { stored: number | null; conversation: number | null; displayed: number | null };
 };
 
 /** How the owner-scoped list request behaves for a case. */

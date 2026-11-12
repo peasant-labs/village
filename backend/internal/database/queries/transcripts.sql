@@ -19,13 +19,15 @@ INSERT INTO transcripts (
     m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints,
     computed_at, compute_version, license_id,
     content_hash, wrapped_data_key, encryption_algorithm, key_version,
-    session_origin, input_submission_count, root_session_id, session_purpose, session_relationships
+    session_origin, input_submission_count, root_session_id, session_purpose, session_relationships,
+    conversation_turn_count
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
     $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
     $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61,
-    $62, $63, $64, $65, $66, $67, $68, $69, $70, COALESCE(sqlc.narg(session_relationships)::jsonb, '[]'::jsonb)
+    $62, $63, $64, $65, $66, $67, $68, $69, $70, COALESCE(sqlc.narg(session_relationships)::jsonb, '[]'::jsonb),
+    sqlc.narg(conversation_turn_count)
 ) RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -41,7 +43,8 @@ INSERT INTO transcripts (
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size;
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count;
 
 -- name: UpdateTranscriptByOwnerAndLocalID :one
 UPDATE transcripts SET
@@ -117,6 +120,10 @@ UPDATE transcripts SET
     root_session_id = COALESCE($68, root_session_id),
     session_purpose = COALESCE($69, session_purpose),
     session_relationships = COALESCE(sqlc.narg(session_relationships)::jsonb, session_relationships),
+    -- Not coalesced, unlike the graph columns above: this counts the content
+    -- this statement replaces, so a republish that does not carry it clears the
+    -- stored value instead of keeping a count of content that is gone.
+    conversation_turn_count = sqlc.narg(conversation_turn_count),
     updated_at = now()
 WHERE owner_id = $1 AND local_id = $2
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
@@ -134,7 +141,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size;
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count;
 
 -- name: GetTranscriptIDByOwnerAndLocalID :one
 -- Publish-path existence probe (create vs re-publish). ID-only ON PURPOSE: the
@@ -162,7 +170,8 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count
 FROM transcripts WHERE id = $1;
 
 -- name: SetAcceptedRequestOperationFingerprint :exec
@@ -203,7 +212,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
-    publish_metadata_key, publish_metadata_hash, publish_metadata_size;
+    publish_metadata_key, publish_metadata_hash, publish_metadata_size,
+    conversation_turn_count, displayed_turn_count;
 
 -- name: DeleteTranscript :exec
 DELETE FROM transcripts WHERE id = $1;
@@ -296,7 +306,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.wrapped_data_key, t.encryption_algorithm, t.key_version,
     t.accepted_request_operation_fingerprint, t.session_origin,
     t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
-    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size
+    t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
+    t.conversation_turn_count, t.displayed_turn_count
 FROM transcripts t
 WHERE t.owner_id = @owner_id
   AND t.project_hash = @project_hash
@@ -388,7 +399,7 @@ ORDER BY t.session_start ASC NULLS LAST, t.id ASC;
 -- metrics) counts as zero, so one malformed transcript cannot make a total
 -- negative and the whole response unservable.
 SELECT COUNT(*)::int AS total_transcripts,
-       COALESCE(SUM(GREATEST(turn_count, 0)), 0)::bigint AS total_turns,
+       COALESCE(SUM(displayed_turn_count), 0)::bigint AS total_turns,
        COALESCE(SUM(GREATEST(duration_ms, 0)), 0)::bigint AS total_duration_ms,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts

@@ -14,7 +14,7 @@ for (const testCase of loadCollectiveRemovalAccountFixtures()) {
     const first = "private-first";
     const second = "private-second";
     const rows = [first, second].map((id): GroupTranscript => ({ ...makeTranscriptFixture({ id, title: id, visibility: "private" }), license_id: null, outcome: null, source_format: null, subagents: null, owner: profileOwner({ id: "user-ada", github_username: "ada" }), pull_requests: { count: 0, recent: [] } }));
-    const own: UserGroupShare = { id: "private-own", owner: profileOwner({ id: "user-ada", github_username: "ada" }), local_id: "own", parent_session_id: null, parent_transcript_id: null, title: "private-own", model_provider: "claude-code", model_name: null, visibility: "private", published_at: "2026-01-01T00:00:00Z", turn_count: 1, tokens_in: null, tokens_out: null, status: "pending", shared_at: "2026-01-01T00:00:00Z" };
+    const own: UserGroupShare = { id: "private-own", owner: profileOwner({ id: "user-ada", github_username: "ada" }), local_id: "own", parent_session_id: null, parent_transcript_id: null, title: "private-own", model_provider: "claude-code", model_name: null, visibility: "private", published_at: "2026-01-01T00:00:00Z", turn_count: 1, conversation_turn_count: null, displayed_turn_count: 1, tokens_in: null, tokens_out: null, status: "pending", shared_at: "2026-01-01T00:00:00Z" };
     const world: GroupRouteFixture = { groupId: "account-collective", groupName: "account collective", viewer: "ada", role: "owner", transcripts: rows, myShares: [own] };
     installGroupRouteREST(world);
     const delegate = globalThis.fetch;

@@ -101,7 +101,7 @@ export function adaptExplore(
         harnessVersion: item.transcript.harness_version,
         sessionStart: item.transcript.session_start,
         sessionEnd: item.transcript.session_end,
-        turnCount: item.transcript.turn_count,
+        turnCount: item.transcript.displayed_turn_count,
         tokenCount: item.transcript.token_count,
         toolCallCount: item.transcript.tool_call_count,
         durationMs: item.transcript.duration_ms,

@@ -82,8 +82,9 @@ behavior. Update that document in the same commit whenever an invariant changes.
 The public `github.com/peasant-labs/schema` module is the source of truth for
 wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
-The current module and frontend package pin is Schema 0.49.0; its Village API
-version is 0.38.0. The mounted-byte release-asset test guards this pairing.
+The current backend module pin is Schema 0.51.0; its Village API version is
+0.39.0. The mounted-byte release-asset test guards this pairing. The frontend
+package pin is `@peasant-labs/schema` 0.51.0, the same release.
 
 Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
@@ -129,7 +130,7 @@ bodies are capped at 1 MiB (413 above it) and a contract violation answers
 400 with the field and the reason; only the publish and annotation paths
 answer 422. Routes the contract declares before their handlers exist are
 mounted as 501 stubs and pinned, with their auth expectations, in
-`backend/internal/router/testdata/attachment_stub_routes.yaml`; landing a
+`backend/internal/router/testdata/declared_stub_routes.yaml`; landing a
 real handler deletes its row.
 
 When adding a license:

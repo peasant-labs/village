@@ -1,0 +1,30 @@
+# Routes the served Village API contract declares before Village has a handler
+# for them. Each is mounted as a stub that answers 501, so the contract and the
+# server agree on the route while the handler is written.
+#
+# `route` is the mounted pattern and must be declared by the served contract.
+# `path` is one concrete request for it. `anonymous` and `signed_in` are the
+# statuses the production router answers without and with a session: they pin
+# the route's auth policy, so a stub cannot change from optional to required
+# auth unnoticed. Landing a real handler deletes its row.
+routes:
+  # The segmented reads carry the access rule of GET /transcripts/{id}/content:
+  # auth is optional, so an anonymous caller reaches the stub as well.
+  - name: the segment directory is declared and not served yet
+    method: GET
+    route: /api/v1/transcripts/{id}/segments
+    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/segments?page=1
+    anonymous: 501
+    signed_in: 501
+  - name: one segment is declared and not served yet
+    method: GET
+    route: /api/v1/transcripts/{id}/segments/{index}
+    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/segments/0
+    anonymous: 501
+    signed_in: 501
+  - name: the window around an anchor is declared and not served yet
+    method: GET
+    route: /api/v1/transcripts/{id}/window
+    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/window?anchor=3&span=20
+    anonymous: 501
+    signed_in: 501

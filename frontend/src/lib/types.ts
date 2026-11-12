@@ -1,5 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
-import type { License, SessionOutcome, SourceFormat, VillageTranscriptListResponse } from "@peasant-labs/schema";
+import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -125,7 +125,19 @@ export function assertNameSourceExhaustive(source: never): never {
   throw new Error(`unhandled NameSource: ${String(source)}`);
 }
 
-export interface Transcript {
+/**
+ * The two turn counts the server measures and derives, typed by the wire
+ * contract so a change to either moves with the schema package.
+ *
+ * `conversation_turn_count` is the user and assistant text or image turns, as
+ * the publication measured them; null when the publication did not carry the
+ * count. `displayed_turn_count` is the one count every surface prints. The
+ * server derives it from the stored and conversation counts; null means
+ * unmeasured, zero means measured none. Never recomputed here.
+ */
+type TranscriptTurnCounts = Pick<VillageTranscript, "conversation_turn_count" | "displayed_turn_count">;
+
+export interface Transcript extends TranscriptTurnCounts {
   id: string;
   local_id: string;
   title: string | null;
@@ -136,6 +148,8 @@ export interface Transcript {
   harness_version: string | null;
   session_start: string | null;
   session_end: string | null;
+  /** Every folded turn the publication recorded, system and tool rows included.
+   *  Stored and served; no surface prints it. */
   turn_count: number | null;
   token_count: number | null;
   blob_size_bytes: number | null;

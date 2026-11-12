@@ -89,6 +89,13 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
       published_at: t.publishedAt,
       updated_at: t.publishedAt,
       visibility: t.visibility ?? ((t.sharedWith ?? []).length > 0 ? "shared" : "private"),
+      ...(t.turnCounts === undefined
+        ? {}
+        : {
+            turn_count: t.turnCounts.stored,
+            conversation_turn_count: t.turnCounts.conversation,
+            displayed_turn_count: t.turnCounts.displayed,
+          }),
     }),
     tags: [],
     owner: profileOwner(owner),

@@ -41,7 +41,7 @@ export const LONG_DEMO_METADATA = zVillageTranscriptMetadataResponse.parse({
     visibility: 'private', model_name: LONG_DEMO_CONTENT.model, project_name: LONG_DEMO.project,
     project_display_name: LONG_DEMO.project, git_branch: LONG_DEMO.branch,
     session_start: LONG_DEMO_CONTENT.startTime, session_end: LONG_DEMO_CONTENT.endTime,
-    turn_count: turns.length, token_count: LONG_DEMO_CONTENT.totalTokens, tool_call_count: LONG_DEMO_CONTENT.toolCallCount,
+    turn_count: turns.length, conversation_turn_count: null, displayed_turn_count: turns.length, token_count: LONG_DEMO_CONTENT.totalTokens, tool_call_count: LONG_DEMO_CONTENT.toolCallCount,
     tokens_in: LONG_DEMO_CONTENT.tokensIn, tokens_out: LONG_DEMO_CONTENT.tokensOut,
     duration_ms: LONG_DEMO_CONTENT.durationMins * 60_000, outcome: 'resolved' }),
   owner: profileOwner({ id: fixtureUUID('user-demo'), github_username: 'alice-dev' }),
