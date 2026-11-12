@@ -151,22 +151,27 @@ func TestConversationTurnCountPublication_RealPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			// The count is written as raw JSON so null and a fraction reach the
-			// handler exactly as a client would send them.
+			// handler exactly as a client would send them. The typed stats
+			// struct holds a whole number or nothing, so it cannot carry those
+			// refused values; the two object keys are read from the contract
+			// type instead of being restated here.
+			statsKey := wireKeyOf(schema.AuthoritativePublishRequest{}, schema.AuthoritativePublishRequest{Stats: schema.AuthoritativeSessionStats{TurnCount: 1}})
+			countKey := wireKeyOf(schema.AuthoritativeSessionStats{}, schema.AuthoritativeSessionStats{ConversationTurnCount: new(int64)})
 			var document map[string]json.RawMessage
 			if err := json.Unmarshal(metadata, &document); err != nil {
 				t.Fatal(err)
 			}
 			var stats map[string]json.RawMessage
-			if err := json.Unmarshal(document["stats"], &stats); err != nil {
+			if err := json.Unmarshal(document[statsKey], &stats); err != nil {
 				t.Fatal(err)
 			}
-			if _, already := stats["conversationTurnCount"]; already {
-				t.Fatal("the base metadata already carries conversationTurnCount")
+			if _, already := stats[countKey]; already {
+				t.Fatalf("the base metadata already carries %s", countKey)
 			}
 			if step.CountJSON != "" {
-				stats["conversationTurnCount"] = json.RawMessage(step.CountJSON)
+				stats[countKey] = json.RawMessage(step.CountJSON)
 			}
-			if document["stats"], err = json.Marshal(stats); err != nil {
+			if document[statsKey], err = json.Marshal(stats); err != nil {
 				t.Fatal(err)
 			}
 			if metadata, err = json.Marshal(document); err != nil {
