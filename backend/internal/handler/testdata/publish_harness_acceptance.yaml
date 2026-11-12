@@ -1,0 +1,25 @@
+session_id: 550e8400-e29b-41d4-a716-446655440000
+content_template: >-
+  {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":__SESSION_ID__,"harness":__HARNESS__,"startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:13:21Z","durationMins":0,"tokensIn":0,"tokensOut":0,"totalTokens":0,"toolCallCount":0,"turnCount":0,"turns":[]}}
+cases:
+  - name: publish-accepts-new-antigravity-cli
+    harness: antigravity-cli
+    status: 201
+  - name: publish-accepts-new-antigravity-ide
+    harness: antigravity-ide
+    status: 201
+  - name: publish-accepts-archived-antigravity
+    harness: antigravity
+    status: 201
+  - name: publish-accepts-archived-gemini-cli
+    harness: gemini-cli
+    status: 201
+  - name: publish-accepts-harvestable-claude-code
+    harness: claude-code
+    status: 201
+  - name: publish-refuses-an-unknown-harness
+    harness: not-a-harness
+    status: 422
+    error_contains:
+      - metadata failed schema validation
+      - model.harness
