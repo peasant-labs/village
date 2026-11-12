@@ -63,6 +63,7 @@ import {
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import type { TranscriptListItem, TranscriptRow } from "@/lib/types";
 import { transcriptHref } from "@/lib/transcriptContext";
+import { HomeTestId } from "./homeTestId";
 
 /**
  * The signed-in landing surface: the caller's own transcripts, their totals,
@@ -463,7 +464,7 @@ function HomeBody({ username }: { username: string }) {
         const t = item.transcript;
         const started = childSessions.get(t.id);
         return (
-          <div className="on-cell-title" data-testid="home-transcript-row" data-transcript-id={t.id}>
+          <div className="on-cell-title" data-testid={HomeTestId.TranscriptRow.wire} data-transcript-id={t.id}>
             <Link href={transcriptHref(t.id, { kind: "home" })}>{t.title || "untitled"}</Link>
             {helperGroupSlot(item)}
             {started !== undefined && started.length > 0 && (
@@ -645,7 +646,7 @@ function HomeBody({ username }: { username: string }) {
     );
   } else {
     listRegion = (
-      <div className="on-section" data-testid="home-transcripts" aria-busy={searching || undefined}>
+      <div className="on-section" data-testid={HomeTestId.Transcripts.wire} aria-busy={searching || undefined}>
         {failed && (
           // The rows below are the last ones the server confirmed. They are
           // kept deliberately: a failed refresh is not news that the library

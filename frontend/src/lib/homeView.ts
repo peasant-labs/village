@@ -1,8 +1,16 @@
-import { closed } from "@peasant-labs/fairtrade/closed-value";
 import { PageSize, isPageSize } from "@peasant-labs/schema";
 import { HIDDEN_PROJECT_LABEL } from "@/lib/format";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
+import {
+  ALL_GROUP_BYS,
+  ALL_VILLAGE_COLUMNS,
+  ColumnId,
+  GROUP_BY_URL_PARAM,
+  GroupBy,
+  HOME_VIEW_STORAGE_KEY,
+  LIBRARY_URL_PARAMS,
+} from "./homeViewSets";
 
 /**
  * How the Library is arranged: the URL owns the grouping and the page, the
@@ -14,50 +22,20 @@ import type { TranscriptListItem } from "@/lib/types";
  * no consumer compares wires or raw strings.
  */
 
-const GroupByValues = {
-  Project: closed("project", "project"),
-  Collective: closed("collective", "collective"),
-  Agent: closed("agent", "agent"),
-  None: closed("none", "nothing"),
-} as const;
+// The closed sets, the storage key and the URL parameter names live in
+// `homeViewSets.ts`, a module with no app imports, so a Node script can read
+// the same values. They are re-exported here unchanged.
+export {
+  ALL_GROUP_BYS,
+  ALL_VILLAGE_COLUMNS,
+  ColumnId,
+  GROUP_BY_URL_PARAM,
+  GroupBy,
+  HOME_VIEW_STORAGE_KEY,
+  LIBRARY_URL_PARAMS,
+};
 
-/** A grouping the shared table offers. */
-export type GroupBy = (typeof GroupByValues)[keyof typeof GroupByValues];
-export const GroupBy = GroupByValues;
-
-/** Every grouping, in the order the picker offers them. */
-export const ALL_GROUP_BYS = Object.freeze([
-  GroupByValues.Project,
-  GroupByValues.Collective,
-  GroupByValues.Agent,
-  GroupByValues.None,
-] as const);
-
-const ColumnIdValues = {
-  Transcript: closed("transcript", "transcript"),
-  Project: closed("project", "project"),
-  Readers: closed("readers", "who can read"),
-  Agent: closed("agent", "agent"),
-  PullRequests: closed("pullRequests", "pull requests"),
-  Turns: closed("turns", "turns"),
-  When: closed("when", "when"),
-} as const;
-
-/** One host column the Library can show. `Transcript` is the row identity and
- *  is declared first; the shared table always draws the first declared column. */
-export type ColumnId = (typeof ColumnIdValues)[keyof typeof ColumnIdValues];
-export const ColumnId = ColumnIdValues;
-
-/** Every column, in the order they are drawn. */
-export const ALL_VILLAGE_COLUMNS = Object.freeze([
-  ColumnIdValues.Transcript,
-  ColumnIdValues.Project,
-  ColumnIdValues.Readers,
-  ColumnIdValues.Agent,
-  ColumnIdValues.PullRequests,
-  ColumnIdValues.Turns,
-  ColumnIdValues.When,
-] as const);
+const ColumnIdValues = ColumnId;
 
 /** The view this browser remembers: the columns shown and the groups closed.
  *  The grouping and the page come from the URL, never from storage. */
@@ -79,8 +57,6 @@ export const DEFAULT_HOME_VIEW: HomeView = {
   collapsed: [],
 };
 
-/** The stored view this browser writes. */
-export const HOME_VIEW_STORAGE_KEY = "peasant-online.library";
 /** The key an earlier release wrote. Read once, migrated, never written again. */
 export const LEGACY_HOME_VIEW_STORAGE_KEY = "peasant-online.home-view";
 
@@ -97,15 +73,6 @@ export const DEFAULT_LIBRARY_URL_VIEW: LibraryUrlView = {
   groupBy: GroupBy.Project,
 };
 
-/** The URL parameter names this codec owns. `page`, `perPage`, and `groupBy`
- *  are the complete set: the columns and the closed groups never enter a URL,
- *  so a copied URL reproduces the data view and grouping, not the sender's
- *  columns.
- *
- *  The address calls the page size `perPage`, the vocabulary the plan and the
- *  Peasant home use; the wire calls the same value `per_page`. This codec is
- *  the one place the two names meet. */
-export const LIBRARY_URL_PARAMS = ["page", "perPage", "groupBy"] as const;
 
 /**
  * The columns a stored value names, or the default when it names none.
@@ -226,7 +193,7 @@ export function decodeLibraryView(params: URLSearchParams): LibraryUrlView {
   const page = positiveInteger(params.get("page")) ?? DEFAULT_LIBRARY_URL_VIEW.page;
   const perPageValue = Number(params.get("perPage"));
   const perPage = isPageSize(perPageValue) ? perPageValue : DEFAULT_LIBRARY_URL_VIEW.perPage;
-  const groupByWire = params.get("groupBy");
+  const groupByWire = params.get(GROUP_BY_URL_PARAM);
   const groupBy = ALL_GROUP_BYS.find((member) => member.wire === groupByWire) ?? DEFAULT_LIBRARY_URL_VIEW.groupBy;
   return { page, perPage, groupBy };
 }
@@ -236,7 +203,7 @@ export function encodeLibraryView(view: LibraryUrlView): URLSearchParams {
   const params = new URLSearchParams();
   if (view.page !== DEFAULT_LIBRARY_URL_VIEW.page) params.set("page", String(view.page));
   if (view.perPage !== DEFAULT_LIBRARY_URL_VIEW.perPage) params.set("perPage", String(view.perPage));
-  if (view.groupBy !== DEFAULT_LIBRARY_URL_VIEW.groupBy) params.set("groupBy", view.groupBy.wire);
+  if (view.groupBy !== DEFAULT_LIBRARY_URL_VIEW.groupBy) params.set(GROUP_BY_URL_PARAM, view.groupBy.wire);
   return params;
 }
 

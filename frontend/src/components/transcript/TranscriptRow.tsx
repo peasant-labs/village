@@ -3,12 +3,21 @@
 // Deprecated compatibility component for the former transcript list, superseded
 // by the shared fairtrade <Explore> surface. It has no remaining import sites.
 
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import Link from "next/link";
 import Image from "next/image";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
 import { resolveAttribution } from "@/lib/format";
+
+/** The test ids this component renders. */
+const TranscriptRowTestIdValues = {
+  Turns: closed("transcript-row-turns", "the turn count a row states"),
+} as const;
+
+export type TranscriptRowTestId = (typeof TranscriptRowTestIdValues)[keyof typeof TranscriptRowTestIdValues];
+export const TranscriptRowTestId = TranscriptRowTestIdValues;
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -49,7 +58,7 @@ export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
 
       <div className="flex items-center gap-3 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
         {t.duration_ms != null && <span>{formatDuration(t.duration_ms)}</span>}
-        {t.displayed_turn_count != null && <span>{t.displayed_turn_count} turns</span>}
+        {t.displayed_turn_count != null && <span data-testid={TranscriptRowTestId.Turns.wire}>{t.displayed_turn_count} turns</span>}
         {t.tool_call_count != null && <span>{t.tool_call_count} tools</span>}
       </div>
 
