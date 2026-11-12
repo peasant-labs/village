@@ -178,6 +178,15 @@ const (
 	maxPublishMetadataDepth        = 64
 )
 
+// RegisterPublishRoutes mounts the single and batch publish routes behind the
+// session check. The router mounts publishing only through this method, so a
+// test that mounts it drives the same route, middleware and handler a
+// publishing client reaches.
+func (h *Handler) RegisterPublishRoutes(r chi.Router) {
+	r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
+	r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
+}
+
 func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 

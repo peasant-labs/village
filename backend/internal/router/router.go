@@ -127,8 +127,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthOptional).Get("/orgs/{login}", h.GetOrg)
 
 		// Transcripts
-		r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
-		r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
+		h.RegisterPublishRoutes(r)
 		h.RegisterTranscriptBrowseRoutes(r)
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -119,15 +120,23 @@ func publishHarnessRequest(t *testing.T, fixture publishHarnessFixture, harness 
 	return r
 }
 
-func mountPublishHarnessHandler(h *Handler, user *AuthUser) http.Handler {
+// servePublishHarness sends one case through the routes the production router
+// mounts for publishing (RegisterPublishRoutes under /api/v1), signed in as the
+// user with a real session token, so the session check, route and handler are
+// the ones a publishing client reaches.
+func servePublishHarness(t *testing.T, h *Handler, user *AuthUser, fixture publishHarnessFixture, harness string) *httptest.ResponseRecorder {
+	t.Helper()
 	routes := chi.NewRouter()
-	routes.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), UserContextKey, user)))
-		})
-	})
-	routes.Post("/api/v1/transcripts/publish", h.PublishTranscript)
-	return routes
+	routes.Route("/api/v1", h.RegisterPublishRoutes)
+	token, err := auth.CreateToken(h.cfg.JWTSecret, user.ID, user.Username)
+	if err != nil {
+		t.Fatalf("sign the publish harness session token: %v", err)
+	}
+	r := publishHarnessRequest(t, fixture, harness)
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, r)
+	return w
 }
 
 func assertPublishHarnessResponse(t *testing.T, c publishHarnessCase, w *httptest.ResponseRecorder) {
@@ -169,8 +178,7 @@ func TestPublishHarnessAcceptance(t *testing.T) {
 			}
 			blobs := &mockTranscriptBlobStore{}
 			h := newTestHandler(q, blobs)
-			w := httptest.NewRecorder()
-			mountPublishHarnessHandler(h, &AuthUser{ID: ownerID, Username: "fixture-owner"}).ServeHTTP(w, publishHarnessRequest(t, fixture, c.Harness))
+			w := servePublishHarness(t, h, &AuthUser{ID: ownerID, Username: "fixture-owner"}, fixture, c.Harness)
 			assertPublishHarnessResponse(t, c, w)
 			if c.Status != http.StatusCreated {
 				if saved != nil || len(blobs.uploadedKeys) != 0 {
@@ -181,8 +189,8 @@ func TestPublishHarnessAcceptance(t *testing.T) {
 			if saved == nil {
 				t.Fatal("successful publish did not write a transcript")
 			}
-			if saved.ModelProvider != c.Harness || len(blobs.uploadedKeys) != 1 {
-				t.Fatalf("stored harness=%q want=%q objects=%d", saved.ModelProvider, c.Harness, len(blobs.uploadedKeys))
+			if saved.ModelProvider != c.Harness || saved.OwnerID != owner || len(blobs.uploadedKeys) != 1 {
+				t.Fatalf("stored harness=%q want=%q owner=%v want=%v objects=%d", saved.ModelProvider, c.Harness, saved.OwnerID, owner, len(blobs.uploadedKeys))
 			}
 			var response schema.AuthoritativePublishResponse
 			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
