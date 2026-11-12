@@ -1148,6 +1148,25 @@ Newer real-Postgres families worth knowing when touching those paths:
   stays fully visible, later rows still run, and the process exits nonzero only
   after the full scan.
 
+### The conversation turn count: publish, rows, totals and the sort
+
+`transcripts.conversation_turn_count` and the generated `displayed_turn_count`
+(migration 050; `docs/database-invariants.md` section 2) have four fixtures.
+Every row states a conversation count that differs from its `turn_count`, so a
+read or a write that takes the wrong number fails.
+
+| Fixture | Test | Proves |
+|---|---|---|
+| `database/testdata/conversation_turn_count.yaml` | `TestMigration050ConversationTurnCount*` | the range CHECK, NULL against measured zero, the generated value, and that a direct write of `displayed_turn_count` is refused |
+| `handler/testdata/schema_mapping/conversation_turn_counts.yaml` | `TestSchemaToTranscriptParamsConversationTurnCount` (unit) | absent maps to SQL NULL, a measured zero to `0` |
+| `handler/testdata/conversation-turn-count-publication.yaml` | `TestConversationTurnCountPublication_RealPostgres` | ordered publishes of one session: the stored value, the contract 422 for null, a fraction, a negative and an unsafe value with no row, audit, share or object change, a republish without the value clearing it, and a legacy publish storing none |
+| `handler/testdata/conversation-turn-count-reads.yaml` | `TestConversationTurnCountReads_RealPostgres` | every mounted read serves both fields on each row type; the discovery "turns" sort and both totals use the displayed number |
+
+The publication steps share one transcript and run in order; a failed step
+stops the sequence. The reads test finds row objects by transcript id wherever a
+route nests them, and each surface states how many row objects it serves per
+transcript, so a route that drops an arm fails.
+
 ### Migrate first, then run
 
 Each integration test calls `database.RunMigrations(pool)` itself and migrations
