@@ -1612,10 +1612,7 @@ uses the standard audited teardown. This extra database check is needed because
 a direct schema test or a mocked query cannot show what the mounted transaction
 stores. No subprocess or external object service is started by the test.
 
-Mutation checks: forcing `req.Model.Harness` to `schema.HarnessClaudeCode`
-after authoritative projection in `PublishTranscript` makes the new CLI case
-fail on its stored harness; using the previous Schema module makes both new
-identity cases fail with 422. Remove either mutation before committing.
+Mutation checks: reverting the Schema pin fails both new-harness cases, and forcing the handler to store `claude-code` fails the new CLI case.
 
 ### Worked example - assert the body
 
