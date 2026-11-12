@@ -22,10 +22,11 @@ type conversationTurnCountCase struct {
 }
 
 type conversationTurnCountFixtures struct {
-	RequiredUp   []string                    `yaml:"required_up"`
-	RequiredDown []string                    `yaml:"required_down"`
-	ForbiddenUp  []string                    `yaml:"forbidden_up"`
-	Cases        []conversationTurnCountCase `yaml:"cases"`
+	RequiredUp    []string                    `yaml:"required_up"`
+	RequiredDown  []string                    `yaml:"required_down"`
+	ForbiddenUp   []string                    `yaml:"forbidden_up"`
+	RequiredNames []string                    `yaml:"required_names"`
+	Cases         []conversationTurnCountCase `yaml:"cases"`
 }
 
 func loadConversationTurnCountFixtures(t *testing.T) conversationTurnCountFixtures {
@@ -50,9 +51,19 @@ func loadConversationTurnCountFixtures(t *testing.T) conversationTurnCountFixtur
 		}
 		names[c.Name] = true
 	}
-	for _, name := range strings.Fields("historical-absence measured-zero measured-positive safe-maximum negative-count unsafe-count fraction-count displayed-falls-back-to-turn-count displayed-prefers-conversation-count displayed-clamps-negative-turn-count") {
+	required := map[string]bool{}
+	for _, name := range fixture.RequiredNames {
+		if name == "" || required[name] {
+			t.Fatalf("invalid or duplicate required conversation turn count name %q", name)
+		}
+		required[name] = true
 		if !names[name] {
 			t.Fatalf("missing required conversation turn count fixture %q", name)
+		}
+	}
+	for name := range names {
+		if !required[name] {
+			t.Fatalf("conversation turn count fixture %q is not listed in required_names", name)
 		}
 	}
 	return fixture

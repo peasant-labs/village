@@ -17,6 +17,19 @@ forbidden_up:
   - CREATE INDEX
   - NOT NULL
   - DEFAULT
+# Every case below is named here and every name here has a case; the test
+# refuses a difference in either direction.
+required_names:
+  - historical-absence
+  - measured-zero
+  - measured-positive
+  - safe-maximum
+  - negative-count
+  - unsafe-count
+  - fraction-count
+  - displayed-falls-back-to-turn-count
+  - displayed-prefers-conversation-count
+  - displayed-clamps-negative-turn-count
 cases:
   - name: historical-absence
     count: null
