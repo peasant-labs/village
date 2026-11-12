@@ -112,8 +112,10 @@ function transcriptReadResponse(read: TranscriptReadFixture) {
       harness_version: null,
       session_start: "2026-01-01T00:00:00Z",
       session_end: null,
-      turn_count: 2,
-      conversation_turn_count: null,
+      // A measured row: the stored count includes tool and system rows, so
+      // a page that printed it would state 102 turns.
+      turn_count: 102,
+      conversation_turn_count: 2,
       displayed_turn_count: 2,
     },
     tags: [],
