@@ -2,7 +2,7 @@
 #
 # Every transcript states two different numbers: `turns` is the stored
 # turn_count and `conversation_turns` the published conversation turn count. A
-# row serves conversation_turn_count as published (omitted when unmeasured) and
+# row serves conversation_turn_count as published (null when unmeasured) and
 # displayed_turn_count as the database resolved it: the conversation count when
 # measured, else turn_count. A measured zero is a value, not an absence.
 #
@@ -20,7 +20,7 @@ world:
     - {name: measured-none, owner: author, visibility: public, turns: 30, conversation_turns: 0, shares: {team: approved}}
 
 # What every served row of a transcript states. An omitted
-# conversation_turn_count expects the key to be absent from the row.
+# conversation_turn_count expects the row to serve null, never an absent key.
 rows:
   measured: {turn_count: 40, conversation_turn_count: 9, displayed_turn_count: 9}
   unmeasured: {turn_count: 12, displayed_turn_count: 12}

@@ -174,8 +174,8 @@ func TestConversationTurnCountReads_RealPostgres(t *testing.T) {
 				}
 				got, served := row.object["conversation_turn_count"]
 				switch {
-				case want.ConversationTurnCount == nil && served:
-					t.Errorf("%s: conversation_turn_count = %v, want the key absent for an unmeasured transcript", row.transcript, got)
+				case want.ConversationTurnCount == nil && (!served || got != nil):
+					t.Errorf("%s: conversation_turn_count = %v (key present: %v), want null for an unmeasured transcript", row.transcript, got, served)
 				case want.ConversationTurnCount != nil:
 					if number, ok := got.(float64); !ok || int64(number) != *want.ConversationTurnCount {
 						t.Errorf("%s: conversation_turn_count = %v, want %d", row.transcript, got, *want.ConversationTurnCount)

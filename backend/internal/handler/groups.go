@@ -661,8 +661,8 @@ type myShareResponse struct {
 	PublishedAt   pgtype.Timestamptz `json:"published_at"`
 	TurnCount     pgtype.Int4        `json:"turn_count"`
 	// See transcriptResponse.ConversationTurnCount and DisplayedTurnCount.
-	ConversationTurnCount *int64                    `json:"conversation_turn_count,omitempty"`
-	DisplayedTurnCount    *int64                    `json:"displayed_turn_count,omitempty"`
+	ConversationTurnCount *int64                    `json:"conversation_turn_count"`
+	DisplayedTurnCount    *int64                    `json:"displayed_turn_count"`
 	TokensIn              pgtype.Int8               `json:"tokens_in"`
 	TokensOut             pgtype.Int8               `json:"tokens_out"`
 	Owner                 schema.VillagePublicOwner `json:"owner"`

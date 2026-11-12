@@ -23,12 +23,12 @@ type transcriptResponse struct {
 	SessionEnd     pgtype.Timestamptz `json:"session_end"`
 	TurnCount      pgtype.Int4        `json:"turn_count"`
 	// ConversationTurnCount is the conversation turn count as published; it is
-	// omitted when the publishing client did not measure it. DisplayedTurnCount
+	// null when the publishing client did not measure it. DisplayedTurnCount
 	// is the number a reader is shown, resolved by the database: the
 	// conversation count when measured, else turn_count. Clients print it and
 	// write no fallback of their own.
-	ConversationTurnCount *int64                `json:"conversation_turn_count,omitempty"`
-	DisplayedTurnCount    *int64                `json:"displayed_turn_count,omitempty"`
+	ConversationTurnCount *int64                `json:"conversation_turn_count"`
+	DisplayedTurnCount    *int64                `json:"displayed_turn_count"`
 	InputSubmissionCount  *int64                `json:"input_submission_count,omitempty"`
 	RootSessionID         *schema.SessionID     `json:"root_session_id,omitempty"`
 	Purpose               schema.SessionPurpose `json:"purpose,omitempty"`
