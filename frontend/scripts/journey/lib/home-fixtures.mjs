@@ -125,6 +125,8 @@ const transcript = (row) => ({
   session_start: at(row.minutesAgo + 40),
   session_end: at(row.minutesAgo + 5),
   turn_count: 24,
+  conversation_turn_count: null,
+  displayed_turn_count: 24,
   token_count: 18000,
   blob_size_bytes: null,
   schema_version: '0.14.0',

@@ -86,6 +86,8 @@ const transcript = (id, title, provider, turns, author, prs, minutes) => ({
   title,
   model_provider: provider,
   turn_count: turns,
+  conversation_turn_count: null,
+  displayed_turn_count: turns,
   owner: author.member,
   pull_requests: prs,
   local_id: id,
