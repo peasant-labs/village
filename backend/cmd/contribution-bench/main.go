@@ -527,9 +527,19 @@ func writeJSON(path string, v any) error {
 // runCmd runs an external command, used only for pg_ctl restarts during
 // cold-cache sampling.
 func runCmd(name string, args ...string) error {
-	out, err := exec.Command(name, args...).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	// Output goes to the caller's stdio, not a pipe. A restarted server keeps
+	// inherited pipes open, so capturing output would block until the server
+	// exits. Failures are reported through the exit status.
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("%s %s: timed out after 90s: %w", name, strings.Join(args, " "), ctx.Err())
+		}
+		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
 	}
 	return nil
 }
