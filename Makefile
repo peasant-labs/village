@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check
+.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check contribution-bench
 
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
@@ -69,6 +69,13 @@ backend-dev-down:
 
 backend-dev-reset:
 	CONFIRM=$(CONFIRM) ./scripts/encrypted-backend-dev.sh reset
+
+# Contribution read and write benchmark against a scratch PostgreSQL database.
+# Dev-only: the tool refuses non-local hosts. Pass arguments in BENCH_ARGS, for
+# example BENCH_ARGS="seed -dataset small -replace". See
+# docs/contribution-scale-benchmark.md.
+contribution-bench:
+	cd backend && go run ./cmd/contribution-bench $(BENCH_ARGS)
 
 # Docker (full stack)
 up:
