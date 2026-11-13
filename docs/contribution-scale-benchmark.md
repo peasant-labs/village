@@ -333,40 +333,11 @@ over two.
   the budget at 1,000,000 (13 to 16 s p95, 194 MB payload, 0.8 to 1.2 GB peak heap).
   A single 250,000-row project snapshot takes 3.6 to 6.6 s p95 and returns 49.6 MB,
   which is over the 8 MiB reference. Per-project snapshots of 3,000 rows are 0.7 to
-  2.0 s at 1,000,000. Any cap or pagination of the snapshot is therefore a
-  requirement for the largest projects, not a choice this data settles.
+  2.0 s at 1,000,000. Whether the largest projects need a cap, pagination, or
+  only the timeout refusal is an owner decision; this data states the cost.
 - **Index set recommended for adoption now: H1 alone**, with the 1,000,000 first-page
   decision on R1 left open. No index helps the picker enough to pass the rule alone
   at 1,000,000.
-
-### What the data does not support in the supplied reading
-
-These are corrections to the reading supplied with the summary, each
-checked against the raw files.
-
-- "R1 only helps the cross-project first page" is not supported. R1 alone improves
-  the 12,148 first page, deep page, and picker by 56 to 76 percent. At 1,000,000
-  it helps the first page by only 19 percent alone, and the benefit is largest on
-  top of H1.
-- "R2 on top makes project-scoped reads milliseconds" is supported only for R2 with
-  H1 (1.6 ms and 22 ms at 1,000,000). R2 alone is 0.96 to 1.76 seconds at 1,000,000.
-- "No index helps the picker aggregate" is too strong at 12,148. R1 cuts the
-  picker p95 from 85 to 21 ms. At 1,000,000 R3 and R1+H1 cut the p95 by about 30
-  percent (1,957 and 1,935 ms against 2,808), which is at the threshold and within
-  the run-to-run spread.
-- "No write regression is measurable from any index" is not supported for WAL.
-  R3+H1 adds 11 to 14 percent WAL per 800-row contribution, and R2+H1 adds 6 to 10
-  percent. Latency p95 cannot separate the configurations, and the WAL numbers can.
-- "H1 is required at 1,000,000" is supported. At 12,148 no read exceeds its budget
-  even with R0, so H1 is required only for the 1,000,000 scale.
-- The 1,000,000 first page with H1 alone is 831 ms, which is over the 800 ms budget
-  value. The budget is defined at 12,148 and is not formally breached, but the margin
-  at 1,000,000 is negative.
-- "The per-project snapshot is 3 to 6 s for a 250,000-session project" is supported
-  (3.6 to 6.6 s p95 across configurations). The payload of 49.6 MB exceeds the 8 MiB
-  reference, which the supplied reading did not mention.
-- "The whole-library snapshot at 1,000,000 used about 1 GB peak heap" is supported
-  (0.77 to 1.24 GB). Its latency of 13 to 16 s p95 is the more important finding.
 
 ### Not measured
 
