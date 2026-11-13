@@ -436,7 +436,7 @@ func runReads(ctx context.Context, e *env, p Preset, cfg indexConfig, work strin
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { conn.Close(ctx) }()
 	m, err := loadManifest(e.out, p.Name)
 	if err != nil {
 		return err
@@ -459,6 +459,11 @@ func runReads(ctx context.Context, e *env, p Preset, cfg indexConfig, work strin
 		if opts.coldSamples > 0 && e.pgCtl != "" && e.pgData != "" {
 			cold, err := runColdSamples(ctx, e, work, base, rc, opts.coldSamples)
 			if err != nil {
+				return err
+			}
+			// A cold sample restarts PostgreSQL, which closes this connection.
+			conn.Close(ctx)
+			if conn, err = connectConn(ctx, dsn); err != nil {
 				return err
 			}
 			if err := appendResult(dir, cold); err != nil {
