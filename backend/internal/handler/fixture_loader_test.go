@@ -26,14 +26,14 @@ func loadFixtureRows[T any](t *testing.T, data []byte, wantRows int) []T {
 
 // decodeFixtureDocument is the one strict YAML fixture decoder for this
 // package's tests. It decodes exactly one document into T, refuses a field T
-// does not declare, and refuses a second document. Callers add the fixture's
-// name to the returned error.
+// does not declare, and refuses a second document. Callers should add the
+// fixture's path when reporting the returned error.
 func decodeFixtureDocument[T any](data []byte) (T, error) {
 	var document T
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&document); err != nil {
-		return document, fmt.Errorf("decode the fixture with unknown fields refused; correct or remove the named YAML field: %w", err)
+		return document, fmt.Errorf("decode the fixture (unknown fields are refused); correct the YAML syntax, field names, or value types: %w", err)
 	}
 	var trailing any
 	switch err := decoder.Decode(&trailing); {
@@ -65,10 +65,34 @@ var fixtureLoaderMultipleDocumentsYAML []byte
 //go:embed testdata/fixture_loader_unparseable_trailing.yaml
 var fixtureLoaderUnparseableTrailingYAML []byte
 
+//go:embed testdata/fixture_loader_syntax_error.yaml
+var fixtureLoaderSyntaxErrorYAML []byte
+
+//go:embed testdata/fixture_loader_type_mismatch.yaml
+var fixtureLoaderTypeMismatchYAML []byte
+
 func TestDecodeFixtureDocumentRejectsUnknownFields(t *testing.T) {
 	_, err := decodeFixtureDocument[[]fixtureLoaderProbe](fixtureLoaderUnknownFieldYAML)
-	if err == nil || !strings.Contains(err.Error(), "field unknown") {
+	if err == nil || !strings.Contains(err.Error(), "field unknown") || !strings.Contains(err.Error(), "decode the fixture (unknown fields are refused)") {
 		t.Fatalf("unknown fixture field error = %v, want strict field rejection", err)
+	}
+}
+
+func TestDecodeFixtureDocumentReportsSyntaxError(t *testing.T) {
+	_, err := decodeFixtureDocument[[]fixtureLoaderProbe](fixtureLoaderSyntaxErrorYAML)
+	if err == nil || !strings.Contains(err.Error(), "decode the fixture (unknown fields are refused)") || !strings.Contains(err.Error(), "correct the YAML syntax, field names, or value types") || !strings.Contains(err.Error(), "yaml: line 1:") {
+		t.Fatalf("syntax fixture error = %v, want neutral, actionable decode error and YAML cause", err)
+	}
+}
+
+func TestDecodeFixtureDocumentReportsTypeMismatch(t *testing.T) {
+	_, err := decodeFixtureDocument[[]fixtureLoaderProbe](fixtureLoaderTypeMismatchYAML)
+	if err == nil || !strings.Contains(err.Error(), "decode the fixture (unknown fields are refused)") || !strings.Contains(err.Error(), "correct the YAML syntax, field names, or value types") || !strings.Contains(err.Error(), "cannot unmarshal") {
+		t.Fatalf("type-mismatch fixture error = %v, want neutral, actionable decode error and YAML cause", err)
+	}
+	var cause *yaml.TypeError
+	if !errors.As(err, &cause) {
+		t.Fatalf("type-mismatch fixture error = %v, want wrapped YAML type error", err)
 	}
 }
 
