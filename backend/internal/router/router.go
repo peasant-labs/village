@@ -200,6 +200,9 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 			// offer this collective, and one write that offers a project's
 			// transcripts in a single transaction. Both are member-only.
 			r.With(h.AuthRequired).Post(prefix+"/{id}/shares", h.BatchShareProject)
+			// The project picker: one page of the caller's projects with their session
+			// counts, searched across every project.
+			r.With(h.AuthRequired).Get(prefix+"/{id}/contributable/projects", h.ListContributionProjects)
 			// Reviewing submissions: one route decides ONE submission, the other
 			// decides a whole selection in one action. Both are owner-only and
 			// neither touches transcript visibility.
