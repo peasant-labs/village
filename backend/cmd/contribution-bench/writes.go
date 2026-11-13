@@ -335,17 +335,19 @@ func runWrites(ctx context.Context, e *env, p Preset, cfg indexConfig, work stri
 
 	// Selections: contribution rows, concurrent contribution rows, visibility rows.
 	// The smoke dataset has too few candidates for the full sizes.
-	rowsPerSet, visRows := contributionRows, 100
+	// The Reported and Large write project has 1,250 unsubmitted rows, so the
+	// concurrent set is half the primary set and the visibility set is 50.
+	rowsPerSet, concRows, visRows := contributionRows, contributionRows/2, 50
 	if p.Name == "small" {
-		rowsPerSet, visRows = 30, 40
+		rowsPerSet, concRows, visRows = 30, 30, 40
 	}
-	sel, err := selectWriteSet(ctx, pool, owner, projHash, 2*rowsPerSet+visRows)
+	sel, err := selectWriteSet(ctx, pool, owner, projHash, rowsPerSet+concRows+visRows)
 	if err != nil {
 		return err
 	}
 	chunkIDs := sel[:rowsPerSet]
-	concIDs := sel[rowsPerSet : 2*rowsPerSet]
-	visIDs := sel[2*rowsPerSet:]
+	concIDs := sel[rowsPerSet : rowsPerSet+concRows]
+	visIDs := sel[rowsPerSet+concRows:]
 	if err := writeJSON(filepath.Join(dir, "selection.json"), map[string]any{
 		"project": projName, "project_hash": projHash,
 		"contribution_rows": len(chunkIDs), "concurrent_contribution_rows": len(concIDs), "visibility_rows": len(visIDs),
