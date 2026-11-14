@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -62,44 +61,35 @@ func decodeContributionProjectCursor(raw string) (contributionProjectCursor, err
 	return c, nil
 }
 
-// parseContributionProjectsQuery accepts exactly the parameters the contract
-// names. It returns a refusal message, empty when the query is valid.
+// parseContributionProjectsQuery reads the parameters the picker uses: q,
+// provider, limit and cursor. Any other parameter is ignored. A parameter it
+// uses may be sent once. It returns a refusal message, empty when the query is
+// valid.
 func parseContributionProjectsQuery(values url.Values) (contributionProjectsParams, string) {
 	params := contributionProjectsParams{limit: contributionProjectsLimitDefault}
-	for key, vs := range values {
-		switch key {
-		case "q", "provider", "cursor", "limit":
-		default:
-			return params, "an unsupported parameter was supplied to the project picker. Use only q, provider, cursor and limit. Nothing was read."
-		}
-		if len(vs) != 1 {
-			return params, fmt.Sprintf("the parameter %q was repeated. Send each parameter once. Nothing was read.", key)
-		}
+	if refusal := refuseRepeatedParameters(values, "limit", "cursor"); refusal != "" {
+		return params, refusal
 	}
-	params.query = strings.TrimSpace(values.Get("q"))
-	params.provider = strings.TrimSpace(values.Get("provider"))
-	if raw := values.Get("limit"); values.Has("limit") {
-		limit, err := strconv.Atoi(raw)
+	search, refusal := parseContributionSearch(values)
+	if refusal != "" {
+		return params, refusal
+	}
+	params.query, params.provider = search.Query, search.Provider
+	if values.Has("limit") {
+		limit, err := strconv.Atoi(values.Get("limit"))
 		if err != nil || limit < 1 || limit > contributionProjectsLimitMaximum {
 			return params, fmt.Sprintf("limit must be a whole number from 1 through %d, counted in projects. Nothing was read.", contributionProjectsLimitMaximum)
 		}
 		params.limit = limit
 	}
-	if raw := values.Get("cursor"); values.Has("cursor") {
-		cursor, err := decodeContributionProjectCursor(raw)
+	if values.Has("cursor") {
+		cursor, err := decodeContributionProjectCursor(values.Get("cursor"))
 		if err != nil {
 			return params, "the cursor is not one this project picker issued. Start again from the first page. Nothing was read."
 		}
 		params.cursor = &cursor
 	}
 	return params, ""
-}
-
-// escapeContributionLikePattern makes a search text literal inside an ILIKE
-// pattern, so % and _ in the search match themselves.
-func escapeContributionLikePattern(text string) string {
-	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	return "%" + replacer.Replace(text) + "%"
 }
 
 // contributionProjectAfter reports whether a project sorts strictly after the
@@ -130,14 +120,10 @@ func (h *Handler) ListContributionProjects(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	params, refusal := parseContributionProjectsQuery(r.URL.Query())
-	if refusal != "" {
-		writeError(w, http.StatusBadRequest, refusal)
-		return
-	}
-
 	pgGroupID := toPgUUID(groupID)
 	viewer := user.PgID()
+	// The gate comes before the parameters, and a collective that does not exist
+	// answers as one the caller is not in, exactly as the flat listing does.
 	if _, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
 		GroupID: pgGroupID,
 		UserID:  viewer,
@@ -145,6 +131,12 @@ func (h *Handler) ListContributionProjects(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusForbidden, fmt.Sprintf(
 			"you are not a member of collective %s, so Village will not list what you could contribute to it. Nothing "+
 				"was read. Join the collective first, then open its contribute page.", groupID))
+		return
+	}
+
+	params, refusal := parseContributionProjectsQuery(r.URL.Query())
+	if refusal != "" {
+		writeError(w, http.StatusBadRequest, refusal)
 		return
 	}
 
@@ -157,32 +149,23 @@ func (h *Handler) ListContributionProjects(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Names are matched in Go, on the displayed name of each ROOT project only.
+	// The SQL receives the resulting project set and never classifies a name.
 	queries := sqlc.New(h.pool)
-	roots, err := queries.ListOwnerContributionRootProjects(ctx, viewer)
+	roots, err := h.readContributionRootProjects(ctx, queries, viewer, params.query)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError,
 			"your projects could not be read, so Village cannot say what you could contribute to this collective. "+
 				"Nothing was changed. Retry in a moment.")
 		return
 	}
-	keys := make([]projectIdentityKey, 0, len(roots))
-	for _, hash := range roots {
-		keys = append(keys, projectIdentityKey{OwnerID: viewer, ProjectHash: hash})
+	identities := roots.Identities
+	nameMatched := roots.Named
+	if nameMatched == nil {
+		nameMatched = []string{}
 	}
-	identities := h.resolveProjectIdentities(ctx, keys)
-
-	// Names are matched here, in Go, on the displayed name only. The SQL
-	// receives the resulting project set and never classifies a name.
-	nameMatched := []string{}
 	hasQuery := params.query != ""
-	if hasQuery {
-		needle := strings.ToLower(params.query)
-		for _, key := range keys {
-			if strings.Contains(strings.ToLower(identities[key].DisplayName), needle) {
-				nameMatched = append(nameMatched, key.ProjectHash)
-			}
-		}
-	}
+	titlePattern := contributionTitlePattern(params.query)
 
 	counts, err := queries.CountOwnerContributionFamilyMatches(ctx, sqlc.CountOwnerContributionFamilyMatchesParams{
 		OwnerID:             viewer,
@@ -190,7 +173,7 @@ func (h *Handler) ListContributionProjects(w http.ResponseWriter, r *http.Reques
 		HasQuery:            hasQuery,
 		NameMatchedProjects: nameMatched,
 		Provider:            params.provider,
-		TitlePattern:        escapeContributionLikePattern(params.query),
+		TitlePattern:        titlePattern,
 		ExactText:           params.query,
 	})
 	if err != nil {
@@ -203,7 +186,7 @@ func (h *Handler) ListContributionProjects(w http.ResponseWriter, r *http.Reques
 		OwnerID:             viewer,
 		HasQuery:            hasQuery,
 		NameMatchedProjects: nameMatched,
-		TitlePattern:        escapeContributionLikePattern(params.query),
+		TitlePattern:        titlePattern,
 		ExactText:           params.query,
 	})
 	if err != nil {

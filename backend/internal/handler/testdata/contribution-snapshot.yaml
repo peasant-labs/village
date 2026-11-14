@@ -35,11 +35,11 @@
 
 - name: search
   why: >
-    One q matches project display names, root and helper titles, and exact
-    transcript ids, case-insensitively and as literal text. A family is in when
-    its root or any helper matches, and then every member is in. A member
-    matches by its OWN project's display name, so a helper in another project
-    can bring its family in. provider keeps
+    One q matches the root's project display name, root and helper titles,
+    exact transcript ids and exact local session ids, case-insensitively and as
+    literal text. A family is in when its root or any helper matches, and then
+    every member is in. Only the ROOT's project name counts: a helper that lives
+    in a project whose name matches does not bring its family in. provider keeps
     the families that hold a session of that model provider. The two combine as
     an intersection.
   transcripts:
@@ -60,7 +60,8 @@
     - {name: helper_only_title, project: alpha, q: ledger, want: [f1, f1h]}
     - {name: project_name, project: alpha, q: orchard, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
     - {name: project_name_phrase, project: alpha, q: ORCHARD ALPHA, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
-    - {name: helper_project_name_brings_the_family_in, project: alpha, q: zeta, want: [f4, f4h]}
+    - {name: helper_project_name_does_not_match, project: alpha, q: zeta, want: []}
+    - {name: root_project_name_of_the_other_project, project: beta, q: zeta, want: [g1, g1h]}
     - {name: foreign_project_name_without_a_member_there, project: beta, q: orchard, want: []}
     - {name: exact_id_of_a_helper, project: alpha, q_id_of: f2h, want: [f2, f2h]}
     - {name: exact_id_of_a_root, project: alpha, q_id_of: f3, want: [f3, f3h]}

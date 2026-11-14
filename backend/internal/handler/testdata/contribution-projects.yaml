@@ -391,15 +391,20 @@
   expect_providers:
     - {provider: claude-code, count: 1}
 
-- name: unknown_parameter_is_refused
+- name: unknown_parameter_is_ignored
   why: >
-    Only the declared parameters are accepted. A parameter the contract does not
-    name, such as a project search under another name, is refused so a client
-    learns its filter was not applied.
+    A parameter the contract does not name is ignored, exactly as the paged and
+    snapshot views ignore it, so the three reads treat one request alike.
   transcripts:
     - {key: r, project: p1}
   raw_query: project_q=ledger
-  expect_status: 400
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
 
 - name: repeated_parameter_is_refused
   why: >

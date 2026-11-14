@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -42,7 +42,17 @@ var contributableViewMenu = []string{contributableViewGrouped, contributableView
 // and reports whether it did. An omitted view is the flat response, which the
 // caller serves itself.
 func (h *Handler) dispatchContributableView(w http.ResponseWriter, r *http.Request) bool {
-	switch view := r.URL.Query().Get("view"); view {
+	views := r.URL.Query()["view"]
+	view := ""
+	if len(views) > 0 {
+		view = views[0]
+	}
+	if len(views) > 1 && (slices.Contains(views, contributableViewPaged) || slices.Contains(views, contributableViewSnapshot)) {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"the parameter \"view\" was sent %d times; send it once. Nothing was read.", len(views)))
+		return true
+	}
+	switch view {
 	case "":
 		return false
 	case contributableViewGrouped:
@@ -146,19 +156,20 @@ func decodeContributionCursor(raw, fingerprint string) (*contributionPageCursor,
 	return &cursor, true
 }
 
-// contributionPageParams reads and validates the query of a paged read. A
-// failure is a message for the caller, already actionable.
+// contributionPageParams reads and validates the query of a paged read. It
+// uses view, project_hash, q, provider, limit and cursor; every other parameter
+// is ignored. A failure is a message for the caller, already actionable.
 func contributionPageParams(query url.Values, viewer, group string) (contributionPageRequest, string) {
 	req := contributionPageRequest{Limit: schema.VillageContributionPageLimitDefault}
 
-	req.Q = strings.TrimSpace(query.Get("q"))
-	if !validSearchText(req.Q) {
-		return req, "q contains a character a search cannot use (a NUL byte or invalid UTF-8). Nothing was read. Retype the search."
+	if refusal := refuseRepeatedParameters(query, "project_hash", "limit", "cursor"); refusal != "" {
+		return req, refusal
 	}
-	req.Provider = strings.TrimSpace(query.Get("provider"))
-	if !validSearchText(req.Provider) {
-		return req, "provider contains a character a filter cannot use (a NUL byte or invalid UTF-8). Nothing was read. Pick a provider from the list."
+	search, refusal := parseContributionSearch(query)
+	if refusal != "" {
+		return req, refusal
 	}
+	req.Q, req.Provider = search.Query, search.Provider
 	req.ProjectHash = query.Get("project_hash")
 	if req.ProjectHash != "" && !projectHashPattern.MatchString(req.ProjectHash) {
 		return req, "project_hash is not a project identity (64 lowercase hexadecimal characters). Nothing was read. Copy the exact hash from the project's page."
@@ -171,18 +182,14 @@ func contributionPageParams(query url.Values, viewer, group string) (contributio
 		}
 		req.Limit = limit
 	}
-	if raw := query.Get("cursor"); raw != "" {
-		cursor, ok := decodeContributionCursor(raw, contributionCursorFingerprint(viewer, group, req))
+	if query.Has("cursor") {
+		cursor, ok := decodeContributionCursor(query.Get("cursor"), contributionCursorFingerprint(viewer, group, req))
 		if !ok {
 			return req, "cursor is not a position in this listing: it is malformed, or it was issued for another search, filter or collective. Nothing was read. Start from the first page by omitting cursor."
 		}
 		req.Cursor = cursor
 	}
 	return req, ""
-}
-
-func validSearchText(s string) bool {
-	return utf8.ValidString(s) && !strings.ContainsRune(s, 0)
 }
 
 // listContributablePaged serves one page of families for the caller's own
@@ -223,13 +230,18 @@ func (h *Handler) listContributablePaged(w http.ResponseWriter, r *http.Request)
 	}
 	if req.Q != "" {
 		params.Q = pgtype.Text{String: req.Q, Valid: true}
-		matching, err := h.projectsMatchingSearch(r, user.PgID(), req.Q)
+		params.TitlePattern = pgtype.Text{String: contributionTitlePattern(req.Q), Valid: true}
+		// Only a root's own project name can select a family, so only the
+		// owner's root projects are named.
+		roots, err := h.readContributionRootProjects(ctx, queries, user.PgID(), req.Q)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError,
 				"your projects could not be read, so Village cannot search them. Nothing was changed. Retry in a moment.")
 			return
 		}
-		params.MatchingProjects = matching
+		if roots.Named != nil {
+			params.MatchingProjects = roots.Named
+		}
 	}
 	if req.Provider != "" {
 		params.Provider = pgtype.Text{String: req.Provider, Valid: true}
@@ -315,31 +327,6 @@ func (h *Handler) listContributablePaged(w http.ResponseWriter, r *http.Request)
 		response.NextCursor = &cursor
 	}
 	writeJSON(w, http.StatusOK, response)
-}
-
-// projectsMatchingSearch returns the owner's project identities whose display
-// name contains the search text. The display name is a tiered resolution over
-// several tables, not a column, so it is resolved here and handed to the
-// statement as a set of identities.
-func (h *Handler) projectsMatchingSearch(r *http.Request, owner pgtype.UUID, q string) ([]string, error) {
-	ctx := r.Context()
-	hashes, err := sqlc.New(h.pool).ListOwnerProjectHashes(ctx, owner)
-	if err != nil {
-		return nil, err
-	}
-	keys := make([]projectIdentityKey, 0, len(hashes))
-	for _, hash := range hashes {
-		keys = append(keys, projectIdentityKey{OwnerID: owner, ProjectHash: hash})
-	}
-	identities := h.resolveProjectIdentities(ctx, keys)
-	needle := strings.ToLower(q)
-	matching := []string{}
-	for _, key := range keys {
-		if strings.Contains(strings.ToLower(identities[key].DisplayName), needle) {
-			matching = append(matching, key.ProjectHash)
-		}
-	}
-	return matching, nil
 }
 
 // contributionSortTime is the clock a root is ordered on: when the session

@@ -19,12 +19,16 @@
 -- a row inserted meanwhile can neither repeat a root nor skip one.
 --
 -- Filters narrow FAMILIES, not rows. q and provider are combined with AND, and a
--- family qualifies when its root OR any helper satisfies each one. q matches a
--- member whose title contains it (case-insensitive), whose transcript id equals
--- it exactly, or whose project is one of matching_projects (the caller resolves
--- project display names in Go, because the name is a tiered resolution over
--- several tables and is not a column). matched is reported per member, and only
--- when q was sent.
+-- family qualifies when its root OR any helper satisfies each one. The rule is
+-- defined once, in handler/contribution_family.go, and the fragments below are
+-- its canonical text with named placeholders; a drift test holds them equal.
+-- q matches a member whose title contains the search (title_pattern, an escaped
+-- ILIKE pattern), whose transcript id equals it ignoring case, or whose local
+-- session id equals it exactly. A ROOT also matches when its own project is one
+-- of matching_projects (the caller resolves project display names in Go, because
+-- the name is a tiered resolution over several tables and is not a column); a
+-- helper's project never matches. matched is reported per member, and only when
+-- q was sent.
 --
 -- The unfiltered path stays a bounded read: the family-wide filter expansion is
 -- seeded only when q or provider is present, so with neither the root query is
@@ -41,8 +45,8 @@
 -- collective) pair in the append-only ledger, never the derived projection;
 -- it is the empty string when the pair has no attempt. matched is meaningful
 -- only when q was sent.
--- already_shared is true only for pending and approved, the same definition
--- the single share path applies.
+-- already_shared is true only for pending and approved: the one live definition
+-- every contribution read shares.
 WITH RECURSIVE
 all_roots AS NOT MATERIALIZED (
     SELECT t.id, t.project_hash,
@@ -59,31 +63,29 @@ all_roots AS NOT MATERIALIZED (
           )
       )
 ),
-filter_family(root_id, id, local_id, matched, has_provider) AS (
-    SELECT r.id, t.id, t.local_id,
-           CASE WHEN sqlc.narg('q')::text IS NULL THEN NULL ELSE (
-               strpos(lower(COALESCE(t.title, '')), lower(sqlc.narg('q')::text)) > 0
-               OR t.id::text = lower(sqlc.narg('q')::text)
-               OR t.project_hash = ANY(@matching_projects::text[])
-           ) END,
-           COALESCE(t.model_provider = sqlc.narg('provider')::text, false)
+filter_family(root_id, id, local_id, depth) AS (
+    SELECT r.id, t.id, t.local_id, 0
     FROM all_roots r
     JOIN transcripts t ON t.id = r.id
     WHERE (sqlc.narg('q')::text IS NOT NULL OR sqlc.narg('provider')::text IS NOT NULL)
     UNION ALL
-    SELECT f.root_id, c.id, c.local_id,
-           CASE WHEN sqlc.narg('q')::text IS NULL THEN NULL ELSE (
-               strpos(lower(COALESCE(c.title, '')), lower(sqlc.narg('q')::text)) > 0
-               OR c.id::text = lower(sqlc.narg('q')::text)
-               OR c.project_hash = ANY(@matching_projects::text[])
-           ) END,
-           COALESCE(c.model_provider = sqlc.narg('provider')::text, false)
+    SELECT f.root_id, c.id, c.local_id, f.depth + 1
     FROM filter_family f
     JOIN transcripts c ON c.owner_id = @owner_id AND c.parent_session_id = f.local_id
 ),
+filter_member(root_id, id, matched, has_provider) AS (
+    SELECT f.root_id, f.id,
+           CASE WHEN sqlc.narg('q')::text IS NULL THEN NULL ELSE (
+               (COALESCE(t.title ILIKE sqlc.narg('title_pattern')::text, false) OR lower(t.id::text) = lower(sqlc.narg('q')::text) OR t.local_id = sqlc.narg('q')::text)
+               OR (f.depth = 0 AND COALESCE(t.project_hash = ANY(@matching_projects::text[]), false))
+           ) END,
+           COALESCE(t.model_provider = sqlc.narg('provider')::text, false)
+    FROM filter_family f
+    JOIN transcripts t ON t.id = f.id
+),
 qualifying_roots AS (
     SELECT root_id
-    FROM filter_family
+    FROM filter_member
     GROUP BY root_id
     HAVING (sqlc.narg('q')::text IS NULL OR bool_or(matched))
        AND (sqlc.narg('provider')::text IS NULL OR bool_or(has_provider))
@@ -123,23 +125,7 @@ SELECT f.root_id, f.depth,
 FROM family f
 JOIN page_roots pr ON pr.id = f.root_id
 JOIN transcripts t ON t.id = f.id
-LEFT JOIN LATERAL (
-    SELECT a.status
-    FROM transcript_share_attempts a
-    WHERE a.transcript_id = t.id
-      AND a.group_id = @group_id
-    ORDER BY a.event_num DESC
-    LIMIT 1
-) ls ON true
-LEFT JOIN filter_family ff ON ff.id = f.id
+LEFT JOIN LATERAL (SELECT s.status FROM transcript_share_attempts s WHERE s.transcript_id = t.id AND s.group_id = @group_id ORDER BY s.event_num DESC LIMIT 1) ls ON true
+LEFT JOIN filter_member ff ON ff.id = f.id
 ORDER BY pr.sort_time DESC, pr.id ASC, f.depth ASC,
          COALESCE(t.session_start, t.published_at, 'epoch'::timestamptz) ASC, t.id ASC;
-
--- name: ListOwnerProjectHashes :many
--- The distinct project identities one owner has published into. The paged
--- contribution view resolves each one's display name in Go so a search can
--- match project names; the name is a tiered resolution, not a column.
-SELECT DISTINCT t.project_hash
-FROM transcripts t
-WHERE t.owner_id = @owner_id
-ORDER BY t.project_hash;

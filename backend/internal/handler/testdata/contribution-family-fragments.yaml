@@ -1,0 +1,119 @@
+# Where the sqlc statements of the picker and the paged view must carry the
+# canonical text of the family rule (handler/contribution_family.go). sqlc has no
+# way to include a fragment, so the text is repeated in each statement and these
+# rows hold every repeat equal to the Go builder, ignoring whitespace.
+#
+# file is the queries file, statement the sqlc name inside it, kind the fragment,
+# alias the table alias the statement uses for it, and a / b the placeholder
+# expressions the statement passes in (see the builder for what each means).
+
+- name: picker_projects_root_condition
+  file: contribution_projects.sql
+  statement: ListOwnerContributionRootProjects
+  kind: root
+  alias: t
+
+- name: picker_counts_root_condition
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: root
+  alias: t
+
+- name: picker_counts_member_match
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: member
+  alias: m
+  a: "@title_pattern::text"
+  b: "@exact_text::text"
+
+- name: picker_counts_root_name_match
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: root_name
+  alias: m
+  a: "@name_matched_projects::text[]"
+
+- name: picker_counts_provider_match
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: provider
+  alias: m
+  a: "@provider::text"
+
+- name: picker_counts_latest_attempt
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: latest
+  alias: m
+  a: "@group_id"
+  b: a
+
+- name: picker_counts_live
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: live
+  alias: a
+
+- name: picker_facets_root_condition
+  file: contribution_projects.sql
+  statement: CountOwnerContributionProviderMatches
+  kind: root
+  alias: t
+
+- name: picker_facets_member_match
+  file: contribution_projects.sql
+  statement: CountOwnerContributionProviderMatches
+  kind: member
+  alias: m
+  a: "@title_pattern::text"
+  b: "@exact_text::text"
+
+- name: picker_facets_root_name_match
+  file: contribution_projects.sql
+  statement: CountOwnerContributionProviderMatches
+  kind: root_name
+  alias: m
+  a: "@name_matched_projects::text[]"
+
+- name: paged_root_condition
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: root
+  alias: t
+
+- name: paged_member_match
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: member
+  alias: t
+  a: "sqlc.narg('title_pattern')::text"
+  b: "sqlc.narg('q')::text"
+
+- name: paged_root_name_match
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: root_name
+  alias: t
+  a: "@matching_projects::text[]"
+
+- name: paged_provider_match
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: provider
+  alias: t
+  a: "sqlc.narg('provider')::text"
+
+- name: paged_latest_attempt
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: latest
+  alias: t
+  a: "@group_id"
+  b: ls
+
+- name: paged_live
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: live
+  alias: ls

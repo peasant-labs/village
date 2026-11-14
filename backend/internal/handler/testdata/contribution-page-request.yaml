@@ -170,3 +170,42 @@
   raw_cursor_json: '{"v":1,"t":1,"i":"not-an-id","k":"{fp}"}'
   query: "view=paged"
   expect_refusal: ["cursor"]
+
+- name: an_empty_cursor_is_refused
+  why: >
+    A present but empty cursor is not a position and is not the first page; the
+    picker refuses it the same way, so the two reads cannot disagree on it.
+  query: "view=paged&cursor="
+  expect_refusal: ["cursor"]
+
+- name: a_repeated_q_is_refused
+  why: A known parameter sent twice is ambiguous; every contribution read refuses it.
+  query: "view=paged&q=a&q=b"
+  expect_refusal: ["q", "2 times"]
+
+- name: a_repeated_provider_is_refused
+  why: The same repeat rule applies to the provider filter.
+  query: "view=paged&provider=a&provider=b"
+  expect_refusal: ["provider", "2 times"]
+
+- name: a_repeated_limit_is_refused
+  why: The first of two limits is not silently taken.
+  query: "view=paged&limit=1&limit=2"
+  expect_refusal: ["limit", "2 times"]
+
+- name: a_repeated_project_hash_is_refused
+  why: A project is named once.
+  query: "view=paged&project_hash=a&project_hash=b"
+  expect_refusal: ["project_hash", "2 times"]
+
+- name: a_repeated_cursor_is_refused
+  why: A position is named once.
+  query: "view=paged&cursor=e30&cursor=e30"
+  expect_refusal: ["cursor", "2 times"]
+
+- name: an_unknown_parameter_is_ignored
+  why: >
+    Every contribution read ignores a parameter it does not use, so a caller
+    that sends one extra field is served rather than refused.
+  query: "view=paged&flavour=mint&limit=7"
+  expect: {limit: 7}

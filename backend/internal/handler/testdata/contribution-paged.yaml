@@ -373,10 +373,11 @@
 
 - name: q_matches_project_display_names
   why: >
-    q also matches the project a session belongs to, by the name the owner sees.
-    The name is resolved in Go, not stored in a column, so only a real database
-    plus the shared resolver can show this works. Every member of a matching
-    project matches; a helper that lives in another project does not.
+    q also matches the project a family belongs to, by the name the owner sees,
+    and only through the family's ROOT. The name is resolved in Go, not stored
+    in a column, so only a real database plus the shared resolver can show this
+    works. A helper never matches by its own project name, even when that
+    project's name contains q; it is listed because its family was selected.
   projects: {p: "Quartz Harbor", q: "Amber Fields"}
   transcripts:
     - {key: root, project: p, title: "one", session_age: 10}
@@ -388,12 +389,11 @@
       expect_status: 200
       expect_roots: [root]
       expect_helpers: {root: [same, away]}
-      expect_matched: {root: true, same: true, away: false}
+      expect_matched: {root: true, same: false, away: false}
     - query: "view=paged&q=amber"
       expect_status: 200
-      expect_roots: [root, elsewhere]
-      expect_helpers: {root: [same, away]}
-      expect_matched: {root: false, same: false, away: true, elsewhere: true}
+      expect_roots: [elsewhere]
+      expect_matched: {elsewhere: true}
 
 - name: q_with_no_match_returns_an_empty_page
   why: >

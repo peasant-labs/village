@@ -41,6 +41,10 @@ func (h *Handler) RegisterCollectiveBrowseRoutes(r chi.Router) {
 	for _, prefix := range []string{"/collectives", "/groups"} {
 		r.With(h.AuthOptional).Get(prefix+"/{id}", h.GetGroup)
 		r.With(h.AuthRequired).Get(prefix+"/{id}/contributable", h.ListContributable)
+		// The project picker: one page of the caller's projects with their session
+		// counts, searched across every project. It is mounted beside the three
+		// contribution views it must agree with.
+		r.With(h.AuthRequired).Get(prefix+"/{id}/contributable/projects", h.ListContributionProjects)
 		r.With(h.AuthRequired).Get(prefix+"/{id}/pending", h.ListPendingShares)
 		r.With(h.AuthRequired).Get(prefix+"/{id}/my-shares", h.ListMyGroupShares)
 	}
