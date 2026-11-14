@@ -17,6 +17,8 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - ".unstring.yaml"
+      - ".unstring-baseline.yaml"
       - "scripts/verify-production-artifacts.sh"
       - "scripts/production-image-build.sh"
       - "scripts/check-artifact-source.sh"
@@ -40,6 +42,8 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - ".unstring.yaml"
+      - ".unstring-baseline.yaml"
       - "scripts/verify-production-artifacts.sh"
       - "scripts/production-image-build.sh"
       - "scripts/check-artifact-source.sh"
@@ -310,6 +314,18 @@ jobs:
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install ast-grep
+        run: npm install --global @ast-grep/cli@0.51.2
+
+      - name: Static guard (unstring)
+        run: make check-unstring
 
       # Run the complete suite before lint/build. The mutation runner rewrites
       # production files temporarily, so it must remain sequential with every

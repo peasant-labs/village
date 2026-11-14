@@ -9,6 +9,9 @@
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs = nixpkgs-unstable;
+    # ast-grep 0.51.2 is newer than both channel pins; keep it on its own input
+    # so an ordinary `nix flake update` does not move the guard's required tool.
+    nixpkgs-ast-grep.url = "github:NixOS/nixpkgs/34209e4f67c988d6a21b19f4ae37672fce52c7da";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -21,6 +24,7 @@
     , nixpkgs
     , nixpkgs-stable
     , nixpkgs-unstable
+    , nixpkgs-ast-grep
     , flake-utils
     , ...
     }:
@@ -47,7 +51,6 @@
         gotools # goimports, godoc, etc.
         go-tools # staticcheck
         delve # debugger
-        ast-grep # structural code search and lint
         golangci-lint # linter suite
         sqlite # CLI for inspecting analytics store
         nodejs_26 # Node.js runtime for frontend tooling
@@ -94,6 +97,9 @@
               config.allowUnfree = true;
             };
 
+            astGrepPkgs = import nixpkgs-ast-grep { inherit system; };
+            ast-grep = astGrepPkgs.ast-grep;
+
             goPackage =
               if goAttr != null
               then pkgs.${goAttr}
@@ -135,7 +141,7 @@
             devShell = pkgs.mkShell {
               name = "${pname}-dev";
               inputsFrom = [ package ];
-              packages = (devTools pkgs);
+              packages = (devTools pkgs) ++ [ ast-grep ];
 
               shellHook = ''
                 echo "Go $(go version | cut -d' ' -f3) dev shell"
