@@ -56,6 +56,15 @@ real PostgreSQL and RustFS aggregate. It rejects skipped integration tests.
 
 See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
+## Static guard
+
+`make check-unstring` runs `unstring` v0.0.1 over the frontend and backend. It
+needs Go 1.24+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
+`.unstring-baseline.yaml` is generated and can only shrink; run
+`make unstring-update` to lower it. A deliberate exception uses
+`// unstring-allow: <rule-id> — <reason>` with at least three words, and the two
+closed-set rules accept no marker. CI runs the guard in the `frontend` job.
+
 ## Database and migration safety
 
 Read `docs/database-invariants.md` before changing migrations, SQL, transcript
@@ -82,7 +91,7 @@ behavior. Update that document in the same commit whenever an invariant changes.
 The public `github.com/peasant-labs/schema` module is the source of truth for
 wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
-The current backend module pin is Schema 0.52.0; its Village API version is
+The current backend module pin is Schema 0.53.0; its Village API version is
 0.40.0. The mounted-byte release-asset test guards this pairing. The frontend
 package pin remains `@peasant-labs/schema` 0.51.0: it will follow a Fairtrade
 release, and no producer emits the new Antigravity harness values yet.

@@ -1,6 +1,9 @@
-.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check
+.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check check-unstring unstring-update
 
 export PATH := $(PATH):$(shell go env GOPATH)/bin
+
+# Static guard against stringly-typed values, pinned to the published tool.
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.1
 
 # Local development (infra + app in Docker). All @peasant-labs/* packages
 # resolve from the registry via the pnpm workspace (see pnpm-workspace.yaml);
@@ -37,6 +40,12 @@ seed:
 test:
 	@echo "Running tests..."
 	cd backend && go test ./...
+
+check-unstring:
+	$(UNSTRING) check
+
+unstring-update:
+	$(UNSTRING) update
 
 # Dependency license notices shipped in the backend image (backend/Dockerfile).
 third-party-notices:
