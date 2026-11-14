@@ -113,6 +113,17 @@ type projectIdentityKey struct {
 // answer — the resolver's last-resort synthesis from the hash — so a caller never
 // has to invent a fallback of its own.
 func (h *Handler) resolveProjectIdentities(ctx context.Context, keys []projectIdentityKey) map[projectIdentityKey]projectname.Resolved {
+	return h.resolveProjectIdentitiesFrom(ctx, h.queries, keys)
+}
+
+// projectIdentityReader is the one read the resolver needs, so a caller inside a
+// transaction resolves names from the same snapshot as the rest of its reads.
+type projectIdentityReader interface {
+	ListOwnerProjectIdentities(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error)
+}
+
+// resolveProjectIdentitiesFrom is resolveProjectIdentities over a chosen reader.
+func (h *Handler) resolveProjectIdentitiesFrom(ctx context.Context, reader projectIdentityReader, keys []projectIdentityKey) map[projectIdentityKey]projectname.Resolved {
 	resolved := map[projectIdentityKey]projectname.Resolved{}
 	if len(keys) == 0 {
 		return resolved
@@ -134,7 +145,7 @@ func (h *Handler) resolveProjectIdentities(ctx context.Context, keys []projectId
 	}
 
 	if len(hashes) > 0 {
-		rows, err := h.queries.ListOwnerProjectIdentities(ctx, sqlc.ListOwnerProjectIdentitiesParams{
+		rows, err := reader.ListOwnerProjectIdentities(ctx, sqlc.ListOwnerProjectIdentitiesParams{
 			OwnerIds:      ownerIDs,
 			ProjectHashes: hashes,
 		})

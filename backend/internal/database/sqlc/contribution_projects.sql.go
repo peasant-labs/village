@@ -15,7 +15,7 @@ const countOwnerContributionFamilyMatches = `-- name: CountOwnerContributionFami
 WITH RECURSIVE roots AS (
   SELECT t.local_id, t.project_hash
   FROM transcripts t
-  WHERE t.owner_id = $4
+  WHERE t.owner_id = $3
     AND (t.parent_session_id IS NULL OR NOT EXISTS (
           SELECT 1
           FROM transcripts p
@@ -27,35 +27,27 @@ WITH RECURSIVE roots AS (
   UNION
   SELECT f.root_project, f.root_local, h.local_id
   FROM family f
-  JOIN transcripts h ON h.owner_id = $4 AND h.parent_session_id = f.local_id
+  JOIN transcripts h ON h.owner_id = $3 AND h.parent_session_id = f.local_id
 ), member AS (
   SELECT f.root_project,
          f.root_local,
          m.model_provider,
-         (m.title ILIKE $5::text
-           OR lower(m.id::text) = lower($6::text)
-           OR m.local_id = $6::text) AS text_match,
-         EXISTS (
-             SELECT 1
-             FROM transcript_share_attempts a
-             WHERE a.transcript_id = m.id
-               AND a.group_id = $7
-               AND a.status IN ('pending', 'approved')
-               AND a.event_num = (
-                   SELECT max(b.event_num)
-                   FROM transcript_share_attempts b
-                   WHERE b.transcript_id = m.id AND b.group_id = $7
-               )
-         ) AS live
+         (
+           (COALESCE(m.title ILIKE $4::text, false) OR lower(m.id::text) = lower($5::text) OR m.local_id = $5::text)
+           OR (f.local_id = f.root_local AND COALESCE(m.project_hash = ANY($6::text[]), false))
+         ) AS text_match,
+         COALESCE(m.model_provider = $2::text, false) AS provider_match,
+         COALESCE(a.status IN ('pending', 'approved'), false) AS live
   FROM family f
-  JOIN transcripts m ON m.owner_id = $4 AND m.local_id = f.local_id
+  JOIN transcripts m ON m.owner_id = $3 AND m.local_id = f.local_id
+  LEFT JOIN LATERAL (SELECT s.status FROM transcript_share_attempts s WHERE s.transcript_id = m.id AND s.group_id = $7 ORDER BY s.event_num DESC LIMIT 1) a ON true
 ), fam AS (
   SELECT root_project,
          root_local,
          count(*) AS sessions,
          count(*) FILTER (WHERE NOT live) AS selectable,
          bool_or(text_match) AS text_hit,
-         bool_or(model_provider = $3::text) AS has_provider
+         bool_or(provider_match) AS has_provider
   FROM member
   GROUP BY root_project, root_local
 )
@@ -63,18 +55,18 @@ SELECT f.root_project AS project_hash,
        sum(f.sessions)::bigint AS matching_count,
        sum(f.selectable)::bigint AS selectable_count
 FROM fam f
-WHERE (NOT $1::boolean OR f.text_hit OR f.root_project = ANY($2::text[]))
-  AND ($3::text = '' OR f.has_provider)
+WHERE (NOT $1::boolean OR f.text_hit)
+  AND ($2::text = '' OR f.has_provider)
 GROUP BY f.root_project
 `
 
 type CountOwnerContributionFamilyMatchesParams struct {
 	HasQuery            bool        `db:"has_query" json:"has_query"`
-	NameMatchedProjects []string    `db:"name_matched_projects" json:"name_matched_projects"`
 	Provider            string      `db:"provider" json:"provider"`
 	OwnerID             pgtype.UUID `db:"owner_id" json:"owner_id"`
 	TitlePattern        string      `db:"title_pattern" json:"title_pattern"`
 	ExactText           string      `db:"exact_text" json:"exact_text"`
+	NameMatchedProjects []string    `db:"name_matched_projects" json:"name_matched_projects"`
 	GroupID             pgtype.UUID `db:"group_id" json:"group_id"`
 }
 
@@ -86,21 +78,24 @@ type CountOwnerContributionFamilyMatchesRow struct {
 
 // Sessions in the matching families of the caller's roots, one row per root
 // project. A family is a root and every session that descends from it through
-// parent_session_id. It matches when the search is absent, when its root's
-// project was named by the caller's Go-side name match (@name_matched_projects),
-// or when any member's title matches the pattern or any member's id or local id
-// equals the exact text. A provider filter keeps only families holding a session
-// of that provider. Counts are sessions, never roots. selectable_count leaves out
-// sessions whose latest contribution event to the collective is pending or
-// approved, which is the same live definition the contribute listing uses.
+// parent_session_id. The family rule is defined once, in
+// handler/contribution_family.go, and the fragments below are its canonical
+// text with named placeholders; a drift test holds them equal. A family matches
+// when the search is absent, or when its root's project was named by the
+// caller's Go-side name match (@name_matched_projects, the ROOT only), or when
+// any member's title matches the pattern, any member's id equals the search
+// ignoring case, or any member's local id equals it exactly. A provider filter
+// keeps only families holding a session of that provider. Counts are sessions,
+// never roots. selectable_count leaves out live sessions: those whose latest
+// contribution event to the collective is pending or approved.
 func (q *Queries) CountOwnerContributionFamilyMatches(ctx context.Context, arg CountOwnerContributionFamilyMatchesParams) ([]CountOwnerContributionFamilyMatchesRow, error) {
 	rows, err := q.db.Query(ctx, countOwnerContributionFamilyMatches,
 		arg.HasQuery,
-		arg.NameMatchedProjects,
 		arg.Provider,
 		arg.OwnerID,
 		arg.TitlePattern,
 		arg.ExactText,
+		arg.NameMatchedProjects,
 		arg.GroupID,
 	)
 	if err != nil {
@@ -125,7 +120,7 @@ const countOwnerContributionProviderMatches = `-- name: CountOwnerContributionPr
 WITH RECURSIVE roots AS (
   SELECT t.local_id, t.project_hash
   FROM transcripts t
-  WHERE t.owner_id = $3
+  WHERE t.owner_id = $2
     AND (t.parent_session_id IS NULL OR NOT EXISTS (
           SELECT 1
           FROM transcripts p
@@ -137,16 +132,17 @@ WITH RECURSIVE roots AS (
   UNION
   SELECT f.root_project, f.root_local, h.local_id
   FROM family f
-  JOIN transcripts h ON h.owner_id = $3 AND h.parent_session_id = f.local_id
+  JOIN transcripts h ON h.owner_id = $2 AND h.parent_session_id = f.local_id
 ), member AS (
   SELECT f.root_project,
          f.root_local,
          m.model_provider,
-         (m.title ILIKE $4::text
-           OR lower(m.id::text) = lower($5::text)
-           OR m.local_id = $5::text) AS text_match
+         (
+           (COALESCE(m.title ILIKE $3::text, false) OR lower(m.id::text) = lower($4::text) OR m.local_id = $4::text)
+           OR (f.local_id = f.root_local AND COALESCE(m.project_hash = ANY($5::text[]), false))
+         ) AS text_match
   FROM family f
-  JOIN transcripts m ON m.owner_id = $3 AND m.local_id = f.local_id
+  JOIN transcripts m ON m.owner_id = $2 AND m.local_id = f.local_id
 ), fam AS (
   SELECT root_project,
          root_local,
@@ -158,16 +154,16 @@ SELECT m.model_provider AS provider,
        count(*)::bigint AS session_count
 FROM member m
 JOIN fam f ON f.root_project = m.root_project AND f.root_local = m.root_local
-WHERE (NOT $1::boolean OR f.text_hit OR f.root_project = ANY($2::text[]))
+WHERE (NOT $1::boolean OR f.text_hit)
 GROUP BY m.model_provider
 `
 
 type CountOwnerContributionProviderMatchesParams struct {
 	HasQuery            bool        `db:"has_query" json:"has_query"`
-	NameMatchedProjects []string    `db:"name_matched_projects" json:"name_matched_projects"`
 	OwnerID             pgtype.UUID `db:"owner_id" json:"owner_id"`
 	TitlePattern        string      `db:"title_pattern" json:"title_pattern"`
 	ExactText           string      `db:"exact_text" json:"exact_text"`
+	NameMatchedProjects []string    `db:"name_matched_projects" json:"name_matched_projects"`
 }
 
 type CountOwnerContributionProviderMatchesRow struct {
@@ -182,10 +178,10 @@ type CountOwnerContributionProviderMatchesRow struct {
 func (q *Queries) CountOwnerContributionProviderMatches(ctx context.Context, arg CountOwnerContributionProviderMatchesParams) ([]CountOwnerContributionProviderMatchesRow, error) {
 	rows, err := q.db.Query(ctx, countOwnerContributionProviderMatches,
 		arg.HasQuery,
-		arg.NameMatchedProjects,
 		arg.OwnerID,
 		arg.TitlePattern,
 		arg.ExactText,
+		arg.NameMatchedProjects,
 	)
 	if err != nil {
 		return nil, err
@@ -220,8 +216,10 @@ ORDER BY t.project_hash
 // The project of every root session the caller owns. A root is a session with
 // no parent_session_id, or whose parent is not among the caller's published
 // transcripts. A family belongs to its root's project, so these are the only
-// projects the contribution picker lists. Read once per request so project
-// names can be matched in Go before the counts are taken.
+// projects a contribution read lists or matches a name against. Every
+// contribution read (the picker, the paged view and the snapshot) takes its
+// project names from this set, once per request, so names can be matched in Go
+// before the counts are taken.
 func (q *Queries) ListOwnerContributionRootProjects(ctx context.Context, ownerID pgtype.UUID) ([]string, error) {
 	rows, err := q.db.Query(ctx, listOwnerContributionRootProjects, ownerID)
 	if err != nil {

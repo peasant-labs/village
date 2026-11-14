@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -401,24 +400,23 @@ func rawUUID(b []byte) ([16]byte, bool) {
 // Request handling
 // ---------------------------------------------------------------------------
 
-// snapshotRequestKeys are the query parameters a snapshot request may carry.
-var snapshotRequestKeys = []string{"view", "project_hash", "q", "provider"}
-
 // snapshotParams is a validated snapshot request.
 type snapshotParams struct {
 	projectHash string
 	filter      contributionFamilyFilter
 }
 
+// parseSnapshotParams reads the parameters a snapshot uses: project_hash, q and
+// provider (view is the dispatcher's). Every other parameter is ignored, among
+// them limit and cursor: a snapshot has no page, cursor or size limit, it is
+// always the whole project.
 func parseSnapshotParams(query url.Values) (snapshotParams, string) {
-	for key, values := range query {
-		if !slices.Contains(snapshotRequestKeys, key) {
-			return snapshotParams{}, fmt.Sprintf("the parameter %q is not accepted with view=snapshot. Accepted parameters are %s. "+
-				"A snapshot has no page, cursor or size limit; it is always the whole project.", key, strings.Join(snapshotRequestKeys, ", "))
-		}
-		if len(values) > 1 {
-			return snapshotParams{}, fmt.Sprintf("the parameter %q was sent %d times; send it once.", key, len(values))
-		}
+	if refusal := refuseRepeatedParameters(query, "project_hash"); refusal != "" {
+		return snapshotParams{}, refusal
+	}
+	search, refusal := parseContributionSearch(query)
+	if refusal != "" {
+		return snapshotParams{}, refusal
 	}
 	hash := query.Get("project_hash")
 	if hash == "" {
@@ -431,10 +429,7 @@ func parseSnapshotParams(query url.Values) (snapshotParams, string) {
 	}
 	return snapshotParams{
 		projectHash: hash,
-		filter: contributionFamilyFilter{
-			Query:    normalizeContributionQuery(query.Get("q")),
-			Provider: query.Get("provider"),
-		},
+		filter:      contributionFamilyFilter{Query: search.Query, Provider: search.Provider},
 	}, ""
 }
 
@@ -527,10 +522,7 @@ func (h *Handler) refuseContributionSnapshot(w http.ResponseWriter, r *http.Requ
 // is what keeps a quarter of a million sessions inside seconds.
 func contributionSnapshotSQL(filter contributionFamilyFilter, owner, group pgtype.UUID, projectHash string) (string, []any) {
 	fam := buildContributionFamilySQL(filter, 4)
-	matchRoot, matchChild := "", ""
-	if fam.MatchColumns != nil {
-		matchRoot, matchChild = fam.MatchColumns("r"), fam.MatchColumns("c")
-	}
+	matchRoot, matchChild := fam.RootColumns("r"), fam.MemberColumns("c")
 
 	var b strings.Builder
 	b.WriteString(`WITH RECURSIVE fam AS (
@@ -549,11 +541,7 @@ FROM fam f
 		b.WriteString(`JOIN (SELECT root_id FROM fam GROUP BY root_id HAVING ` + fam.Having + `) kept ON kept.root_id = f.root_id
 `)
 	}
-	b.WriteString(`LEFT JOIN LATERAL (
-  SELECT s.status FROM transcript_share_attempts s
-  WHERE s.transcript_id = f.id AND s.group_id = $3
-  ORDER BY s.event_num DESC LIMIT 1
-) a ON true`)
+	b.WriteString(`` + contributionLatestAttemptSQL("f", "$3", "a"))
 	return b.String(), append([]any{owner, projectHash, group}, fam.Args...)
 }
 
@@ -592,13 +580,15 @@ func (h *Handler) readContributionSnapshot(ctx context.Context, limit time.Durat
 		control.afterSnapshot(ctx)
 	}
 
+	// The project names a search can match are the displayed names of the
+	// owner's ROOT projects, resolved inside the snapshot like every other read.
 	filter := params.filter
 	if filter.hasQuery() {
-		hashes, err := h.projectHashesNamedInTx(ctx, tx, owner, filter.Query)
+		roots, err := h.readContributionRootProjects(ctx, sqlc.New(tx), owner, filter.Query)
 		if err != nil {
 			return nil, err
 		}
-		filter.QueryProjects = hashes
+		filter.QueryProjects = roots.Named
 	}
 
 	sql, args := contributionSnapshotSQL(filter, owner, group, params.projectHash)
@@ -633,45 +623,4 @@ func (h *Handler) readContributionSnapshot(ctx context.Context, limit time.Durat
 		return nil, fmt.Errorf("end the snapshot transaction: %w", err)
 	}
 	return set, nil
-}
-
-// projectHashesNamedInTx resolves the display name of every project the owner
-// has published into, inside the snapshot, and returns the hashes whose name
-// contains q. The names come from the one resolver every surface uses, so a
-// search matches what the person sees.
-func (h *Handler) projectHashesNamedInTx(ctx context.Context, tx pgx.Tx, owner pgtype.UUID, q string) ([]string, error) {
-	hashRows, err := tx.Query(ctx, "SELECT DISTINCT project_hash FROM transcripts WHERE owner_id = $1", owner)
-	if err != nil {
-		return nil, fmt.Errorf("list the owner's projects: %w", err)
-	}
-	var hashes []string
-	for hashRows.Next() {
-		var hash string
-		if err := hashRows.Scan(&hash); err != nil {
-			hashRows.Close()
-			return nil, fmt.Errorf("list the owner's projects: %w", err)
-		}
-		hashes = append(hashes, hash)
-	}
-	hashRows.Close()
-	if err := hashRows.Err(); err != nil {
-		return nil, fmt.Errorf("list the owner's projects: %w", err)
-	}
-	if len(hashes) == 0 {
-		return nil, nil
-	}
-	sort.Strings(hashes)
-
-	identities, err := sqlc.New(tx).ListOwnerProjectIdentities(ctx, sqlc.ListOwnerProjectIdentitiesParams{
-		OwnerIds:      []pgtype.UUID{owner},
-		ProjectHashes: hashes,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read the project names: %w", err)
-	}
-	names := make(map[string]string, len(identities))
-	for _, row := range identities {
-		names[row.ProjectHash] = h.projectNames.Resolve(evidenceFromIdentityRow(row)).DisplayName
-	}
-	return projectHashesNamed(q, names), nil
 }
