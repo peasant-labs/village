@@ -1,0 +1,311 @@
+# The three contribution reads must agree. One library is built once; every
+# request below asks the SAME question (a search and a provider) of the project
+# picker, the paged view and the snapshot view, through the mounted routes, and
+# the test asserts that the three answers are one answer:
+#
+#   - the picker's matching_count for a project equals the number of sessions in
+#     that project's snapshot, and the paged view lists the same sessions;
+#   - the families the paged view lists for project_hash=P are exactly the roots
+#     of P's snapshot;
+#   - the picker's matching_total equals the sessions in every family the paged
+#     view lists, and its selectable_total equals the sessions not yet live;
+#   - the picker's provider facet equals the providers of the sessions the paged
+#     view lists for the search alone.
+#
+# Each request also states, independently of the code, which families the rule
+# selects (expect_families, by root key) and which members the paged view marks
+# matched (expect_matched). Those are the rule written out by hand, so the three
+# reads cannot agree on a wrong answer.
+#
+# The rule. A family is a root and every session below it, and belongs to its
+# ROOT's project. A member matches q when its title contains q (case-insensitive,
+# % _ and \ literal), q equals its transcript id (case-insensitive) or q equals
+# its local session id exactly. The ROOT also matches when its project's
+# displayed name contains q. A helper's own project name never matches. A family
+# is selected when any member matches, and then all of it counts.
+#
+# Tokens in q. {local:KEY} is that transcript's local session id, {id:KEY} its
+# transcript id, {ID:KEY} the same id in capitals, {localprefix:KEY} its local id
+# without the last character.
+
+library:
+  # A project's consented name. alpha, beta, gamma and zeta are named plainly.
+  projects:
+    alpha: Alpha Atlas
+    beta: Beta Bridge
+    gamma: Gamma Gate
+    zeta: Zeta Landing
+    renamed: Rawold Thing
+  # The owner's chosen name wins over the consented one, so "Rawold Thing" is
+  # never displayed and a search must not reach it.
+  overrides:
+    renamed: Zephyr Display
+  transcripts:
+    # A family across three projects: the root and one helper are in alpha, a
+    # nested helper is in beta, and another helper is in zeta. Its members are
+    # live (approved, pending) and not live (rejected), and it holds both
+    # providers.
+    - {key: a1, project: alpha, title: Planning notes, history: [approved]}
+    - {key: a1h, project: alpha, parent: a1, title: "Saved 100% of runs", provider: codex}
+    - {key: a1d, project: beta, parent: a1h, title: deep_helper, history: [rejected]}
+    - {key: a1z, project: zeta, parent: a1, title: side helper, history: [pending]}
+    # Needle in a root title; a helper that is a past submission (retracted).
+    - {key: a2, project: alpha, title: Needle in the root}
+    - {key: a2h, project: alpha, parent: a2, title: plain helper, provider: codex, history: [retracted]}
+    - {key: a3, project: alpha, title: Solo root, provider: codex}
+    - {key: b1, project: beta, title: Bridge work}
+    - {key: b1h, project: beta, parent: b1, title: has NEEDLE within, history: [pending]}
+    # Looks like "deep_helper" to an unescaped underscore.
+    - {key: b2, project: beta, title: deepXhelper unrelated}
+    # A root whose only helper lives in another project: the helper is alpha's
+    # by project, the family is zeta's.
+    - {key: zr, project: zeta, title: Landing page}
+    - {key: zra, project: alpha, parent: zr, title: side note}
+    - {key: g1, project: gamma, title: "back\\slash path", provider: codex}
+    # Looks like "100%" to an unescaped percent.
+    - {key: e1, project: gamma, title: 1000 runs}
+    - {key: r1, project: renamed, title: Renamed one}
+    # An orphan: its parent was never published, so it is a root.
+    - {key: o1, project: beta, parent_missing: ghost, title: Orphan root, history: [revoked]}
+    - {key: o1h, project: beta, parent: o1, title: orphan needle helper, provider: codex, history: [approved]}
+    # A parent cycle: reachable from no root, so listed nowhere.
+    - {key: cy1, project: alpha, parent: cy2, title: needle cycle one}
+    - {key: cy2, project: alpha, parent: cy1, title: needle cycle two}
+    # Another person's session.
+    - {key: x1, project: alpha, owner: other, title: needle other owner}
+
+requests:
+  - name: no_search_lists_every_family
+    why: With no q and no provider every family of the library is selected.
+    q: ""
+    provider: ""
+    expect_families: [a1, a2, a3, b1, b2, zr, g1, e1, r1, o1]
+
+  - name: a_blank_q_is_no_search
+    why: A q of only blanks is no search at all, in all three reads.
+    q: "   "
+    provider: ""
+    expect_families: [a1, a2, a3, b1, b2, zr, g1, e1, r1, o1]
+
+  - name: provider_keeps_families_holding_one_session_of_it
+    why: >
+      A family is kept when ANY member has the provider, and then the whole
+      family counts, including its claude-code members.
+    q: ""
+    provider: codex
+    expect_families: [a1, a2, a3, g1, o1]
+
+  - name: provider_is_trimmed
+    why: Blanks around the provider are not part of it.
+    q: ""
+    provider: "  codex  "
+    expect_families: [a1, a2, a3, g1, o1]
+
+  - name: a_provider_nobody_used_selects_nothing
+    why: An exact provider that no session has selects no family.
+    q: ""
+    provider: gemini
+    expect_families: []
+
+  - name: claude_code_provider
+    why: The other provider, so the two facets are not the same set.
+    q: ""
+    provider: claude-code
+    expect_families: [a1, a2, b1, b2, zr, e1, r1, o1]
+
+  - name: q_matches_a_title_in_a_root_or_a_helper
+    why: >
+      One root title and two helper titles contain the text; each match brings
+      its whole family in. The cycle and the other person's sessions also say
+      needle and must appear nowhere.
+    q: needle
+    provider: ""
+    expect_families: [a2, b1, o1]
+    expect_matched: [a2, b1h, o1h]
+
+  - name: q_is_trimmed_and_case_insensitive
+    why: Blanks around q are not part of the search and case does not matter.
+    q: "  NeEdLe  "
+    provider: ""
+    expect_families: [a2, b1, o1]
+    expect_matched: [a2, b1h, o1h]
+
+  - name: q_and_provider_combine_by_family
+    why: >
+      The family must hold the search AND the provider, possibly in different
+      members: b1 matches the search but has no codex session.
+    q: needle
+    provider: codex
+    expect_families: [a2, o1]
+    expect_matched: [a2, o1h]
+
+  - name: the_root_project_name_selects_its_families
+    why: >
+      alpha names the root of a1, a2 and a3. The helper of zr that lives in alpha
+      does not bring zr in, and the roots, not their helpers, are the ones that
+      match by project name.
+    q: alpha
+    provider: ""
+    expect_families: [a1, a2, a3]
+    expect_matched: [a1, a2, a3]
+
+  - name: a_helpers_own_project_name_does_not_match
+    why: >
+      a1z is a helper in the zeta project and a1 is rooted in alpha, so zeta
+      does not select a1. Only zr, whose root is in zeta, is selected.
+    q: zeta
+    provider: ""
+    expect_families: [zr]
+    expect_matched: [zr]
+
+  - name: the_root_project_name_and_a_provider_combine
+    why: alpha-rooted families that also hold a claude-code session.
+    q: alpha
+    provider: claude-code
+    expect_families: [a1, a2]
+    expect_matched: [a1, a2]
+
+  - name: the_displayed_name_is_matched_not_the_raw_one
+    why: >
+      The owner renamed the project. The displayed name is "Zephyr Display" and
+      matches in any case; "Rawold Thing" is what was published and is no
+      longer shown, so it matches nothing.
+    q: ZEPHYR display
+    provider: ""
+    expect_families: [r1]
+    expect_matched: [r1]
+
+  - name: the_replaced_name_matches_nothing
+    why: See the case above.
+    q: rawold
+    provider: ""
+    expect_families: []
+    expect_matched: []
+
+  - name: a_project_name_shared_by_an_orphan_root_and_a_root
+    why: >
+      beta names the roots b1, b2 and the orphan o1. The orphan is a root, so
+      it counts; a1d is a helper in beta under an alpha root and does not.
+    q: bridge
+    provider: ""
+    expect_families: [b1, b2, o1]
+    expect_matched: [b1, b2, o1]
+
+  - name: a_helper_title_in_another_project_brings_its_root_family
+    why: >
+      "side" is in the titles of a1z (zeta helper under an alpha root) and zra
+      (alpha helper under a zeta root). Each pulls in its own root's family.
+    q: side
+    provider: ""
+    expect_families: [a1, zr]
+    expect_matched: [a1z, zra]
+
+  - name: percent_in_q_is_a_literal_percent
+    why: 1000 runs must not match, as it would if % were a wildcard.
+    q: "100%"
+    provider: ""
+    expect_families: [a1]
+    expect_matched: [a1h]
+
+  - name: a_lone_percent_is_a_literal_percent
+    why: A wildcard % would select everything.
+    q: "%"
+    provider: ""
+    expect_families: [a1]
+    expect_matched: [a1h]
+
+  - name: underscore_in_q_is_a_literal_underscore
+    why: deepXhelper must not match, as it would if _ were a wildcard.
+    q: "deep_"
+    provider: ""
+    expect_families: [a1]
+    expect_matched: [a1d]
+
+  - name: a_lone_underscore_is_a_literal_underscore
+    why: A wildcard _ would select every non-empty title.
+    q: "_"
+    provider: ""
+    expect_families: [a1]
+    expect_matched: [a1d]
+
+  - name: backslash_in_q_is_a_literal_backslash
+    why: The backslash is the escape character of the pattern and must not be one.
+    q: "back\\slash"
+    provider: ""
+    expect_families: [g1]
+    expect_matched: [g1]
+
+  - name: q_equal_to_a_local_session_id_matches_that_session
+    why: >
+      The local session id of the helper a2h, typed whole, finds a2h and so
+      brings in its family. Every read must accept it.
+    q: "{local:a2h}"
+    provider: ""
+    expect_families: [a2]
+    expect_matched: [a2h]
+
+  - name: part_of_a_local_session_id_matches_nothing
+    why: The local session id is matched exactly, never as a fragment.
+    q: "{localprefix:a2h}"
+    provider: ""
+    expect_families: []
+    expect_matched: []
+
+  - name: q_equal_to_a_transcript_id_matches_in_any_case
+    why: The transcript id is matched exactly and case-insensitively.
+    q: "{ID:b2}"
+    provider: ""
+    expect_families: [b2]
+    expect_matched: [b2]
+
+  - name: q_equal_to_a_transcript_id_in_lower_case
+    why: The same id as stored.
+    q: "{id:a3}"
+    provider: ""
+    expect_families: [a3]
+    expect_matched: [a3]
+
+  - name: q_with_no_match_selects_nothing
+    why: Nothing matches, so every read is empty.
+    q: nothing-has-this-text
+    provider: ""
+    expect_families: []
+    expect_matched: []
+
+# The request parameters, asked of all three reads. raw is appended to each
+# read's own query (the paged view's view=paged, the snapshot's view=snapshot and
+# project_hash, the picker's nothing); {project} is a project hash of the
+# library. picker, paged and snapshot are the status each read must answer. A
+# parameter a view does not use is ignored by it, and every parameter it does use
+
+parameters:
+  - {name: an_unknown_parameter_is_ignored, why: "An unknown parameter is no reason to refuse a read, in any of the three.", raw: "zzz=1", picker: 200, paged: 200, snapshot: 200}
+  - {name: unknown_parameters_are_ignored_even_repeated, why: "Unknown means nobody reads it, so repeating it changes nothing.", raw: "zzz=1&zzz=2", picker: 200, paged: 200, snapshot: 200}
+  - {name: a_repeated_q_is_refused, why: "Two searches have no single meaning.", raw: "q=a&q=b", picker: 400, paged: 400, snapshot: 400}
+  - {name: a_repeated_provider_is_refused, why: "Two providers have no single meaning.", raw: "provider=a&provider=b", picker: 400, paged: 400, snapshot: 400}
+  - {name: a_repeated_limit_is_refused_where_it_applies, why: "limit sizes a page. The snapshot has no pages, so it never reads it.", raw: "limit=5&limit=6", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_repeated_cursor_is_refused_where_it_applies, why: "cursor resumes a page. The snapshot has no pages, so it never reads it.", raw: "cursor=a&cursor=b", picker: 400, paged: 400, snapshot: 200}
+  - {name: an_empty_cursor_is_refused_where_it_applies, why: "A cursor that names nothing is not the first page; it is malformed.", raw: "cursor=", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_cursor_that_is_not_ours_is_refused_where_it_applies, why: "Only a cursor a read issued resumes it.", raw: "cursor=zzz", picker: 400, paged: 400, snapshot: 200}
+  - {name: an_empty_limit_is_refused_where_it_applies, why: "limit names a number of roots or projects.", raw: "limit=", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_limit_of_zero_is_refused_where_it_applies, why: "A page must hold something.", raw: "limit=0", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_limit_above_five_hundred_is_refused_where_it_applies, why: "The bound of a page is 500.", raw: "limit=501", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_limit_that_is_not_a_number_is_refused_where_it_applies, why: "limit is a whole number.", raw: "limit=many", picker: 400, paged: 400, snapshot: 200}
+  - {name: a_limit_of_five_hundred_is_accepted_everywhere, why: "The largest page is allowed; the snapshot ignores it.", raw: "limit=500", picker: 200, paged: 200, snapshot: 200}
+  - {name: q_that_is_not_utf8_is_refused, why: "A search that is not text cannot be matched.", raw: "q=%ff", picker: 400, paged: 400, snapshot: 400}
+  - {name: q_with_a_nul_is_refused, why: "PostgreSQL text cannot hold a NUL.", raw: "q=a%00b", picker: 400, paged: 400, snapshot: 400}
+  - {name: provider_that_is_not_utf8_is_refused, why: "A provider that is not text cannot be matched.", raw: "provider=%ff", picker: 400, paged: 400, snapshot: 400}
+  - {name: provider_with_a_nul_is_refused, why: "PostgreSQL text cannot hold a NUL.", raw: "provider=a%00b", picker: 400, paged: 400, snapshot: 400}
+  - {name: a_repeated_project_hash_is_refused_where_it_applies, why: "Two projects have no single meaning. The picker lists every project, so it never reads it.", raw: "project_hash={project}&project_hash={project}", picker: 200, paged: 400, snapshot: 400}
+  - {name: a_repeated_view_is_refused_where_it_applies, why: "Two views have no single meaning. The picker is no view, so it never reads it.", raw: "view=paged", picker: 200, paged: 400, snapshot: 400}
+
+# The membership gate and the answer for a collective that is not there, asked of
+# the flat route and the three reads: all four must answer the same status, and
+# the gate comes before any parameter is looked at.
+gates:
+  - {name: a_member_is_served, why: "The baseline all four agree on.", viewer: member, collective: own, raw: "", expect_status: 200}
+  - {name: a_stranger_is_refused, why: "Not a member of the collective.", viewer: stranger, collective: own, raw: "", expect_status: 403}
+  - {name: a_stranger_is_refused_before_a_bad_parameter_is_read, why: "A refusal must not depend on what else is wrong with the request.", viewer: stranger, collective: own, raw: "q=a&q=b", expect_status: 403}
+  - {name: a_collective_that_is_not_there_is_refused_like_one_you_are_not_in, why: "Nothing is revealed about whether the collective exists.", viewer: member, collective: unknown, raw: "", expect_status: 403}
+  - {name: an_unknown_collective_is_refused_before_a_bad_parameter_is_read, why: "The gate comes first.", viewer: member, collective: unknown, raw: "q=a&q=b", expect_status: 403}
+  - {name: an_address_that_is_not_an_identifier_is_refused, why: "There is no collective to look up.", viewer: member, collective: malformed, raw: "", expect_status: 400}

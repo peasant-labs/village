@@ -62,6 +62,13 @@ var requiredContributionPageRequestCases = []string{
 	"a_cursor_under_a_different_project_is_refused",
 	"a_cursor_that_is_not_base64_is_refused",
 	"a_cursor_that_is_not_a_position_is_refused",
+	"an_empty_cursor_is_refused",
+	"a_repeated_q_is_refused",
+	"a_repeated_provider_is_refused",
+	"a_repeated_limit_is_refused",
+	"a_repeated_project_hash_is_refused",
+	"a_repeated_cursor_is_refused",
+	"an_unknown_parameter_is_ignored",
 }
 
 func TestContributionPageRequest(t *testing.T) {

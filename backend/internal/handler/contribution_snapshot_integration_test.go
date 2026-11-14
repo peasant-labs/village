@@ -82,7 +82,7 @@ func loadSnapshotCases(t *testing.T) []snapshotFixtureCase {
 		"families_and_statuses": {"alpha", "beta", "unknown_project"},
 		"search": {
 			"no_q", "root_title", "root_title_other_case", "helper_only_title", "project_name",
-			"helper_project_name_brings_the_family_in", "exact_id_of_a_helper", "exact_id_of_a_root",
+			"helper_project_name_does_not_match", "root_project_name_of_the_other_project", "exact_id_of_a_helper", "exact_id_of_a_root",
 			"partial_id_does_not_match", "nothing_matches", "percent_is_literal", "underscore_is_literal",
 			"blank_q_is_no_q", "provider_alone", "provider_nobody_holds", "provider_and_q_intersect",
 		},
@@ -537,16 +537,30 @@ func TestContributionSnapshotRefusalsAndViews(t *testing.T) {
 				t.Errorf("a snapshot without project_hash = %d %s, want 400 naming project_hash", missing.Code, missing.Body.String())
 			}
 			for name, query := range map[string]string{
-				"malformed hash":  "view=snapshot&project_hash=not-a-hash",
-				"uppercase hash":  "view=snapshot&project_hash=" + strings.ToUpper(hash),
-				"repeated hash":   "view=snapshot&project_hash=" + hash + "&project_hash=" + hash,
-				"repeated q":      "view=snapshot&project_hash=" + hash + "&q=a&q=b",
-				"unknown param":   "view=snapshot&project_hash=" + hash + "&cursor=x",
-				"retired snapcap": "view=snapshot&project_hash=" + hash + "&snapshot_limit=5",
+				"malformed hash":       "view=snapshot&project_hash=not-a-hash",
+				"uppercase hash":       "view=snapshot&project_hash=" + strings.ToUpper(hash),
+				"repeated hash":        "view=snapshot&project_hash=" + hash + "&project_hash=" + hash,
+				"repeated q":           "view=snapshot&project_hash=" + hash + "&q=a&q=b",
+				"nul in q":             "view=snapshot&project_hash=" + hash + "&q=a%00b",
+				"bad utf8 in q":        "view=snapshot&project_hash=" + hash + "&q=%ff",
+				"bad utf8 in provider": "view=snapshot&project_hash=" + hash + "&provider=%ff",
 			} {
 				rec := s.get(prefix, query)
 				if rec.Code != http.StatusBadRequest {
 					t.Errorf("%s: status %d, want 400; body %s", name, rec.Code, rec.Body.String())
+				}
+			}
+			// A parameter another view uses, or one nobody declares, is ignored
+			// so the three contribution reads treat one request alike.
+			for name, query := range map[string]string{
+				"cursor":          "view=snapshot&project_hash=" + hash + "&cursor=x",
+				"limit":           "view=snapshot&project_hash=" + hash + "&limit=999999",
+				"retired snapcap": "view=snapshot&project_hash=" + hash + "&snapshot_limit=5",
+				"unknown":         "view=snapshot&project_hash=" + hash + "&anything=1",
+			} {
+				rec := s.get(prefix, query)
+				if rec.Code != http.StatusOK {
+					t.Errorf("%s: status %d, want 200 (ignored); body %s", name, rec.Code, rec.Body.String())
 				}
 			}
 
