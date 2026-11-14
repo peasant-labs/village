@@ -8,7 +8,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -56,15 +54,9 @@ const (
 
 func loadOriginDiscoveryFixture(t *testing.T) originDiscoveryFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(sessionOriginDiscoveryCasesYAML))
-	decoder.KnownFields(true)
-	var fixture originDiscoveryFixture
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[originDiscoveryFixture](sessionOriginDiscoveryCasesYAML)
+	if err != nil {
 		t.Fatalf("decode session-origin discovery fixture: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("session-origin discovery fixture must contain exactly one YAML document; got %v", trailing)
 	}
 	if len(fixture.Transcripts) != wantOriginDiscoveryTranscripts || len(fixture.Requests) != wantOriginDiscoveryRequests {
 		t.Fatalf("fixture holds %d transcripts and %d requests, want %d and %d", len(fixture.Transcripts), len(fixture.Requests), wantOriginDiscoveryTranscripts, wantOriginDiscoveryRequests)

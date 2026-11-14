@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,7 +24,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -56,7 +54,7 @@ type associationLedgerFixture struct {
 
 func loadAssociationLedgerFixture(t *testing.T) map[string]associationLedgerCase {
 	t.Helper()
-	fixture, err := decodeAssociationLedgerFixture(associationLedgerCasesYAML)
+	fixture, err := decodeFixtureDocument[associationLedgerFixture](associationLedgerCasesYAML)
 	if err != nil {
 		t.Fatalf("decode association ledger fixture: %v", err)
 	}
@@ -86,25 +84,8 @@ func loadAssociationLedgerFixture(t *testing.T) map[string]associationLedgerCase
 	return cases
 }
 
-func decodeAssociationLedgerFixture(data []byte) (associationLedgerFixture, error) {
-	var fixture associationLedgerFixture
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return associationLedgerFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return associationLedgerFixture{}, errors.New("fixture contains a trailing YAML document")
-		}
-		return associationLedgerFixture{}, err
-	}
-	return fixture, nil
-}
-
 func TestAssociationLedgerFixtureRejectsTrailingDocument(t *testing.T) {
-	_, err := decodeAssociationLedgerFixture(append(append([]byte{}, associationLedgerCasesYAML...), []byte("\n---\nunexpected: document\n")...))
+	_, err := decodeFixtureDocument[associationLedgerFixture](append(append([]byte{}, associationLedgerCasesYAML...), []byte("\n---\nunexpected: document\n")...))
 	if err == nil || !strings.Contains(err.Error(), "trailing YAML document") {
 		t.Fatalf("trailing fixture document error = %v, want explicit rejection", err)
 	}

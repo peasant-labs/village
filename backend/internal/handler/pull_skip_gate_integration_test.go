@@ -17,7 +17,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -104,27 +102,13 @@ type skipGateCurrencyFixture struct {
 	Cases []skipGateCurrencyCase `yaml:"cases"`
 }
 
-func decodeSkipGateCurrencyFixture(data []byte) (skipGateCurrencyFixture, error) {
-	var fixture skipGateCurrencyFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return skipGateCurrencyFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return skipGateCurrencyFixture{}, fmt.Errorf("currency fixture must contain exactly one YAML document")
-	}
-	return fixture, nil
-}
-
 func TestPullSkipGateCurrencyFixtureRejectsUnknownFields(t *testing.T) {
 	unknown := append([]byte("unexpected_fixture_field: true\n"), skipGateCurrencyYAML...)
-	if _, err := decodeSkipGateCurrencyFixture(unknown); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
+	if _, err := decodeFixtureDocument[skipGateCurrencyFixture](unknown); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
 		t.Fatalf("unknown field error = %v, want strict rejection", err)
 	}
 	trailing := append(append([]byte{}, skipGateCurrencyYAML...), []byte("\n---\nunexpected: document\n")...)
-	if _, err := decodeSkipGateCurrencyFixture(trailing); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
+	if _, err := decodeFixtureDocument[skipGateCurrencyFixture](trailing); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
 		t.Fatalf("trailing document error = %v, want single-document rejection", err)
 	}
 }
@@ -138,7 +122,7 @@ func TestPullSkipGate_CurrencyMatrix(t *testing.T) {
 	ctx := context.Background()
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	f, err := decodeSkipGateCurrencyFixture(skipGateCurrencyYAML)
+	f, err := decodeFixtureDocument[skipGateCurrencyFixture](skipGateCurrencyYAML)
 	if err != nil {
 		t.Fatalf("load currency cases: %v", err)
 	}

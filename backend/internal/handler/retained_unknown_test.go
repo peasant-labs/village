@@ -6,7 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 func TestRetainedUnknownPreservation(t *testing.T) {
@@ -156,20 +155,11 @@ func loadRetainedUnknownBoundaries(t *testing.T) []retainedUnknownBoundary {
 }
 
 func decodeRetainedUnknownBoundaries(raw []byte) ([]retainedUnknownBoundary, error) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []retainedUnknownBoundary `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(raw))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		return nil, err
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return nil, errors.New("expected exactly one boundary fixture document")
-		}
-		return nil, err
+	}](raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode the retained unknown boundary fixture: %w", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {

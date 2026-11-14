@@ -1,12 +1,8 @@
 package handler
 
 import (
-	"bytes"
 	_ "embed"
-	"io"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/transcript_lifecycle/cases.yaml
@@ -37,15 +33,9 @@ type lifecycleCases struct {
 
 func loadLifecycleCases(t *testing.T) lifecycleCases {
 	t.Helper()
-	var cases lifecycleCases
-	decoder := yaml.NewDecoder(bytes.NewReader(lifecycleCasesYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&cases); err != nil {
+	cases, err := decodeFixtureDocument[lifecycleCases](lifecycleCasesYAML)
+	if err != nil {
 		t.Fatalf("decode transcript lifecycle fixtures: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("transcript lifecycle fixture must contain exactly one document: %v", err)
 	}
 	if len(cases.TransactionOutcomes) != 42 || len(cases.DescriptorRaces) != 9 || len(cases.FreshRetries) != 16 {
 		t.Fatalf("lifecycle fixture counts = %d/%d/%d; want 42/9/16", len(cases.TransactionOutcomes), len(cases.DescriptorRaces), len(cases.FreshRetries))

@@ -8,7 +8,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,7 +26,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/collective_helper_group_listing.yaml
@@ -68,15 +66,9 @@ type collectiveHelperFixtures struct {
 
 func loadCollectiveHelperFixtures(t *testing.T) collectiveHelperFixtures {
 	t.Helper()
-	var f collectiveHelperFixtures
-	d := yaml.NewDecoder(bytes.NewReader(collectiveHelperListingYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&f); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		t.Fatalf("expected one fixture document: %v", err)
+	f, err := decodeFixtureDocument[collectiveHelperFixtures](collectiveHelperListingYAML)
+	if err != nil {
+		t.Fatalf("decode the collective helper listing fixture: %v", err)
 	}
 	names := map[string]bool{}
 	rows := map[string]bool{}

@@ -1597,22 +1597,25 @@ a separate required-field guard.
 ### Publish harness acceptance
 
 `handler/testdata/publish_harness_acceptance.yaml` and its required-name
-manifest drive the mounted publish handler with one minimal strict content
-envelope and authoritative metadata. They vary only the harness and the content
+manifest drive the publish routes with one minimal strict content envelope and
+authoritative metadata. Each request carries a real session token and goes
+through `RegisterPublishRoutes`, the method the production router mounts
+publishing with, so the session check and the route are the ones a client
+reaches. They vary only the harness and the content
 hash derived from it. The new Antigravity identities, the two archived values,
 and a harvestable value must succeed; an unknown value must return the
 schema-validation 422 before either a row or an object is written. The frozen
 legacy compatibility menu is not widened by the backend module re-pin.
 
-`TestPublishHarnessAcceptance` checks the write passed to the mock database and
-the publish receipt. `TestPublishHarnessAcceptanceRealPostgres` runs the same
+`TestPublishHarnessAcceptance` checks the write passed to the mock database,
+including the owner the session names, and the publish receipt. `TestPublishHarnessAcceptanceRealPostgres` runs the same
 cases through a migrated PostgreSQL database and checks the stored
 `model_provider`; only object storage is faked. Each case owns its account and
 uses the standard audited teardown. This extra database check is needed because
 a direct schema test or a mocked query cannot show what the mounted transaction
 stores. No subprocess or external object service is started by the test.
 
-Mutation checks: reverting the Schema pin fails both new-harness cases, and forcing the handler to store `claude-code` fails the new CLI case.
+Mutation checks: reverting the Schema pin fails both new-harness cases, forcing the handler to store `claude-code` fails the new CLI case, and a session check that ignores the bearer token (401) or names another user fails both tests.
 
 ### Worked example - assert the body
 
@@ -1750,11 +1753,9 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published backend module pin is Schema v0.52.0 and the literal
-served/enforced contract expectation is Village API 0.40.0; the frontend package
-pin remains `@peasant-labs/schema` 0.51.0 pending a Fairtrade release. No
-producer emits the new Antigravity harness values yet. Mounted contract
-bytes are pinned against the independently downloaded GitHub release asset in
+The current backend module pin, its Village API version and the frontend
+package pin are stated once, in AGENTS.md "Shared wire contract and licensing";
+this file does not repeat them. Mounted contract bytes are pinned against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition
 preserves `groupId` on deprecated `/groups` and requires `group_id` on canonical

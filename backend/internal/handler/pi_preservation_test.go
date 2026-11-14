@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -14,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/peasant-labs/schema"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/pi_boundaries.yaml
@@ -62,21 +60,15 @@ func (e fieldLossEncoder) Encode(version schema.PushContractVersion, payload *sc
 }
 
 func TestPiFieldLossWithholdsDiscoveryAndPublish(t *testing.T) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []struct {
 			Name      string `yaml:"name"`
 			Member    string `yaml:"member"`
 			EmptyOnly bool   `yaml:"emptyOnly"`
 		} `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(piFieldLossYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected one YAML document")
+	}](piFieldLossYAML)
+	if err != nil {
+		t.Fatalf("decode the pi field-loss fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {
@@ -126,17 +118,11 @@ type piBoundaryCase struct {
 
 func loadPiBoundaries(t *testing.T) []piBoundaryCase {
 	t.Helper()
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []piBoundaryCase `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(piBoundariesYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected one YAML document")
+	}](piBoundariesYAML)
+	if err != nil {
+		t.Fatalf("decode the pi boundaries fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {

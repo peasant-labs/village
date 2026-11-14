@@ -8,7 +8,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -18,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -38,15 +36,9 @@ type runtimePersistenceContracts struct {
 
 func loadRuntimePersistenceContracts(t *testing.T) []runtimePersistenceContract {
 	t.Helper()
-	var fixture runtimePersistenceContracts
-	decoder := yaml.NewDecoder(bytes.NewReader(runtimePersistenceContractsYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[runtimePersistenceContracts](runtimePersistenceContractsYAML)
+	if err != nil {
 		t.Fatalf("decode runtime persistence contracts: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("runtime persistence fixture must contain exactly one YAML document: %v", err)
 	}
 	if len(fixture.Cases) != 9 {
 		t.Fatalf("runtime persistence fixture count=%d, want 9", len(fixture.Cases))

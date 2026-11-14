@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/relationship-navigation.yaml
@@ -41,11 +40,9 @@ type relationshipNavigationCorpus struct {
 
 func loadRelationshipNavigationFixtures(t *testing.T) relationshipNavigationCorpus {
 	t.Helper()
-	var corpus relationshipNavigationCorpus
-	d := yaml.NewDecoder(bytes.NewReader(relationshipNavigationFixtures))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
+	corpus, err := decodeFixtureDocument[relationshipNavigationCorpus](relationshipNavigationFixtures)
+	if err != nil {
+		t.Fatalf("decode the relationship-navigation fixture: %v", err)
 	}
 	if len(corpus.Required) == 0 {
 		t.Fatal("relationship-navigation fixture has no required-name manifest")

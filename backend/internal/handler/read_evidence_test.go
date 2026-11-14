@@ -1,14 +1,10 @@
 package handler
 
 import (
-	"bytes"
 	_ "embed"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/read_evidence.yaml
@@ -54,15 +50,9 @@ func TestMountedReadEvidenceCompatibilityAndRecovery(t *testing.T) {
 }
 func loadReadEvidenceFixtures(t *testing.T) []readEvidenceCase {
 	t.Helper()
-	d := yaml.NewDecoder(bytes.NewReader(readEvidenceFixtureYAML))
-	d.KnownFields(true)
-	var f readEvidenceFixture
-	if err := d.Decode(&f); err != nil {
-		t.Fatal(err)
-	}
-	var x any
-	if err := d.Decode(&x); err != io.EOF {
-		t.Fatalf("one document required: %v", err)
+	f, err := decodeFixtureDocument[readEvidenceFixture](readEvidenceFixtureYAML)
+	if err != nil {
+		t.Fatalf("decode the read evidence fixture: %v", err)
 	}
 	if len(f.Cases) != len(readEvidenceNames) {
 		t.Fatalf("count=%d want=%d", len(f.Cases), len(readEvidenceNames))

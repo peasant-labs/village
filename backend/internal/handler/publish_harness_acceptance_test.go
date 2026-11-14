@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/publish_harness_acceptance.yaml
@@ -42,24 +40,16 @@ type publishHarnessFixture struct {
 
 func loadPublishHarnessCases(t *testing.T) publishHarnessFixture {
 	t.Helper()
-	var fixture publishHarnessFixture
-	var manifest struct {
+	fixture, err := decodeFixtureDocument[publishHarnessFixture](publishHarnessAcceptanceYAML)
+	if err != nil {
+		t.Fatalf("decode testdata/publish_harness_acceptance.yaml: %v", err)
+	}
+	manifest, err := decodeFixtureDocument[struct {
 		RequiredNames []string `yaml:"required_names"`
+	}](publishHarnessAcceptanceManifestYAML)
+	if err != nil {
+		t.Fatalf("decode testdata/publish_harness_acceptance.manifest.yaml: %v", err)
 	}
-	decode := func(raw []byte, dest any) {
-		t.Helper()
-		decoder := yaml.NewDecoder(bytes.NewReader(raw))
-		decoder.KnownFields(true)
-		if err := decoder.Decode(dest); err != nil {
-			t.Fatal(err)
-		}
-		var extra any
-		if err := decoder.Decode(&extra); err != io.EOF {
-			t.Fatalf("fixture must contain one YAML document: %v", err)
-		}
-	}
-	decode(publishHarnessAcceptanceYAML, &fixture)
-	decode(publishHarnessAcceptanceManifestYAML, &manifest)
 	if fixture.SessionID == "" || strings.Count(fixture.ContentTemplate, "__SESSION_ID__") != 1 || strings.Count(fixture.ContentTemplate, "__HARNESS__") != 1 {
 		t.Fatal("publish harness content must carry exactly one session and one harness placeholder")
 	}
@@ -130,15 +120,23 @@ func publishHarnessRequest(t *testing.T, fixture publishHarnessFixture, harness 
 	return r
 }
 
-func mountPublishHarnessHandler(h *Handler, user *AuthUser) http.Handler {
+// servePublishHarness sends one case through the routes the production router
+// mounts for publishing (RegisterPublishRoutes under /api/v1), signed in as the
+// user with a real session token, so the session check, route and handler are
+// the ones a publishing client reaches.
+func servePublishHarness(t *testing.T, h *Handler, user *AuthUser, fixture publishHarnessFixture, harness string) *httptest.ResponseRecorder {
+	t.Helper()
 	routes := chi.NewRouter()
-	routes.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), UserContextKey, user)))
-		})
-	})
-	routes.Post("/api/v1/transcripts/publish", h.PublishTranscript)
-	return routes
+	routes.Route("/api/v1", h.RegisterPublishRoutes)
+	token, err := auth.CreateToken(h.cfg.JWTSecret, user.ID, user.Username)
+	if err != nil {
+		t.Fatalf("sign the publish harness session token: %v", err)
+	}
+	r := publishHarnessRequest(t, fixture, harness)
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, r)
+	return w
 }
 
 func assertPublishHarnessResponse(t *testing.T, c publishHarnessCase, w *httptest.ResponseRecorder) {
@@ -180,8 +178,7 @@ func TestPublishHarnessAcceptance(t *testing.T) {
 			}
 			blobs := &mockTranscriptBlobStore{}
 			h := newTestHandler(q, blobs)
-			w := httptest.NewRecorder()
-			mountPublishHarnessHandler(h, &AuthUser{ID: ownerID, Username: "fixture-owner"}).ServeHTTP(w, publishHarnessRequest(t, fixture, c.Harness))
+			w := servePublishHarness(t, h, &AuthUser{ID: ownerID, Username: "fixture-owner"}, fixture, c.Harness)
 			assertPublishHarnessResponse(t, c, w)
 			if c.Status != http.StatusCreated {
 				if saved != nil || len(blobs.uploadedKeys) != 0 {
@@ -192,8 +189,8 @@ func TestPublishHarnessAcceptance(t *testing.T) {
 			if saved == nil {
 				t.Fatal("successful publish did not write a transcript")
 			}
-			if saved.ModelProvider != c.Harness || len(blobs.uploadedKeys) != 1 {
-				t.Fatalf("stored harness=%q want=%q objects=%d", saved.ModelProvider, c.Harness, len(blobs.uploadedKeys))
+			if saved.ModelProvider != c.Harness || saved.OwnerID != owner || len(blobs.uploadedKeys) != 1 {
+				t.Fatalf("stored harness=%q want=%q owner=%v want=%v objects=%d", saved.ModelProvider, c.Harness, saved.OwnerID, owner, len(blobs.uploadedKeys))
 			}
 			var response schema.AuthoritativePublishResponse
 			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {

@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -64,15 +61,9 @@ var requiredPublishOriginArms = []string{
 
 func loadPublishOriginFixtures(t *testing.T) []publishOriginFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(sessionOriginPublishCasesYAML))
-	decoder.KnownFields(true)
-	var cases []publishOriginFixture
-	if err := decoder.Decode(&cases); err != nil {
+	cases, err := decodeFixtureRows[publishOriginFixture](sessionOriginPublishCasesYAML)
+	if err != nil {
 		t.Fatalf("decode publish session-origin fixture: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("publish session-origin fixture must contain exactly one YAML document; got %v", trailing)
 	}
 	arms, names := map[string]bool{}, map[string]bool{}
 	for _, c := range cases {

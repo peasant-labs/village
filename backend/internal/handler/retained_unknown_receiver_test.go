@@ -6,7 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -18,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/retained_unknown_receiver.yaml
@@ -49,20 +48,11 @@ func loadRetainedReceiverCases(t *testing.T) []retainedReceiverCase {
 }
 
 func decodeRetainedReceiverCases(raw []byte, baseContent string) ([]retainedReceiverCase, error) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []retainedReceiverCase `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(raw))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		return nil, err
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return nil, errors.New("receiver fixture must contain one document")
-		}
-		return nil, err
+	}](raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode the retained receiver fixture: %w", err)
 	}
 	seen := map[string]bool{}
 	targets := map[int]bool{}

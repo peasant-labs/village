@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
@@ -73,10 +72,8 @@ var requiredPullPublishMetadataCases = []string{
 
 func loadPullPublishMetadataFixture(t *testing.T) pullPublishMetadataFile {
 	t.Helper()
-	var file pullPublishMetadataFile
-	decoder := yaml.NewDecoder(bytes.NewReader(pullPublishMetadataYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&file); err != nil {
+	file, err := decodeFixtureDocument[pullPublishMetadataFile](pullPublishMetadataYAML)
+	if err != nil {
 		t.Fatalf("load the publish metadata pull fixture: %v", err)
 	}
 	if strings.TrimSpace(file.Sentinel) == "" {

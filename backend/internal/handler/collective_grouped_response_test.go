@@ -1,16 +1,13 @@
 package handler
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/peasant-labs/schema"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/collective_grouped_response.yaml
@@ -35,15 +32,9 @@ type collectiveResponseFixtures struct {
 
 func loadCollectiveResponseFixtures(t *testing.T) collectiveResponseFixtures {
 	t.Helper()
-	d := yaml.NewDecoder(bytes.NewReader(collectiveResponseFixtureBytes))
-	d.KnownFields(true)
-	var f collectiveResponseFixtures
-	if err := d.Decode(&f); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		t.Fatalf("expected one fixture document, got %v", err)
+	f, err := decodeFixtureDocument[collectiveResponseFixtures](collectiveResponseFixtureBytes)
+	if err != nil {
+		t.Fatalf("decode the collective response fixture: %v", err)
 	}
 	required := map[string]bool{
 		"collective-positive-count": false, "collective-unknown-count": false,
