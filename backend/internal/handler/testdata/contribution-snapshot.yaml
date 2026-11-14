@@ -1,0 +1,79 @@
+# The exact selection set of one project, driven through the real HTTP handler
+# against a real PostgreSQL.
+#
+# A transcript's attempts are the ledger events of ONE collective, oldest first;
+# the last one is the latest status the snapshot must report, and no attempts at
+# all means the status is absent. other_attempts are events in a DIFFERENT
+# collective, which must never leak into this collective's answer.
+#
+# Every request names the project by its fixture key and lists the fixture keys
+# it must return. q_id_of and q_id_prefix_of build the search text from the id of
+# a fixture transcript, because a transcript id only exists once it is inserted.
+
+- name: families_and_statuses
+  why: >
+    The set is every session in every family whose ROOT is in the project. A
+    helper in another project is in, with its own project; a helper in this
+    project whose root is elsewhere is out; a child whose parent is not among
+    the owner's transcripts is its own root; another owner's session in the same
+    project is never in. Each latest status, including absence, is reported, and
+    another collective's attempts are ignored.
+  transcripts:
+    - {key: a1, project: alpha, visibility: shared, attempts: [rejected, approved]}
+    - {key: a1h1, project: alpha, visibility: public, parent: a1, attempts: [rejected, pending]}
+    - {key: a1h2, project: beta, visibility: shared, parent: a1, attempts: [approved, revoked]}
+    - {key: a1h2g, project: alpha, visibility: private, parent: a1h2, attempts: [rejected]}
+    - {key: a2, project: alpha, visibility: private, other_attempts: [pending]}
+    - {key: a3, project: alpha, visibility: shared, orphan_parent: true, attempts: [retracted]}
+    - {key: b1, project: beta, visibility: shared}
+    - {key: b1h, project: alpha, visibility: shared, parent: b1}
+    - {key: x1, project: alpha, visibility: shared, owner: other}
+  requests:
+    - {name: alpha, project: alpha, want: [a1, a1h1, a1h2, a1h2g, a2, a3]}
+    - {name: beta, project: beta, want: [b1, b1h]}
+    - {name: unknown_project, project: nowhere, want: []}
+
+- name: search
+  why: >
+    One q matches project display names, root and helper titles, and exact
+    transcript ids, case-insensitively and as literal text. A family is in when
+    its root or any helper matches, and then every member is in. A member
+    matches by its OWN project's display name, so a helper in another project
+    can bring its family in. provider keeps
+    the families that hold a session of that model provider. The two combine as
+    an intersection.
+  transcripts:
+    - {key: f1, project: alpha, project_name: Orchard Alpha, title: Billing refactor}
+    - {key: f1h, project: alpha, parent: f1, title: Write tests for the ledger}
+    - {key: f2, project: alpha, title: Docs cleanup}
+    - {key: f2h, project: alpha, parent: f2, title: Fix typo, provider: codex}
+    - {key: f3, project: alpha, title: Reach 100% coverage}
+    - {key: f3h, project: alpha, parent: f3, title: Unrelated}
+    - {key: f4, project: alpha, title: Gamma work}
+    - {key: f4h, project: beta, parent: f4, title: Gamma helper}
+    - {key: g1, project: beta, project_name: Zeta Service, title: Billing in beta}
+    - {key: g1h, project: beta, parent: g1, title: Beta helper}
+  requests:
+    - {name: no_q, project: alpha, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
+    - {name: root_title, project: alpha, q: billing, want: [f1, f1h]}
+    - {name: root_title_other_case, project: alpha, q: BILLING, want: [f1, f1h]}
+    - {name: helper_only_title, project: alpha, q: ledger, want: [f1, f1h]}
+    - {name: project_name, project: alpha, q: orchard, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
+    - {name: project_name_phrase, project: alpha, q: ORCHARD ALPHA, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
+    - {name: helper_project_name_brings_the_family_in, project: alpha, q: zeta, want: [f4, f4h]}
+    - {name: foreign_project_name_without_a_member_there, project: beta, q: orchard, want: []}
+    - {name: exact_id_of_a_helper, project: alpha, q_id_of: f2h, want: [f2, f2h]}
+    - {name: exact_id_of_a_root, project: alpha, q_id_of: f3, want: [f3, f3h]}
+    - {name: partial_id_does_not_match, project: alpha, q_id_prefix_of: f2h, want: []}
+    - {name: nothing_matches, project: alpha, q: zzzz, want: []}
+    - {name: percent_is_literal, project: alpha, q: 100%, want: [f3, f3h]}
+    - {name: lone_percent_is_literal, project: alpha, q: "%", want: [f3, f3h]}
+    - {name: underscore_is_literal, project: alpha, q: _, want: []}
+    - {name: blank_q_is_no_q, project: alpha, q: "   ", want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
+    - {name: provider_alone, project: alpha, provider: codex, want: [f2, f2h]}
+    - {name: provider_held_by_every_family, project: alpha, provider: claude-code, want: [f1, f1h, f2, f2h, f3, f3h, f4, f4h]}
+    - {name: provider_nobody_holds, project: alpha, provider: gemini, want: []}
+    - {name: provider_and_q_intersect, project: alpha, provider: codex, q: billing, want: []}
+    - {name: provider_and_q_agree, project: alpha, provider: codex, q: docs, want: [f2, f2h]}
+    - {name: beta_root_title, project: beta, q: billing, want: [g1, g1h]}
+    - {name: beta_project_name, project: beta, q: zeta, want: [g1, g1h]}

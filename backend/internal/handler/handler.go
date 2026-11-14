@@ -48,6 +48,10 @@ type Handler struct {
 	thinkingLevelEvaluator thinkingLevelPreservationEvaluator
 	scanContent            func([]byte) []string
 
+	// contributionSnapshot holds the concurrency gate and test hooks for the
+	// contribution snapshot read. The zero value is ready to use.
+	contributionSnapshot contributionSnapshotControl
+
 	// discoveryReadBarrier, when non-nil, is invoked exactly once inside the
 	// discovery snapshot transaction after the total-count read and before the
 	// page read. Production leaves it nil, so the two reads run back-to-back with
