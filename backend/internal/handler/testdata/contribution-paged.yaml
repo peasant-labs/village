@@ -1,0 +1,631 @@
+# The paged contribution read, driven through the real HTTP handler against a
+# real PostgreSQL: GET /collectives/{id}/contributable?view=paged and its
+# deprecated /groups alias.
+#
+# Each case builds one owner's transcripts (a family is a root plus the helpers
+# that descend from it), optionally some contribution history, then asks one or
+# more requests of the route and states the exact page it must get back.
+#
+# Transcript fields. session_age and published_age are minutes before now; a
+# transcript with no session_age has no session_start, so the page orders it by
+# published_at. project names a project key; the case-level projects map gives a
+# project a consented display name. owner "other" is another person's transcript.
+# history is the transcript's attempt ledger in this collective, oldest first.
+# Each entry is one attempt, written with the status it ended in (a decision or
+# a withdrawal closes the attempt in place); a status prefixed "other:" is an
+# attempt in a different collective.
+#
+# Request fields. query is the whole query string. Tokens: {id:KEY} is that
+# transcript's id, {project:KEY} is that project's hash, {cursor} is the previous
+# request's next_cursor. An expect_roots entry "a|b" is a group of roots sharing
+# one session time, whose order is the ascending transcript id.
+
+- name: roots_are_ordered_by_session_time_newest_first
+  why: >
+    The page is in session-time order. A root with no session_start falls back
+    to its published time, so the three roots here sit on both clocks. Losing
+    the ordering, or ordering by published time alone, reorders this page.
+  transcripts:
+    - {key: oldest, project: p, session_age: 300}
+    - {key: newest, project: p, session_age: 10}
+    - {key: fallback, project: p, published_age: 100}
+    - {key: middle, project: p, session_age: 200}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [newest, fallback, middle, oldest]
+
+- name: limit_counts_roots_and_helpers_ride_with_their_root
+  why: >
+    The page bound is in ROOT sessions. A root's helpers do not count, so a page
+    of one root still carries all of that root's helpers. Counting transcripts
+    would cut a family in half and let a person contribute part of a session
+    tree while believing they contributed all of it.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+    - {key: a1, project: p, parent: a, session_age: 9}
+    - {key: a2, project: p, parent: a, session_age: 8}
+    - {key: a3, project: p, parent: a, session_age: 7}
+    - {key: b, project: p, session_age: 20}
+    - {key: b1, project: p, parent: b, session_age: 19}
+  requests:
+    - query: "view=paged&limit=1"
+      expect_status: 200
+      expect_roots: [a]
+      expect_helpers: {a: [a1, a2, a3]}
+      expect_has_more: true
+    - query: "view=paged&limit=1&cursor={cursor}"
+      expect_status: 200
+      expect_roots: [b]
+      expect_helpers: {b: [b1]}
+      expect_has_more: false
+
+- name: exact_fit_page_has_no_more
+  why: >
+    has_more is true only when a further root exists. A page that holds exactly
+    the remaining roots must say it is the last one, with no cursor, or a client
+    would request an empty page forever.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+    - {key: b, project: p, session_age: 20}
+  requests:
+    - query: "view=paged&limit=2"
+      expect_status: 200
+      expect_roots: [a, b]
+      expect_has_more: false
+
+- name: keyset_walk_visits_every_root_once
+  why: >
+    The cursor resumes strictly after the last root a page returned. Three roots
+    share one session time, so only the transcript-id tie-break keeps a walk of
+    pages of three from repeating one of them or skipping one across the page
+    boundary.
+  transcripts:
+    - {key: r1, project: p, session_age: 10}
+    - {key: r2, project: p, session_age: 20}
+    - {key: t1, project: p, session_age: 30}
+    - {key: t2, project: p, session_age: 30}
+    - {key: t3, project: p, session_age: 30}
+    - {key: r3, project: p, session_age: 40}
+  walk:
+    limit: 3
+    expect_roots: [r1, r2, "t1|t2|t3", r3]
+    expect_pages: 2
+
+- name: walk_of_single_root_pages_visits_every_root_once
+  why: >
+    The smallest legal page must still reach every root exactly once, which is
+    the extreme of the cursor boundary being crossed after every root.
+  transcripts:
+    - {key: r1, project: p, session_age: 10}
+    - {key: r1h, project: p, parent: r1, session_age: 9}
+    - {key: r2, project: p, session_age: 20}
+    - {key: t1, project: p, session_age: 30}
+    - {key: t2, project: p, session_age: 30}
+  walk:
+    limit: 1
+    expect_roots: [r1, r2, "t1|t2"]
+    expect_pages: 4
+
+- name: helper_in_another_project_rides_with_its_root
+  why: >
+    A family belongs to its root's project. A helper in a different project still
+    appears in its root's family and carries its OWN project hash and display
+    name, so the surface can show it without calling it part of the root's
+    project. Filtering by the root's project keeps the family; filtering by the
+    helper's project finds no root and returns nothing.
+  projects: {p: "Quartz Harbor", q: "Amber Fields"}
+  transcripts:
+    - {key: root, project: p, session_age: 10}
+    - {key: helper, project: q, parent: root, session_age: 9}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper]}
+      expect_project: {root: p, helper: q}
+      expect_project_name: {root: "Quartz Harbor", helper: "Amber Fields"}
+    - query: "view=paged&project_hash={project:p}"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper]}
+    - query: "view=paged&project_hash={project:q}"
+      expect_status: 200
+      expect_roots: []
+
+- name: project_hash_filter_keeps_only_roots_of_that_project
+  why: >
+    project_hash narrows the page to the families whose ROOT is in that project,
+    so a second project's roots are absent while the first project's remain.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+    - {key: b, project: q, session_age: 20}
+    - {key: c, project: p, session_age: 30}
+  requests:
+    - query: "view=paged&project_hash={project:p}"
+      expect_status: 200
+      expect_roots: [a, c]
+    - query: "view=paged&project_hash={project:q}"
+      expect_status: 200
+      expect_roots: [b]
+
+- name: a_helper_whose_parent_is_not_published_is_a_root
+  why: >
+    A root is a session with no parent, or whose parent is not among the
+    owner's published transcripts. A helper whose parent was never published
+    would otherwise vanish from the library, unreachable from any root. It has
+    no parent_transcript_id for the same reason.
+  transcripts:
+    - {key: orphan, project: p, session_age: 10, parent_missing: "never-published"}
+    - {key: plain, project: p, session_age: 20}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [orphan, plain]
+      expect_parent_transcript: {orphan: none, plain: none}
+
+- name: a_parent_owned_by_someone_else_is_not_a_parent
+  why: >
+    parent_session_id is a local session id, unique only within one owner. A
+    transcript naming a session that exists only in another person's library has
+    no published parent of its own, so it is a root, and the other person's
+    transcript never enters this person's family.
+  transcripts:
+    - {key: foreign, project: p, owner: other, session_age: 5}
+    - {key: mine, project: p, parent: foreign, session_age: 10}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [mine]
+      expect_parent_transcript: {mine: none}
+
+- name: nested_helpers_are_one_family_ordered_by_depth
+  why: >
+    A helper of a helper belongs to the same family. The page lists them by depth
+    and then by session time, and each helper's parent_transcript_id names its
+    immediate parent, which is how the surface rebuilds the tree.
+  transcripts:
+    - {key: root, project: p, session_age: 50}
+    - {key: late, project: p, parent: root, session_age: 10}
+    - {key: early, project: p, parent: root, session_age: 40}
+    - {key: grand, project: p, parent: early, session_age: 5}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [early, late, grand]}
+      expect_parent_transcript: {root: none, early: root, late: root, grand: early}
+
+- name: parent_cycles_are_unreachable_and_the_read_terminates
+  why: >
+    Nothing in the schema forbids a session naming itself, or two sessions naming
+    each other, as parent. Such rows have no root above them, so no family
+    reaches them; the read must neither hang on the cycle nor list them as roots.
+  transcripts:
+    - {key: sane, project: p, session_age: 10}
+    - {key: selfie, project: p, parent: selfie, session_age: 20}
+    - {key: ping, project: p, parent: pong, session_age: 30}
+    - {key: pong, project: p, parent: ping, session_age: 40}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [sane]
+
+- name: other_owners_transcripts_never_appear
+  why: >
+    The page is the caller's own library. Another person's transcripts in the
+    same database, even in the same project and with the same shape, are never
+    returned.
+  transcripts:
+    - {key: mine, project: p, session_age: 10}
+    - {key: theirs, project: p, owner: other, session_age: 5}
+    - {key: theirs_helper, project: p, owner: other, parent: theirs, session_age: 4}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [mine]
+
+- name: every_visibility_is_listed_with_its_own_visibility
+  why: >
+    The contribute surface offers every transcript the person owns, private ones
+    included, and states each one's visibility so the person can be asked before
+    a private one becomes visible to a collective.
+  transcripts:
+    - {key: pub, project: p, visibility: public, session_age: 10}
+    - {key: priv, project: p, visibility: private, session_age: 20}
+    - {key: shr, project: p, visibility: shared, parent: priv, session_age: 15}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [pub, priv]
+      expect_helpers: {priv: [shr]}
+      expect_visibility: {pub: public, priv: private, shr: shared}
+
+- name: session_start_is_carried_only_when_known
+  why: >
+    session_start is the clock the page is ordered by. A member whose start is
+    unknown carries no session_start at all, never a zero time that a client
+    would render as 1970.
+  transcripts:
+    - {key: known, project: p, session_age: 10}
+    - {key: unknown, project: p, published_age: 20}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [known, unknown]
+      expect_session_start: {known: present, unknown: absent}
+
+- name: latest_status_reports_all_five_statuses_and_already_shared_only_for_live
+  why: >
+    latest_status is the status of the latest attempt in THIS collective. All
+    five statuses are reported; already_shared stays true only for pending and
+    approved. A member with no attempt carries no latest_status at all.
+  transcripts:
+    - {key: pend, project: p, session_age: 10, history: [pending]}
+    - {key: appr, project: p, session_age: 20, history: [approved]}
+    - {key: rej, project: p, session_age: 30, history: [rejected]}
+    - {key: retr, project: p, session_age: 40, history: [retracted]}
+    - {key: revo, project: p, session_age: 50, history: [revoked]}
+    - {key: none, project: p, session_age: 60}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [pend, appr, rej, retr, revo, none]
+      expect_latest_status: {pend: pending, appr: approved, rej: rejected, retr: retracted, revo: revoked, none: none}
+      expect_already_shared: [pend, appr]
+
+- name: a_resubmission_after_a_decision_reads_as_live
+  why: >
+    The ledger is append-only and the LATEST event decides. A contribution that
+    was rejected and then submitted again is pending now, and one whose later
+    attempt was retracted is not live. Reading the first event, or the derived
+    projection, gets one of these wrong.
+  transcripts:
+    - {key: again, project: p, session_age: 10, history: [rejected, pending]}
+    - {key: gone, project: p, session_age: 20, history: [rejected, retracted]}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [again, gone]
+      expect_latest_status: {again: pending, gone: retracted}
+      expect_already_shared: [again]
+
+- name: an_attempt_in_another_collective_is_not_this_collectives_status
+  why: >
+    The status is per (transcript, collective). A contribution that is live in a
+    different collective says nothing about this one, and must neither mark the
+    member shared nor give it a status here.
+  transcripts:
+    - {key: elsewhere, project: p, session_age: 10, history: ["other:approved"]}
+    - {key: here, project: p, session_age: 20, history: [pending]}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [elsewhere, here]
+      expect_latest_status: {elsewhere: none, here: pending}
+      expect_already_shared: [here]
+
+- name: a_live_helper_is_marked_live_beside_an_unshared_root
+  why: >
+    Each member carries its own contribution state, so a live helper under a
+    root that has not been offered is shown as live and the root is not.
+  transcripts:
+    - {key: root, project: p, session_age: 20}
+    - {key: helper, project: p, parent: root, session_age: 10, history: [approved]}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper]}
+      expect_already_shared: [helper]
+
+- name: q_matches_a_root_title_case_insensitively
+  why: >
+    q is one search text matched against titles. The match ignores case, and a
+    family whose root matches is returned with that root marked matched and its
+    helpers marked unmatched.
+  transcripts:
+    - {key: hit, project: p, title: "Fix the Flaky Login Test", session_age: 10}
+    - {key: hit_helper, project: p, parent: hit, title: "scratch", session_age: 9}
+    - {key: miss, project: p, title: "Refactor billing", session_age: 20}
+  requests:
+    - query: "view=paged&q=flaky%20LOGIN"
+      expect_status: 200
+      expect_roots: [hit]
+      expect_helpers: {hit: [hit_helper]}
+      expect_matched: {hit: true, hit_helper: false}
+
+- name: q_matching_only_a_helper_returns_the_whole_family
+  why: >
+    A family appears when its root OR any helper matches. The root here does not
+    match, so the whole family is present only because its helper does, and each
+    member says whether it matched on its own.
+  transcripts:
+    - {key: root, project: p, title: "Plain root", session_age: 10}
+    - {key: helper, project: p, parent: root, title: "Investigate zebra crash", session_age: 9}
+    - {key: sibling, project: p, parent: root, title: "Unrelated", session_age: 8}
+    - {key: other_root, project: p, title: "Nothing here", session_age: 20}
+  requests:
+    - query: "view=paged&q=zebra"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper, sibling]}
+      expect_matched: {root: false, helper: true, sibling: false}
+
+- name: q_matches_an_exact_transcript_id_only
+  why: >
+    A transcript id matches exactly. The full id finds the family of the
+    transcript that carries it, even when it is a helper; a prefix of the id
+    finds nothing, so a search cannot accidentally match unrelated ids.
+  transcripts:
+    - {key: root, project: p, title: "alpha", session_age: 10}
+    - {key: helper, project: p, parent: root, title: "beta", session_age: 9}
+    - {key: other, project: p, title: "gamma", session_age: 20}
+  requests:
+    - query: "view=paged&q={id:helper}"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper]}
+      expect_matched: {root: false, helper: true}
+    - query: "view=paged&q={idprefix:helper}"
+      expect_status: 200
+      expect_roots: []
+
+- name: q_matches_project_display_names
+  why: >
+    q also matches the project a session belongs to, by the name the owner sees.
+    The name is resolved in Go, not stored in a column, so only a real database
+    plus the shared resolver can show this works. Every member of a matching
+    project matches; a helper that lives in another project does not.
+  projects: {p: "Quartz Harbor", q: "Amber Fields"}
+  transcripts:
+    - {key: root, project: p, title: "one", session_age: 10}
+    - {key: same, project: p, parent: root, title: "two", session_age: 9}
+    - {key: away, project: q, parent: root, title: "three", session_age: 8}
+    - {key: elsewhere, project: q, title: "four", session_age: 20}
+  requests:
+    - query: "view=paged&q=quartz"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [same, away]}
+      expect_matched: {root: true, same: true, away: false}
+    - query: "view=paged&q=amber"
+      expect_status: 200
+      expect_roots: [root, elsewhere]
+      expect_helpers: {root: [same, away]}
+      expect_matched: {root: false, same: false, away: true, elsewhere: true}
+
+- name: q_with_no_match_returns_an_empty_page
+  why: >
+    An empty result is an empty items array and has_more false, never null and
+    never an error.
+  transcripts:
+    - {key: a, project: p, title: "alpha", session_age: 10}
+  requests:
+    - query: "view=paged&q=zzzz-no-such-text"
+      expect_status: 200
+      expect_roots: []
+      expect_matched: {}
+
+- name: q_is_taken_literally_not_as_a_pattern
+  why: >
+    q is plain text. A percent or underscore in it is an ordinary character, not
+    a wildcard, so it cannot be used to widen a search past what was typed.
+  transcripts:
+    - {key: literal, project: p, title: "ratio 100% done", session_age: 10}
+    - {key: plain, project: p, title: "ratio 1000 done", session_age: 20}
+  requests:
+    - query: "view=paged&q=100%25"
+      expect_status: 200
+      expect_roots: [literal]
+      expect_matched: {literal: true}
+    - query: "view=paged&q=100_"
+      expect_status: 200
+      expect_roots: []
+
+- name: a_blank_q_is_no_search
+  why: >
+    A q that is only whitespace searches for nothing, so it is the same request
+    as one with no q: every family, and no matched field on any member.
+  transcripts:
+    - {key: a, project: p, title: "alpha", session_age: 10}
+    - {key: b, project: p, title: "beta", session_age: 20}
+  requests:
+    - query: "view=paged&q=%20%20"
+      expect_status: 200
+      expect_roots: [a, b]
+    - query: "view=paged&q="
+      expect_status: 200
+      expect_roots: [a, b]
+
+- name: provider_keeps_families_holding_a_session_of_that_provider
+  why: >
+    provider narrows to the families that hold a session of that model provider.
+    The family stays whole: a helper of another provider is present because its
+    root's family qualifies through the root.
+  transcripts:
+    - {key: claude_root, project: p, provider: claude-code, session_age: 10}
+    - {key: codex_helper, project: p, provider: codex, parent: claude_root, session_age: 9}
+    - {key: codex_root, project: p, provider: codex, session_age: 20}
+    - {key: gemini_root, project: p, provider: gemini, session_age: 30}
+  requests:
+    - query: "view=paged&provider=codex"
+      expect_status: 200
+      expect_roots: [claude_root, codex_root]
+      expect_helpers: {claude_root: [codex_helper]}
+    - query: "view=paged&provider=gemini"
+      expect_status: 200
+      expect_roots: [gemini_root]
+    - query: "view=paged&provider=no-such-provider"
+      expect_status: 200
+      expect_roots: []
+
+- name: q_and_provider_combine_with_and
+  why: >
+    Both filters must hold for the same family. One family matches only q, one
+    only provider, and one both, so a filter that ORed them, or applied one and
+    dropped the other, returns more than the single family that satisfies both.
+  transcripts:
+    - {key: only_q, project: p, provider: claude-code, title: "needle", session_age: 10}
+    - {key: only_provider, project: p, provider: codex, title: "haystack", session_age: 20}
+    - {key: both, project: p, provider: codex, title: "needle again", session_age: 30}
+  requests:
+    - query: "view=paged&q=needle&provider=codex"
+      expect_status: 200
+      expect_roots: [both]
+      expect_matched: {both: true}
+
+- name: q_and_provider_may_be_satisfied_by_different_members_of_one_family
+  why: >
+    The filters are applied to the FAMILY. A root that matches q and a helper of
+    the wanted provider together satisfy both, even though no single session
+    does.
+  transcripts:
+    - {key: root, project: p, provider: claude-code, title: "needle", session_age: 10}
+    - {key: helper, project: p, provider: codex, parent: root, title: "other", session_age: 9}
+  requests:
+    - query: "view=paged&q=needle&provider=codex"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [helper]}
+      expect_matched: {root: true, helper: false}
+
+- name: a_cursor_walk_under_a_filter_visits_each_family_once
+  why: >
+    The cursor resumes after the last root of a filtered page, and the filter
+    decides which roots exist at all. Walking a filtered result in pages of one
+    must reach exactly the matching families, in order, never a non-matching one.
+  transcripts:
+    - {key: a, project: p, title: "match a", session_age: 10}
+    - {key: skip1, project: p, title: "nothing", session_age: 15}
+    - {key: b, project: p, title: "match b", session_age: 20}
+    - {key: b1, project: p, parent: b, title: "helper", session_age: 19}
+    - {key: skip2, project: p, title: "nothing", session_age: 25}
+    - {key: c, project: p, title: "match c", session_age: 30}
+  walk:
+    limit: 1
+    query: "q=match"
+    expect_roots: [a, b, c]
+    expect_pages: 3
+
+- name: both_route_prefixes_serve_the_same_page
+  why: >
+    /collectives is canonical and /groups is the deprecated alias; both mount the
+    same handler and must answer byte for byte alike for one caller.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+    - {key: a1, project: p, parent: a, session_age: 9}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [a]
+      expect_helpers: {a: [a1]}
+      both_prefixes: true
+
+- name: non_member_403
+  why: >
+    Membership is the gate on the paged read exactly as on the flat one. A
+    non-member is refused with an actionable message and nothing is read, so the
+    new view opens no path that lists a library to a stranger.
+  member: false
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+  requests:
+    - query: "view=paged"
+      expect_status: 403
+      expect_error_contains: ["not a member"]
+
+- name: an_unknown_view_is_refused_naming_the_accepted_values
+  why: >
+    A view that is not on the contract's menu is a 400 that says what is
+    accepted, instead of quietly serving the flat list to a client that
+    misspelled the token.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+  requests:
+    - query: "view=pagd"
+      expect_status: 400
+      expect_error_contains: ["grouped", "paged", "snapshot"]
+    - query: "view=PAGED"
+      expect_status: 400
+      expect_error_contains: ["grouped", "paged", "snapshot"]
+
+- name: limit_must_be_a_whole_number_of_roots_from_one_to_five_hundred
+  why: >
+    limit is counted in roots and bounded to 1..500. Each refusal is a 400 that
+    names the limit, so no value silently clamps, wraps, or means unbounded.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+  requests:
+    - query: "view=paged&limit=0"
+      expect_status: 400
+      expect_error_contains: ["limit"]
+    - query: "view=paged&limit=501"
+      expect_status: 400
+      expect_error_contains: ["limit"]
+    - query: "view=paged&limit=-1"
+      expect_status: 400
+      expect_error_contains: ["limit"]
+    - query: "view=paged&limit=ten"
+      expect_status: 400
+      expect_error_contains: ["limit"]
+    - query: "view=paged&limit="
+      expect_status: 400
+      expect_error_contains: ["limit"]
+    - query: "view=paged&limit=1"
+      expect_status: 200
+      expect_roots: [a]
+    - query: "view=paged&limit=500"
+      expect_status: 200
+      expect_roots: [a]
+
+- name: a_malformed_request_is_refused_before_anything_is_read
+  why: >
+    A project_hash that is not a project hash, and a q or provider that cannot
+    be searched (a NUL byte), are each a 400 that names the parameter. Only the
+    rules the contract declares are enforced; nothing here is a handler-only
+    rule.
+  transcripts:
+    - {key: a, project: p, session_age: 10}
+  requests:
+    - query: "view=paged&project_hash=not-a-hash"
+      expect_status: 400
+      expect_error_contains: ["project_hash"]
+    - query: "view=paged&q=bad%00text"
+      expect_status: 400
+      expect_error_contains: ["q"]
+    - query: "view=paged&provider=bad%00text"
+      expect_status: 400
+      expect_error_contains: ["provider"]
+
+- name: a_cursor_that_is_not_ours_is_refused
+  why: >
+    The cursor is opaque and bound to the viewer, the collective and the
+    filters it was issued for. Garbage, a truncated cursor, and a cursor reused
+    under a different filter are each a 400 that says to start again, never a
+    500 and never a page for the wrong filter.
+  transcripts:
+    - {key: a, project: p, title: "needle one", session_age: 10}
+    - {key: b, project: p, title: "needle two", session_age: 20}
+  requests:
+    - query: "view=paged&cursor=not-a-cursor"
+      expect_status: 400
+      expect_error_contains: ["cursor"]
+    - query: "view=paged&cursor=e30"
+      expect_status: 400
+      expect_error_contains: ["cursor"]
+    - query: "view=paged&q=needle&limit=1"
+      expect_status: 200
+      expect_roots: [a]
+      expect_has_more: true
+      expect_matched: {a: true}
+    - query: "view=paged&q=needle%20two&limit=1&cursor={cursor}"
+      expect_status: 400
+      expect_error_contains: ["cursor"]
+    - query: "view=paged&limit=1&cursor={cursor}"
+      expect_status: 400
+      expect_error_contains: ["cursor"]
+    - query: "view=paged&q=needle&limit=1&cursor={cursor}"
+      expect_status: 200
+      expect_roots: [b]
+      expect_matched: {b: true}

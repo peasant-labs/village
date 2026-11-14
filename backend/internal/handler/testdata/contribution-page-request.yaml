@@ -1,0 +1,172 @@
+# The query of the paged contribution read, parsed without a database: the
+# limit, the search and filter texts, the project identity, and the cursor that
+# is bound to the viewer, the collective and the filters it was issued for.
+#
+# Each case names the query string, the viewer and the collective it is parsed
+# for, optionally a cursor issued earlier (issued_for names the query it was
+# issued under, viewer and collective included), and then states the parsed
+# request or the words the refusal must contain.
+
+- name: an_empty_query_reads_the_first_page_of_the_default_size
+  why: >
+    Omitting everything is the first page of 500 roots, the contract's default,
+    with no search and no filter.
+  query: "view=paged"
+  expect: {limit: 500}
+
+- name: limit_in_range_is_taken_as_given
+  why: The bounds 1 and 500 are legal and an interior value is taken as is.
+  query: "view=paged&limit=1"
+  expect: {limit: 1}
+
+- name: limit_at_the_maximum_is_legal
+  why: 500 is the largest page the contract declares.
+  query: "view=paged&limit=500"
+  expect: {limit: 500}
+
+- name: limit_zero_is_refused
+  why: A page of no roots reads nothing and would never advance.
+  query: "view=paged&limit=0"
+  expect_refusal: ["limit", "1", "500"]
+
+- name: limit_over_the_maximum_is_refused
+  why: Nothing clamps silently; 501 is a 400.
+  query: "view=paged&limit=501"
+  expect_refusal: ["limit"]
+
+- name: a_negative_limit_is_refused
+  why: A negative size is not a number of roots.
+  query: "view=paged&limit=-3"
+  expect_refusal: ["limit"]
+
+- name: a_limit_that_is_not_a_number_is_refused
+  why: Text is not a count.
+  query: "view=paged&limit=ten"
+  expect_refusal: ["limit"]
+
+- name: an_empty_limit_is_refused
+  why: A present but empty limit is not the default; it is a malformed count.
+  query: "view=paged&limit="
+  expect_refusal: ["limit"]
+
+- name: q_is_trimmed_and_blank_q_is_no_search
+  why: >
+    Surrounding blanks are not part of the search, and a q of only blanks is no
+    search at all, so a form that submits an empty box reads the whole library.
+  query: "view=paged&q=%20%20Login%20test%20"
+  expect: {limit: 500, q: "Login test"}
+
+- name: a_blank_q_is_absent
+  why: See the case above; the blank text must not become a search for nothing.
+  query: "view=paged&q=%20%20"
+  expect: {limit: 500}
+
+- name: q_with_a_nul_byte_is_refused
+  why: A NUL cannot be stored or searched, and would otherwise surface as a 500.
+  query: "view=paged&q=a%00b"
+  expect_refusal: ["q"]
+
+- name: q_with_invalid_utf8_is_refused
+  why: Invalid UTF-8 cannot be sent to the database as text.
+  query: "view=paged&q=%ff%fe"
+  expect_refusal: ["q"]
+
+- name: provider_with_a_nul_byte_is_refused
+  why: The same storage rule applies to the provider filter.
+  query: "view=paged&provider=a%00b"
+  expect_refusal: ["provider"]
+
+- name: provider_is_taken_as_given
+  why: The provider filter is an exact value; it is trimmed of blanks only.
+  query: "view=paged&provider=claude-code"
+  expect: {limit: 500, provider: "claude-code"}
+
+- name: a_project_hash_must_be_a_project_identity
+  why: Only a 64-character lowercase hexadecimal identity names a project.
+  query: "view=paged&project_hash=ABC"
+  expect_refusal: ["project_hash"]
+
+- name: a_project_hash_is_taken_as_given
+  why: A well-formed identity is passed through unchanged.
+  query: "view=paged&project_hash=0000000000000000000000000000000000000000000000000000000000000001"
+  expect: {limit: 500, project_hash: "0000000000000000000000000000000000000000000000000000000000000001"}
+
+- name: a_cursor_from_the_same_request_is_accepted
+  why: >
+    A cursor is valid for the viewer, collective and filters it was issued for,
+    and carries the position it was issued at.
+  issued_for: {query: "view=paged&q=needle", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged&q=needle&limit=10"
+  viewer: "viewer-1"
+  group: "group-1"
+  use_cursor: true
+  expect: {limit: 10, q: "needle", cursor: true}
+
+- name: a_cursor_for_another_viewer_is_refused
+  why: >
+    The cursor is bound to its viewer, so one person's position is never
+    replayed by another.
+  issued_for: {query: "view=paged", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged"
+  viewer: "viewer-2"
+  group: "group-1"
+  use_cursor: true
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_for_another_collective_is_refused
+  why: A position in one collective's page means nothing in another.
+  issued_for: {query: "view=paged", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged"
+  viewer: "viewer-1"
+  group: "group-2"
+  use_cursor: true
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_under_a_different_search_is_refused
+  why: A position under one search is not a position under another.
+  issued_for: {query: "view=paged&q=one", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged&q=two"
+  viewer: "viewer-1"
+  group: "group-1"
+  use_cursor: true
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_under_a_different_provider_is_refused
+  why: The provider filter is part of what a cursor is bound to.
+  issued_for: {query: "view=paged&provider=a", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged&provider=b"
+  viewer: "viewer-1"
+  group: "group-1"
+  use_cursor: true
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_under_a_different_project_is_refused
+  why: The project filter is part of what a cursor is bound to.
+  issued_for: {query: "view=paged&project_hash=0000000000000000000000000000000000000000000000000000000000000001", viewer: "viewer-1", group: "group-1"}
+  query: "view=paged&project_hash=0000000000000000000000000000000000000000000000000000000000000002"
+  viewer: "viewer-1"
+  group: "group-1"
+  use_cursor: true
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_that_is_not_base64_is_refused
+  why: Garbage is a refusal that says to start again, never a 500.
+  query: "view=paged&cursor=%21%21not-a-cursor"
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_that_is_not_a_position_is_refused
+  why: Valid encoding of an empty object carries no position.
+  query: "view=paged&cursor=e30"
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_with_an_unknown_field_is_refused
+  why: A cursor this server did not write must not be half-read.
+  raw_cursor_json: '{"v":1,"t":1,"i":"00000000-0000-0000-0000-000000000001","k":"{fp}","extra":1}'
+  query: "view=paged"
+  expect_refusal: ["cursor"]
+
+- name: a_cursor_with_a_root_that_is_not_an_id_is_refused
+  why: The root a page resumes after is a transcript id.
+  raw_cursor_json: '{"v":1,"t":1,"i":"not-an-id","k":"{fp}"}'
+  query: "view=paged"
+  expect_refusal: ["cursor"]
