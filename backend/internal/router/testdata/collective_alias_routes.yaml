@@ -12,6 +12,7 @@
 - {name: member-role-user-id-body, method: PATCH, suffix: '/{id}/members/{userID}/role', auth: required, body: '{"role":"owner"}', status: 400}
 - {name: remove-member-owner-refusal, method: DELETE, suffix: '/{id}/members/{userID}?retract=true', auth: required, actor: other, status: 403}
 - {name: contributable-flat, method: GET, suffix: '/{id}/contributable', auth: required, status: 200}
+- {name: contribution-projects-query, method: GET, suffix: '/{id}/contributable/projects?limit=1', auth: required, status: 200}
 - {name: batch-share-body, method: POST, suffix: '/{id}/shares', auth: required, body: '{}', status: 400}
 - {name: pending-query, method: GET, suffix: '/{id}/pending?page=1&limit=2', auth: required, status: 200}
 - {name: my-shares-query, method: GET, suffix: '/{id}/my-shares?page=1&limit=2', auth: required, status: 200}

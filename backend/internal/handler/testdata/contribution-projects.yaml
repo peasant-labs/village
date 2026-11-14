@@ -1,0 +1,436 @@
+# The contribution project picker, driven through the real HTTP handler against
+# a real PostgreSQL.
+#
+# Every count is in SESSIONS. A family is a root session plus every session that
+# descends from it through parent_session_id, and it belongs to its ROOT's
+# project. A family matches a search when the root's project display name
+# matches, or when any member's title matches or any member's id or local id is
+# the exact text. Project names are the resolved display names; the search never
+# reads raw evidence such as a path or remote.
+#
+# Transcript keys are local to a case. A project key is hashed per case, and
+# `names` gives a project an owner override so its display name is known.
+# `expect_projects` may list projects in any order: the driver sorts them by
+# (display name, project hash), the order the picker is specified to use.
+# `name: label` means the privacy label "project-" plus the first 12 hex digits
+# of the project hash, the name a project with no other evidence displays.
+
+- name: empty_library
+  why: >
+    A member with no published sessions gets an empty picker, not an error and not
+    a null list. A client that cannot tell "nothing to contribute" from "could not
+    read" would show a blank page with no reason.
+  transcripts: []
+  expect_status: 200
+  expect_matching_total: 0
+  expect_selectable_total: 0
+  expect_projects: []
+  expect_providers: []
+
+- name: counts_are_sessions_across_multi_helper_families
+  why: >
+    The count is in sessions. A root with two helpers and a grandchild is four
+    sessions, not one root, and a standalone root beside it is one more. Counting
+    roots would report two and pass a picker that the paged view cannot honour.
+  transcripts:
+    - {key: r, project: p1}
+    - {key: h1, project: p1, parent: r}
+    - {key: h2, project: p1, parent: r}
+    - {key: h2a, project: p1, parent: h2}
+    - {key: solo, project: p1}
+  expect_status: 200
+  expect_matching_total: 5
+  expect_selectable_total: 5
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 5, selectable: 5}
+  expect_providers:
+    - {provider: claude-code, count: 5}
+
+- name: helper_in_another_project_counts_under_its_roots_project
+  why: >
+    A family belongs to its root's project whatever project each helper is in. A
+    helper filed under a different project must not create a picker entry for that
+    project or be counted there; counting it under its own project would let one
+    family appear under two projects and double the totals.
+  names: {p1: Alpha, p2: Beta}
+  transcripts:
+    - {key: r, project: p1}
+    - {key: h, project: p2, parent: r}
+    - {key: r3, project: p2}
+  expect_status: 200
+  expect_matching_total: 3
+  expect_selectable_total: 3
+  expect_projects:
+    - {project: p1, name: Alpha, source: override, matching: 2, selectable: 2}
+    - {project: p2, name: Beta, source: override, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 3}
+
+- name: live_sessions_are_matching_but_not_selectable
+  why: >
+    A session already live in the collective still belongs to the matching count, so
+    the picker shows the whole project, but it is left out of the selectable count
+    so a selection cannot offer it again. Dropping it from both counts would make a
+    contributed project look smaller than it is.
+  transcripts:
+    - {key: r, project: p1, pre: live}
+    - {key: h, project: p1, parent: r}
+    - {key: x, project: p1}
+  expect_status: 200
+  expect_matching_total: 3
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 3, selectable: 2}
+  expect_providers:
+    - {provider: claude-code, count: 3}
+
+- name: q_matches_project_display_name
+  why: >
+    The search matches the project's displayed name across every project, so a
+    project whose rows sit on no loaded page is still found. A search that only
+    looked at loaded rows would hide it.
+  names: {p1: Alpha Ledger, p2: Beta}
+  transcripts:
+    - {key: r1, project: p1}
+    - {key: r2, project: p2}
+  query: ledger
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: Alpha Ledger, source: override, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
+
+- name: q_matches_root_title_and_counts_the_whole_family
+  why: >
+    A family appears when its root matches, and then its whole family counts. A
+    search that returned the root alone would show a contribution smaller than the
+    family the selection would actually take.
+  transcripts:
+    - {key: rootalpha, project: p1, title: Rootalpha session}
+    - {key: h, project: p1, parent: rootalpha}
+    - {key: other, project: p1}
+  query: rootalpha
+  expect_status: 200
+  expect_matching_total: 2
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 2, selectable: 2}
+  expect_providers:
+    - {provider: claude-code, count: 2}
+
+- name: q_matches_a_helper_only_title
+  why: >
+    A family appears when any helper matches, even when the root does not. The
+    helper is the session the person is searching for, and the family it sits in
+    must be offered with it.
+  transcripts:
+    - {key: r, project: p1, title: Plain root}
+    - {key: deep, project: p1, parent: r, title: Deephelper session}
+    - {key: solo, project: p1, title: Unrelated}
+  query: deephelper
+  expect_status: 200
+  expect_matching_total: 2
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 2, selectable: 2}
+  expect_providers:
+    - {provider: claude-code, count: 2}
+
+- name: q_matches_an_exact_transcript_id
+  why: >
+    A pasted transcript id finds the family it belongs to. The id is matched exactly,
+    so a partial id matches nothing rather than a loose prefix.
+  transcripts:
+    - {key: r, project: p1}
+    - {key: h, project: p1, parent: r}
+    - {key: z, project: p1}
+  query_id_of: h
+  expect_status: 200
+  expect_matching_total: 2
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 2, selectable: 2}
+  expect_providers:
+    - {provider: claude-code, count: 2}
+
+- name: q_matching_nothing_gives_an_empty_picker
+  why: >
+    A search with no match is an empty answer with zero totals, not a refusal.
+  transcripts:
+    - {key: r, project: p1, title: Something}
+  query: zzz-no-such-session
+  expect_status: 200
+  expect_matching_total: 0
+  expect_selectable_total: 0
+  expect_projects: []
+  expect_providers: []
+
+- name: q_does_not_read_a_hidden_raw_path
+  why: >
+    A project shows its owner override, and the search must match that displayed
+    name only. The raw path behind it is protected evidence the viewer is not shown,
+    so matching on it would reveal the project to a search for that path.
+  names: {p1: Public Alpha}
+  transcripts:
+    - {key: r, project: p1, path: /home/dev/secret-codename}
+  query: codename
+  expect_status: 200
+  expect_matching_total: 0
+  expect_selectable_total: 0
+  expect_projects: []
+  expect_providers: []
+
+- name: q_matches_the_displayed_name_of_the_same_project
+  why: >
+    The same project is found by its displayed override. This pairs with the case
+    above: the displayed name is searchable, the hidden path is not.
+  names: {p1: Public Alpha}
+  transcripts:
+    - {key: r, project: p1, path: /home/dev/secret-codename}
+  query: public alpha
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: Public Alpha, source: override, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
+
+- name: privacy_label_project_is_found_by_its_label
+  why: >
+    A project with no name evidence shows the privacy label with source privacy, and
+    the label is what a search matches. The label is the displayed name, so it is
+    searchable like any other.
+  transcripts:
+    - {key: r, project: p1}
+  query: project-
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
+
+- name: provider_facets_ignore_the_provider_filter
+  why: >
+    The selector lists every provider the search reaches, so it counts the sessions
+    of every provider under the search, not only the one selected. Filtering the
+    facet by its own choice would leave the selector with one option.
+  transcripts:
+    - {key: r, project: p1}
+    - {key: h, project: p1, parent: r, provider: codex}
+    - {key: r2, project: p2}
+  names: {p1: Alpha, p2: Beta}
+  expect_status: 200
+  expect_matching_total: 3
+  expect_selectable_total: 3
+  expect_projects:
+    - {project: p1, name: Alpha, source: override, matching: 2, selectable: 2}
+    - {project: p2, name: Beta, source: override, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 2}
+    - {provider: codex, count: 1}
+
+- name: provider_filter_keeps_families_holding_that_provider
+  why: >
+    A provider filter keeps whole families that hold a session of that provider.
+    The totals then count every session of those families, and the other project
+    with no such session disappears from the picker.
+  transcripts:
+    - {key: r, project: p1}
+    - {key: h, project: p1, parent: r, provider: codex}
+    - {key: r2, project: p2}
+  names: {p1: Alpha, p2: Beta}
+  provider: codex
+  expect_status: 200
+  expect_matching_total: 2
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: Alpha, source: override, matching: 2, selectable: 2}
+  expect_providers:
+    - {provider: claude-code, count: 2}
+    - {provider: codex, count: 1}
+
+- name: totals_span_every_page
+  why: >
+    Totals and provider counts cover every project, not the page in hand. A client
+    that summed the page it holds would show a short total, and the picker's totals
+    are the number the paged view is checked against.
+  names: {p1: Alpha, p2: Beta, p3: Gamma}
+  transcripts:
+    - {key: r1, project: p1}
+    - {key: r2, project: p2}
+    - {key: r3, project: p3}
+  walk: 1
+  expect_status: 200
+  expect_matching_total: 3
+  expect_selectable_total: 3
+  expect_projects:
+    - {project: p1, name: Alpha, source: override, matching: 1, selectable: 1}
+    - {project: p2, name: Beta, source: override, matching: 1, selectable: 1}
+    - {project: p3, name: Gamma, source: override, matching: 1, selectable: 1}
+  expect_page_sizes: [1, 1, 1]
+  expect_providers:
+    - {provider: claude-code, count: 3}
+
+- name: cursor_has_no_duplicates_or_gaps_with_equal_names
+  why: >
+    Projects with the same display name are ordered by their hash, so the cursor is
+    a total order. Equal names must not repeat a project or skip one when paging.
+  names: {p1: Same, p2: Same, p3: Zeta}
+  transcripts:
+    - {key: r1, project: p1}
+    - {key: r2, project: p2}
+    - {key: r3, project: p3}
+  walk: 1
+  expect_status: 200
+  expect_matching_total: 3
+  expect_selectable_total: 3
+  expect_projects:
+    - {project: p1, name: Same, source: override, matching: 1, selectable: 1}
+    - {project: p2, name: Same, source: override, matching: 1, selectable: 1}
+    - {project: p3, name: Zeta, source: override, matching: 1, selectable: 1}
+  expect_page_sizes: [1, 1, 1]
+  expect_providers:
+    - {provider: claude-code, count: 3}
+
+- name: a_page_larger_than_the_projects_ends_without_a_cursor
+  why: >
+    The last page carries no next cursor and has_more is false, so a client stops
+    rather than asking for an empty page forever.
+  names: {p1: Alpha, p2: Beta}
+  transcripts:
+    - {key: r1, project: p1}
+    - {key: r2, project: p2}
+  walk: 5
+  expect_status: 200
+  expect_matching_total: 2
+  expect_selectable_total: 2
+  expect_projects:
+    - {project: p1, name: Alpha, source: override, matching: 1, selectable: 1}
+    - {project: p2, name: Beta, source: override, matching: 1, selectable: 1}
+  expect_page_sizes: [2]
+  expect_providers:
+    - {provider: claude-code, count: 2}
+
+- name: another_owners_sessions_are_not_counted
+  why: >
+    Every query is scoped to the caller. A session of another owner in the same
+    project hash must not change this caller's counts.
+  transcripts:
+    - {key: r, project: p1}
+    - {key: o, project: p1, owner: other}
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
+
+- name: cursor_from_another_search_is_refused
+  why: >
+    A cursor is bound to the search that issued it. Reusing one under a different
+    search would page through a list the caller did not ask for.
+  names: {p1: Alpha, p2: Beta}
+  transcripts:
+    - {key: r1, project: p1}
+    - {key: r2, project: p2}
+  query: alpha
+  foreign_cursor: true
+  expect_status: 400
+
+- name: malformed_cursor_is_refused
+  why: >
+    A cursor the picker did not issue is a client error with a reason, not an empty
+    or first page.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: cursor=not-a-real-cursor
+  expect_status: 400
+
+- name: limit_bounds_are_enforced
+  why: >
+    The page size is counted in projects, 1 to 500. Zero, a value above the bound,
+    and a non-number are refused, so a client cannot ask for an unbounded page.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: limit=0
+  expect_status: 400
+
+- name: limit_above_the_maximum_is_refused
+  why: >
+    One above the maximum is refused, which pins the bound at 500.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: limit=501
+  expect_status: 400
+
+- name: limit_that_is_not_a_number_is_refused
+  why: >
+    A non-numeric limit is refused rather than read as the default.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: limit=many
+  expect_status: 400
+
+- name: the_maximum_limit_is_accepted
+  why: >
+    The bound is inclusive, so the maximum page size still answers.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: limit=500
+  expect_status: 200
+  expect_matching_total: 1
+  expect_selectable_total: 1
+  expect_projects:
+    - {project: p1, name: label, source: privacy, matching: 1, selectable: 1}
+  expect_providers:
+    - {provider: claude-code, count: 1}
+
+- name: unknown_parameter_is_refused
+  why: >
+    Only the declared parameters are accepted. A parameter the contract does not
+    name, such as a project search under another name, is refused so a client
+    learns its filter was not applied.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: project_q=ledger
+  expect_status: 400
+
+- name: repeated_parameter_is_refused
+  why: >
+    A repeated search is ambiguous, so it is refused rather than one value being
+    silently chosen.
+  transcripts:
+    - {key: r, project: p1}
+  raw_query: q=a&q=b
+  expect_status: 400
+
+- name: non_member_is_refused
+  why: >
+    Membership gates the read. A non-member learns nothing about the collective or
+    the caller's sessions.
+  member: false
+  transcripts:
+    - {key: r, project: p1}
+  expect_status: 403
+
+- name: unknown_collective_is_refused_like_a_non_member
+  why: >
+    An unknown collective answers the same way as a non-member, so the answer does
+    not reveal which collectives exist.
+  collective: unknown
+  transcripts:
+    - {key: r, project: p1}
+  expect_status: 403
+
+- name: malformed_collective_id_is_refused
+  why: >
+    A collective id that is not an identifier is a client error, named as such.
+  collective: malformed
+  transcripts: []
+  expect_status: 400
