@@ -1099,6 +1099,35 @@ The audit triggers (migration 026), the share-derivation triggers
   `approved`. The cursor is opaque, carries no authority and is bound to the
   viewer, collective and filters. The view adds no migration, no index and no
   table, and touches `transcript_shares` nowhere.
+- **The project picker, the paged view and the snapshot view share ONE
+  contribution-family rule.** For the same viewer, collective, `q` and
+  `provider`, the picker's `matching_count` for a project equals the snapshot's
+  count for it, the families the paged view lists for that `project_hash` are the
+  snapshot's roots, and the picker's `matching_total` is the number of sessions
+  across every paged family. The rule: a family is a root plus every session
+  descending from it through `parent_session_id`, and belongs to its ROOT's
+  project. `q` is trimmed and a blank `q` is no search. A member matches when its
+  title contains `q` (case-insensitive, `%`, `_` and backslash literal), when `q`
+  equals its transcript id (case-insensitive), or when `q` equals its local
+  session id exactly. The ROOT also matches when its project's DISPLAYED name
+  (the project-name resolver, never raw path or remote evidence) contains `q`; a
+  helper's own project name never matches. A family is selected when its root or
+  any helper matches, and then every member counts and is returned; `matched` on
+  a member is that member's own match. `provider` is an exact `model_provider`
+  and keeps whole families that contain at least one session of it (the picker's
+  provider facet ignores `provider` but applies `q`). Live is one definition: the
+  latest ledger event for the session in this collective is `pending` or
+  `approved`. The rule is written once in `contribution_family.go` as SQL
+  fragment builders. The snapshot builds its streaming statement from them
+  directly; the two sqlc statements carry the same fragment text, which a unit
+  test compares with the builders, and a cross-read integration test asserts the
+  three equalities through the mounted routes. Parameters: unknown parameters
+  and parameters another view owns are ignored; a known parameter sent twice is a
+  400; invalid UTF-8 or NUL in `q` or `provider`, a bad `limit` or `cursor` (an
+  empty `cursor=` included), and a missing or malformed `project_hash` on the
+  snapshot are 400. All three reads gate identically: the collective id is parsed
+  first, then current membership (403 for a non-member and for an unknown
+  collective), then the parameters.
 - **Grouped collective candidates and member replay share one scoped read.**
   `ListCollectiveGroupedCandidates` applies the fixed collective, pending,
   my-shares, or contributable predicate before grouping and paging. Collective
