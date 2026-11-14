@@ -337,7 +337,7 @@ over two.
   only the timeout refusal is an owner decision; this data states the cost.
 - **Index set recommended for adoption now: H1 alone**, with the 1,000,000 first-page
   decision on R1 left open. No index helps the picker enough to pass the rule alone
-  at 1,000,000.
+  at 1,000,000. Migration 051 adds that index.
 
 ### Not measured
 
