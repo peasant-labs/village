@@ -404,25 +404,6 @@ func rawUUID(b []byte) ([16]byte, bool) {
 // snapshotRequestKeys are the query parameters a snapshot request may carry.
 var snapshotRequestKeys = []string{"view", "project_hash", "q", "provider"}
 
-// serveContributionView serves the views of the contributable route that this
-// file owns, and refuses a view nobody serves. It reports whether it answered.
-// The flat response (no view) and the grouped view are handled by their own
-// code, so nothing here changes them.
-func (h *Handler) serveContributionView(w http.ResponseWriter, r *http.Request) bool {
-	switch view := r.URL.Query().Get("view"); view {
-	case "", contributableViewGrouped, contributableViewPaged:
-		return false
-	case contributableViewSnapshot:
-		h.listContributionSnapshot(w, r)
-		return true
-	default:
-		writeError(w, http.StatusBadRequest, fmt.Sprintf(
-			"view %q is not a view of this listing. Accepted values are %q, %q and %q; leave view out for the full flat "+
-				"listing. Nothing was read.", view, contributableViewGrouped, contributableViewPaged, contributableViewSnapshot))
-		return true
-	}
-}
-
 // snapshotParams is a validated snapshot request.
 type snapshotParams struct {
 	projectHash string

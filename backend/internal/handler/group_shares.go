@@ -579,11 +579,7 @@ type contributableResponse struct {
 // ListContributable serves everything the caller may offer to ONE collective.
 // GET /api/v1/groups/{id}/contributable (AuthRequired)
 func (h *Handler) ListContributable(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("view") == "grouped" {
-		h.listCollectiveGrouped(w, r, GroupedRouteContributable)
-		return
-	}
-	if h.serveContributionView(w, r) {
+	if h.dispatchContributableView(w, r) {
 		return
 	}
 	ctx := r.Context()

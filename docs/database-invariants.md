@@ -1083,6 +1083,22 @@ The audit triggers (migration 026), the share-derivation triggers
   rather than a SQL `LIMIT`: the listing is deliberately whole, because the
   surface builds a project tree over it and a page would let someone contribute
   part of a project believing they contributed all of it.
+- **The paged contribute view counts ROOT sessions and reads the same ledger.**
+  `GET /collectives/{id}/contributable?view=paged` (and the `/groups` alias)
+  returns one keyset page of contribution families, ordered by
+  `COALESCE(session_start, published_at, 'epoch') DESC, id ASC`. The limit
+  counts roots only; helpers ride with their root. A root is a transcript with
+  no `parent_session_id`, or whose parent is not one of the owner's own
+  transcripts; a family belongs to its root's project, while a helper keeps its
+  own `project_hash`. One statement, scoped to `owner_id`, reads the page and
+  its families from a single snapshot, descending from the page roots set-wise
+  because `parent_session_id` and `project_hash` carry no index. Cycles and
+  self-parents are unreachable from a root and are never listed. Each member's
+  `latest_status` is the latest attempt per `(transcript, collective)` in
+  `transcript_share_attempts`; `already_shared` is true only for `pending` and
+  `approved`. The cursor is opaque, carries no authority and is bound to the
+  viewer, collective and filters. The view adds no migration, no index and no
+  table, and touches `transcript_shares` nowhere.
 - **Grouped collective candidates and member replay share one scoped read.**
   `ListCollectiveGroupedCandidates` applies the fixed collective, pending,
   my-shares, or contributable predicate before grouping and paging. Collective
