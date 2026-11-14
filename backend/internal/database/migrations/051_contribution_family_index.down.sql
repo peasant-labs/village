@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_transcripts_owner_parent_session;

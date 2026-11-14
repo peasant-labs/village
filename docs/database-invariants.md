@@ -1092,7 +1092,7 @@ The audit triggers (migration 026), the share-derivation triggers
   transcripts; a family belongs to its root's project, while a helper keeps its
   own `project_hash`. One statement, scoped to `owner_id`, reads the page and
   its families from a single snapshot, descending from the page roots set-wise
-  because `parent_session_id` and `project_hash` carry no index. Cycles and
+  because `project_hash` carries no index, and `(owner_id, parent_session_id)` is indexed only by migration 051. Cycles and
   self-parents are unreachable from a root and are never listed. Each member's
   `latest_status` is the latest attempt per `(transcript, collective)` in
   `transcript_share_attempts`; `already_shared` is true only for `pending` and
