@@ -75,6 +75,8 @@ Key environment variables:
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `POOL_MAX_CONNS` | Max DB connection-pool size (optional). Default `max(10, 2×NumCPU)`. PostgreSQL advisory locks belong to a physical session, so a locked publish keeps one connection across its source probe, preflight, S3 upload, and short persistence transactions; no database transaction spans S3. A pool of one safely serializes publishes, while larger pools absorb concurrent transcript/annotation publishes from a client running `--concurrency N`. Precedence: `POOL_MAX_CONNS` > a `pool_max_conns` set directly in `DATABASE_URL` > the built-in default. |
+| `CONTRIBUTION_SNAPSHOT_TIMEOUT` | Longest one contribution snapshot read may run (optional Go duration). Default `15s`; over it the read returns `503` `snapshot_timeout`. |
+| `CONTRIBUTION_SNAPSHOT_MAX_CONCURRENT` | How many contribution snapshots run at once across viewers (optional positive integer). Default `max(1, min(4, POOL_MAX_CONNS/4))`; when none frees up within 2 seconds the read returns `503` `snapshot_busy`. |
 | `S3_ENDPOINT` | RustFS/S3 endpoint |
 | `S3_BUCKET` | Bucket for transcript files |
 | `S3_ACCESS_KEY` | S3 access key |

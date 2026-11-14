@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // jwtSecretBlocklist contains known-weak JWT secrets that must not be used in production.
@@ -72,6 +74,18 @@ type Config struct {
 	// and is never logged.
 	ScryURL          string
 	ScrySharedSecret string
+
+	// ContributionSnapshotTimeout bounds one contribution snapshot read: the
+	// statement timeout of its database transaction and the deadline of the
+	// request that issues it. Zero means the built-in 15 seconds
+	// (CONTRIBUTION_SNAPSHOT_TIMEOUT, a Go duration such as "30s").
+	ContributionSnapshotTimeout time.Duration
+
+	// ContributionSnapshotMaxConcurrent bounds how many contribution snapshots
+	// this process builds at once, across all viewers. Zero means the built-in
+	// default derived from the database pool size
+	// (CONTRIBUTION_SNAPSHOT_MAX_CONCURRENT, a positive integer).
+	ContributionSnapshotMaxConcurrent int
 }
 
 // Narrow S3 accessors let the raw object adapter depend on storage authority,
@@ -99,6 +113,15 @@ func validateJWTSecret(secret string) error {
 
 func Load() *Config {
 	jwtSecret := os.Getenv("JWT_SECRET")
+
+	snapshotTimeout, err := ParseContributionSnapshotTimeout(os.Getenv("CONTRIBUTION_SNAPSHOT_TIMEOUT"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	snapshotMaxConcurrent, err := ParseContributionSnapshotMaxConcurrent(os.Getenv("CONTRIBUTION_SNAPSHOT_MAX_CONCURRENT"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if err := validateJWTSecret(jwtSecret); err != nil {
 		log.Fatal(err)
@@ -134,9 +157,42 @@ func Load() *Config {
 		EmailLinkSigningKey:     getEnv("EMAIL_LINK_SIGNING_KEY", ""),
 		ScryURL:                 getEnv("SCRY_URL", ""),
 		ScrySharedSecret:        getEnv("SCRY_SHARED_SECRET", ""),
+
+		ContributionSnapshotTimeout:       snapshotTimeout,
+		ContributionSnapshotMaxConcurrent: snapshotMaxConcurrent,
 		// Default ON: only the explicit string "false" disables it, so an unset or
 		// malformed value fails safe to enabled (legacy NULLs still get backfilled).
 	}
+}
+
+// ParseContributionSnapshotTimeout reads CONTRIBUTION_SNAPSHOT_TIMEOUT. Empty
+// means unset (zero, so the handler applies its default); anything else must be
+// a positive Go duration.
+func ParseContributionSnapshotTimeout(raw string) (time.Duration, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("config: CONTRIBUTION_SNAPSHOT_TIMEOUT must be a positive duration such as \"15s\" (got %q) - fix or unset it; unset uses 15s", raw)
+	}
+	return d, nil
+}
+
+// ParseContributionSnapshotMaxConcurrent reads
+// CONTRIBUTION_SNAPSHOT_MAX_CONCURRENT. Empty means unset (zero, so the handler
+// derives a default from the pool size); anything else must be a positive integer.
+func ParseContributionSnapshotMaxConcurrent(raw string) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("config: CONTRIBUTION_SNAPSHOT_MAX_CONCURRENT must be a positive integer (got %q) - fix or unset it; unset derives a bound from the database pool size", raw)
+	}
+	return n, nil
 }
 
 // normalizePEM converts an env-supplied private key that uses literal "\n"

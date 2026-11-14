@@ -583,6 +583,9 @@ func (h *Handler) ListContributable(w http.ResponseWriter, r *http.Request) {
 		h.listCollectiveGrouped(w, r, GroupedRouteContributable)
 		return
 	}
+	if h.serveContributionView(w, r) {
+		return
+	}
 	ctx := r.Context()
 	user := GetUser(ctx)
 
