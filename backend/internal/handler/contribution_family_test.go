@@ -40,6 +40,9 @@ var requiredContributionFamilyFragments = []string{
 	"paged_provider_match",
 	"paged_latest_attempt",
 	"paged_live",
+	"selection_root_condition",
+	"selection_latest_attempt",
+	"selection_live",
 }
 
 func squeezeSQL(s string) string { return strings.Join(strings.Fields(s), "") }

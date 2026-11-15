@@ -832,6 +832,9 @@ func (m *mockQuerier) GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLat
 func (m *mockQuerier) ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error) {
 	panic("ListShareAttempts: not stubbed")
 }
+func (m *mockQuerier) ListOwnerSelectionShareStates(ctx context.Context, arg sqlc.ListOwnerSelectionShareStatesParams) ([]sqlc.ListOwnerSelectionShareStatesRow, error) {
+	panic("ListOwnerSelectionShareStates: not stubbed")
+}
 func (m *mockQuerier) UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error {
 	panic("UnshareTranscript: not stubbed")
 }
