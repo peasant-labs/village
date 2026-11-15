@@ -196,20 +196,25 @@
       expect_helpers: {root: [early, late, grand]}
       expect_parent_transcript: {root: none, early: root, late: root, grand: early}
 
-- name: parent_cycles_are_unreachable_and_the_read_terminates
+- name: every_member_of_a_parent_loop_is_a_root_and_the_read_terminates
   why: >
     Nothing in the schema forbids a session naming itself, or two sessions naming
-    each other, as parent. Such rows have no root above them, so no family
-    reaches them; the read must neither hang on the cycle nor list them as roots.
+    each other, as parent. Every session on such a loop is a root, so it is
+    listed once and none is hidden: no member is another's helper and none
+    carries a parent_transcript_id. A helper hanging off a loop member rides with
+    that member. The read must not hang on the loop.
   transcripts:
     - {key: sane, project: p, session_age: 10}
     - {key: selfie, project: p, parent: selfie, session_age: 20}
     - {key: ping, project: p, parent: pong, session_age: 30}
+    - {key: ping_helper, project: p, parent: ping, session_age: 29}
     - {key: pong, project: p, parent: ping, session_age: 40}
   requests:
     - query: "view=paged"
       expect_status: 200
-      expect_roots: [sane]
+      expect_roots: [sane, selfie, ping, pong]
+      expect_helpers: {ping: [ping_helper]}
+      expect_parent_transcript: {selfie: none, ping: none, pong: none, ping_helper: ping}
 
 - name: other_owners_transcripts_never_appear
   why: >

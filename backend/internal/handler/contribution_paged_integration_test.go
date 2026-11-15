@@ -102,7 +102,7 @@ var requiredContributionPagedCases = []string{
 	"a_helper_whose_parent_is_not_published_is_a_root",
 	"a_parent_owned_by_someone_else_is_not_a_parent",
 	"nested_helpers_are_one_family_ordered_by_depth",
-	"parent_cycles_are_unreachable_and_the_read_terminates",
+	"every_member_of_a_parent_loop_is_a_root_and_the_read_terminates",
 	"other_owners_transcripts_never_appear",
 	"every_visibility_is_listed_with_its_own_visibility",
 	"session_start_is_carried_only_when_known",

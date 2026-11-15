@@ -13,6 +13,9 @@ import (
 
 const listContributionPage = `-- name: ListContributionPage :many
 WITH RECURSIVE
+loop_walk(local_id, parent_session_id, seen) AS (
+    SELECT NULL::text, NULL::text, NULL::text[] WHERE false
+),
 all_roots AS NOT MATERIALIZED (
     SELECT t.id, t.project_hash,
            COALESCE(t.session_start, t.published_at, 'epoch'::timestamptz) AS sort_time
@@ -26,6 +29,29 @@ all_roots AS NOT MATERIALIZED (
               WHERE p.owner_id = t.owner_id
                 AND p.local_id = t.parent_session_id
           )
+          OR (
+              EXISTS (
+                  SELECT 1
+                  FROM transcripts loop_child
+                  WHERE loop_child.owner_id = t.owner_id
+                    AND loop_child.parent_session_id = t.local_id
+              )
+              AND EXISTS (
+                  WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                      SELECT t.local_id, t.parent_session_id, ARRAY[t.local_id]
+                      UNION ALL
+                      SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                      FROM loop_walk
+                      JOIN transcripts loop_step
+                        ON loop_step.owner_id = t.owner_id
+                       AND loop_step.local_id = loop_walk.parent_session_id
+                      WHERE loop_step.local_id <> ALL (loop_walk.seen)
+                  )
+                  SELECT 1
+                  FROM loop_walk
+                  WHERE loop_walk.parent_session_id = t.local_id
+              )
+          )
       )
 ),
 filter_family(root_id, id, local_id, depth) AS (
@@ -37,6 +63,29 @@ filter_family(root_id, id, local_id, depth) AS (
     SELECT f.root_id, c.id, c.local_id, f.depth + 1
     FROM filter_family f
     JOIN transcripts c ON c.owner_id = $2 AND c.parent_session_id = f.local_id
+    WHERE NOT (
+        EXISTS (
+            SELECT 1
+            FROM transcripts loop_child
+            WHERE loop_child.owner_id = c.owner_id
+              AND loop_child.parent_session_id = c.local_id
+        )
+        AND EXISTS (
+            WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                SELECT c.local_id, c.parent_session_id, ARRAY[c.local_id]
+                UNION ALL
+                SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                FROM loop_walk
+                JOIN transcripts loop_step
+                  ON loop_step.owner_id = c.owner_id
+                 AND loop_step.local_id = loop_walk.parent_session_id
+                WHERE loop_step.local_id <> ALL (loop_walk.seen)
+            )
+            SELECT 1
+            FROM loop_walk
+            WHERE loop_walk.parent_session_id = c.local_id
+        )
+    )
 ),
 filter_member(root_id, id, matched, has_provider) AS (
     SELECT f.root_id, f.id,
@@ -79,6 +128,29 @@ family(root_id, id, local_id, depth) AS (
     SELECT f.root_id, c.id, c.local_id, f.depth + 1
     FROM family f
     JOIN transcripts c ON c.owner_id = $2 AND c.parent_session_id = f.local_id
+    WHERE NOT (
+        EXISTS (
+            SELECT 1
+            FROM transcripts loop_child
+            WHERE loop_child.owner_id = c.owner_id
+              AND loop_child.parent_session_id = c.local_id
+        )
+        AND EXISTS (
+            WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                SELECT c.local_id, c.parent_session_id, ARRAY[c.local_id]
+                UNION ALL
+                SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                FROM loop_walk
+                JOIN transcripts loop_step
+                  ON loop_step.owner_id = c.owner_id
+                 AND loop_step.local_id = loop_walk.parent_session_id
+                WHERE loop_step.local_id <> ALL (loop_walk.seen)
+            )
+            SELECT 1
+            FROM loop_walk
+            WHERE loop_walk.parent_session_id = c.local_id
+        )
+    )
 )
 SELECT f.root_id, f.depth,
        t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
@@ -133,10 +205,11 @@ type ListContributionPageRow struct {
 // The page is bounded in ROOT sessions (root_limit), never in transcripts, so
 // a root's helpers ride with it and are not counted.
 //
-// A root is a transcript of the owner with no parent_session_id, or whose
-// parent is not among the owner's published transcripts. A parent_session_id is
-// a LOCAL session id, unique only within one owner, so every parent lookup and
-// every descent step is scoped to owner_id.
+// A root is a transcript of the owner with no parent_session_id, whose parent
+// is not among the owner's published transcripts, or that is on a parent loop
+// (walking up its parents comes back to it). A parent_session_id is a LOCAL
+// session id, unique only within one owner, so every parent lookup and every
+// descent step is scoped to owner_id.
 //
 // A family belongs to its root's project (project_hash narrows by the ROOT's
 // project). A helper in another project still appears in its root's family and
@@ -161,14 +234,15 @@ type ListContributionPageRow struct {
 //
 // The unfiltered path stays a bounded read: the family-wide filter expansion is
 // seeded only when q or provider is present, so with neither the root query is
-// ordered and cut at root_limit before any family is expanded. There is no
-// index on parent_session_id, so the descent is written set-at-a-time (one
-// recursive join per level over the whole working set), never as one
-// correlated recursion per root.
+// ordered and cut at root_limit before any family is expanded. The descent is
+// written set-at-a-time (one recursive join per level over the whole working
+// set), never as one correlated recursion per root.
 //
-// Each transcript has exactly one parent, so the descent from a root is a tree
-// and terminates without a depth cap. A transcript whose parent chain forms a
-// cycle is never a descendant of a root and never appears.
+// Each transcript has at most one parent, and no descent step enters a session
+// on a loop (that session is a root of its own family), so the descent from a
+// root is a tree and terminates without a depth cap. The loop test itself walks
+// up from one session, never revisiting a session, so it ends on any data, and
+// runs only for a session that has a child.
 //
 // latest_status is the status of the LATEST attempt of the (transcript,
 // collective) pair in the append-only ledger, never the derived projection;

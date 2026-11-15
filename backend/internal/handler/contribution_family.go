@@ -23,16 +23,43 @@ import (
 // view lists for a project are the roots of that snapshot, and the picker's total
 // is the number of sessions across every paged family.
 //
-// A FAMILY is a root session and every session below it. A session below a root
-// is reached through parent_session_id, which names the parent's local_id within
-// one owner. The family is a tree: local_id is unique per owner, so a session has
-// at most one parent. A session reachable from no root (its parent chain forms a
-// cycle) belongs to no family and no read lists it.
+// The PARENT of a session is the same owner's transcript whose local_id equals
+// the session's parent_session_id. local_id is unique per owner (a database
+// constraint), so a session has at most one parent and following parents is a
+// walk with exactly one next step, or none.
 //
-// A ROOT is a session with no parent_session_id, or whose parent is not among the
-// owner's published transcripts (an orphan: its parent was never published or was
-// removed). An orphan is treated as a root so it is never silently dropped from
-// the project it belongs to.
+// A LOOP is a set of sessions whose parent chain returns to where it started: a
+// session that is its own parent, two sessions that are each other's parent,
+// and so on. A session is ON a loop when walking up from it comes back to it. A
+// session whose chain only runs INTO a loop is not on it.
+//
+// A ROOT is a session that
+//   - has no parent_session_id;
+//   - or whose parent is not among the owner's published transcripts (an orphan:
+//     its parent was never published or was removed), so it is never silently
+//     dropped from the project it belongs to;
+//   - or that is on a loop. Every member of a loop is a root of its own family,
+//     so a loop is listed, once per member, instead of vanishing.
+//
+// A FAMILY is a root and every session reached by descending from it to
+// children (sessions whose parent it is), never stepping onto a session that
+// is on a loop. So a loop member's family holds the sessions hanging off it,
+// never the next loop member, and no family contains another family's root.
+// Every session of the owner is in exactly one family: walking up from a
+// session that is not a root passes only sessions that are not roots until it
+// reaches a root (the end of the chain, or a loop member), and descending from
+// that root retraces the same chain. A descent never steps onto a root, because
+// a child has a parent and so is a root only when it is on a loop.
+//
+// TERMINATION. The loop test walks up from one session and records every
+// session it has visited; it stops when the next parent is missing or already
+// visited. Each step adds a session not seen before, so on any data the walk
+// ends within the number of the owner's sessions. The test runs only for a
+// session that has a parent AND a child (a loop member always has both; a self
+// loop is its own child), both found through indexes, so the walk runs for few
+// sessions and is as long as the chain above them. No state is stored: the
+// test reads only parent_session_id and local_id, through the
+// (owner_id, parent_session_id) and (owner_id, local_id) indexes.
 //
 // A family belongs to the project of its ROOT. Helpers keep their own project:
 // a helper in another project is part of this family, and a helper here whose
@@ -70,21 +97,60 @@ import (
 // has one canonical text per fragment, built below. The snapshot builds its
 // statement from those builders; the sqlc statements of the picker and the paged
 // view carry the same text with named placeholders, because sqlc has no way to
-// include a fragment. contribution_family_drift_test.go fails when any sqlc
-// statement stops containing a canonical fragment, and the cross-read integration
-// test fails when the three reads stop agreeing.
+// include a fragment (each of them also opens with the loop_walk declaration
+// below, which only sqlc needs). contribution_family_test.go fails when any sqlc
+// statement stops containing a canonical fragment, and the cross-read
+// integration test (contribution_consistency_integration_test.go) fails when the
+// three reads stop agreeing or a session of the library is listed other than
+// exactly once.
 
 // contributionLiveStatuses are the latest-attempt statuses that make a session
 // live in a collective.
 var contributionLiveStatuses = []string{"pending", "approved"}
 
+// contributionOnLoopSQL is true when the session aliased alias is on a parent
+// loop: walking up its parents comes back to it. The child test comes first and
+// is an index lookup; a session with no child cannot be on a loop, so most
+// sessions never walk. The walk carries the sessions it has visited and never
+// steps onto one of them again, so it ends on any data.
+func contributionOnLoopSQL(alias string) string {
+	return "(EXISTS (SELECT 1 FROM transcripts loop_child" +
+		" WHERE loop_child.owner_id = " + alias + ".owner_id AND loop_child.parent_session_id = " + alias + ".local_id)" +
+		" AND EXISTS (WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (" +
+		"SELECT " + alias + ".local_id, " + alias + ".parent_session_id, ARRAY[" + alias + ".local_id]" +
+		" UNION ALL SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id" +
+		" FROM loop_walk JOIN transcripts loop_step" +
+		" ON loop_step.owner_id = " + alias + ".owner_id AND loop_step.local_id = loop_walk.parent_session_id" +
+		" WHERE loop_step.local_id <> ALL (loop_walk.seen))" +
+		" SELECT 1 FROM loop_walk WHERE loop_walk.parent_session_id = " + alias + ".local_id))"
+}
+
 // contributionRootCondition is the root test for the session aliased alias in a
-// query over transcripts. It is the same condition the contribution benchmark
-// tool measures.
+// query over transcripts: no parent, a parent that is not published, or a place
+// on a loop.
 func contributionRootCondition(alias string) string {
 	return "(" + alias + ".parent_session_id IS NULL OR NOT EXISTS (" +
-		"SELECT 1 FROM transcripts p WHERE p.owner_id = " + alias + ".owner_id AND p.local_id = " + alias + ".parent_session_id))"
+		"SELECT 1 FROM transcripts p WHERE p.owner_id = " + alias + ".owner_id AND p.local_id = " + alias + ".parent_session_id)" +
+		" OR " + contributionOnLoopSQL(alias) + ")"
 }
+
+// contributionDescentSQL is the condition every step down a family puts on the
+// child aliased child: it is not on a loop. A loop member is a root of its own
+// family, so descending onto one would list it twice.
+func contributionDescentSQL(child string) string {
+	return "NOT " + contributionOnLoopSQL(child)
+}
+
+// contributionLoopWalkDeclarationSQL is the first common table expression of
+// every sqlc statement that carries the loop test. sqlc resolves the relations
+// of a statement at its top level and does not see a WITH nested inside a
+// subquery, so without this it rejects the walk's loop_walk as an unknown
+// table. It declares an empty relation with the walk's name and columns;
+// PostgreSQL resolves every reference to loop_walk to the nearest WITH, the one
+// inside the loop test, so this one is never read. Removing it makes sqlc
+// generate fail, not the statement change. The hand-built snapshot does not
+// need it.
+const contributionLoopWalkDeclarationSQL = "loop_walk(local_id, parent_session_id, seen) AS (SELECT NULL::text, NULL::text, NULL::text[] WHERE false)"
 
 // contributionMemberMatchSQL is the text match of one member aliased alias.
 // pattern is an expression holding the ILIKE pattern of the search and text an

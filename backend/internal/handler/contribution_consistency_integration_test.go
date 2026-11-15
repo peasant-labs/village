@@ -13,6 +13,10 @@ package handler
 // in that file is sent through the MOUNTED routes to all three reads, and the
 // answers are held to three equalities and to a hand-written statement of which
 // families the rule selects, so the three reads cannot agree on a wrong answer.
+// Each read is also held to listing a session at most once, and a request that
+// selects the whole library to listing every session of the owner exactly once:
+// a family rule that let a session into two families, or into none, is caught
+// here even where the three reads make the same mistake.
 
 import (
 	"context"
@@ -51,6 +55,9 @@ type consistencyRequest struct {
 	Provider       string   `yaml:"provider"`
 	ExpectFamilies []string `yaml:"expect_families"`
 	ExpectMatched  []string `yaml:"expect_matched"`
+	// ExpectEverySessionOnce says the request selects the whole library, so every
+	// session of the owner is listed exactly once by each read.
+	ExpectEverySessionOnce bool `yaml:"expect_every_session_once"`
 }
 
 type consistencyParameter struct {
@@ -105,7 +112,9 @@ var requiredConsistencyGates = []string{
 // because losing it hides one way the reads have disagreed: the provider rule,
 // the project name of a root against the project name of a helper, the displayed
 // name against the published one, the three literal characters of a search, the
-// local session id, and a search of nothing.
+// local session id, a search of nothing, and the loops of parents (a session
+// that is its own parent, a loop of three across projects, and a helper hanging
+// off a loop member), where a session can be listed twice or not at all.
 var requiredConsistencyRequests = []string{
 	"no_search_lists_every_family",
 	"a_blank_q_is_no_search",
@@ -124,6 +133,10 @@ var requiredConsistencyRequests = []string{
 	"part_of_a_local_session_id_matches_nothing",
 	"q_equal_to_a_transcript_id_matches_in_any_case",
 	"q_with_no_match_selects_nothing",
+	"a_loop_member_holds_its_helpers_and_no_other_member",
+	"each_member_of_a_loop_of_three_is_a_family",
+	"a_session_that_is_its_own_parent_is_one_family",
+	"a_loop_member_is_selected_by_its_provider_alone",
 }
 
 func loadConsistencyFixture(t *testing.T) consistencyFixture {
@@ -133,7 +146,9 @@ func loadConsistencyFixture(t *testing.T) consistencyFixture {
 		t.Fatalf("load the contribution consistency fixture: %v", err)
 	}
 	present := map[string]bool{}
+	wholeLibrary := false
 	for _, r := range fixture.Requests {
+		wholeLibrary = wholeLibrary || r.ExpectEverySessionOnce
 		if r.Name == "" || r.Why == "" {
 			t.Fatalf("a consistency request needs a name and a reason: %+v", r)
 		}
@@ -141,6 +156,10 @@ func loadConsistencyFixture(t *testing.T) consistencyFixture {
 			t.Fatalf("the consistency fixture repeats request %q", r.Name)
 		}
 		present[r.Name] = true
+	}
+	if !wholeLibrary {
+		t.Fatal("no consistency request selects the whole library with expect_every_session_once, so nothing holds the " +
+			"reads to listing every session exactly once; restore it.")
 	}
 	for _, required := range requiredConsistencyRequests {
 		if !present[required] {
@@ -185,6 +204,9 @@ func loadConsistencyFixture(t *testing.T) consistencyFixture {
 type consistencyRead struct {
 	// families maps a root key to the keys of its helpers, as the paged view lists them.
 	families map[string][]string
+	// listed counts how many times the paged view lists each session, as a root
+	// or as a helper.
+	listed   map[string]int
 	matched  map[string]bool
 	live     map[string]bool
 	provider map[string]string
@@ -238,6 +260,7 @@ func (w *pagedWorld) readPagedFamilies(t *testing.T, q, provider string, into *c
 		t.Fatalf("the library fits one page of 500 roots but the paged view says there is more: %s", rec.Body.String())
 	}
 	note := func(key string, member pagedRawMember) {
+		into.listed[key]++
 		if member.Matched != nil && *member.Matched {
 			into.matched[key] = true
 		}
@@ -405,6 +428,7 @@ func TestContributionReadsAgree(t *testing.T) {
 
 			read := consistencyRead{
 				families:  map[string][]string{},
+				listed:    map[string]int{},
 				matched:   map[string]bool{},
 				live:      map[string]bool{},
 				provider:  map[string]string{},
@@ -415,6 +439,47 @@ func TestContributionReadsAgree(t *testing.T) {
 			read.picker = world.readPicker(t, q, provider)
 			for _, project := range projects {
 				read.snapshots[project] = world.readSnapshot(t, project, q, provider)
+			}
+
+			// Every session is in one family at most, in every read.
+			snapshotListed := map[string]int{}
+			for _, project := range projects {
+				for _, record := range read.snapshots[project].Records {
+					snapshotListed[world.keyOf(string(record.ID))]++
+				}
+			}
+			for key, n := range read.listed {
+				if n != 1 {
+					t.Errorf("the paged view lists %s %d times; a session is in one family (%s)", key, n, why)
+				}
+			}
+			for key, n := range snapshotListed {
+				if n != 1 {
+					t.Errorf("the snapshots list %s %d times across the projects; a session is in one family (%s)", key, n, why)
+				}
+			}
+			if request.ExpectEverySessionOnce {
+				var owned []string
+				for _, spec := range fixture.Library.Transcripts {
+					if spec.Owner != "other" {
+						owned = append(owned, spec.Key)
+					}
+				}
+				owned = consistencySorted(owned)
+				if got := consistencyKeys(read.listed); strings.Join(got, ",") != strings.Join(owned, ",") {
+					t.Errorf("the paged view lists %v, the owner's library is %v (%s)", got, owned, why)
+				}
+				if got := consistencyKeys(snapshotListed); strings.Join(got, ",") != strings.Join(owned, ",") {
+					t.Errorf("the snapshots list %v, the owner's library is %v (%s)", got, owned, why)
+				}
+				counted := 0
+				for _, summary := range read.picker.Projects {
+					counted += summary.MatchingCount
+				}
+				if counted != len(owned) || read.picker.MatchingTotal != len(owned) {
+					t.Errorf("the picker counts %d sessions by project and %d in all, the owner has %d (%s)",
+						counted, read.picker.MatchingTotal, len(owned), why)
+				}
 			}
 
 			// The rule, written out by hand: these are the families selected.
@@ -508,7 +573,7 @@ func TestContributionReadsAgree(t *testing.T) {
 			facetRead := read
 			if provider != "" {
 				facetRead = consistencyRead{
-					families: map[string][]string{}, matched: map[string]bool{}, live: map[string]bool{},
+					families: map[string][]string{}, listed: map[string]int{}, matched: map[string]bool{}, live: map[string]bool{},
 					provider: map[string]string{}, projectOf: map[string]string{},
 				}
 				world.readPagedFamilies(t, q, "", &facetRead)
