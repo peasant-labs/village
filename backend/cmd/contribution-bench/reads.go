@@ -30,7 +30,11 @@ var indexConfigs = []indexConfig{
 	{"R3+H1", []string{"bench_r1", "bench_r2", "bench_h1"}},
 }
 
-// The session-time expression must match the one the browse query orders by.
+// sessionKey is the order the index candidates were measured under: the earlier
+// browse order, session_start then published_at. The paged view now orders roots
+// by last activity, COALESCE(session_end, session_start, published_at, epoch), so
+// this benchmark models the earlier order and its results do not describe the
+// current statement.
 const sessionKey = "COALESCE(session_start, published_at, 'epoch'::timestamptz)"
 
 var indexDDL = map[string]string{

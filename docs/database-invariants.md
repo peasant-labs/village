@@ -1085,9 +1085,11 @@ The audit triggers (migration 026), the share-derivation triggers
   part of a project believing they contributed all of it.
 - **The paged contribute view counts ROOT sessions and reads the same ledger.**
   `GET /collectives/{id}/contributable?view=paged` (and the `/groups` alias)
-  returns one keyset page of contribution families, ordered by
-  `COALESCE(session_start, published_at, 'epoch') DESC, id ASC`. The limit
-  counts roots only; helpers ride with their root. A root is a transcript with
+  returns one keyset page of contribution families, ordered by the ROOT's last
+  activity, `COALESCE(session_end, session_start, published_at, 'epoch') DESC,
+  id ASC`; a helper never moves its family, and inside a family the helpers keep
+  their order by depth, then `COALESCE(session_start, published_at, 'epoch')`,
+  then id. The limit counts roots only; helpers ride with their root. A root is a transcript with
   no `parent_session_id`, whose parent is not one of the owner's own
   transcripts, or that is on a parent loop; a family belongs to its root's
   project, while a helper keeps its own `project_hash`. One statement, scoped to
@@ -1098,9 +1100,13 @@ The audit triggers (migration 026), the share-derivation triggers
   root and is listed exactly once; the descent never steps onto a loop member.
   Each member's `latest_status` is the latest attempt per `(transcript,
   collective)` in `transcript_share_attempts`; `already_shared` is true only for
-  `pending` and `approved`. The cursor is opaque, carries no authority and is bound to the
-  viewer, collective and filters. The view adds no migration, no index and no
-  table, and touches `transcript_shares` nowhere.
+  `pending` and `approved`. Every member carries `session_start` and
+  `session_end` when known and omits each when unknown. The cursor is opaque,
+  carries no authority and is bound to the viewer, collective and filters; it
+  holds the last root's (last activity, id) at cursor version 2, and a cursor of
+  version 1 (the earlier order by `session_start`) is a 400 that says to start
+  from the first page. The view adds no migration, no index and no table, and
+  touches `transcript_shares` nowhere.
 - **The project picker, the paged view and the snapshot view share ONE
   contribution-family rule.** For the same viewer, collective, `q` and
   `provider`, the picker's `matching_count` for a project equals the snapshot's

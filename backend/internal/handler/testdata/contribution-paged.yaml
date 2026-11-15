@@ -6,10 +6,12 @@
 # that descend from it), optionally some contribution history, then asks one or
 # more requests of the route and states the exact page it must get back.
 #
-# Transcript fields. session_age and published_age are minutes before now; a
-# transcript with no session_age has no session_start, so the page orders it by
-# published_at. project names a project key; the case-level projects map gives a
-# project a consented display name. owner "other" is another person's transcript.
+# Transcript fields. session_age, session_end_age and published_age are minutes
+# before now; a transcript with no session_age has no session_start and one with
+# no session_end_age has no session_end. A root is ordered by its last activity:
+# session_end, else session_start, else published_at. project names a project
+# key; the case-level projects map gives a project a consented display name.
+# owner "other" is another person's transcript.
 # history is the transcript's attempt ledger in this collective, oldest first.
 # Each entry is one attempt, written with the status it ended in (a decision or
 # a withdrawal closes the attempt in place); a status prefixed "other:" is an
@@ -17,14 +19,18 @@
 #
 # Request fields. query is the whole query string. Tokens: {id:KEY} is that
 # transcript's id, {project:KEY} is that project's hash, {cursor} is the previous
-# request's next_cursor. An expect_roots entry "a|b" is a group of roots sharing
-# one session time, whose order is the ascending transcript id.
+# request's next_cursor, and {cursor_of_version_1} is that same cursor rewritten
+# to version 1 (the cursor of the earlier order). An expect_roots entry "a|b" is
+# a group of roots sharing one last activity, whose order is the ascending
+# transcript id. A walk with matches_single_page also reads the whole listing as
+# one page and requires the walk to visit exactly those roots in that order.
 
 - name: roots_are_ordered_by_session_time_newest_first
   why: >
-    The page is in session-time order. A root with no session_start falls back
-    to its published time, so the three roots here sit on both clocks. Losing
-    the ordering, or ordering by published time alone, reorders this page.
+    The page is newest first. None of these roots has a session_end, so each is
+    ordered by its session_start, and a root with no session_start falls back to
+    its published time, so the roots here sit on both clocks. Losing the
+    ordering, or ordering by published time alone, reorders this page.
   transcripts:
     - {key: oldest, project: p, session_age: 300}
     - {key: newest, project: p, session_age: 10}
@@ -34,6 +40,103 @@
     - query: "view=paged"
       expect_status: 200
       expect_roots: [newest, fallback, middle, oldest]
+
+- name: session_end_beats_session_start
+  why: >
+    A root is ordered by when its session last did something, not by when it
+    began. long_running began long ago but ended a few minutes ago, so it leads;
+    short began after long_running but ended earlier. Ordering by session_start
+    lists short first.
+  transcripts:
+    - {key: short, project: p, session_age: 50, session_end_age: 30}
+    - {key: long_running, project: p, session_age: 500, session_end_age: 5}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [long_running, short]
+
+- name: session_start_is_the_clock_when_session_end_is_unknown
+  why: >
+    A root whose session_end is unknown is ordered by its session_start, not by
+    its published time. open began 10 minutes ago and was published long ago;
+    ended ended 30 minutes ago and was published a minute ago. Skipping
+    session_start and falling straight to published_at lists ended first.
+  transcripts:
+    - {key: ended, project: p, session_age: 60, session_end_age: 30, published_age: 1}
+    - {key: open, project: p, session_age: 10, published_age: 1000}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [open, ended]
+
+- name: published_at_is_the_clock_when_both_session_times_are_unknown
+  why: >
+    A root with neither session time is ordered by its published time. untimed
+    was published 15 minutes ago, between started (began 10 minutes ago) and
+    ended (ended 20 minutes ago). Treating a root with no session time as the
+    oldest possible lists it last.
+  transcripts:
+    - {key: ended, project: p, session_age: 30, session_end_age: 20, published_age: 1000}
+    - {key: untimed, project: p, published_age: 15}
+    - {key: started, project: p, session_age: 10, published_age: 2000}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [started, untimed, ended]
+
+- name: roots_with_the_same_last_activity_are_ordered_by_id
+  why: >
+    Three roots reach the same last activity through three different clocks (a
+    session_end, a session_start, a published time), so only the transcript id,
+    ascending, orders them. A walk of one-root pages crosses the tie after every
+    root and must visit exactly the roots of the single page in the same order:
+    the cursor carries the last activity, so a cursor that carried session_start
+    instead would resume at the wrong place after first or tied_by_end.
+  transcripts:
+    - {key: first, project: p, session_age: 300, session_end_age: 10}
+    - {key: tied_by_end, project: p, session_age: 100, session_end_age: 20}
+    - {key: tied_by_start, project: p, session_age: 20}
+    - {key: tied_by_published, project: p, published_age: 20}
+    - {key: last, project: p, session_age: 400, session_end_age: 30}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [first, "tied_by_end|tied_by_start|tied_by_published", last]
+  walk:
+    limit: 1
+    expect_roots: [first, "tied_by_end|tied_by_start|tied_by_published", last]
+    expect_pages: 5
+    matches_single_page: true
+
+- name: a_newer_helper_does_not_move_its_family
+  why: >
+    Only the root's own last activity places a family. old_root last did
+    something 50 minutes ago but its helper ended a minute ago; new_root ended 20
+    minutes ago. Ordering families by their newest member lists old_root first.
+  transcripts:
+    - {key: old_root, project: p, session_age: 100, session_end_age: 50}
+    - {key: busy_helper, project: p, parent: old_root, session_age: 5, session_end_age: 1}
+    - {key: new_root, project: p, session_age: 30, session_end_age: 20}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [new_root, old_root]
+      expect_helpers: {old_root: [busy_helper]}
+
+- name: helpers_keep_their_order_by_session_start
+  why: >
+    The order by last activity is the order of ROOTS. Inside a family the helpers
+    stay ordered by depth, then session_start, then id. began_first began before
+    began_second but ended after it, so ordering helpers by session_end swaps them.
+  transcripts:
+    - {key: root, project: p, session_age: 100, session_end_age: 50}
+    - {key: began_second, project: p, parent: root, session_age: 5, session_end_age: 4}
+    - {key: began_first, project: p, parent: root, session_age: 10, session_end_age: 1}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [root]
+      expect_helpers: {root: [began_first, began_second]}
 
 - name: limit_counts_roots_and_helpers_ride_with_their_root
   why: >
@@ -259,6 +362,25 @@
       expect_status: 200
       expect_roots: [known, unknown]
       expect_session_start: {known: present, unknown: absent}
+
+- name: session_end_is_carried_only_when_known
+  why: >
+    session_end is carried wherever session_start is, with the instant the
+    session's last turn happened, for roots and helpers alike. A member whose end
+    is unknown carries no session_end at all, never null and never a zero time.
+  transcripts:
+    - {key: ended, project: p, session_age: 30, session_end_age: 10}
+    - {key: ended_helper, project: p, parent: ended, session_age: 25, session_end_age: 12}
+    - {key: open_helper, project: p, parent: ended, session_age: 24}
+    - {key: open, project: p, session_age: 20}
+    - {key: untimed, project: p, published_age: 40}
+  requests:
+    - query: "view=paged"
+      expect_status: 200
+      expect_roots: [ended, open, untimed]
+      expect_helpers: {ended: [ended_helper, open_helper]}
+      expect_session_start: {ended: present, ended_helper: present, open_helper: present, open: present, untimed: absent}
+      expect_session_end: {ended: present, ended_helper: present, open_helper: absent, open: absent, untimed: absent}
 
 - name: latest_status_reports_all_five_statuses_and_already_shared_only_for_live
   why: >
@@ -634,3 +756,25 @@
       expect_status: 200
       expect_roots: [b]
       expect_matched: {b: true}
+
+- name: a_cursor_issued_for_the_earlier_order_is_refused
+  why: >
+    A version 1 cursor is a position in the earlier order (session_start, then
+    published_at). Resuming from it under the order by last activity would
+    repeat or skip roots, so the route refuses it with a 400 that says to start
+    from the first page. The refused cursor is the issued one with only its
+    version changed, and the issued one is still accepted after the refusal.
+  transcripts:
+    - {key: a, project: p, session_age: 300, session_end_age: 10}
+    - {key: b, project: p, session_age: 20}
+  requests:
+    - query: "view=paged&limit=1"
+      expect_status: 200
+      expect_roots: [a]
+      expect_has_more: true
+    - query: "view=paged&limit=1&cursor={cursor_of_version_1}"
+      expect_status: 400
+      expect_error_contains: ["cursor", "first page"]
+    - query: "view=paged&limit=1&cursor={cursor}"
+      expect_status: 200
+      expect_roots: [b]

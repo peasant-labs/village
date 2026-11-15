@@ -18,7 +18,7 @@ loop_walk(local_id, parent_session_id, seen) AS (
 ),
 all_roots AS NOT MATERIALIZED (
     SELECT t.id, t.project_hash,
-           COALESCE(t.session_start, t.published_at, 'epoch'::timestamptz) AS sort_time
+           COALESCE(t.session_end, t.session_start, t.published_at, 'epoch'::timestamptz) AS sort_time
     FROM transcripts t
     WHERE t.owner_id = $2
       AND (
@@ -155,7 +155,7 @@ family(root_id, id, local_id, depth) AS (
 SELECT f.root_id, f.depth,
        t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
        t.parent_session_id, t.session_origin, t.model_provider, t.published_at,
-       t.session_start,
+       t.session_start, t.session_end,
        COALESCE(ls.status, '')::text AS latest_status,
        COALESCE(ls.status IN ('pending', 'approved'), false)::boolean AS already_shared,
        COALESCE(ff.matched, false)::boolean AS matched
@@ -195,6 +195,7 @@ type ListContributionPageRow struct {
 	ModelProvider   string             `db:"model_provider" json:"model_provider"`
 	PublishedAt     pgtype.Timestamptz `db:"published_at" json:"published_at"`
 	SessionStart    pgtype.Timestamptz `db:"session_start" json:"session_start"`
+	SessionEnd      pgtype.Timestamptz `db:"session_end" json:"session_end"`
 	LatestStatus    string             `db:"latest_status" json:"latest_status"`
 	AlreadyShared   bool               `db:"already_shared" json:"already_shared"`
 	Matched         bool               `db:"matched" json:"matched"`
@@ -215,10 +216,14 @@ type ListContributionPageRow struct {
 // project). A helper in another project still appears in its root's family and
 // carries its own project_hash.
 //
-// Order. Roots are ordered by session time, newest first, with the transcript
-// id as the tie-break: COALESCE(session_start, published_at, epoch). The cursor
-// is that pair, so a page resumes strictly after the last root it returned and
-// a row inserted meanwhile can neither repeat a root nor skip one.
+// Order. Roots are ordered by the last activity of the ROOT, newest first, with
+// the root's transcript id ascending as the tie-break. Last activity is
+// COALESCE(session_end, session_start, published_at, epoch): when the session's
+// last turn happened, else when it began, else when it was published. A helper
+// never moves its family. The cursor is that pair, so a page resumes strictly
+// after the last root it returned and a row inserted meanwhile can neither
+// repeat a root nor skip one. Inside a family the helpers keep their own order:
+// by depth, then COALESCE(session_start, published_at, epoch), then id.
 //
 // Filters narrow FAMILIES, not rows. q and provider are combined with AND, and a
 // family qualifies when its root OR any helper satisfies each one. The rule is
@@ -284,6 +289,7 @@ func (q *Queries) ListContributionPage(ctx context.Context, arg ListContribution
 			&i.ModelProvider,
 			&i.PublishedAt,
 			&i.SessionStart,
+			&i.SessionEnd,
 			&i.LatestStatus,
 			&i.AlreadyShared,
 			&i.Matched,
