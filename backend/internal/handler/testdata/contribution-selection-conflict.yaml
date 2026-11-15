@@ -1,0 +1,51 @@
+# How the selection write answers the ledger refusing one of its attempts.
+#
+# Against the real database this refusal cannot be provoked through the
+# application's own writers: the selection holds the row lock of every
+# transcript it writes before it appends, and every ledger insert takes a key
+# share lock on that row through the foreign key, so a competing attempt either
+# commits before the selection's fresh read or waits for the selection to
+# commit. The mapping is still the contract's answer for a writer outside those
+# rules, so it is driven here through the production handler with only the
+# failing statement stubbed.
+#
+# Each case selects two sessions, a and b (a sorts first), both public, both
+# roots of the requested project, neither live. The insert for a succeeds and
+# the insert for b fails with the given SQLSTATE and constraint. constraint
+# names the constant the classifier keys on (open_attempt_index or
+# event_num_constraint) or any other literal name.
+- name: an_open_attempt_refused_by_the_partial_unique_index_is_a_conflict
+  why: >-
+    A second open attempt refused by uq_share_attempt_open must refuse the whole
+    selection with the closed code conflict naming the session, never an
+    unexplained 500.
+  sqlstate: "23505"
+  constraint: open_attempt_index
+  expect_status: 409
+  expect_code: conflict
+
+- name: an_event_ordering_violation_is_a_conflict
+  why: >-
+    Two attempts computing the same event ordinal is the other unique violation
+    the ledger raises; it must answer exactly as the open-attempt one does.
+  sqlstate: "23505"
+  constraint: event_num_constraint
+  expect_status: 409
+  expect_code: conflict
+
+- name: an_unrelated_unique_violation_is_a_server_error
+  why: >-
+    Only the two ledger constraints mean a competing submission. Any other
+    unique violation is a fault, and calling it a conflict would tell the person
+    to retry something that cannot succeed.
+  sqlstate: "23505"
+  constraint: some_other_unique_index
+  expect_status: 500
+
+- name: a_failure_that_is_not_a_unique_violation_is_a_server_error
+  why: >-
+    A foreign key failure names the ledger's own table but is not a competing
+    submission, so it is a fault and carries no code.
+  sqlstate: "23503"
+  constraint: transcript_share_attempts_transcript_id_fkey
+  expect_status: 500
