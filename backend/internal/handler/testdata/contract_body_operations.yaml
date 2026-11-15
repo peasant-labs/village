@@ -76,6 +76,24 @@
       body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"}'
       expect: "/: missing properties: 'visibility_confirmed'"
 
+- name: batch share selection
+  method: POST
+  path: /api/v1/groups/{id}/shares/selection
+  conforming: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"private_approvals":[]}'
+  malformed:
+    - name: selection is empty
+      body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":[],"private_approvals":[]}'
+      expect: "/transcript_ids: minimum 1 items required, but found 0 items"
+    - name: private approvals missing
+      body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"]}'
+      expect: "/: missing properties: 'private_approvals'"
+    - name: project hash is not a hash
+      body: '{"project_hash":"not-a-hash","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"private_approvals":[]}'
+      expect: "/project_hash: does not match pattern"
+    - name: transcript id is not canonical
+      body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":["3F0D8B1E-2C4A-4F6E-9A1B-7C2D3E4F5A6B"],"private_approvals":[]}'
+      expect: "/transcript_ids/0: does not match pattern"
+
 - name: batch review shares
   method: PATCH
   path: /api/v1/groups/{id}/shares
@@ -154,6 +172,12 @@
   conforming: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","visibility_confirmed":true}'
   malformed:
     - {name: confirmation missing, body: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}', expect: "/: missing properties: 'visibility_confirmed'"}
+- name: collective batch share selection
+  method: POST
+  path: /api/v1/collectives/{id}/shares/selection
+  conforming: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"private_approvals":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"]}'
+  malformed:
+    - {name: selection missing, body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","private_approvals":[]}', expect: "/: missing properties: 'transcript_ids'"}
 - name: collective batch review
   method: PATCH
   path: /api/v1/collectives/{id}/shares

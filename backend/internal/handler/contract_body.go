@@ -123,6 +123,7 @@ var (
 	opUpdateGroupMemberRole = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/members/{userID}/role"}
 	opLinkGroupRepository   = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/repositories"}
 	opBatchShareProject     = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/shares"}
+	opBatchShareSelection   = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/shares/selection"}
 	opBatchReviewShares     = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares"}
 	opReviewShare           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares/{transcriptID}"}
 	opShareTranscript       = ContractOperation{Method: "POST", Path: "/api/v1/transcripts/{id}/share"}
@@ -144,6 +145,7 @@ func ContractEnforcedOperations() []ContractOperation {
 		opUpdateGroupMemberRole,
 		opLinkGroupRepository,
 		opBatchShareProject,
+		opBatchShareSelection,
 		opBatchReviewShares,
 		opReviewShare,
 		opShareTranscript,
