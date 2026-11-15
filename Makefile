@@ -3,7 +3,7 @@
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
 # Static guard against stringly-typed values, pinned to the published tool.
-UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.1
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.2
 
 # Local development (infra + app in Docker). All @peasant-labs/* packages
 # resolve from the registry via the pnpm workspace (see pnpm-workspace.yaml);

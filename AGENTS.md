@@ -58,7 +58,7 @@ See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
 ## Static guard
 
-`make check-unstring` runs `unstring` v0.0.1 over the frontend and backend. It
+`make check-unstring` runs `unstring` v0.0.2 over the frontend and backend. It
 needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
 `.unstring-baseline.yaml` is generated and can only shrink; run
 `make unstring-update` to lower it. A deliberate exception uses
