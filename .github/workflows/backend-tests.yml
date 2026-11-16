@@ -9,29 +9,7 @@ name: Backend Tests
 # Both paths must support real PostgreSQL and S3-compatible storage containers.
 on:
   pull_request:
-    paths:
-      - "backend/**"
-      - "go.work"
-      - "Makefile"
-      - "frontend/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - ".unstring.yaml"
-      - ".unstring-baseline.yaml"
-      - "scripts/verify-production-artifacts.sh"
-      - "scripts/production-image-build.sh"
-      - "scripts/check-artifact-source.sh"
-      - "scripts/test-artifact-source.sh"
-      - "scripts/test-production-artifacts.sh"
-      - "scripts/test-production-revision-guard.sh"
-      - "scripts/testdata/production-artifacts/**"
-      - "scripts/run-integration-gates.sh"
-      - "scripts/test-database-admin.go"
-      - "scripts/check-go-test-events.go"
-      - "scripts/test-go-test-events.sh"
-      - "scripts/testdata/go-test-events/**"
-      - ".github/workflows/backend-tests.yml"
+  merge_group:
   push:
     branches: [main, develop]
     paths:
@@ -63,17 +41,60 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   determine-runner:
+    permissions:
+      contents: read
     uses: peasant-labs/infra/.github/workflows/runner-router.yml@71e687cef7eede9a63659be98ce9adac3c563398
     with:
       fallback: '["ubuntu-24.04"]'
     secrets:
       RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
+  changes:
+    name: changes
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide whether the gated paths moved
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != "pull_request" ] && [ "${EVENT_NAME}" != "merge_group" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" > changed.txt
+          if grep -Eq '^(backend/|go\.work$|Makefile$|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/|\.unstring\.yaml$|\.unstring-baseline\.yaml$|\.github/workflows/backend-tests\.yml$)' changed.txt; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run=false" >> "${GITHUB_OUTPUT}"
+          fi
+
   test:
     name: Backend, PostgreSQL, and RustFS
-    needs: determine-runner
+    needs: [determine-runner, changes]
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
 
     # Ephemeral Postgres for the -tags=integration suite. TEST_DATABASE_URL points
@@ -112,6 +133,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          persist-credentials: false
           fetch-depth: 1
 
       - name: Start RustFS and create test bucket
@@ -208,7 +230,7 @@ jobs:
       - name: Unit tests
         working-directory: backend
         env:
-          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
+          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/village_test?sslmode=disable
           # The race detector is OFF by default (village#387): the handler package
           # spends ~19.4m under it, most of it serial per-test database setup and
           # migration re-runs rather than detector work. Restore race coverage with
@@ -228,9 +250,9 @@ jobs:
 
       - name: Isolated integration tests (-tags=integration)
         env:
-          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
-          TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable
-          TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/{database}?sslmode=disable
+          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/village_test?sslmode=disable
+          TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/postgres?sslmode=disable
+          TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/{database}?sslmode=disable
         run: |
           scripts/test-go-test-events.sh
           scripts/run-integration-gates.sh
@@ -255,13 +277,17 @@ jobs:
   # assertion lives in the production-artifacts job (it builds the image).
   license-notices:
     name: Third-party license notices
-    needs: determine-runner
+    needs: [determine-runner, changes]
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          persist-credentials: false
           fetch-depth: 1
 
       - name: Set up Go
@@ -277,11 +303,16 @@ jobs:
 
   frontend:
     name: Frontend frozen build
-    needs: determine-runner
+    needs: [determine-runner, changes]
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Isolate pnpm caches
         run: |
@@ -350,11 +381,16 @@ jobs:
 
   production-artifacts:
     name: Production artifact provenance
-    needs: determine-runner
+    needs: [determine-runner, changes]
+    if: needs.changes.outputs.run == 'true'
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Build and verify production images
         env:
@@ -364,3 +400,34 @@ jobs:
           scripts/test-production-artifacts.sh
           scripts/verify-production-artifacts.sh "$GITHUB_SHA"
           scripts/test-production-revision-guard.sh
+
+  merge-gate:
+    # The required queue check. The runner decision and the path filter must
+    # succeed; each heavy job may be success or skipped, because a docs-only PR
+    # legitimately skips them and must still leave the queue green.
+    name: merge-gate
+    needs: [determine-runner, changes, test, license-notices, frontend, production-artifacts]
+    if: always()
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the gate jobs
+        env:
+          DETERMINE: ${{ needs.determine-runner.result }}
+          CHANGES: ${{ needs.changes.result }}
+          TEST: ${{ needs.test.result }}
+          NOTICES: ${{ needs.license-notices.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          ARTIFACTS: ${{ needs.production-artifacts.result }}
+        run: |
+          set -euo pipefail
+          test "${DETERMINE}" = success
+          test "${CHANGES}" = success
+          for result in "${TEST}" "${NOTICES}" "${FRONTEND}" "${ARTIFACTS}"; do
+            case "${result}" in
+              success|skipped) ;;
+              *) echo "::error::a gated job failed: ${result}"; exit 1 ;;
+            esac
+          done

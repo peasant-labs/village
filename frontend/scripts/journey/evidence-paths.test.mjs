@@ -54,7 +54,7 @@ describe('resolveAttachmentPath', () => {
 })
 
 describe('the journey workflow failure gate', () => {
-  it('collects both evidence artifacts, then fails the job when the catalog did not succeed', () => {
+  it('collects both evidence artifacts and posts through the reviewed comment job', () => {
     const workflow = YAML.parse(readFileSync(join(here, '../../../.github/workflows/journey.yml'), 'utf8'))
     const steps = workflow.jobs.journey.steps
     const catalog = steps.find((step) => step.id === 'journey')
@@ -82,8 +82,21 @@ describe('the journey workflow failure gate', () => {
     for (const upload of uploads) expect(steps.length - 1, `${upload.name} is uploaded before the gate`).toBeGreaterThan(upload.index)
     expect(built, 'the built-route check runs before the gate').toBeLessThan(steps.length - 1)
 
-    const fail = workflow.jobs.evidence.steps.find((step) => step.name === 'Fail if journeys failed')
-    expect(condition(fail?.if), 'the evidence job fails the run on the journey job result').toBe("needs.journey.result == 'failure'")
+    const evidence = workflow.jobs.evidence.steps
+    const checkout = evidence.find((step) => step.uses?.startsWith('actions/checkout'))
+    expect(checkout?.with?.path, 'the reviewed script is isolated from the evidence data').toBe('reviewed')
+    expect(condition(checkout?.with?.ref), 'the reviewed script comes from the default branch').toBe('${{ github.event.repository.default_branch }}')
+    const download = evidence.find((step) => step.uses?.startsWith('actions/download-artifact'))
+    expect(download?.with?.name, 'the evidence artifact is the download').toBe('journey-artifacts')
+    expect(download?.with?.path, 'the evidence data is disjoint from the reviewed checkout').toBe('notes')
+    const mint = evidence.find((step) => step.id === 'bot')
+    expect(mint?.with?.['permission-contents'], 'the comment token cannot write contents').toBe('read')
+    expect(mint?.with?.['permission-issues'], 'the comment token can write issues').toBe('write')
+    expect(mint?.with?.['permission-pull-requests'], 'the comment token can write pull requests').toBe('write')
+    const post = evidence.find((step) => step.name === 'Post evidence')
+    expect(post?.env?.EVIDENCE_DIR, 'the reviewed script reads the downloaded directory').toBe('notes')
+    expect(String(post?.run ?? '').trim(), 'the comment job runs only the reviewed script').toBe('node reviewed/frontend/scripts/journey/ci-post-evidence.mjs')
+    expect(evidence.some((step) => step['continue-on-error'] != null), 'a failed evidence post is never hidden').toBe(false)
   })
 })
 

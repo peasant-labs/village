@@ -1,0 +1,15 @@
+# The merge-queue contract names the required checks. Village has no release
+# job and no bot branches, so this file carries only the queue section.
+queue:
+  required:
+    - {context: merge-gate, workflow: backend-tests.yml, job: merge-gate, aggregator: true}
+    - {context: journey, workflow: journey.yml, job: journey}
+    - {context: title-guard, workflow: title-guard.yml, job: title-guard, guard: true}
+  comment_jobs:
+    # The journey evidence job posts on the run's own PR. The reviewed script is
+    # read from the default branch; the user PAT and App token live only in the
+    # comment step env.
+    - workflow: journey.yml
+      job: evidence
+      reviewed_script: frontend/scripts/journey/ci-post-evidence.mjs
+      pat_secret: JOURNEY_GITHUB_USER_PAT
