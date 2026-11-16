@@ -1,0 +1,15 @@
+# Release-intent config for village.
+#
+# Village does not release: `releases` is false, so no title may carry a
+# bracket or a breaking mark, and no bot branch or version file exists. The
+# tag prefix, automation author and changelog path are the shared config's
+# required fields; they are inert while releases are off, and the changelog
+# path is declared only so the shared checker has one value to compare.
+releases: false
+tag_prefix: v
+automation_author: app/peasant-labs-releaser
+changelog: CHANGELOG.md
+version_files: []
+protected_paths: []
+surfaces: {}
+bot_branches: {}

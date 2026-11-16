@@ -16,16 +16,19 @@ name: journey
 
 on:
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
 
 concurrency:
-  group: journey-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: journey-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   determine-runner:
+    permissions:
+      contents: read
     uses: peasant-labs/infra/.github/workflows/runner-router.yml@71e687cef7eede9a63659be98ce9adac3c563398
     with:
       fallback: '["ubuntu-latest"]'
@@ -34,6 +37,8 @@ jobs:
 
   journey:
     needs: determine-runner
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 30
     # The official Playwright image carries the browsers (pinned to the same
@@ -47,6 +52,8 @@ jobs:
       options: --ipc=host --init
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
       - name: Isolate pnpm caches
         run: |
@@ -128,7 +135,9 @@ jobs:
   # script's only other dependency (plain node, no packages).
   evidence:
     needs: [determine-runner, journey]
-    if: always()
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      contents: read
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 10
     steps:
