@@ -1087,7 +1087,9 @@ The audit triggers (migration 026), the share-derivation triggers
   keeps its own project and is not checked against it. The preflight is one
   statement, `ListOwnerSelectionShareStates`, bounded by the listed ids and the
   owner - never by a project or by the size of the owner's library - and it
-  reads liveness from the ledger with the contribution-family fragments. The
+  classifies roots (a member of a parent loop is a root, as in the three
+  reads) and reads liveness from the ledger with the contribution-family
+  fragments. The
   locked write then takes, in this order: the publish lock of every listed
   transcript (`withPublishLocksMany`); `inCollectiveAuthorityTx`'s actor and
   collective transaction locks; the final authority check
