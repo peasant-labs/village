@@ -68,6 +68,8 @@ jobs:
 
       - name: Build release-intent
         working-directory: infra-tool/tools/release
+        env:
+          GOWORK: "off"
         run: |
           go build -o "${RUNNER_TEMP}/release-intent" ./cmd/release-intent
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
