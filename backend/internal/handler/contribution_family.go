@@ -114,10 +114,16 @@ var contributionLiveStatuses = []string{"pending", "approved"}
 // sessions never walk. The walk carries the sessions it has visited and never
 // steps onto one of them again, so it ends on any data.
 func contributionOnLoopSQL(alias string) string {
+	return contributionOnLoopFromSQL(alias, alias+".parent_session_id")
+}
+
+// contributionOnLoopFromSQL is contributionOnLoopSQL with the expression parent
+// standing for the session's parent_session_id; it must equal it.
+func contributionOnLoopFromSQL(alias, parent string) string {
 	return "(EXISTS (SELECT 1 FROM transcripts loop_child" +
 		" WHERE loop_child.owner_id = " + alias + ".owner_id AND loop_child.parent_session_id = " + alias + ".local_id)" +
 		" AND EXISTS (WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (" +
-		"SELECT " + alias + ".local_id, " + alias + ".parent_session_id, ARRAY[" + alias + ".local_id]" +
+		"SELECT " + alias + ".local_id, " + parent + ", ARRAY[" + alias + ".local_id]" +
 		" UNION ALL SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id" +
 		" FROM loop_walk JOIN transcripts loop_step" +
 		" ON loop_step.owner_id = " + alias + ".owner_id AND loop_step.local_id = loop_walk.parent_session_id" +
@@ -135,10 +141,18 @@ func contributionRootCondition(alias string) string {
 }
 
 // contributionDescentSQL is the condition every step down a family puts on the
-// child aliased child: it is not on a loop. A loop member is a root of its own
-// family, so descending onto one would list it twice.
-func contributionDescentSQL(child string) string {
-	return "NOT " + contributionOnLoopSQL(child)
+// child aliased child of the member aliased parent: the child is not on a loop.
+// A loop member is a root of its own family, so descending onto one would list
+// it twice.
+//
+// The walk starts from the parent's local_id, which the join makes equal to the
+// child's parent_session_id. That is the same test, but it names both rows, so
+// PostgreSQL can only apply it to the joined pairs, the children a step
+// actually reaches. A test that named the child alone would be pushed down into
+// the scan of transcripts and run on every session of the library at every
+// level of the walk whenever the planner hashes the join.
+func contributionDescentSQL(parent, child string) string {
+	return "NOT " + contributionOnLoopFromSQL(child, parent+".local_id")
 }
 
 // contributionLoopWalkDeclarationSQL is the first common table expression of

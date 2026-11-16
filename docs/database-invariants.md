@@ -1095,7 +1095,10 @@ The audit triggers (migration 026), the share-derivation triggers
   project, while a helper keeps its own `project_hash`. One statement, scoped to
   `owner_id`, reads the page and its families from a single snapshot, descending
   from the page roots set-wise because `project_hash` carries no index, and
-  `(owner_id, parent_session_id)` is indexed only by migration 051. A session
+  `(owner_id, parent_session_id)` is indexed only by migration 051; each descent
+  step looks up the children of the page's working set through that index, one
+  reached row at a time, rather than scanning the owner's transcripts at each
+  level. A session
   that is its own parent, and every member of a longer loop of parents, is a
   root and is listed exactly once; the descent never steps onto a loop member.
   Each member's `latest_status` is the latest attempt per `(transcript,
@@ -1122,7 +1125,10 @@ The audit triggers (migration 026), the share-derivation triggers
   at a root or runs into a loop, whose member is then the root, so every session
   of the owner is in exactly one family. The loop test walks up from one
   session, never revisiting a session, and runs only for a session that has a
-  child, so it ends on any data and stores nothing. `q` is trimmed and a blank
+  child, so it ends on any data and stores nothing. In a descent step the walk
+  starts from the parent the step joins from (equal to the child's
+  `parent_session_id`), so the planner applies it only to the children the step
+  reaches rather than to every transcript of the owner. `q` is trimmed and a blank
   `q` is no search. A member matches when its title contains `q`
   (case-insensitive, `%`, `_` and backslash literal), when `q` equals its
   transcript id (case-insensitive), or when `q` equals its local session id

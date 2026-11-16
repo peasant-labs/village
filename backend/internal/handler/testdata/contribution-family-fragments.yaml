@@ -5,7 +5,8 @@
 #
 # file is the queries file, statement the sqlc name inside it, kind the fragment,
 # alias the table alias the statement uses for it, and a / b the placeholder
-# expressions the statement passes in (see the builder for what each means).
+# expressions the statement passes in (see the builder for what each means; for
+# a descent, a is the alias of the parent row the step joins from).
 # occurrences, when set, is how many times the statement must carry the
 # fragment: the paged view descends twice (the filter and the page), and each
 # descent must keep its loop guard.
@@ -37,6 +38,7 @@
   statement: CountOwnerContributionFamilyMatches
   kind: descent
   alias: h
+  a: f
 
 - name: picker_counts_member_match
   file: contribution_projects.sql
@@ -90,6 +92,7 @@
   statement: CountOwnerContributionProviderMatches
   kind: descent
   alias: h
+  a: f
 
 - name: picker_facets_member_match
   file: contribution_projects.sql
@@ -123,6 +126,7 @@
   statement: ListContributionPage
   kind: descent
   alias: c
+  a: f
   occurrences: 2
 
 - name: paged_member_match

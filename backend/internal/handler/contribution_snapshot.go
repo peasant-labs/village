@@ -534,7 +534,7 @@ func contributionSnapshotSQL(filter contributionFamilyFilter, owner, group pgtyp
   SELECT f.root_id, c.id, f.id, c.local_id, c.visibility, c.project_hash` + matchChild + `
   FROM fam f
   JOIN transcripts c ON c.owner_id = $1 AND c.parent_session_id = f.local_id
-  WHERE ` + contributionDescentSQL("c") + `
+  WHERE ` + contributionDescentSQL("f", "c") + `
 )
 SELECT f.id, f.parent_id, f.visibility, f.project_hash, a.status
 FROM fam f

@@ -72,7 +72,7 @@ filter_family(root_id, id, local_id, depth) AS (
         )
         AND EXISTS (
             WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
-                SELECT c.local_id, c.parent_session_id, ARRAY[c.local_id]
+                SELECT c.local_id, f.local_id, ARRAY[c.local_id]
                 UNION ALL
                 SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
                 FROM loop_walk
@@ -127,7 +127,17 @@ family(root_id, id, local_id, depth) AS (
     UNION ALL
     SELECT f.root_id, c.id, c.local_id, f.depth + 1
     FROM family f
-    JOIN transcripts c ON c.owner_id = $2 AND c.parent_session_id = f.local_id
+    -- The page descends from at most root_limit roots, so each step looks the
+    -- children up through (owner_id, parent_session_id) row by row. OFFSET 0
+    -- keeps the lookup a subquery: the planner can neither turn it into a hash
+    -- join over every transcript of the owner nor push the loop test below into
+    -- it, so the test runs only on the children found.
+    CROSS JOIN LATERAL (
+        SELECT c.id, c.local_id, c.owner_id
+        FROM transcripts c
+        WHERE c.owner_id = $2 AND c.parent_session_id = f.local_id
+        OFFSET 0
+    ) c
     WHERE NOT (
         EXISTS (
             SELECT 1
@@ -137,7 +147,7 @@ family(root_id, id, local_id, depth) AS (
         )
         AND EXISTS (
             WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
-                SELECT c.local_id, c.parent_session_id, ARRAY[c.local_id]
+                SELECT c.local_id, f.local_id, ARRAY[c.local_id]
                 UNION ALL
                 SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
                 FROM loop_walk

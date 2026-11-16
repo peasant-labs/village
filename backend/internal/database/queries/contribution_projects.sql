@@ -107,7 +107,7 @@ WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
       )
       AND EXISTS (
           WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
-              SELECT h.local_id, h.parent_session_id, ARRAY[h.local_id]
+              SELECT h.local_id, f.local_id, ARRAY[h.local_id]
               UNION ALL
               SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
               FROM loop_walk
@@ -207,7 +207,7 @@ WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
       )
       AND EXISTS (
           WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
-              SELECT h.local_id, h.parent_session_id, ARRAY[h.local_id]
+              SELECT h.local_id, f.local_id, ARRAY[h.local_id]
               UNION ALL
               SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
               FROM loop_walk

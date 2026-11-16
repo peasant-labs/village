@@ -80,7 +80,7 @@ func canonicalFragment(t *testing.T, c contributionFamilyFragmentCase) string {
 	case "root":
 		return contributionRootCondition(c.Alias)
 	case "descent":
-		return contributionDescentSQL(c.Alias)
+		return contributionDescentSQL(c.A, c.Alias)
 	case "loop_walk_declaration":
 		return contributionLoopWalkDeclarationSQL
 	case "member":
@@ -141,7 +141,7 @@ func TestContributionSnapshotSQLIsBuiltFromTheCanonicalFragments(t *testing.T) {
 	got := squeezeSQL(sql)
 	for name, fragment := range map[string]string{
 		"root condition":      contributionRootCondition("r"),
-		"descent":             contributionDescentSQL("c"),
+		"descent":             contributionDescentSQL("f", "c"),
 		"root member match":   contributionMemberMatchSQL("r", "$4::text", "$5::text"),
 		"root project name":   contributionRootNameMatchSQL("r", "$6::text[]"),
 		"helper member match": contributionMemberMatchSQL("c", "$4::text", "$5::text"),
