@@ -15,7 +15,7 @@
  * back to `gh --attach` tables, then to a text-only comment.
  *
  * The journey job records container paths in report.json; each one that does not
- * exist here is re-rooted under this job's downloaded .artifacts/
+ * exist here is re-rooted under EVIDENCE_DIR (the downloaded artifact directory).
  * (evidence-paths.mjs). When the report lists media and none of it is on disk, the
  * run gets an ::error:: annotation and the comment says so.
  *
@@ -23,14 +23,14 @@
  *      (fallback), PR_NUMBER, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_RUN_ID
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, globSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, dirname, extname, join } from 'node:path'
+import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { collectMedia } from './evidence-paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const ARTIFACTS = join(HERE, '.artifacts')
+const ARTIFACTS = process.env.EVIDENCE_DIR ? resolve(process.env.EVIDENCE_DIR) : join(HERE, '.artifacts')
 const REPORT = join(ARTIFACTS, 'report.json')
 const MARKER = 'journey-evidence'
 const UPLOAD_ORIGIN = 'https://uploads.github.com'
@@ -83,8 +83,14 @@ const cell = (l, theme) => media.find((m) => m.label === l && m.theme === theme)
 const ffmpeg = (() => {
   const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), '.cache', 'ms-playwright')].filter(Boolean)
   for (const root of roots) {
-    const found = [...globSync(`${root}/ffmpeg-*/ffmpeg-linux`), ...globSync(`${root}/ffmpeg-*/ffmpeg`)]
-    if (found.length) return found[0]
+    if (!existsSync(root)) continue
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !entry.name.startsWith('ffmpeg-')) continue
+      for (const name of ['ffmpeg-linux', 'ffmpeg']) {
+        const candidate = join(root, entry.name, name)
+        if (existsSync(candidate)) return candidate
+      }
+    }
   }
   return null
 })()
