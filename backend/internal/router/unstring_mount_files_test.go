@@ -14,12 +14,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// mountCallees are the router methods that take a route pattern. Every callee
-// but Method puts that pattern in the first argument. Method takes the HTTP
-// method first and the pattern second: r.Method("GET", "/probe", h).
+// mountCallees are the chi router methods that take a route pattern. Every
+// callee but Method puts that pattern in the first argument. Method takes the
+// HTTP method first and the pattern second: r.Method("GET", "/probe", h).
+// Trace and Connect take the pattern first, the same as Get.
 // A group-relative pattern (starts with "/" and is outside every configured
 // endpoint prefix) is visible to the mount rule only when its file is listed.
 var mountCallees = map[string]struct{}{
+	"Connect":    {},
 	"Get":        {},
 	"Post":       {},
 	"Put":        {},
@@ -27,6 +29,7 @@ var mountCallees = map[string]struct{}{
 	"Delete":     {},
 	"Head":       {},
 	"Options":    {},
+	"Trace":      {},
 	"Route":      {},
 	"Mount":      {},
 	"Handle":     {},
@@ -98,24 +101,30 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 			if sel.Sel.Name == "Method" && len(call.Args) > 1 {
 				pattern = call.Args[1]
 			}
-			lit, ok := pattern.(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
+			// The mount rule matches any string literal inside that argument,
+			// including one nested in a concatenation or a call. Constants and
+			// non-literal arguments are not resolved.
+			ast.Inspect(pattern, func(n ast.Node) bool {
+				lit, ok := n.(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					return true
+				}
+				value, err := strconv.Unquote(lit.Value)
+				if err != nil {
+					t.Errorf("%s:%d: route literal %s could not be unquoted (%v); the mount-file check only accepts a Go string literal", rel, fset.Position(lit.Pos()).Line, lit.Value, err)
+					return true
+				}
+				if !groupRelative(value, prefixes) {
+					return true
+				}
+				inScope++
+				if known {
+					return true
+				}
+				pos := fset.Position(lit.Pos())
+				t.Errorf("%s:%d: route literal %q is group-relative, so the mount rule ignores it unless the file is listed in endpoints.mountFiles; add %q to endpoints.mountFiles", rel, pos.Line, value, rel)
 				return true
-			}
-			value, err := strconv.Unquote(lit.Value)
-			if err != nil {
-				t.Errorf("%s:%d: route literal %s could not be unquoted (%v); the mount-file check only accepts a Go string literal", rel, fset.Position(lit.Pos()).Line, lit.Value, err)
-				return true
-			}
-			if !groupRelative(value, prefixes) {
-				return true
-			}
-			inScope++
-			if known {
-				return true
-			}
-			pos := fset.Position(lit.Pos())
-			t.Errorf("%s:%d: route literal %q is group-relative, so the mount rule ignores it unless the file is listed in endpoints.mountFiles; add %q to endpoints.mountFiles", rel, pos.Line, value, rel)
+			})
 			return true
 		})
 	}
@@ -127,12 +136,20 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 	}
 }
 
+// groupRelative reports whether pattern is a route the mount rule sees only in
+// a listed file: it starts with "/" and sits outside every endpoint prefix.
+// A pattern is under a prefix only when it equals that prefix or starts with
+// prefix+"/", so /api/v10/x is not under /api/v1. A bare HasPrefix would hide
+// that route and let an unlisted file escape.
 func groupRelative(pattern string, prefixes []string) bool {
 	if !strings.HasPrefix(pattern, "/") {
 		return false
 	}
 	for _, prefix := range prefixes {
-		if prefix != "" && strings.HasPrefix(pattern, prefix) {
+		if prefix == "" {
+			continue
+		}
+		if pattern == prefix || strings.HasPrefix(pattern, prefix+"/") {
 			return false
 		}
 	}
