@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -46,6 +47,7 @@ type pagedTranscriptSpec struct {
 	Provider      string   `yaml:"provider"`
 	Visibility    string   `yaml:"visibility"`
 	SessionAge    *int     `yaml:"session_age"`
+	SessionEndAge *int     `yaml:"session_end_age"`
 	PublishedAge  *int     `yaml:"published_age"`
 	History       []string `yaml:"history"`
 }
@@ -64,6 +66,7 @@ type pagedRequestSpec struct {
 	ExpectProjectName      map[string]string   `yaml:"expect_project_name"`
 	ExpectParentTranscript map[string]string   `yaml:"expect_parent_transcript"`
 	ExpectSessionStart     map[string]string   `yaml:"expect_session_start"`
+	ExpectSessionEnd       map[string]string   `yaml:"expect_session_end"`
 	ExpectVisibility       map[string]string   `yaml:"expect_visibility"`
 	BothPrefixes           bool                `yaml:"both_prefixes"`
 }
@@ -73,6 +76,10 @@ type pagedWalkSpec struct {
 	Query       string   `yaml:"query"`
 	ExpectRoots []string `yaml:"expect_roots"`
 	ExpectPages int      `yaml:"expect_pages"`
+	// MatchesSinglePage also reads the same query as one page of the largest
+	// size and requires the walk to have visited exactly those roots, in that
+	// order.
+	MatchesSinglePage bool `yaml:"matches_single_page"`
 }
 
 type pagedCase struct {
@@ -93,6 +100,14 @@ type pagedCase struct {
 // membership gate.
 var requiredContributionPagedCases = []string{
 	"roots_are_ordered_by_session_time_newest_first",
+	"session_end_beats_session_start",
+	"session_start_is_the_clock_when_session_end_is_unknown",
+	"published_at_is_the_clock_when_both_session_times_are_unknown",
+	"roots_with_the_same_last_activity_are_ordered_by_id",
+	"a_newer_helper_does_not_move_its_family",
+	"helpers_keep_their_order_by_session_start",
+	"session_end_is_carried_only_when_known",
+	"a_cursor_issued_for_the_earlier_order_is_refused",
 	"limit_counts_roots_and_helpers_ride_with_their_root",
 	"exact_fit_page_has_no_more",
 	"keyset_walk_visits_every_root_once",
@@ -102,7 +117,7 @@ var requiredContributionPagedCases = []string{
 	"a_helper_whose_parent_is_not_published_is_a_root",
 	"a_parent_owned_by_someone_else_is_not_a_parent",
 	"nested_helpers_are_one_family_ordered_by_depth",
-	"parent_cycles_are_unreachable_and_the_read_terminates",
+	"every_member_of_a_parent_loop_is_a_root_and_the_read_terminates",
 	"other_owners_transcripts_never_appear",
 	"every_visibility_is_listed_with_its_own_visibility",
 	"session_start_is_carried_only_when_known",
@@ -216,6 +231,10 @@ func (w *pagedWorld) insert(t *testing.T, ctx context.Context, ordinal int, spec
 	if spec.SessionAge != nil {
 		sessionAge = pgtype.Int4{Int32: int32(*spec.SessionAge), Valid: true}
 	}
+	var sessionEndAge pgtype.Int4
+	if spec.SessionEndAge != nil {
+		sessionEndAge = pgtype.Int4{Int32: int32(*spec.SessionEndAge), Valid: true}
+	}
 	publishedAge := 100000 + ordinal
 	if spec.PublishedAge != nil {
 		publishedAge = *spec.PublishedAge
@@ -239,13 +258,14 @@ func (w *pagedWorld) insert(t *testing.T, ctx context.Context, ordinal int, spec
 		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key,
 		                         blob_size_bytes, schema_version, content_hash, wrapped_data_key, encryption_algorithm,
 		                         key_version, project_hash, project_name, parent_session_id, git_branch, session_origin,
-		                         published_at, session_start)
+		                         published_at, session_start, session_end)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'0.1.0',$10,$11,'aes-256-gcm-random-nonce-v1',1,$12,$13,$14,'main','user',
 		        $17::timestamptz - ($15 * interval '1 minute'),
-		        CASE WHEN $16::int IS NULL THEN NULL ELSE $17::timestamptz - ($16::int * interval '1 minute') END)
+		        CASE WHEN $16::int IS NULL THEN NULL ELSE $17::timestamptz - ($16::int * interval '1 minute') END,
+		        CASE WHEN $18::int IS NULL THEN NULL ELSE $17::timestamptz - ($18::int * interval '1 minute') END)
 	`, id, owner, localID, title, visibility, provider, "m-"+spec.Key, "blob/"+localID, int64(len(localID)),
 		hex.EncodeToString(sha256.New().Sum([]byte(localID))[:16]), []byte("fixture-wrapped-data-key"),
-		w.projectHashOf(spec.Project), projectName, parent, publishedAge, sessionAge, w.base); err != nil {
+		w.projectHashOf(spec.Project), projectName, parent, publishedAge, sessionAge, w.base, sessionEndAge); err != nil {
 		t.Fatalf("insert transcript %s: %v", spec.Key, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -300,10 +320,40 @@ func (w *pagedWorld) expand(t *testing.T, query, cursor string) string {
 		out = strings.ReplaceAll(out, "{project:"+spec.Project+"}", w.projectHashOf(spec.Project))
 	}
 	out = strings.ReplaceAll(out, "{cursor}", cursor)
+	if strings.Contains(out, "{cursor_of_version_1}") {
+		out = strings.ReplaceAll(out, "{cursor_of_version_1}", w.atVersionOne(t, cursor))
+	}
 	if strings.Contains(out, "{") {
 		t.Fatalf("case %s: the query %q has a token no transcript, project or cursor supplies", w.caseName, out)
 	}
 	return out
+}
+
+// atVersionOne rewrites a cursor this server issued into the same position,
+// bound to the same request, at version 1: the cursor of the earlier order by
+// session_start, then published_at. Only the version differs.
+func (w *pagedWorld) atVersionOne(t *testing.T, cursor string) string {
+	t.Helper()
+	if cursor == "" {
+		t.Fatalf("case %s: {cursor_of_version_1} needs a cursor from an earlier request", w.caseName)
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		t.Fatalf("case %s: the issued cursor is not base64url: %v", w.caseName, err)
+	}
+	var position contributionPageCursor
+	if err := json.Unmarshal(raw, &position); err != nil {
+		t.Fatalf("case %s: the issued cursor is not a position: %v", w.caseName, err)
+	}
+	if position.Version == 1 {
+		t.Fatalf("case %s: the issued cursor is already version 1, so refusing it proves nothing", w.caseName)
+	}
+	position.Version = 1
+	rewritten, err := json.Marshal(position)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(rewritten)
 }
 
 func (w *pagedWorld) get(prefix, query string) *httptest.ResponseRecorder {
@@ -584,11 +634,39 @@ func (w *pagedWorld) assertPage(t *testing.T, index int, query string, request p
 			t.Errorf(label("member %s session_start present=%v, want %s (%s)"), key, present, want, why)
 		}
 	}
+	for key, want := range request.ExpectSessionEnd {
+		got, present := members[key].Transcript["session_end"]
+		if present != (want == "present") {
+			t.Errorf(label("member %s session_end present=%v, want %s (%s)"), key, present, want, why)
+			continue
+		}
+		if !present {
+			continue
+		}
+		age := w.sessionEndAgeOf(key)
+		if age == nil {
+			t.Fatalf("case %s: member %s is expected to carry session_end but the case gives it no session_end_age", w.caseName, key)
+		}
+		text, _ := got.(string)
+		at, err := time.Parse(time.RFC3339Nano, text)
+		if wantAt := w.base.Add(-time.Duration(*age) * time.Minute); err != nil || !at.Equal(wantAt) {
+			t.Errorf(label("member %s session_end=%v, want %s (%s)"), key, got, wantAt.Format(time.RFC3339), why)
+		}
+	}
 	for key, want := range request.ExpectVisibility {
 		if got := members[key].Transcript["visibility"]; got != want {
 			t.Errorf(label("member %s visibility=%v, want %q (%s)"), key, got, want, why)
 		}
 	}
+}
+
+func (w *pagedWorld) sessionEndAgeOf(key string) *int {
+	for _, spec := range w.spec.Transcripts {
+		if spec.Key == key {
+			return spec.SessionEndAge
+		}
+	}
+	return nil
 }
 
 // assertWalk follows next_cursor from the first page to the last and checks the
@@ -629,6 +707,27 @@ func (w *pagedWorld) assertWalk(t *testing.T, walk pagedWalkSpec, why string) {
 	want := w.expectedOrder(walk.ExpectRoots)
 	if strings.Join(seen, ",") != strings.Join(want, ",") {
 		t.Errorf("the walk visited %v, want %v (%s)", seen, want, why)
+	}
+	if walk.MatchesSinglePage {
+		query := "view=paged&limit=500"
+		if walk.Query != "" {
+			query += "&" + walk.Query
+		}
+		rec := w.get("/collectives", query)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("the single page (%s) answered %d: %s", query, rec.Code, rec.Body.String())
+		}
+		page, _ := w.decodePage(t, rec.Body.Bytes())
+		if page.HasMore {
+			t.Fatalf("the single page (%s) is not the whole listing; the case is too large to compare", query)
+		}
+		var single []string
+		for _, item := range page.Items {
+			single = append(single, w.keyOf(item.Root.Transcript["id"].(string)))
+		}
+		if strings.Join(seen, ",") != strings.Join(single, ",") {
+			t.Errorf("the walk visited %v but the single page lists %v; paging must not change the order (%s)", seen, single, why)
+		}
 	}
 	if pages != walk.ExpectPages {
 		t.Errorf("the walk took %d pages, want %d (%s)", pages, walk.ExpectPages, why)

@@ -12,7 +12,9 @@ import (
 )
 
 const countOwnerContributionFamilyMatches = `-- name: CountOwnerContributionFamilyMatches :many
-WITH RECURSIVE roots AS (
+WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+    SELECT NULL::text, NULL::text, NULL::text[] WHERE false
+), roots AS (
   SELECT t.local_id, t.project_hash
   FROM transcripts t
   WHERE t.owner_id = $3
@@ -20,7 +22,30 @@ WITH RECURSIVE roots AS (
           SELECT 1
           FROM transcripts p
           WHERE p.owner_id = t.owner_id
-            AND p.local_id = t.parent_session_id))
+            AND p.local_id = t.parent_session_id)
+         OR (
+          EXISTS (
+              SELECT 1
+              FROM transcripts loop_child
+              WHERE loop_child.owner_id = t.owner_id
+                AND loop_child.parent_session_id = t.local_id
+          )
+          AND EXISTS (
+              WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                  SELECT t.local_id, t.parent_session_id, ARRAY[t.local_id]
+                  UNION ALL
+                  SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                  FROM loop_walk
+                  JOIN transcripts loop_step
+                    ON loop_step.owner_id = t.owner_id
+                   AND loop_step.local_id = loop_walk.parent_session_id
+                  WHERE loop_step.local_id <> ALL (loop_walk.seen)
+              )
+              SELECT 1
+              FROM loop_walk
+              WHERE loop_walk.parent_session_id = t.local_id
+          )
+         ))
 ), family AS (
   SELECT r.project_hash AS root_project, r.local_id AS root_local, r.local_id AS local_id
   FROM roots r
@@ -28,6 +53,29 @@ WITH RECURSIVE roots AS (
   SELECT f.root_project, f.root_local, h.local_id
   FROM family f
   JOIN transcripts h ON h.owner_id = $3 AND h.parent_session_id = f.local_id
+  WHERE NOT (
+      EXISTS (
+          SELECT 1
+          FROM transcripts loop_child
+          WHERE loop_child.owner_id = h.owner_id
+            AND loop_child.parent_session_id = h.local_id
+      )
+      AND EXISTS (
+          WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+              SELECT h.local_id, f.local_id, ARRAY[h.local_id]
+              UNION ALL
+              SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+              FROM loop_walk
+              JOIN transcripts loop_step
+                ON loop_step.owner_id = h.owner_id
+               AND loop_step.local_id = loop_walk.parent_session_id
+              WHERE loop_step.local_id <> ALL (loop_walk.seen)
+          )
+          SELECT 1
+          FROM loop_walk
+          WHERE loop_walk.parent_session_id = h.local_id
+      )
+  )
 ), member AS (
   SELECT f.root_project,
          f.root_local,
@@ -78,7 +126,8 @@ type CountOwnerContributionFamilyMatchesRow struct {
 
 // Sessions in the matching families of the caller's roots, one row per root
 // project. A family is a root and every session that descends from it through
-// parent_session_id. The family rule is defined once, in
+// parent_session_id, never stepping onto a session on a parent loop (each loop
+// member is a root of its own family). The family rule is defined once, in
 // handler/contribution_family.go, and the fragments below are its canonical
 // text with named placeholders; a drift test holds them equal. A family matches
 // when the search is absent, or when its root's project was named by the
@@ -117,7 +166,9 @@ func (q *Queries) CountOwnerContributionFamilyMatches(ctx context.Context, arg C
 }
 
 const countOwnerContributionProviderMatches = `-- name: CountOwnerContributionProviderMatches :many
-WITH RECURSIVE roots AS (
+WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+    SELECT NULL::text, NULL::text, NULL::text[] WHERE false
+), roots AS (
   SELECT t.local_id, t.project_hash
   FROM transcripts t
   WHERE t.owner_id = $2
@@ -125,7 +176,30 @@ WITH RECURSIVE roots AS (
           SELECT 1
           FROM transcripts p
           WHERE p.owner_id = t.owner_id
-            AND p.local_id = t.parent_session_id))
+            AND p.local_id = t.parent_session_id)
+         OR (
+          EXISTS (
+              SELECT 1
+              FROM transcripts loop_child
+              WHERE loop_child.owner_id = t.owner_id
+                AND loop_child.parent_session_id = t.local_id
+          )
+          AND EXISTS (
+              WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                  SELECT t.local_id, t.parent_session_id, ARRAY[t.local_id]
+                  UNION ALL
+                  SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                  FROM loop_walk
+                  JOIN transcripts loop_step
+                    ON loop_step.owner_id = t.owner_id
+                   AND loop_step.local_id = loop_walk.parent_session_id
+                  WHERE loop_step.local_id <> ALL (loop_walk.seen)
+              )
+              SELECT 1
+              FROM loop_walk
+              WHERE loop_walk.parent_session_id = t.local_id
+          )
+         ))
 ), family AS (
   SELECT r.project_hash AS root_project, r.local_id AS root_local, r.local_id AS local_id
   FROM roots r
@@ -133,6 +207,29 @@ WITH RECURSIVE roots AS (
   SELECT f.root_project, f.root_local, h.local_id
   FROM family f
   JOIN transcripts h ON h.owner_id = $2 AND h.parent_session_id = f.local_id
+  WHERE NOT (
+      EXISTS (
+          SELECT 1
+          FROM transcripts loop_child
+          WHERE loop_child.owner_id = h.owner_id
+            AND loop_child.parent_session_id = h.local_id
+      )
+      AND EXISTS (
+          WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+              SELECT h.local_id, f.local_id, ARRAY[h.local_id]
+              UNION ALL
+              SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+              FROM loop_walk
+              JOIN transcripts loop_step
+                ON loop_step.owner_id = h.owner_id
+               AND loop_step.local_id = loop_walk.parent_session_id
+              WHERE loop_step.local_id <> ALL (loop_walk.seen)
+          )
+          SELECT 1
+          FROM loop_walk
+          WHERE loop_walk.parent_session_id = h.local_id
+      )
+  )
 ), member AS (
   SELECT f.root_project,
          f.root_local,
@@ -202,6 +299,9 @@ func (q *Queries) CountOwnerContributionProviderMatches(ctx context.Context, arg
 }
 
 const listOwnerContributionRootProjects = `-- name: ListOwnerContributionRootProjects :many
+WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+    SELECT NULL::text, NULL::text, NULL::text[] WHERE false
+)
 SELECT DISTINCT t.project_hash
 FROM transcripts t
 WHERE t.owner_id = $1
@@ -209,13 +309,37 @@ WHERE t.owner_id = $1
         SELECT 1
         FROM transcripts p
         WHERE p.owner_id = t.owner_id
-          AND p.local_id = t.parent_session_id))
+          AND p.local_id = t.parent_session_id)
+       OR (
+        EXISTS (
+            SELECT 1
+            FROM transcripts loop_child
+            WHERE loop_child.owner_id = t.owner_id
+              AND loop_child.parent_session_id = t.local_id
+        )
+        AND EXISTS (
+            WITH RECURSIVE loop_walk(local_id, parent_session_id, seen) AS (
+                SELECT t.local_id, t.parent_session_id, ARRAY[t.local_id]
+                UNION ALL
+                SELECT loop_step.local_id, loop_step.parent_session_id, loop_walk.seen || loop_step.local_id
+                FROM loop_walk
+                JOIN transcripts loop_step
+                  ON loop_step.owner_id = t.owner_id
+                 AND loop_step.local_id = loop_walk.parent_session_id
+                WHERE loop_step.local_id <> ALL (loop_walk.seen)
+            )
+            SELECT 1
+            FROM loop_walk
+            WHERE loop_walk.parent_session_id = t.local_id
+        )
+       ))
 ORDER BY t.project_hash
 `
 
 // The project of every root session the caller owns. A root is a session with
-// no parent_session_id, or whose parent is not among the caller's published
-// transcripts. A family belongs to its root's project, so these are the only
+// no parent_session_id, whose parent is not among the caller's published
+// transcripts, or that is on a parent loop (walking up its parents comes back
+// to it). A family belongs to its root's project, so these are the only
 // projects a contribution read lists or matches a name against. Every
 // contribution read (the picker, the paged view and the snapshot) takes its
 // project names from this set, once per request, so names can be matched in Go

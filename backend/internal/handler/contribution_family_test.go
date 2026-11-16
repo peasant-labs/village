@@ -21,20 +21,30 @@ type contributionFamilyFragmentCase struct {
 	Alias     string `yaml:"alias"`
 	A         string `yaml:"a"`
 	B         string `yaml:"b"`
+	// Occurrences, when set, is how many times the statement must carry the
+	// fragment; otherwise once or more.
+	Occurrences int `yaml:"occurrences"`
 }
 
 var requiredContributionFamilyFragments = []string{
+	"picker_projects_loop_walk_declaration",
 	"picker_projects_root_condition",
+	"picker_counts_loop_walk_declaration",
 	"picker_counts_root_condition",
+	"picker_counts_descent",
 	"picker_counts_member_match",
 	"picker_counts_root_name_match",
 	"picker_counts_provider_match",
 	"picker_counts_latest_attempt",
 	"picker_counts_live",
+	"picker_facets_loop_walk_declaration",
 	"picker_facets_root_condition",
+	"picker_facets_descent",
 	"picker_facets_member_match",
 	"picker_facets_root_name_match",
+	"paged_loop_walk_declaration",
 	"paged_root_condition",
+	"paged_descent",
 	"paged_member_match",
 	"paged_root_name_match",
 	"paged_provider_match",
@@ -72,6 +82,10 @@ func canonicalFragment(t *testing.T, c contributionFamilyFragmentCase) string {
 	switch c.Kind {
 	case "root":
 		return contributionRootCondition(c.Alias)
+	case "descent":
+		return contributionDescentSQL(c.A, c.Alias)
+	case "loop_walk_declaration":
+		return contributionLoopWalkDeclarationSQL
 	case "member":
 		return contributionMemberMatchSQL(c.Alias, c.A, c.B)
 	case "root_name":
@@ -108,8 +122,12 @@ func TestContributionFamilyFragmentsMatchTheStatements(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			want := squeezeSQL(canonicalFragment(t, c))
 			got := squeezeSQL(statementOf(t, c.File, c.Statement))
-			if !strings.Contains(got, want) {
-				t.Errorf("%s no longer carries the canonical %s fragment:\n%s", c.Statement, c.Kind, canonicalFragment(t, c))
+			n := strings.Count(got, want)
+			if n == 0 {
+				t.Fatalf("%s no longer carries the canonical %s fragment:\n%s", c.Statement, c.Kind, canonicalFragment(t, c))
+			}
+			if c.Occurrences != 0 && n != c.Occurrences {
+				t.Errorf("%s carries the canonical %s fragment %d times, want %d", c.Statement, c.Kind, n, c.Occurrences)
 			}
 		})
 	}
@@ -126,6 +144,7 @@ func TestContributionSnapshotSQLIsBuiltFromTheCanonicalFragments(t *testing.T) {
 	got := squeezeSQL(sql)
 	for name, fragment := range map[string]string{
 		"root condition":      contributionRootCondition("r"),
+		"descent":             contributionDescentSQL("f", "c"),
 		"root member match":   contributionMemberMatchSQL("r", "$4::text", "$5::text"),
 		"root project name":   contributionRootNameMatchSQL("r", "$6::text[]"),
 		"helper member match": contributionMemberMatchSQL("c", "$4::text", "$5::text"),

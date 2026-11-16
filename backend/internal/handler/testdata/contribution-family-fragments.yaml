@@ -5,7 +5,16 @@
 #
 # file is the queries file, statement the sqlc name inside it, kind the fragment,
 # alias the table alias the statement uses for it, and a / b the placeholder
-# expressions the statement passes in (see the builder for what each means).
+# expressions the statement passes in (see the builder for what each means; for
+# a descent, a is the alias of the parent row the step joins from).
+# occurrences, when set, is how many times the statement must carry the
+# fragment: the paged view descends twice (the filter and the page), and each
+# descent must keep its loop guard.
+
+- name: picker_projects_loop_walk_declaration
+  file: contribution_projects.sql
+  statement: ListOwnerContributionRootProjects
+  kind: loop_walk_declaration
 
 - name: picker_projects_root_condition
   file: contribution_projects.sql
@@ -13,11 +22,23 @@
   kind: root
   alias: t
 
+- name: picker_counts_loop_walk_declaration
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: loop_walk_declaration
+
 - name: picker_counts_root_condition
   file: contribution_projects.sql
   statement: CountOwnerContributionFamilyMatches
   kind: root
   alias: t
+
+- name: picker_counts_descent
+  file: contribution_projects.sql
+  statement: CountOwnerContributionFamilyMatches
+  kind: descent
+  alias: h
+  a: f
 
 - name: picker_counts_member_match
   file: contribution_projects.sql
@@ -55,11 +76,23 @@
   kind: live
   alias: a
 
+- name: picker_facets_loop_walk_declaration
+  file: contribution_projects.sql
+  statement: CountOwnerContributionProviderMatches
+  kind: loop_walk_declaration
+
 - name: picker_facets_root_condition
   file: contribution_projects.sql
   statement: CountOwnerContributionProviderMatches
   kind: root
   alias: t
+
+- name: picker_facets_descent
+  file: contribution_projects.sql
+  statement: CountOwnerContributionProviderMatches
+  kind: descent
+  alias: h
+  a: f
 
 - name: picker_facets_member_match
   file: contribution_projects.sql
@@ -76,11 +109,25 @@
   alias: m
   a: "@name_matched_projects::text[]"
 
+- name: paged_loop_walk_declaration
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: loop_walk_declaration
+
 - name: paged_root_condition
   file: contribution_page.sql
   statement: ListContributionPage
   kind: root
   alias: t
+  occurrences: 1
+
+- name: paged_descent
+  file: contribution_page.sql
+  statement: ListContributionPage
+  kind: descent
+  alias: c
+  a: f
+  occurrences: 2
 
 - name: paged_member_match
   file: contribution_page.sql

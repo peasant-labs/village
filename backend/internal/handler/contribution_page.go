@@ -74,6 +74,7 @@ func (h *Handler) dispatchContributableView(w http.ResponseWriter, r *http.Reque
 type pagedContributableTranscript struct {
 	contributableTranscript
 	SessionStart       *time.Time `json:"session_start,omitempty"`
+	SessionEnd         *time.Time `json:"session_end,omitempty"`
 	ParentTranscriptID *string    `json:"parent_transcript_id,omitempty"`
 	LatestStatus       *string    `json:"latest_status,omitempty"`
 }
@@ -105,7 +106,7 @@ type contributionPageRequest struct {
 }
 
 // contributionPageCursor is the position after the last root of a page: that
-// root's session time (microseconds, the precision the column holds) and id.
+// root's last activity (microseconds, the precision the column holds) and id.
 type contributionPageCursor struct {
 	Version     int    `json:"v"`
 	SortMicros  int64  `json:"t"`
@@ -113,7 +114,12 @@ type contributionPageCursor struct {
 	Fingerprint string `json:"k"`
 }
 
-const contributionCursorVersion = 1
+// contributionCursorVersion names the order a cursor's position is a key of.
+// Version 2 is the root's last activity (session_end, then session_start, then
+// published_at); version 1 was its session_start, then published_at. A cursor
+// of another version is refused, because its time is a key of a different
+// order and would resume at the wrong place.
+const contributionCursorVersion = 2
 
 // contributionCursorFingerprint binds a cursor to the viewer, the collective and
 // the filters it was issued for. It is not a secret and grants nothing: the
@@ -329,11 +335,13 @@ func (h *Handler) listContributablePaged(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, response)
 }
 
-// contributionSortTime is the clock a root is ordered on: when the session
-// began, else when it was published, else the epoch. It is the same expression
-// the statement orders by.
+// contributionSortTime is the clock a root is ordered on, its last activity:
+// when the session's last turn happened, else when it began, else when it was
+// published, else the epoch. It is the same expression the statement orders by.
 func contributionSortTime(row sqlc.ListContributionPageRow) time.Time {
 	switch {
+	case row.SessionEnd.Valid:
+		return row.SessionEnd.Time
 	case row.SessionStart.Valid:
 		return row.SessionStart.Time
 	case row.PublishedAt.Valid:
@@ -364,6 +372,10 @@ func pagedTranscriptOf(row sqlc.ListContributionPageRow, localToID map[string]st
 	if row.SessionStart.Valid {
 		start := row.SessionStart.Time
 		out.SessionStart = &start
+	}
+	if row.SessionEnd.Valid {
+		end := row.SessionEnd.Time
+		out.SessionEnd = &end
 	}
 	if row.Depth > 0 && row.ParentSessionID.Valid {
 		if parent, ok := localToID[row.ParentSessionID.String]; ok {

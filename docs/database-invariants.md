@@ -1132,31 +1132,54 @@ The audit triggers (migration 026), the share-derivation triggers
   part of a project believing they contributed all of it.
 - **The paged contribute view counts ROOT sessions and reads the same ledger.**
   `GET /collectives/{id}/contributable?view=paged` (and the `/groups` alias)
-  returns one keyset page of contribution families, ordered by
-  `COALESCE(session_start, published_at, 'epoch') DESC, id ASC`. The limit
-  counts roots only; helpers ride with their root. A root is a transcript with
-  no `parent_session_id`, or whose parent is not one of the owner's own
-  transcripts; a family belongs to its root's project, while a helper keeps its
-  own `project_hash`. One statement, scoped to `owner_id`, reads the page and
-  its families from a single snapshot, descending from the page roots set-wise
-  because `project_hash` carries no index, and `(owner_id, parent_session_id)` is indexed only by migration 051. Cycles and
-  self-parents are unreachable from a root and are never listed. Each member's
-  `latest_status` is the latest attempt per `(transcript, collective)` in
-  `transcript_share_attempts`; `already_shared` is true only for `pending` and
-  `approved`. The cursor is opaque, carries no authority and is bound to the
-  viewer, collective and filters. The view adds no migration, no index and no
-  table, and touches `transcript_shares` nowhere.
+  returns one keyset page of contribution families, ordered by the ROOT's last
+  activity, `COALESCE(session_end, session_start, published_at, 'epoch') DESC,
+  id ASC`; a helper never moves its family, and inside a family the helpers keep
+  their order by depth, then `COALESCE(session_start, published_at, 'epoch')`,
+  then id. The limit counts roots only; helpers ride with their root. A root is a transcript with
+  no `parent_session_id`, whose parent is not one of the owner's own
+  transcripts, or that is on a parent loop; a family belongs to its root's
+  project, while a helper keeps its own `project_hash`. One statement, scoped to
+  `owner_id`, reads the page and its families from a single snapshot, descending
+  from the page roots set-wise because `project_hash` carries no index, and
+  `(owner_id, parent_session_id)` is indexed only by migration 051; each descent
+  step looks up the children of the page's working set through that index, one
+  reached row at a time, rather than scanning the owner's transcripts at each
+  level. A session
+  that is its own parent, and every member of a longer loop of parents, is a
+  root and is listed exactly once; the descent never steps onto a loop member.
+  Each member's `latest_status` is the latest attempt per `(transcript,
+  collective)` in `transcript_share_attempts`; `already_shared` is true only for
+  `pending` and `approved`. Every member carries `session_start` and
+  `session_end` when known and omits each when unknown. The cursor is opaque,
+  carries no authority and is bound to the viewer, collective and filters; it
+  holds the last root's (last activity, id) at cursor version 2, and a cursor of
+  version 1 (the earlier order by `session_start`) is a 400 that says to start
+  from the first page. The view adds no migration, no index and no table, and
+  touches `transcript_shares` nowhere.
 - **The project picker, the paged view and the snapshot view share ONE
   contribution-family rule.** For the same viewer, collective, `q` and
   `provider`, the picker's `matching_count` for a project equals the snapshot's
   count for it, the families the paged view lists for that `project_hash` are the
   snapshot's roots, and the picker's `matching_total` is the number of sessions
-  across every paged family. The rule: a family is a root plus every session
-  descending from it through `parent_session_id`, and belongs to its ROOT's
-  project. `q` is trimmed and a blank `q` is no search. A member matches when its
-  title contains `q` (case-insensitive, `%`, `_` and backslash literal), when `q`
-  equals its transcript id (case-insensitive), or when `q` equals its local
-  session id exactly. The ROOT also matches when its project's DISPLAYED name
+  across every paged family. The rule: a session's parent is the transcript of
+  the same owner whose `local_id` equals its `parent_session_id` (at most one,
+  by `UNIQUE (owner_id, local_id)` from migration 001). A session is on a parent
+  loop when walking up its parents comes back to it. A root is a session with no
+  parent, or whose parent is not published, or that is on a loop. A family is a
+  root plus every session descending from it through `parent_session_id` that is
+  not on a loop, and belongs to its ROOT's project. Each parent chain either ends
+  at a root or runs into a loop, whose member is then the root, so every session
+  of the owner is in exactly one family. The loop test walks up from one
+  session, never revisiting a session, and runs only for a session that has a
+  child, so it ends on any data and stores nothing. In a descent step the walk
+  starts from the parent the step joins from (equal to the child's
+  `parent_session_id`), so the planner applies it only to the children the step
+  reaches rather than to every transcript of the owner. `q` is trimmed and a blank
+  `q` is no search. A member matches when its title contains `q`
+  (case-insensitive, `%`, `_` and backslash literal), when `q` equals its
+  transcript id (case-insensitive), or when `q` equals its local session id
+  exactly. The ROOT also matches when its project's DISPLAYED name
   (the project-name resolver, never raw path or remote evidence) contains `q`; a
   helper's own project name never matches. A family is selected when its root or
   any helper matches, and then every member counts and is returned; `matched` on
@@ -1168,8 +1191,9 @@ The audit triggers (migration 026), the share-derivation triggers
   fragment builders. The snapshot builds its streaming statement from them
   directly; the two sqlc statements carry the same fragment text, which a unit
   test compares with the builders, and a cross-read integration test asserts the
-  three equalities through the mounted routes. Parameters: unknown parameters
-  and parameters another view owns are ignored; a known parameter sent twice is a
+  three equalities through the mounted routes, and that a library with loops is
+  listed by every read with each session exactly once. Parameters: unknown
+  parameters and parameters another view owns are ignored; a known parameter sent twice is a
   400; invalid UTF-8 or NUL in `q` or `provider`, a bad `limit` or `cursor` (an
   empty `cursor=` included), and a missing or malformed `project_hash` on the
   snapshot are 400. All three reads gate identically: the collective id is parsed

@@ -517,9 +517,10 @@ func (h *Handler) refuseContributionSnapshot(w http.ResponseWriter, r *http.Requ
 // $1 is the owner, $2 the project, $3 the collective; the filter's arguments
 // follow.
 //
-// The walk starts at the project's roots and follows parent_session_id down.
-// There is no index on parent_session_id, so each level is joined by hashing, which
-// is what keeps a quarter of a million sessions inside seconds.
+// The walk starts at the project's roots and follows parent_session_id down,
+// never onto a session on a parent loop (that session is a root of its own
+// family). The planner joins each level through the (owner_id,
+// parent_session_id) index or by hashing, whichever it costs lower.
 func contributionSnapshotSQL(filter contributionFamilyFilter, owner, group pgtype.UUID, projectHash string) (string, []any) {
 	fam := buildContributionFamilySQL(filter, 4)
 	matchRoot, matchChild := fam.RootColumns("r"), fam.MemberColumns("c")
@@ -533,6 +534,7 @@ func contributionSnapshotSQL(filter contributionFamilyFilter, owner, group pgtyp
   SELECT f.root_id, c.id, f.id, c.local_id, c.visibility, c.project_hash` + matchChild + `
   FROM fam f
   JOIN transcripts c ON c.owner_id = $1 AND c.parent_session_id = f.local_id
+  WHERE ` + contributionDescentSQL("f", "c") + `
 )
 SELECT f.id, f.parent_id, f.visibility, f.project_hash, a.status
 FROM fam f

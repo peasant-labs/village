@@ -159,15 +159,33 @@
   query: "view=paged&cursor=e30"
   expect_refusal: ["cursor"]
 
+- name: a_hand_written_cursor_of_the_current_version_is_accepted
+  why: >
+    The control for the version case below: the same position, written by hand
+    at the current version and bound to this request, is a cursor.
+  raw_cursor_json: '{"v":2,"t":1700000000123456,"i":"00000000-0000-0000-0000-000000000001","k":"{fp}"}'
+  query: "view=paged"
+  expect: {limit: 500, cursor: true}
+
+- name: a_cursor_of_an_earlier_version_is_refused
+  why: >
+    A version 1 cursor carries a position in the earlier order (session_start,
+    then published_at), not in the order by last activity, so resuming from it
+    would repeat or skip roots. It differs from the accepted case above only in
+    its version, and is refused with the advice to start from the first page.
+  raw_cursor_json: '{"v":1,"t":1700000000123456,"i":"00000000-0000-0000-0000-000000000001","k":"{fp}"}'
+  query: "view=paged"
+  expect_refusal: ["cursor", "first page"]
+
 - name: a_cursor_with_an_unknown_field_is_refused
   why: A cursor this server did not write must not be half-read.
-  raw_cursor_json: '{"v":1,"t":1,"i":"00000000-0000-0000-0000-000000000001","k":"{fp}","extra":1}'
+  raw_cursor_json: '{"v":2,"t":1,"i":"00000000-0000-0000-0000-000000000001","k":"{fp}","extra":1}'
   query: "view=paged"
   expect_refusal: ["cursor"]
 
 - name: a_cursor_with_a_root_that_is_not_an_id_is_refused
   why: The root a page resumes after is a transcript id.
-  raw_cursor_json: '{"v":1,"t":1,"i":"not-an-id","k":"{fp}"}'
+  raw_cursor_json: '{"v":2,"t":1,"i":"not-an-id","k":"{fp}"}'
   query: "view=paged"
   expect_refusal: ["cursor"]
 
