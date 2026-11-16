@@ -1,0 +1,10 @@
+version: 1
+ts:
+  roots: [frontend]
+go:
+  roots: [backend]
+schema:
+  module: github.com/peasant-labs/schema
+endpoints:
+  callees: [api]
+  mountFiles: [backend/internal/router/router.go]
