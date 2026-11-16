@@ -60,10 +60,19 @@ See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
 `make check-unstring` runs `unstring` v0.0.2 over the frontend and backend. It
 needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
+A cold cache downloads the pinned module through the Go module proxy.
 `.unstring-baseline.yaml` is generated and can only shrink; run
 `make unstring-update` to lower it. A deliberate exception uses
 `// unstring-allow: <rule-id> — <reason>` with at least three words, and the two
 closed-set rules accept no marker. CI runs the guard in the `frontend` job.
+
+The catalog's closed sets come from the schema module each root pins, so a
+schema pin change moves the counts; run `make unstring-update` in the same
+commit and say why in the commit message.
+
+A Go file that mounts routes must be listed in `endpoints.mountFiles`. The
+mount rule scans group-relative route literals only in those files, and the
+tool does not accept globs there today.
 
 ## Database and migration safety
 

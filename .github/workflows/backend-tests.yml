@@ -351,6 +351,8 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+          # Avoid GitHub cache uploads for the self-hosted pool.
+          cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Install ast-grep
         run: npm install --global @ast-grep/cli@0.51.2
