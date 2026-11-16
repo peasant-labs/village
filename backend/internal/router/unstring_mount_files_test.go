@@ -14,7 +14,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// mountCallees are the router methods whose first argument is a route pattern.
+// mountCallees are the router methods that take a route pattern. Every callee
+// but Method puts that pattern in the first argument. Method takes the HTTP
+// method first and the pattern second: r.Method("GET", "/probe", h).
 // A group-relative pattern (starts with "/" and is outside every configured
 // endpoint prefix) is visible to the mount rule only when its file is listed.
 var mountCallees = map[string]struct{}{
@@ -89,7 +91,14 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 			if _, ok := mountCallees[sel.Sel.Name]; !ok {
 				return true
 			}
-			lit, ok := call.Args[0].(*ast.BasicLit)
+			// Method is chi.Router.Method(method, pattern, handler). The route
+			// pattern is Args[1]; every other callee keeps the pattern in Args[0].
+			// A one-argument Method has no pattern slot, so it falls back to Args[0].
+			pattern := call.Args[0]
+			if sel.Sel.Name == "Method" && len(call.Args) > 1 {
+				pattern = call.Args[1]
+			}
+			lit, ok := pattern.(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {
 				return true
 			}
