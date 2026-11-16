@@ -153,6 +153,11 @@ type mockQuerier struct {
 	listProjectCollectiveRollup        func(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
 	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 
+	// Selection write stubs. Unset, the share-state read panics and the ledger
+	// insert succeeds, as before they were overridable.
+	listOwnerSelectionShareStates func(ctx context.Context, arg sqlc.ListOwnerSelectionShareStatesParams) ([]sqlc.ListOwnerSelectionShareStatesRow, error)
+	shareTranscriptWithStatus     func(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error
+
 	// Collective repository / GitHub App stubs
 	setGroupLinkedGitHubOrg        func(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error
 	upsertGitHubAppInstallation    func(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
@@ -832,6 +837,12 @@ func (m *mockQuerier) GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLat
 func (m *mockQuerier) ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error) {
 	panic("ListShareAttempts: not stubbed")
 }
+func (m *mockQuerier) ListOwnerSelectionShareStates(ctx context.Context, arg sqlc.ListOwnerSelectionShareStatesParams) ([]sqlc.ListOwnerSelectionShareStatesRow, error) {
+	if m.listOwnerSelectionShareStates != nil {
+		return m.listOwnerSelectionShareStates(ctx, arg)
+	}
+	panic("ListOwnerSelectionShareStates: not stubbed")
+}
 func (m *mockQuerier) UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error {
 	panic("UnshareTranscript: not stubbed")
 }
@@ -851,6 +862,9 @@ func (m *mockQuerier) RemoveGroupTranscript(ctx context.Context, arg sqlc.Remove
 // ---- Share extended methods (signalling layer) ---------------------------
 
 func (m *mockQuerier) ShareTranscriptWithStatus(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error {
+	if m.shareTranscriptWithStatus != nil {
+		return m.shareTranscriptWithStatus(ctx, arg)
+	}
 	return nil
 }
 func (m *mockQuerier) ListSharesByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListSharesByTranscriptIDsRow, error) {

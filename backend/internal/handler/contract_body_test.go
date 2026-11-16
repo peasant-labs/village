@@ -45,6 +45,7 @@ var requiredContractBodyOperations = []string{
 	"POST /api/v1/collectives/{id}/shares",
 	"PATCH /api/v1/collectives/{id}/shares",
 	"PATCH /api/v1/collectives/{id}/shares/{transcriptID}",
+	"POST /api/v1/collectives/{id}/shares/selection",
 	"POST /api/v1/groups",
 	"PATCH /api/v1/groups/{id}",
 	"POST /api/v1/groups/{id}/invitations",
@@ -53,6 +54,7 @@ var requiredContractBodyOperations = []string{
 	"POST /api/v1/groups/{id}/shares",
 	"PATCH /api/v1/groups/{id}/shares",
 	"PATCH /api/v1/groups/{id}/shares/{transcriptID}",
+	"POST /api/v1/groups/{id}/shares/selection",
 	"POST /api/v1/transcripts/{id}/share",
 	"PATCH /api/v1/users/me/settings",
 	"PUT /api/v1/users/me/email",
@@ -248,6 +250,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 			r.Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
 			r.Post(prefix+"/{id}/repositories", h.LinkRepository)
 			r.Post(prefix+"/{id}/shares", h.BatchShareProject)
+			r.Post(prefix+"/{id}/shares/selection", h.BatchShareSelection)
 			r.Patch(prefix+"/{id}/shares", h.BatchReviewShares)
 			r.Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
 		}

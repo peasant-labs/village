@@ -41,6 +41,12 @@
   body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true,"VISIBILITY_CONFIRMED":false}'
   expect: 'key "VISIBILITY_CONFIRMED" differs only in case from the declared field "visibility_confirmed"'
 
+- name: batch share selection
+  method: POST
+  path: /api/v1/groups/{id}/shares/selection
+  body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"private_approvals":[],"Private_Approvals":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"]}'
+  expect: 'key "Private_Approvals" differs only in case from the declared field "private_approvals"'
+
 - name: batch review shares
   method: PATCH
   path: /api/v1/groups/{id}/shares
@@ -95,6 +101,11 @@
   path: /api/v1/collectives/{id}/shares
   body: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","visibility_confirmed":true,"VISIBILITY_CONFIRMED":false}'
   expect: 'key "VISIBILITY_CONFIRMED" differs only in case from the declared field "visibility_confirmed"'
+- name: collective batch share selection
+  method: POST
+  path: /api/v1/collectives/{id}/shares/selection
+  body: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"private_approvals":[],"TRANSCRIPT_IDS":[]}'
+  expect: 'key "TRANSCRIPT_IDS" differs only in case from the declared field "transcript_ids"'
 - name: collective batch review
   method: PATCH
   path: /api/v1/collectives/{id}/shares

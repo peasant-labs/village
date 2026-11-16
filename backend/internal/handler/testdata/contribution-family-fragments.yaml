@@ -117,3 +117,23 @@
   statement: ListContributionPage
   kind: live
   alias: ls
+
+- name: selection_root_condition
+  file: contribution_selection.sql
+  statement: ListOwnerSelectionShareStates
+  kind: root
+  alias: t
+
+- name: selection_latest_attempt
+  file: contribution_selection.sql
+  statement: ListOwnerSelectionShareStates
+  kind: latest
+  alias: t
+  a: "@group_id"
+  b: a
+
+- name: selection_live
+  file: contribution_selection.sql
+  statement: ListOwnerSelectionShareStates
+  kind: live
+  alias: a

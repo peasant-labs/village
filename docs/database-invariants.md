@@ -999,13 +999,14 @@ The audit triggers (migration 026), the share-derivation triggers
   `applyMetadataPatch` moves it to `shared`. It adds NO trigger, NO GUC, and no
   new table.
 - **Each requested share operation is ONE transaction.** A single transcript's
-  entire requested collective set and a whole project's selected transcripts
-  each commit their attempts and already-consented private-to-shared visibility
-  together. Validate every target; an invalid, pending-member, removed-member or
-  policy-refused target is never silently skipped. Any statement error rolls the
-  operation back, including earlier attempts and visibility changes. A refusal
-  cannot widen a private transcript with no accepted target. An earlier content
-  upload is a separate committed operation, not part of this transaction.
+  entire requested collective set, a whole project's selected transcripts and an
+  exact selection of transcripts each commit their attempts and
+  already-consented private-to-shared visibility together. Validate every
+  target; an invalid, pending-member, removed-member or policy-refused target
+  is never silently skipped. Any statement error rolls the operation back,
+  including earlier attempts and visibility changes. A refusal cannot widen a
+  private transcript with no accepted target. An earlier content upload is a
+  separate committed operation, not part of this transaction.
 - **Final authority is read under shared writer locks.** After transcript publish
   locks, `inCollectiveAuthorityTx` acquires the authenticated actor's
   `village:collective-actor:<uuid>` key and every requested
@@ -1061,9 +1062,10 @@ The audit triggers (migration 026), the share-derivation triggers
   committed event. Both are `23505` and are told apart only by the CONSTRAINT
   NAME, so both names are constants in `handler/shares_attempts.go` and
   `classifyShareAttemptConflict` maps them to the closed set
-  `shareAttemptConflict`. **Both share paths - the single transcript and the
-  whole project - classify through that one function**, and both answer either
-  kind with a 409 naming the transcript; they previously agreed only about the
+  `shareAttemptConflict`. **Every share path - the single transcript, the whole
+  project and the exact selection - classifies through that one function**, and
+  each answers either kind with a 409 naming the transcript (the selection with
+  the code `conflict`); the first two previously agreed only about the
   open-attempt index and both fell through to an unexplained 500 for the
   ordering conflict. A migration that renames either constraint silently
   disables the mapping, so `TestShareAttemptConstraintNamesMatchTheCatalog` pins
@@ -1074,7 +1076,52 @@ The audit triggers (migration 026), the share-derivation triggers
   transcript, deduplicated and sorted, on one pinned connection - the keys
   `withPublishLocks` already held, built by the same helper - so a batch and a
   concurrent single share contend rather than interleave, and no two callers can
-  take two keys in opposite orders.
+  take two keys in opposite orders. An exact selection takes the same keys, one
+  per listed transcript, through the same helper.
+- **The ledger has a THIRD application writer, an exact selection, and it
+  writes the same statement under the same locks.**
+  `POST /collectives/{id}/shares/selection` (and the `/groups` alias;
+  `handler/group_share_selection.go`, `BatchShareSelection`) offers exactly the
+  listed transcripts to one collective. It never expands a root into its
+  helpers. `project_hash` names the project of the selected ROOTS; a helper
+  keeps its own project and is not checked against it. The preflight is one
+  statement, `ListOwnerSelectionShareStates`, bounded by the listed ids and the
+  owner - never by a project or by the size of the owner's library - and it
+  reads liveness from the ledger with the contribution-family fragments. The
+  locked write then takes, in this order: the publish lock of every listed
+  transcript (`withPublishLocksMany`); `inCollectiveAuthorityTx`'s actor and
+  collective transaction locks; the final authority check
+  (`readShareAuthority`, the same check `finalShareStatus` makes for the other
+  writers); a `FOR UPDATE` row lock on every transcript it would write, in
+  ascending id order; and a fresh read of every listed transcript through the
+  same statement. Only then does it append one attempt per transcript through
+  `ShareTranscriptWithStatus` and move each approved private transcript to
+  `shared` with `applyMetadataPatch` in the same transaction, so the governance
+  trigger records the visibility change against the actor. It adds NO trigger,
+  NO GUC, NO index and no table.
+- **An exact selection writes every listed transcript it does not report as
+  live, or writes nothing.** A transcript whose latest attempt in the
+  collective is `pending` or `approved` - at the preflight, or by the time the
+  locks are held - is reported under `already_shared`, gains no attempt, and is
+  not a refusal; a selection that is entirely live answers 200 with nothing
+  shared. Every other reason refuses the WHOLE request, rolls back anything the
+  transaction wrote, and lists every offender with a closed code. Per
+  transcript, answering 409: `missing` (no transcript of the caller's has that
+  id), `moved` (a selected root whose project is no longer `project_hash`,
+  with its `current_project_hash`), `private_unapproved` (private at the
+  preflight, or under its row lock, and absent from `private_approvals`),
+  `stale_selection` (live at the preflight and no longer live under the locks;
+  it is never resubmitted automatically) and `conflict` (the ledger refused the
+  attempt). About the caller, answering 403 with one detail and no
+  `transcript_id`: `membership` (no accepted contributing membership; an
+  unknown collective answers the same) and `policy` (the acceptance policy
+  refuses the caller, or its outcome changed while the request waited). A
+  `conflict` is unreachable through the application's own writers: every
+  ledger INSERT checks the transcript foreign key with `FOR KEY SHARE`, which the
+  selection's `FOR UPDATE` row lock blocks, so a competing attempt either
+  commits before the fresh read (and is reported live) or waits until the
+  selection commits. The mapping stays so that a writer outside these rules is
+  answered with a typed 409 rather than a 500.
 - **The contribute listing reads the LEDGER, never the projection.**
   `GET /groups/{id}/contributable` answers `already_shared` from
   `transcript_share_attempts` (the latest event of the pair being `pending` or

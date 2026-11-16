@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -114,23 +115,52 @@ type shareOperationRefusal struct {
 
 func (e *shareOperationRefusal) Error() string { return e.message }
 
-// finalShareStatus uses the same acceptance rule as preflight, but reads its
-// inputs again on the mutation transaction after acquiring authority locks.
-func finalShareStatus(ctx context.Context, q Querier, user *AuthUser, groupID pgtype.UUID) (ShareStatus, error) {
+// contributingRole reports whether a collective role may offer transcripts to
+// the collective. A pending member has asked to join and has not been accepted,
+// so it may not.
+func contributingRole(role string) bool {
+	return role == "owner" || role == "member" || role == "contributor"
+}
+
+// shareAuthorityRefusal is a refusal of the final authority check, typed by what
+// refused it: the caller's membership, or the collective's acceptance policy.
+type shareAuthorityRefusal struct {
+	code    schema.VillageContributionErrorCode
+	message string
+}
+
+// readShareAuthority is the final authority check every share path makes on its
+// mutation transaction after acquiring the authority locks. It reads the
+// membership and the collective under share locks and applies the same
+// acceptance rule as the preflight (shareStatusForGroup).
+func readShareAuthority(ctx context.Context, q Querier, user *AuthUser, groupID pgtype.UUID) (ShareStatus, *shareAuthorityRefusal, error) {
 	member, err := q.GetGroupMemberForShare(ctx, sqlc.GetGroupMemberForShareParams{GroupID: groupID, UserID: user.PgID()})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && member.Role != "owner" && member.Role != "member" && member.Role != "contributor") {
-		return "", &shareOperationRefusal{http.StatusForbidden, "Current accepted membership is required for every requested collective. Nothing was submitted; join the collective or correct the selection and explicitly retry."}
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !contributingRole(member.Role)) {
+		return "", &shareAuthorityRefusal{schema.VillageContributionErrorMembership, "Current accepted membership is required for every requested collective. Nothing was submitted; join the collective or correct the selection and explicitly retry."}, nil
 	}
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	group, err := q.GetGroupByIDForShare(ctx, groupID)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	status, refusal := shareStatusForGroup(ctx, q, user, group)
 	if refusal != nil {
-		return "", &shareOperationRefusal{http.StatusForbidden, refusal.Message}
+		return "", &shareAuthorityRefusal{schema.VillageContributionErrorPolicy, refusal.Message}, nil
+	}
+	return status, nil, nil
+}
+
+// finalShareStatus uses the same acceptance rule as preflight, but reads its
+// inputs again on the mutation transaction after acquiring authority locks.
+func finalShareStatus(ctx context.Context, q Querier, user *AuthUser, groupID pgtype.UUID) (ShareStatus, error) {
+	status, refusal, err := readShareAuthority(ctx, q, user, groupID)
+	if err != nil {
+		return "", err
+	}
+	if refusal != nil {
+		return "", &shareOperationRefusal{http.StatusForbidden, refusal.message}
 	}
 	return status, nil
 }

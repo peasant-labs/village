@@ -173,6 +173,7 @@ type Querier interface {
 	GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error)
 	ListLiveShareAttemptsForGroup(ctx context.Context, arg sqlc.ListLiveShareAttemptsForGroupParams) ([]sqlc.ListLiveShareAttemptsForGroupRow, error)
 	ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error)
+	ListOwnerSelectionShareStates(ctx context.Context, arg sqlc.ListOwnerSelectionShareStatesParams) ([]sqlc.ListOwnerSelectionShareStatesRow, error)
 	ShareTranscriptWithStatus(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error
 	UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error
 	TranscriptHasLiveShareAttempt(ctx context.Context, transcriptID pgtype.UUID) (bool, error)

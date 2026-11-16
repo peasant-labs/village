@@ -1,0 +1,738 @@
+# Offering one exact selection of sessions to a collective, driven through the
+# mounted route against a real PostgreSQL. Read by
+# contribution_selection_write_integration_test.go.
+#
+# A case declares:
+#   acceptance   the collective's acceptance mode (default open).
+#   membership   the caller's role in it: member (default), contributor,
+#                pending or none.
+#   transcripts  the library. key names a transcript; project is a project key
+#                (the same key is the same 64-hex project); visibility defaults
+#                to shared; parent names an earlier key, making this one a
+#                helper of it; owner: other gives it to a stranger; history is
+#                the attempt ledger towards this collective, one status per
+#                event, and a status prefixed "other:" lands in a second
+#                collective instead.
+#   request      prefix (/collectives by default, or /groups); collective
+#                (unknown for an id no collective has, literal:<text> for a
+#                raw path segment); no_auth; project, select and approve as
+#                keys, where a key starting with "ghost" is an id no transcript
+#                has; raw_body with the tokens {id:<key>}, {upper:<key>} (the id
+#                in capitals) and {project:<key>}; oversize, which repeats the
+#                first selected id until the body is over 1 MiB.
+#   race         the test holds the publish lock of transcript hold, starts the
+#                request, waits until PostgreSQL shows it blocked on that lock,
+#                performs action, and releases the lock. Actions:
+#                  make_private          the owner makes hold private
+#                  make_private_before   the same, before the request starts:
+#                                        the preflight must refuse it while the
+#                                        lock is still held
+#                  append_approved       an accepted attempt is appended for hold
+#                  withdraw              the owner withdraws hold's submission
+#                  reject                a moderator rejects hold's open attempt
+#                  move                  hold moves to project race.project
+#                  set_acceptance        the collective's mode becomes
+#                                        race.acceptance
+#                  remove_membership     the caller's membership is deleted
+#                  compete               another writer appends an accepted
+#                                        attempt for hold and commits only once
+#                                        the request is seen waiting on it
+#   inject       refuse_last_ledger_insert installs a trigger that refuses the
+#                ledger insert of the selected session with the highest id, so
+#                every other session has been written before the failure.
+#   expect       status; for a refusal its code, every detail (key, code,
+#                current_project) and phrases its message must contain; for a
+#                200 the exact shared map (key: status) and already_shared set;
+#                and the persisted state: attempts in this collective, the
+#                derived share row (<none> when absent), visibility, and audit,
+#                the number of governance events that moved the transcript to
+#                shared on the caller's behalf.
+
+# --- offering exactly the listed sessions ---------------------------------
+
+- name: offers_exactly_the_listed_sessions
+  why: >-
+    Two of three public sessions of one project are selected. Exactly those two
+    are offered; the third, in the same project, is not, because a selection is
+    not a whole-project offer.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: b, project: p, visibility: public}
+    - {key: c, project: p, visibility: public}
+  request: {project: p, select: [a, b]}
+  expect:
+    status: 200
+    shared: {a: approved, b: approved}
+    already_shared: []
+    attempts: {a: 1, b: 1, c: 0}
+    derived: {a: approved, b: approved, c: <none>}
+    visibility: {a: public, b: public, c: public}
+
+- name: curated_collective_opens_pending_attempts
+  why: >-
+    A curated collective reviews every contribution, so each offered session
+    opens awaiting review and the selection cannot bypass moderation.
+  acceptance: curated
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  expect:
+    status: 200
+    shared: {a: pending, b: pending}
+    already_shared: []
+    attempts: {a: 1, b: 1}
+    derived: {a: pending, b: pending}
+
+- name: a_contributor_may_contribute
+  why: >-
+    The contributor role is an accepted membership that may contribute, exactly
+    as owner and member are.
+  membership: contributor
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a]}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: []
+    attempts: {a: 1}
+
+- name: a_root_is_never_expanded_into_its_helpers
+  why: >-
+    Selecting a root offers the root alone. Its helpers are offered only when
+    they are listed themselves.
+  transcripts:
+    - {key: r, project: p}
+    - {key: h1, project: p, parent: r}
+    - {key: h2, project: p, parent: r}
+  request: {project: p, select: [r]}
+  expect:
+    status: 200
+    shared: {r: approved}
+    already_shared: []
+    attempts: {r: 1, h1: 0, h2: 0}
+    derived: {h1: <none>, h2: <none>}
+
+- name: a_helper_in_another_project_is_accepted
+  why: >-
+    project_hash is the project of the selected roots. A helper recorded under
+    another project is offered with its root and is not refused as moved.
+  transcripts:
+    - {key: r, project: p}
+    - {key: h, project: q, parent: r}
+  request: {project: p, select: [r, h]}
+  expect:
+    status: 200
+    shared: {r: approved, h: approved}
+    already_shared: []
+    attempts: {r: 1, h: 1}
+
+- name: a_helper_selected_alone_is_not_checked_against_the_project
+  why: >-
+    A helper listed without its root is still a helper: its own project is not
+    compared with the requested one, and its root is not pulled in.
+  transcripts:
+    - {key: r, project: p}
+    - {key: h, project: q, parent: r}
+  request: {project: p, select: [h]}
+  expect:
+    status: 200
+    shared: {h: approved}
+    already_shared: []
+    attempts: {r: 0, h: 1}
+
+- name: a_decided_session_is_offered_again
+  why: >-
+    A rejected or withdrawn submission is history, not a live one, so the
+    session is offered again with a new attempt appended after the old ones.
+  transcripts:
+    - {key: a, project: p, history: [rejected]}
+    - {key: b, project: p, history: [approved, retracted]}
+  request: {project: p, select: [a, b]}
+  expect:
+    status: 200
+    shared: {a: approved, b: approved}
+    already_shared: []
+    attempts: {a: 2, b: 3}
+    derived: {a: approved, b: approved}
+
+- name: a_live_attempt_in_another_collective_does_not_count
+  why: >-
+    Being live in one collective says nothing about another: the session is
+    offered here and its submission elsewhere is untouched.
+  transcripts:
+    - {key: a, project: p, history: ["other:approved"]}
+  request: {project: p, select: [a]}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: []
+    attempts: {a: 1}
+
+- name: duplicate_ids_are_folded
+  why: >-
+    Naming one session twice offers it once. The receipt names it once and the
+    ledger holds one attempt.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, a, b]}
+  expect:
+    status: 200
+    shared: {a: approved, b: approved}
+    already_shared: []
+    attempts: {a: 1, b: 1}
+
+# --- already shared ---------------------------------------------------------
+
+- name: live_sessions_are_reported_already_shared
+  why: >-
+    A session whose latest attempt is accepted or awaiting review is live. It is
+    reported under already_shared, is not offered twice, and does not stop the
+    rest of the selection.
+  transcripts:
+    - {key: a, project: p, history: [approved]}
+    - {key: b, project: p}
+    - {key: c, project: p, history: [pending]}
+  request: {project: p, select: [a, b, c]}
+  expect:
+    status: 200
+    shared: {b: approved}
+    already_shared: [a, c]
+    attempts: {a: 1, b: 1, c: 1}
+    derived: {a: approved, b: approved, c: pending}
+
+- name: every_selected_session_already_live_answers_200_with_nothing_shared
+  why: >-
+    When every selected session is already live there is nothing to offer and
+    nothing wrong: the answer is a receipt with an empty shared list, not a
+    refusal.
+  transcripts:
+    - {key: a, project: p, history: [approved]}
+    - {key: b, project: p, history: [pending]}
+  request: {project: p, select: [a, b]}
+  expect:
+    status: 200
+    shared: {}
+    already_shared: [a, b]
+    attempts: {a: 1, b: 1}
+
+# --- private approvals ------------------------------------------------------
+
+- name: private_session_with_approval_is_shared_and_widened
+  why: >-
+    A private session listed in private_approvals is offered, and its
+    visibility moves to shared in the same transaction, recorded by the
+    governance trigger against the person who approved it.
+  transcripts:
+    - {key: x, project: p, visibility: private}
+  request: {project: p, select: [x], approve: [x]}
+  expect:
+    status: 200
+    shared: {x: approved}
+    already_shared: []
+    attempts: {x: 1}
+    visibility: {x: shared}
+    audit: {x: 1}
+
+- name: private_session_without_approval_refuses_everything
+  why: >-
+    A private session without its approval refuses the whole selection. The
+    public session is not offered and the approved private one is not widened.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: x, project: p, visibility: private}
+    - {key: y, project: p, visibility: private}
+  request: {project: p, select: [a, x, y], approve: [y]}
+  expect:
+    status: 409
+    code: private_unapproved
+    details:
+      - {key: x, code: private_unapproved}
+    error_contains: ["1 of the 3 sessions", "private without your approval"]
+    attempts: {a: 0, x: 0, y: 0}
+    visibility: {a: public, x: private, y: private}
+    audit: {y: 0}
+
+- name: an_approval_for_a_session_that_is_not_private_is_ignored
+  why: >-
+    An approval widens a private session only. Approving a public or a shared
+    session changes nothing about it, and approving a session that is not
+    selected offers nothing.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: s, project: p, visibility: shared}
+    - {key: u, project: p, visibility: private}
+  request: {project: p, select: [a, s], approve: [a, s, u]}
+  expect:
+    status: 200
+    shared: {a: approved, s: approved}
+    already_shared: []
+    attempts: {a: 1, s: 1, u: 0}
+    visibility: {a: public, s: shared, u: private}
+    audit: {a: 0, s: 0, u: 0}
+
+# --- per-transcript refusals --------------------------------------------------
+
+- name: moved_root_refuses_everything_naming_its_current_project
+  why: >-
+    A selected root no longer in the requested project refuses the whole
+    selection, and the detail names the project it is in now so the page can
+    move with it.
+  transcripts:
+    - {key: a, project: p}
+    - {key: m, project: q}
+  request: {project: p, select: [a, m]}
+  expect:
+    status: 409
+    code: moved
+    details:
+      - {key: m, code: moved, current_project: q}
+    error_contains: ["1 of the 2 sessions", "now in another project"]
+    attempts: {a: 0, m: 0}
+
+- name: missing_session_refuses_everything
+  why: >-
+    An id that is not among the caller's sessions refuses the whole selection
+    and is named in the details.
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a, ghost]}
+  expect:
+    status: 409
+    code: missing
+    details:
+      - {key: ghost, code: missing}
+    error_contains: ["1 of the 2 sessions", "not among your published sessions"]
+    attempts: {a: 0}
+
+- name: another_owners_session_reads_as_missing
+  why: >-
+    A stranger's session cannot be contributed by the caller, and the answer
+    must not reveal that it exists: it reads exactly as an id nothing has.
+  transcripts:
+    - {key: a, project: p}
+    - {key: o, project: p, owner: other}
+  request: {project: p, select: [a, o]}
+  expect:
+    status: 409
+    code: missing
+    details:
+      - {key: o, code: missing}
+    attempts: {a: 0, o: 0}
+
+- name: every_offender_is_listed_with_its_own_code
+  why: >-
+    The refusal lists every offender with its own reason, not only the first,
+    so the person can resolve them all at once. The primary code is the first
+    of their codes in the contract's order. A live session is not an offender,
+    and an approved private session is not widened when the selection is
+    refused.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: l, project: p, history: [approved]}
+    - {key: m, project: q}
+    - {key: x, project: p, visibility: private}
+    - {key: y, project: p, visibility: private}
+    - {key: o, project: p, owner: other}
+  request: {project: p, select: [a, l, m, x, y, o, ghost], approve: [y]}
+  expect:
+    status: 409
+    code: moved
+    details:
+      - {key: m, code: moved, current_project: q}
+      - {key: x, code: private_unapproved}
+      - {key: o, code: missing}
+      - {key: ghost, code: missing}
+    error_contains:
+      - "4 of the 7 sessions"
+      - "1 now in another project"
+      - "2 not among your published sessions"
+      - "1 private without your approval"
+    attempts: {a: 0, l: 1, m: 0, x: 0, y: 0, o: 0}
+    visibility: {y: private}
+    audit: {y: 0}
+
+- name: a_moved_live_root_is_refused_not_reported_already_shared
+  why: >-
+    A live root that has left the requested project is refused as moved rather
+    than reported as already shared, because the person selected it under a
+    project it is no longer in.
+  transcripts:
+    - {key: a, project: p}
+    - {key: m, project: q, history: [approved]}
+  request: {project: p, select: [a, m]}
+  expect:
+    status: 409
+    code: moved
+    details:
+      - {key: m, code: moved, current_project: q}
+    attempts: {a: 0, m: 1}
+
+# --- request-level refusals ---------------------------------------------------
+
+- name: non_member_is_refused_with_membership
+  why: >-
+    Contributing needs an accepted membership. The refusal is about the
+    request, so it is decided before any session is read: its one detail names
+    no transcript even though the selection also holds an unknown id.
+  membership: none
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a, ghost]}
+  expect:
+    status: 403
+    code: membership
+    details:
+      - {code: membership}
+    error_contains: ["you may not contribute", "nothing was written"]
+    attempts: {a: 0}
+
+- name: pending_membership_is_refused_with_membership
+  why: >-
+    A request to join that has not been accepted is not a membership that may
+    contribute.
+  membership: pending
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a]}
+  expect:
+    status: 403
+    code: membership
+    details:
+      - {code: membership}
+    error_contains: ["wait until your request to join is accepted"]
+    attempts: {a: 0}
+
+- name: an_unknown_collective_is_refused_with_membership
+  why: >-
+    A collective that does not exist answers exactly as one the caller does not
+    belong to, so the route does not reveal which collectives exist.
+  transcripts:
+    - {key: a, project: p}
+  request: {collective: unknown, project: p, select: [a]}
+  expect:
+    status: 403
+    code: membership
+    details:
+      - {code: membership}
+    attempts: {a: 0}
+
+- name: policy_refusal_is_request_level
+  why: >-
+    A collective that admits verified organization members only refuses a
+    caller with no organization on record. The refusal is about the request,
+    decided before any session is read, so its detail names no transcript.
+  acceptance: verified_only
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a, ghost]}
+  expect:
+    status: 403
+    code: policy
+    details:
+      - {code: policy}
+    error_contains: ["no organization on record"]
+    attempts: {a: 0}
+
+# --- request-shape refusals ---------------------------------------------------
+
+- name: an_empty_selection_violates_the_contract
+  why: >-
+    The contract requires at least one transcript id. The violation is refused
+    with the field and the reason and no code, before anything is read.
+  transcripts:
+    - {key: a, project: p}
+  request:
+    raw_body: '{"project_hash":"{project:p}","transcript_ids":[],"private_approvals":[]}'
+  expect:
+    status: 400
+    error_contains: ["/transcript_ids: minimum 1 items required"]
+    attempts: {a: 0}
+
+- name: a_non_canonical_id_violates_the_contract
+  why: >-
+    A transcript id in capitals is not the canonical form the contract
+    declares, so the request is refused before the selected session is read or
+    offered.
+  transcripts:
+    - {key: a, project: p}
+  request:
+    raw_body: '{"project_hash":"{project:p}","transcript_ids":["{upper:a}"],"private_approvals":[]}'
+  expect:
+    status: 400
+    error_contains: ["/transcript_ids/0: does not match pattern"]
+    attempts: {a: 0}
+
+- name: missing_private_approvals_violates_the_contract
+  why: >-
+    private_approvals is required even when empty, so the person states
+    explicitly which private sessions they approve.
+  transcripts:
+    - {key: a, project: p}
+  request:
+    raw_body: '{"project_hash":"{project:p}","transcript_ids":["{id:a}"]}'
+  expect:
+    status: 400
+    error_contains: ["missing properties: 'private_approvals'"]
+    attempts: {a: 0}
+
+- name: a_body_that_is_not_json_is_refused
+  why: A body that does not parse is refused before anything is read.
+  transcripts:
+    - {key: a, project: p}
+  request:
+    raw_body: '{"project_hash":"{project:p}","transcript_ids":["{id:a}"'
+  expect:
+    status: 400
+    error_contains: ["Invalid request body"]
+    attempts: {a: 0}
+
+- name: a_collective_id_that_is_not_an_identifier_is_refused
+  why: >-
+    A collective id in the address that is not an identifier names no
+    collective, and is refused before the body is read.
+  transcripts:
+    - {key: a, project: p}
+  request: {collective: "literal:not-a-collective", project: p, select: [a]}
+  expect:
+    status: 400
+    error_contains: ["not a valid identifier"]
+    attempts: {a: 0}
+
+- name: a_body_over_one_mebibyte_is_refused
+  why: >-
+    The body is capped at 1 MiB. A well-formed selection that is too large is
+    refused with 413 before it is validated or read, and nothing is offered.
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a], oversize: true}
+  expect:
+    status: 413
+    error_contains: ["exceeds the 1048576 byte limit"]
+    attempts: {a: 0}
+
+- name: unauthenticated_is_refused
+  why: Only a signed-in person may contribute their sessions.
+  transcripts:
+    - {key: a, project: p}
+  request: {no_auth: true, project: p, select: [a]}
+  expect:
+    status: 401
+    attempts: {a: 0}
+
+- name: the_groups_alias_offers_the_same_way
+  why: >-
+    The /groups prefix is the same operation as /collectives and offers the
+    selection the same way.
+  transcripts:
+    - {key: a, project: p}
+  request: {prefix: /groups, project: p, select: [a]}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: []
+    attempts: {a: 1}
+
+# --- atomicity ------------------------------------------------------------------
+
+- name: a_failure_in_the_middle_of_the_write_rolls_everything_back
+  why: >-
+    The ledger refuses the session written last, after every other session has
+    been offered and widened from private. The whole selection is one
+    transaction, so none of those writes survive: no attempt, no visibility
+    change and no governance event.
+  transcripts:
+    - {key: x, project: p, visibility: private}
+    - {key: y, project: p, visibility: private}
+    - {key: z, project: p, visibility: private}
+  request: {project: p, select: [x, y, z], approve: [x, y, z]}
+  inject: refuse_last_ledger_insert
+  expect:
+    status: 500
+    error_contains: ["rolled back"]
+    attempts: {x: 0, y: 0, z: 0}
+    derived: {x: <none>, y: <none>, z: <none>}
+    visibility: {x: private, y: private, z: private}
+    audit: {x: 0, y: 0, z: 0}
+
+# --- changes made while the request waits for its locks -----------------------
+
+- name: becomes_private_while_waiting_is_refused
+  why: >-
+    The preflight saw b public. While the request waited for b's publish lock
+    the owner made b private, and the request carries no approval for it. The
+    locked re-check must see the new visibility and refuse everything.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: b, project: p, visibility: public}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: make_private}
+  expect:
+    status: 409
+    code: private_unapproved
+    details:
+      - {key: b, code: private_unapproved}
+    attempts: {a: 0, b: 0}
+    visibility: {a: public, b: private}
+    audit: {b: 0}
+
+- name: private_before_the_preflight_is_refused_by_the_preflight
+  why: >-
+    The negative control of the case above: b is private before the request
+    starts, so the preflight refuses it without waiting for any lock, and the
+    answer arrives while the test still holds b's publish lock.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: b, project: p, visibility: public}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: make_private_before}
+  expect:
+    status: 409
+    code: private_unapproved
+    details:
+      - {key: b, code: private_unapproved}
+    attempts: {a: 0, b: 0}
+    visibility: {b: private}
+
+- name: approved_private_while_waiting_is_shared
+  why: >-
+    The positive control: the request carries an approval for b, so when b
+    turns private while the request waits, the locked write offers it and
+    widens it to shared under the row lock.
+  transcripts:
+    - {key: a, project: p, visibility: public}
+    - {key: b, project: p, visibility: public}
+  request: {project: p, select: [a, b], approve: [b]}
+  race: {hold: b, action: make_private}
+  expect:
+    status: 200
+    shared: {a: approved, b: approved}
+    already_shared: []
+    attempts: {a: 1, b: 1}
+    visibility: {a: public, b: shared}
+    audit: {b: 1}
+
+- name: becomes_live_while_waiting_is_reported_already_shared
+  why: >-
+    b was not live at the preflight and became live while the request waited.
+    It is reported under already_shared and not offered a second time; the
+    rest of the selection is offered.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: append_approved}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: [b]
+    attempts: {a: 1, b: 1}
+    derived: {a: approved, b: approved}
+
+- name: withdrawn_while_waiting_is_stale
+  why: >-
+    b was live at the preflight and was withdrawn while the request waited. The
+    person's selection showed b as already shared, so offering it again would
+    act on a state they never saw: the selection is refused as stale.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p, history: [approved]}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: withdraw}
+  expect:
+    status: 409
+    code: stale_selection
+    details:
+      - {key: b, code: stale_selection}
+    error_contains: ["withdrawn or decided since the selection was read"]
+    attempts: {a: 0, b: 2}
+    derived: {a: <none>, b: <none>}
+
+- name: decided_while_waiting_is_stale
+  why: >-
+    b was awaiting review at the preflight and a moderator rejected it while
+    the request waited. The decision is not overridden by an offer the person
+    made against the earlier state.
+  acceptance: curated
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p, history: [pending]}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: reject}
+  expect:
+    status: 409
+    code: stale_selection
+    details:
+      - {key: b, code: stale_selection}
+    attempts: {a: 0, b: 1}
+
+- name: moved_while_waiting_is_refused
+  why: >-
+    b moved to another project while the request waited. The locked re-check
+    refuses the selection as moved and names the project b is in now.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: move, project: q}
+  expect:
+    status: 409
+    code: moved
+    details:
+      - {key: b, code: moved, current_project: q}
+    attempts: {a: 0, b: 0}
+
+- name: policy_change_while_waiting_refuses_everything
+  why: >-
+    The collective became curated while the request waited, so the state its
+    attempts would open in is no longer the one it was checked against. The
+    request is refused with policy and nothing is offered.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: set_acceptance, acceptance: curated}
+  expect:
+    status: 403
+    code: policy
+    details:
+      - {code: policy}
+    error_contains: ["acceptance policy changed while this contribution waited"]
+    attempts: {a: 0, b: 0}
+
+- name: membership_removed_while_waiting_refuses_everything
+  why: >-
+    The caller left or was removed from the collective while the request
+    waited. The final authority check inside the locked transaction refuses it
+    with membership and nothing is offered.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: remove_membership}
+  expect:
+    status: 403
+    code: membership
+    details:
+      - {code: membership}
+    attempts: {a: 0, b: 0}
+
+- name: a_competing_writer_is_serialized_by_the_row_lock
+  why: >-
+    Another writer, outside the publish lock, appends an attempt for b and
+    holds its transaction open. The request takes b's row lock before it
+    re-reads, so it waits for that writer, then sees b live and reports it as
+    already shared instead of failing on the ledger's constraint.
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+  request: {project: p, select: [a, b]}
+  race: {hold: b, action: compete}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: [b]
+    attempts: {a: 1, b: 1}
+    derived: {a: approved, b: approved}

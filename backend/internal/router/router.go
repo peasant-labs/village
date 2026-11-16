@@ -218,6 +218,9 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories/available", h.ListAvailableRepositories)
 		}
 		h.RegisterCollectiveBrowseRoutes(r)
+		// Contributing one exact selection of sessions, roots and helpers alike,
+		// under both collective prefixes. Member-only.
+		h.RegisterContributionSelectionRoutes(r)
 
 		// Tags
 		r.Get("/tags", h.ListTags)
