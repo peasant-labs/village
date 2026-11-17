@@ -337,6 +337,11 @@ boundary are documented in
   default for pre-existing rows and new inserts is one. See section 2,
   "Content revision identity (migration 051)" for the constraints and rollout
   boundary.
+- **052 adds the operator content-repair ledger.** Its closed action, phase and
+  failure sets, paired identity checks, derived actor, immutable-update trigger
+  and direct-delete guard are described in section 2, "Operator content
+  repair". The ledger cascades with its transcript; it is neither a disclosure
+  axis nor rewrite lineage, and it adds no GUC.
 
 ## 2. Licensing data model
 
@@ -376,6 +381,41 @@ is forward-only: its down migration refuses instead of losing evidence that
 could cause a revision to be reused. A database restore can rewind revision
 state; operators must flush caches and require clients to reload before serving
 the restored state.
+
+### Operator content repair (migration 052)
+
+`transcript_content_repairs` records authorized human repairs of stored content.
+It is separate from governance events, which describe license and visibility,
+and from content-rewrite lineage, which is consumed by integrity checking and
+must describe only Village-generated rewrites.
+
+The action set is `clear_malformed_identity`, `restore_attested_generation`,
+and `replace_third_value`. A clear removes a malformed identity without
+advancing the revision; a replacement attests the authenticated third value
+and advances once. Each row-changing action commits its applied ledger row in
+the same transaction as its conditional transcript update. A failed audit
+insert therefore also rolls back the change.
+
+A restore changes no transcript column. It requires a preserved ciphertext
+copy under a separate opaque key in the same bucket, authenticated against the
+stored identity before the existing descriptor is overwritten. An attempted
+ledger row commits before the object write, and one terminal row follows.
+If a process dies between those rows, a new repair identifies the unresolved
+attempt and records reconciliation; it never updates the old row. Without the
+ledger, no repair proceeds. Operators must follow
+[`transcript-encryption-operations.md`](transcript-encryption-operations.md)
+and must not reconstruct the bytes from a hash.
+
+Ledger identities are whole hash-and-size pairs taken from the established
+stored slot: the public content identity when present and valid, otherwise the
+segmented identity, or NULL/NULL when no identity can be represented. Attempts
+and refusals record the prior pair and revision; only applied rows record an
+effect. The actor is derived from transaction-local `app.actor_id`, not from a
+statement-supplied value. Three triggers derive the actor, refuse updates, and
+refuse a direct delete of an existing repair row while permitting the parent
+transcript's cascade. A no-match delete removes zero rows. The ledger contains
+no body, object key, key material or unattested identity; the companion log
+omits identity and operator details as well.
 
 ### Private organization snapshot issuance
 
@@ -1179,6 +1219,9 @@ authenticating. Both are custom Postgres parameters read via
 
 - **The transcript integrity tables (migration 049) add no GUC and no
   trigger.** The registry above is unchanged.
+- **Operator content repair (migration 052) adds no GUC.** Its attributed
+  transactions set `app.actor_id`; transcript updates also set
+  `app.transcript_writer_version`. They do not use `app.audit_maintenance`.
 - **System actor:** `00000000-0000-0000-0000-000000000000`
   (`database.SystemActorID`) - the reserved attribution for non-user mutations
   (seeds, backfills, runbooks). It references no `users` row on purpose and is

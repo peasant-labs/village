@@ -71,6 +71,10 @@ transcript or account can be hard-deleted and its audit events **persist** - a
 self-contained, append-only, immutable legal record, without (yet) requiring the
 broader soft-delete model.
 
+The separate operator content-repair ledger cascades with its transcript and is
+deliberately outside this deletion-surviving governance audit; retention beyond
+deletion would require a separate policy decision and migration.
+
 Two caveats this introduces:
 - **GDPR lawful basis.** Retaining `changed_by` (and any future actor snapshot) in
   a legally-mandated audit relies on the legal-obligation carve-out that overrides
