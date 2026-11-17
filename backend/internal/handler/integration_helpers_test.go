@@ -97,6 +97,21 @@ func execAsSystem(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql str
 	}
 }
 
+// putTranscriptContent stores body under key in the fake blob store AND records
+// body's real identity (content hash and plaintext size) on the transcript row
+// that the key backs, as the system actor under the transcript writer fence.
+// The production read compares the bytes it loads with the identity the row
+// stores, so a fixture that seeds a synthetic hash or size next to different
+// content is refused as an integrity failure. Rows seeded with a stand-in
+// identity must therefore be given the identity of the content they serve.
+func putTranscriptContent(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blobs *fakeBlobStore, transcriptID pgtype.UUID, key string, body []byte) {
+	t.Helper()
+	blobs.put(key, body)
+	execAsSystem(t, ctx, pool,
+		`UPDATE transcripts SET content_hash = $2, blob_size_bytes = $3 WHERE id = $1`,
+		transcriptID, schema.ComputeTranscriptHash(body), int64(len(body)))
+}
+
 // purgeAuditRows is the ONLY sanctioned audit-row cleaner: one explicit
 // transaction carrying the append-only escape. It doubles as the escape's
 // positive test — if the escape breaks, every teardown fails loudly.

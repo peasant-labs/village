@@ -105,7 +105,7 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 				if err != nil {
 					t.Fatalf("load transcript descriptor: %v", err)
 				}
-				blobs.put(row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
+				putTranscriptContent(t, t.Context(), pool, blobs, row.ID, row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
 			}
 			h.blobs = blobs
 			transcriptID, ok := world.transcripts[c.Transcript]
