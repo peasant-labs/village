@@ -1,6 +1,7 @@
 states: [present, unavailable]
 invalid_states: ["", retracted, unknown]
 share_states: [approved, pending, rejected]
+audience_columns: [transcript_id, group_id]
 performance:
   audit_rows: 100000
   transcripts: 101

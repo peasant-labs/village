@@ -18,10 +18,11 @@ type absenteeStateCase struct {
 }
 
 type absenteeStateFixture struct {
-	States        []string `yaml:"states"`
-	InvalidStates []string `yaml:"invalid_states"`
-	ShareStates   []string `yaml:"share_states"`
-	Performance   struct {
+	States          []string `yaml:"states"`
+	InvalidStates   []string `yaml:"invalid_states"`
+	ShareStates     []string `yaml:"share_states"`
+	AudienceColumns []string `yaml:"audience_columns"`
+	Performance     struct {
 		AuditRows       int `yaml:"audit_rows"`
 		Transcripts     int `yaml:"transcripts"`
 		Groups          int `yaml:"groups"`

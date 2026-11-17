@@ -55,6 +55,20 @@ func TestMigration053AbsenteeState(t *testing.T) {
 				if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=53)`).Scan(&ok); err != nil || !ok {
 					t.Fatalf("migration 53 must be recorded: present=%t err=%v", ok, err)
 				}
+				var columns []string
+				var catalogOK bool
+				err = tx.QueryRow(ctx, `SELECT
+					(SELECT array_agg(attname::text ORDER BY attnum) FROM pg_attribute
+					 WHERE attrelid='transcript_retraction_audiences'::regclass AND attnum>0 AND NOT attisdropped),
+					(SELECT bool_and(attnotnull AND atttypid='uuid'::regtype) FROM pg_attribute
+					 WHERE attrelid='transcript_retraction_audiences'::regclass AND attnum>0 AND NOT attisdropped)
+					AND (SELECT pg_get_constraintdef(oid)='PRIMARY KEY (transcript_id, group_id)' FROM pg_constraint
+					 WHERE conrelid='transcript_retraction_audiences'::regclass AND contype='p')
+					AND (SELECT count(*)=1 AND bool_and(confrelid='groups'::regclass AND confdeltype='c')
+					 FROM pg_constraint WHERE conrelid='transcript_retraction_audiences'::regclass AND contype='f')`).Scan(&columns, &catalogOK)
+				if err != nil || !catalogOK || !reflect.DeepEqual(columns, fixture.AudienceColumns) {
+					t.Fatalf("audience table catalog: columns=%v want=%v shape=%t err=%v", columns, fixture.AudienceColumns, catalogOK, err)
+				}
 			case "content-state-defaults-present":
 				var state string
 				var after uint32
@@ -159,7 +173,9 @@ func runAbsenteeRetractionCase(t *testing.T, ctx context.Context, tx pgx.Tx, nam
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertAbsenteeRefused(t, ctx, tx, string(down))
+		if err := assertAbsenteeRefused(t, ctx, tx, string(down)); !strings.Contains(err.Error(), "forward-only") {
+			t.Fatalf("down migration must refuse as forward-only, got %v", err)
+		}
 		if got := absenteeAudience(t, ctx, tx, id); !reflect.DeepEqual(got, want) {
 			t.Fatalf("down refusal lost audience: got %v want %v", got, want)
 		}
@@ -210,17 +226,19 @@ func mustAbsenteeExec(t *testing.T, ctx context.Context, tx pgx.Tx, query string
 	}
 }
 
-func assertAbsenteeRefused(t *testing.T, ctx context.Context, tx pgx.Tx, query string, args ...any) {
+func assertAbsenteeRefused(t *testing.T, ctx context.Context, tx pgx.Tx, query string, args ...any) error {
 	t.Helper()
 	sp, err := tx.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sp.Rollback(ctx)
-	if _, err := sp.Exec(ctx, query, args...); err == nil {
+	_, statementErr := sp.Exec(ctx, query, args...)
+	if statementErr == nil {
 		t.Fatalf("absentee-state fixture statement unexpectedly succeeded: %s", strings.SplitN(query, "\n", 2)[0])
 	}
 	if err := sp.Rollback(ctx); err != nil {
 		t.Fatal(fmt.Errorf("rollback refused statement: %w", err))
 	}
+	return statementErr
 }
