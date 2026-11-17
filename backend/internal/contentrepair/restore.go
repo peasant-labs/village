@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -57,6 +58,18 @@ func restoreLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error
 		return Outcome{}, err
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	// A repair ID is used once. The attempt row is not unique per terminal
+	// outcome, so a replayed ID would commit a second attempt and write the
+	// object before its terminal row failed to insert. It is refused here,
+	// before anything is attempted or written.
+	phases, err := q.ListTranscriptContentRepairPhases(ctx, pgtype.UUID{Bytes: opts.RepairID, Valid: true})
+	if err != nil {
+		return Outcome{}, fmt.Errorf("operator content repair could not read the ledger for repair %s in contentrepair.Restore; nothing was changed; retry after PostgreSQL recovers: %w", opts.RepairID, err)
+	}
+	if len(phases) > 0 {
+		return Outcome{}, fmt.Errorf("operator content repair refused repair ID %s in contentrepair.Restore because the ledger already holds %d row(s) for it; nothing was changed and no row was written; read that repair's ledger rows, then use a new -repair-id (cite it with -repair-reconciles if it is an unresolved attempt)", opts.RepairID, len(phases))
+	}
 
 	// A restore attests the identity the row already carries, so it needs one.
 	stored, usable := storedIdentity(row)
