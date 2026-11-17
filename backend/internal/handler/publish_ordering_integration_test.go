@@ -63,18 +63,21 @@ var requiredCanonicalRewritePreimageCases = []string{
 	"rewrite-pending-preimage-move-skips",
 }
 
+type publishOrderingExpectation struct {
+	Status     int    `yaml:"status"`
+	Revision   int64  `yaml:"revision"`
+	Reads      int    `yaml:"reads"`
+	Writes     int    `yaml:"writes"`
+	Visibility string `yaml:"visibility"`
+}
+
 type publishOrderingCase struct {
-	Name     string `yaml:"name"`
-	Stage    string `yaml:"stage"`
-	Scenario string `yaml:"scenario"`
-	Why      string `yaml:"why"`
-	Expect   struct {
-		Status     int    `yaml:"status"`
-		Revision   int64  `yaml:"revision"`
-		Reads      int    `yaml:"reads"`
-		Writes     int    `yaml:"writes"`
-		Visibility string `yaml:"visibility"`
-	} `yaml:"expect"`
+	Name     string                      `yaml:"name"`
+	Stage    string                      `yaml:"stage"`
+	Scenario string                      `yaml:"scenario"`
+	Why      string                      `yaml:"why"`
+	Expect   publishOrderingExpectation  `yaml:"expect"`
+	Recheck  *publishOrderingExpectation `yaml:"recheck"`
 }
 
 var requiredPublishOrderingCases = []string{
@@ -105,7 +108,6 @@ var requiredPublishOrderingCases = []string{
 	"republish-external-object-move-uncertain-answers-503",
 	"republish-external-descriptor-move-refused",
 	"republish-unavailable-refused-409",
-	"republish-unavailable-rechecked-under-row-lock",
 	"republish-usable-identity-absent-refused",
 }
 
@@ -123,6 +125,9 @@ func loadPublishOrderingCases(t *testing.T) []publishOrderingCase {
 		seen[c.Name] = true
 		if c.Stage != "" && c.Stage != "n" && c.Stage != "n1" {
 			t.Fatalf("unknown ordering stage %q", c.Stage)
+		}
+		if c.Recheck != nil && c.Scenario != "recorded-loss" {
+			t.Fatalf("unexpected locked-state recheck on scenario %q", c.Scenario)
 		}
 	}
 	for _, name := range requiredPublishOrderingCases {
@@ -390,6 +395,13 @@ func TestPublishOrdering(t *testing.T) {
 			}
 			w := newOrderingWorld(t, pool, objects, ordinal, initial)
 			runPublishOrderingScenario(t, w, c)
+			if c.Recheck != nil {
+				w2 := newOrderingWorld(t, pool, objects, 10000+ordinal, initial)
+				recheck := c
+				recheck.Scenario = "recorded-loss-after"
+				recheck.Expect = *c.Recheck
+				runPublishOrderingScenario(t, w2, recheck)
+			}
 		})
 	}
 }

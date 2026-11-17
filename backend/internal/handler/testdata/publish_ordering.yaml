@@ -103,10 +103,7 @@
   scenario: recorded-loss
   why: a recorded loss refuses before a predecessor read, audience change or candidate upload
   expect: {status: 409, revision: 1, reads: 0, writes: 0, visibility: public}
-- name: republish-unavailable-rechecked-under-row-lock
-  scenario: recorded-loss-after
-  why: a declaration committed after classification is rechecked and the candidate is removed
-  expect: {status: 409, revision: 1, reads: 1, writes: 1, visibility: public}
+  recheck: {status: 409, revision: 1, reads: 1, writes: 1, visibility: public}
 - name: republish-usable-identity-absent-refused
   stage: n1
   scenario: known-absent
