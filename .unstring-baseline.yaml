@@ -528,7 +528,6 @@ rules:
     backend/internal/handler/groups.go: 18
     backend/internal/handler/groups_visible_integration_test.go: 2
     backend/internal/handler/integrity_drain_test.go: 1
-    backend/internal/handler/integrity_request_test.go: 1
     backend/internal/handler/integrity_state_integration_test.go: 6
     backend/internal/handler/integrity_status_integration_test.go: 4
     backend/internal/handler/integrity_worker_integration_test.go: 2

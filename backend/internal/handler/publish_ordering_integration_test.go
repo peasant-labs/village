@@ -30,6 +30,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -530,12 +531,12 @@ func runPublishOrderingScenario(t *testing.T, w *orderingWorld, c publishOrderin
 			failure = storage.ErrObjectAbsentProvider
 		}
 		w.store.readHook = func(context.Context, int) error { return failure }
-	case "unavailable":
+	case "recorded-loss":
 		if _, err := w.pool.Exec(w.ctx, `UPDATE transcripts SET content_state='unavailable' WHERE id=$1`, w.id); err != nil {
 			t.Fatal(err)
 		}
 		w.initial = w.row()
-	case "unavailable-after":
+	case "recorded-loss-after":
 		w.store.afterWrite = func(ctx context.Context, _ int) error {
 			_, err := w.pool.Exec(ctx, `UPDATE transcripts SET content_state='unavailable' WHERE id=$1`, w.id)
 			return err
@@ -589,12 +590,12 @@ func runPublishOrderingScenario(t *testing.T, w *orderingWorld, c publishOrderin
 		t.Fatalf("read/write calls=%d/%d want %d/%d (%s)", reads, writes, expect.Reads, expect.Writes, c.Why)
 	}
 	row := w.row()
-	if c.Scenario == "unavailable" {
+	if c.Scenario == "recorded-loss" {
 		if !strings.Contains(response.Body.String(), "stored content is recorded as lost") || !reflect.DeepEqual(row, w.initial) {
 			t.Fatalf("unavailable refusal must name the loss without modifying the row: status=%d body=%s", response.Code, response.Body.String())
 		}
 	}
-	if c.Scenario == "unavailable-after" && row.ContentState != "unavailable" {
+	if c.Scenario == "recorded-loss-after" && row.ContentState != contentstate.Unavailable.String() {
 		t.Fatal("locked recheck did not preserve the declared unavailable state")
 	}
 	if row.ContentRevision != expect.Revision || row.Visibility != expect.Visibility {

@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 )
 
 func TestMigration053AbsenteeState(t *testing.T) {
@@ -60,7 +62,7 @@ func TestMigration053AbsenteeState(t *testing.T) {
 				err := tx.QueryRow(ctx, `SELECT t.content_state, c.relfilenode, a.atthasmissing FROM transcripts t
 					JOIN pg_class c ON c.oid='transcripts'::regclass
 					JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='content_state' WHERE t.id=$1`, historicalID).Scan(&state, &after, &fastDefault)
-				if err != nil || state != "present" || after != before || !fastDefault {
+				if err != nil || state != contentstate.Present.String() || after != before || !fastDefault {
 					t.Fatalf("existing row or fast default: state=%q before=%d after=%d fast=%t err=%v", state, before, after, fastDefault, err)
 				}
 			case "content-state-closed-set":
@@ -138,12 +140,12 @@ func runAbsenteeRetractionCase(t *testing.T, ctx context.Context, tx pgx.Tx, nam
 	err = tx.QueryRow(ctx, `SELECT count(*), min(event_type), min(visibility), min(license_id), min(changed_by::text)
 		FROM transcript_governance_events_audit WHERE transcript_id=$1 AND event_type='retracted'`, id).
 		Scan(&count, &event, &eventVisibility, &license, &actor)
-	if err != nil || count != 1 || event != "retracted" || eventVisibility != visibility || license != "CC0-1.0" || actor != owner {
+	if err != nil || count != 1 || event != EventRetracted.String() || eventVisibility != visibility || license != string(schema.LicenseCC0) || actor != owner {
 		t.Fatalf("retraction audit snapshot: count=%d event=%q visibility=%q license=%q actor=%q err=%v", count, event, eventVisibility, license, actor, err)
 	}
 	got := absenteeAudience(t, ctx, tx, id)
 	want := []string{groups["approved"]}
-	if visibility == "public" {
+	if visibility == string(schema.VisibilityPublic) {
 		want = []string{}
 	}
 	sort.Strings(want)
