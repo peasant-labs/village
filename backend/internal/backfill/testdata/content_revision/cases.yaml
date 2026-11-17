@@ -6,10 +6,9 @@
 # Fields:
 #   job        backfill (explicit content-identity backfill) or rewrap
 #   identity   the row's seeded identity columns:
-#                pending            no identity at all
 #                segmented-equal    a segmented pair equal to the object's identity
 #                segmented-mismatch a segmented pair the object does not authenticate to
-#                complete           the object's identity as the primary pair
+#                primary-pair       the object's identity as the primary pair
 #   revision   the content revision the row carries; no job may change it
 #   holds_lock another session holds the transcript's publish lock for the run
 #   during     a writer outside the lock changes the row while the job reads:
@@ -18,7 +17,7 @@
 #   outcome    how the job counts the row: installed, failed or stale
 #   row_after  what the row looks like afterward:
 #                consolidated  primary pair is the object's identity, segmented pair cleared
-#                unchanged     every identity column and the revision are as seeded
+#                identity-kept every identity column and the revision are as seeded
 #                rewrapped     descriptor re-wrapped under the active key, identity untouched
 required:
   - backfill-consolidates-b-equal
@@ -39,7 +38,7 @@ cases:
     identity: segmented-mismatch
     revision: 2
     outcome: failed
-    row_after: unchanged
+    row_after: identity-kept
   - name: backfill-waits-for-the-publish-lock
     job: backfill
     identity: segmented-equal
@@ -53,16 +52,16 @@ cases:
     revision: 1
     during: revision-advance
     outcome: stale
-    row_after: unchanged
+    row_after: identity-kept
   - name: rewrap-keeps
     job: rewrap
-    identity: complete
+    identity: primary-pair
     revision: 2
     outcome: installed
     row_after: rewrapped
   - name: rewrap-waits-for-the-publish-lock
     job: rewrap
-    identity: complete
+    identity: primary-pair
     revision: 2
     holds_lock: true
     outcome: installed

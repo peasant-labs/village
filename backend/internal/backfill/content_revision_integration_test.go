@@ -211,7 +211,7 @@ func TestMaintenanceWritersKeepRevisionAndWaitForThePublishLockRealPostgres(t *t
 				if after.hash != string(actual.Hash()) || after.size != actual.PlaintextSize() || after.segHash != "" || after.segSize != -1 || after.revision != c.Revision {
 					t.Fatalf("row after backfill = %+v, want the object's identity as the primary pair, no segmented pair, revision %d", after, c.Revision)
 				}
-			case "unchanged":
+			case "identity-kept":
 				wantRevision := before.revision
 				if c.During == "revision-advance" {
 					wantRevision++
@@ -280,8 +280,7 @@ func seedRevisionRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id u
 	var hash, segHash *string
 	var size, segSize *int64
 	switch c.Identity {
-	case "pending":
-	case "complete":
+	case "primary-pair":
 		h, s := string(actual.Hash()), actual.PlaintextSize()
 		hash, size = &h, &s
 	case "segmented-equal":
