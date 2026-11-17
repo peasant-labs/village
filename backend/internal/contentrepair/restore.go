@@ -43,10 +43,15 @@ func Restore(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	if opts.Action != RestoreAttestedGeneration {
 		return Outcome{}, fmt.Errorf("operator content repair was refused in contentrepair.Restore because action %q is not restore-attested-generation; no database or storage access happened; select the action this executor owns", opts.Action)
 	}
-	restorer, ok := deps.Blobs.(Restorer)
-	if !ok {
+	if _, ok := deps.Blobs.(Restorer); !ok {
 		return Outcome{}, errors.New("operator content repair could not restore in contentrepair.Restore because the blob store cannot authenticate a restore source or write an authenticated generation; no database or storage access happened; compose the encrypted transcript store and retry")
 	}
+	return withPublishLock(ctx, deps, opts, "contentrepair.Restore", restoreLocked)
+}
+
+func restoreLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
+	// Restore has already refused a store that is not a Restorer.
+	restorer, _ := deps.Blobs.(Restorer)
 	tx, q, row, err := lockTranscript(ctx, deps, opts, "contentrepair.Restore")
 	if err != nil {
 		return Outcome{}, err

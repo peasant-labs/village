@@ -27,6 +27,10 @@ func ReplaceThird(ctx context.Context, deps Deps, opts Options) (Outcome, error)
 	if opts.Action != ReplaceThirdValue {
 		return Outcome{}, fmt.Errorf("operator content repair was refused in contentrepair.ReplaceThird because action %q is not replace-third-value; no database or storage access happened; select the action this executor owns", opts.Action)
 	}
+	return withPublishLock(ctx, deps, opts, "contentrepair.ReplaceThird", replaceLocked)
+}
+
+func replaceLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	tx, q, row, err := lockTranscript(ctx, deps, opts, "contentrepair.ReplaceThird")
 	if err != nil {
 		return Outcome{}, err

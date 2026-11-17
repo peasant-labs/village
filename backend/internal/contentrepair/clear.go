@@ -26,6 +26,10 @@ func Clear(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	if opts.Action != ClearMalformedIdentity {
 		return Outcome{}, fmt.Errorf("operator content repair was refused in contentrepair.Clear because action %q is not clear-malformed-identity; no database or storage access happened; select the action this executor owns", opts.Action)
 	}
+	return withPublishLock(ctx, deps, opts, "contentrepair.Clear", clearLocked)
+}
+
+func clearLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	tx, q, row, err := lockTranscript(ctx, deps, opts, "contentrepair.Clear")
 	if err != nil {
 		return Outcome{}, err

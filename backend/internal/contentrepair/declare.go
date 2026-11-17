@@ -27,6 +27,10 @@ type Deps struct {
 	Queries *sqlc.Queries
 	Blobs   storage.TranscriptBlobStore
 	Now     func() time.Time
+
+	// conn is the pinned connection that holds the publish lock for the repair
+	// in progress. It is set only by withPublishLock.
+	conn *pgxpool.Conn
 }
 
 func (d Deps) validate() error {
@@ -59,6 +63,10 @@ func Declare(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	if opts.Action != DeclareUnavailable {
 		return Outcome{}, fmt.Errorf("operator content repair was refused in contentrepair.Declare because action %q is not declare-unavailable; no database or storage access happened; select the action this executor owns", opts.Action)
 	}
+	return withPublishLock(ctx, deps, opts, "contentrepair.Declare", declareLocked)
+}
+
+func declareLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	tx, q, row, err := lockTranscript(ctx, deps, opts, "contentrepair.Declare")
 	if err != nil {
 		return Outcome{}, err
@@ -106,7 +114,7 @@ func Declare(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 // and locks the transcript row. The caller owns the returned transaction and
 // must roll it back. op names the calling executor in error messages.
 func lockTranscript(ctx context.Context, deps Deps, opts Options, op string) (pgx.Tx, *sqlc.Queries, sqlc.Transcript, error) {
-	tx, err := deps.Pool.Begin(ctx)
+	tx, err := deps.beginTx(ctx)
 	if err != nil {
 		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair could not begin its transaction in %s; nothing was changed; restore PostgreSQL connectivity and retry: %w", op, err)
 	}
@@ -171,7 +179,7 @@ func refuse(ctx context.Context, deps Deps, tx pgx.Tx, opts Options, row sqlc.Tr
 	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		return Outcome{}, fmt.Errorf("operator content repair could not release its row lock in contentrepair.refuse before recording a refusal; no refusal was recorded; retry: %w", err)
 	}
-	fresh, err := deps.Pool.Begin(ctx)
+	fresh, err := deps.beginTx(ctx)
 	if err != nil {
 		return Outcome{}, fmt.Errorf("operator content repair could not begin the refusal transaction in contentrepair.refuse; the refusal was not recorded; retry: %w", err)
 	}
