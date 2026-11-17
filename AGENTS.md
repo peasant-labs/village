@@ -58,7 +58,7 @@ See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
 ## Static guard
 
-`make check-unstring` runs `unstring` v0.0.2 over the frontend and backend. It
+`make check-unstring` runs `unstring` v0.0.4 over the frontend and backend. It
 needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
 A cold cache downloads the pinned module through the Go module proxy.
 `.unstring-baseline.yaml` is generated and can only shrink; run
@@ -70,10 +70,9 @@ The catalog's closed sets come from the schema module each root pins, so a
 schema pin change moves the counts; run `make unstring-update` in the same
 commit and say why in the commit message.
 
-A production file in `backend/internal/router` that mounts a group-relative
-route must be listed in `endpoints.mountFiles`; the control here checks that
-package. The mount rule scans group-relative route literals only in those
-files, and the tool does not accept globs there today.
+The config lists `backend/internal/router/*.go`. The tool accepts globs there.
+The control asserts every production file in that package matches a mount entry,
+so a file that mounts a group-relative route and matches no entry fails the test.
 
 ## Database and migration safety
 
