@@ -164,6 +164,11 @@ func classifyObject(ctx context.Context, deps Deps, row sqlc.Transcript) (Failur
 	case ctx.Err() != nil:
 		return "", false, fmt.Errorf("operator content repair was cancelled in contentrepair.Declare while reading the stored object; nothing was changed; retry: %w", ctx.Err())
 	case errors.Is(err, storage.ErrObjectAbsentProvider), errors.Is(err, storage.ErrObjectLookupUncertain):
+		// ErrObjectLookupUncertain is not proof of absence, and neither is a
+		// provider timeout. The declare proceeds on it because the operator's
+		// recorded authorization reference and reason are the evidence that the
+		// object is lost; the lookup only had to fail to show that it exists.
+		// ErrObjectAbsentProvider is test-injected until an adapter verifies it.
 		return "", true, nil
 	case errors.Is(err, storage.ErrObjectIntegrityUncertain):
 		return ObjectUncertain, false, nil

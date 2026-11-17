@@ -152,20 +152,37 @@ func (i LoadedContentIdentity) validate() error {
 	}
 }
 
-// ErrObjectAbsentProvider is reserved for an exact-key provider absence whose
-// semantics have been verified in the deployment. The current S3 adapter does
-// not claim that evidence: even NoSuchKey is uncertain until verification.
+// ErrObjectAbsentProvider is the definite-absence evidence that a deployment
+// verification of the provider's exact-key not-found behavior must establish
+// before a missing object may be treated as absent. Nothing produces it today:
+// the S3 adapter does not claim it, and even NoSuchKey is uncertain until the
+// provider's exact-key semantics are verified. Once verified, it is produced in
+// one place, the exact-key not-found branch of S3ObjectStore.Get and
+// S3ObjectStore.GetBounded in s3.go. The publish path and the operator repair
+// branch on it already (handler predecessor classification, contentrepair
+// restore); until the adapter returns it, only tests inject it, and those
+// branches are unreachable in production.
 var ErrObjectAbsentProvider = errors.New("object provider absence established")
 
 // ErrObjectLookupUncertain includes masked or unverified absence, timeouts,
-// provider errors and incomplete responses. It is never evidence of absence.
+// provider errors and incomplete responses. It is never evidence of absence by
+// itself. A publish therefore treats it as retryable and answers 503. The one
+// caller that proceeds on it is the operator declare of unavailable content:
+// there the operator's recorded authorization reference and reason are the
+// evidence that the object is lost, and the lookup only has to fail to show that
+// the object exists. No request path may do the same.
 var ErrObjectLookupUncertain = errors.New("object lookup outcome uncertain")
 
 // ErrObjectIntegrityUncertain means a returned object could not authenticate.
 var ErrObjectIntegrityUncertain = errors.New("object integrity outcome uncertain")
 
-// ErrKeyPermanentlyUnavailable is reserved for an explicit custodian result;
-// the current keyring does not claim permanent key loss.
+// ErrKeyPermanentlyUnavailable is the explicit custodian result for a key that
+// is gone for good, the second piece of the same deployment verification.
+// Nothing produces it today: the transcript keyring does not claim permanent
+// key loss, and every unwrap failure is uncertain. Once a custodian reports it, it is
+// produced by the KeyCustodian implementation (config.TranscriptKeyring.Unwrap
+// or its successor) and nowhere else. The publish path already branches on it,
+// and until then only tests inject it.
 var ErrKeyPermanentlyUnavailable = errors.New("key permanently unavailable")
 
 // objectLookupError exposes the cause for cancellation and diagnostics without
