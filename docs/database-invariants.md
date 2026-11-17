@@ -438,7 +438,10 @@ stored identity before the existing descriptor is overwritten. An attempted
 ledger row commits before the object write, and one terminal row follows.
 If a process dies between those rows, a new repair identifies the unresolved
 attempt and records reconciliation; it never updates the old row. Without the
-ledger, no repair proceeds. Operators must follow
+ledger, no repair proceeds. Every repair holds the transcript's source-session
+publish lock, taken before the row lock, so a publish or owner deletion waits for
+it. A repair ID is used once: a restore refuses an ID the ledger already holds
+before it attempts or writes anything. Operators must follow
 [`transcript-encryption-operations.md`](transcript-encryption-operations.md)
 and must not reconstruct the bytes from a hash.
 
