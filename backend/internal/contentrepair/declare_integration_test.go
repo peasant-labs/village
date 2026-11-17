@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -166,7 +167,15 @@ type seedRow struct {
 	blobKey string
 	hash    *string
 	size    *int64
+	// segHash and segSize seed the segmented identity pair, which excludes a
+	// primary hash.
+	segHash *string
+	segSize *int64
 }
+
+// seedGitHubID gives every seeded owner a distinct github_id. A random byte
+// collides within one database, since a scratch database holds many rows.
+var seedGitHubID atomic.Int64
 
 func seedTranscriptRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, row seedRow) uuid.UUID {
 	t.Helper()
@@ -179,11 +188,11 @@ func seedTranscriptRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ro
 	if _, err = tx.Exec(ctx, "SELECT set_config('app.actor_id',$1,true), set_config('app.transcript_writer_version','1',true)", database.SystemActorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(ctx, "INSERT INTO users(id,github_id,github_username,provider,provider_user_id) VALUES($1,$2,$3,'github',$4)", owner, int64(owner[0])+900000, owner.String(), owner.String()); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO users(id,github_id,github_username,provider,provider_user_id) VALUES($1,$2,$3,'github',$4)", owner, seedGitHubID.Add(1)+900000, owner.String(), owner.String()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(ctx, "INSERT INTO transcripts(id,owner_id,local_id,visibility,model_provider,blob_key,blob_size_bytes,schema_version,content_hash,wrapped_data_key,encryption_algorithm,key_version,project_hash) VALUES($1,$2,$3,'private','claude',$4,$5,'2',$6,$7,$8,1,$9)",
-		id, owner, id.String(), row.blobKey, row.size, row.hash, []byte("wrapped-key"), string(storage.EncryptionAES256GCMRandomNonceV1), "b7c2a90e4d18"); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO transcripts(id,owner_id,local_id,visibility,model_provider,blob_key,blob_size_bytes,schema_version,content_hash,wrapped_data_key,encryption_algorithm,key_version,project_hash,segmented_identity_hash,segmented_identity_size) VALUES($1,$2,$3,'private','claude',$4,$5,'2',$6,$7,$8,1,$9,$10,$11)",
+		id, owner, id.String(), row.blobKey, row.size, row.hash, []byte("wrapped-key"), string(storage.EncryptionAES256GCMRandomNonceV1), "b7c2a90e4d18", row.segHash, row.segSize); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(ctx); err != nil {

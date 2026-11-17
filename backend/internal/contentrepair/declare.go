@@ -228,7 +228,15 @@ func storedIdentity(row sqlc.Transcript) (storage.ContentIdentity, bool) {
 	return storage.ContentIdentity{}, false
 }
 
+// insertLedger records a row that attests nothing new: the resulting revision
+// and identity equal the prior ones.
 func insertLedger(ctx context.Context, q *sqlc.Queries, opts Options, phase Phase, class FailureClass, row sqlc.Transcript, prior ledgerIdentity) error {
+	return insertLedgerResult(ctx, q, opts, phase, class, row, prior, row.ContentRevision, prior)
+}
+
+// insertLedgerResult records a row with an explicit resulting revision and
+// identity, which only an applied replacement changes.
+func insertLedgerResult(ctx context.Context, q *sqlc.Queries, opts Options, phase Phase, class FailureClass, row sqlc.Transcript, prior ledgerIdentity, resultingRevision int64, resulting ledgerIdentity) error {
 	params := sqlc.InsertTranscriptContentRepairParams{
 		RepairID:              pgtype.UUID{Bytes: opts.RepairID, Valid: true},
 		Phase:                 phase.String(),
@@ -239,9 +247,9 @@ func insertLedger(ctx context.Context, q *sqlc.Queries, opts Options, phase Phas
 		PriorRevision:         row.ContentRevision,
 		PriorIdentityHash:     prior.hash,
 		PriorIdentitySize:     prior.size,
-		ResultingRevision:     row.ContentRevision,
-		ResultingIdentityHash: prior.hash,
-		ResultingIdentitySize: prior.size,
+		ResultingRevision:     resultingRevision,
+		ResultingIdentityHash: resulting.hash,
+		ResultingIdentitySize: resulting.size,
 	}
 	if class != "" {
 		params.FailureClass = pgtype.Text{String: class.String(), Valid: true}

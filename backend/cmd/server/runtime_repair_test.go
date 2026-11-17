@@ -31,6 +31,7 @@ func TestRuntimeRepairSelection(t *testing.T) {
 	}
 	required := map[string]bool{
 		"clear-selects-blob-authority": false, "declare-selects-blob-authority": false,
+		"replace-selects-blob-authority": false,
 		"restore-selects-blob-authority": false, "restore-needs-source": false,
 		"repair-disallows-other-mode": false, "invalid-actor-refused": false,
 		"standalone-repair-argument-refused": false,

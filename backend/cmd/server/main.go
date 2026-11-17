@@ -170,8 +170,10 @@ func runContentRepair(ctx context.Context, w io.Writer, pool *pgxpool.Pool, blob
 		outcome, err = contentrepair.Clear(ctx, deps, opts)
 	case contentrepair.DeclareUnavailable:
 		outcome, err = contentrepair.Declare(ctx, deps, opts)
+	case contentrepair.ReplaceThirdValue:
+		outcome, err = contentrepair.ReplaceThird(ctx, deps, opts)
 	default:
-		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; this build executes only clear-malformed-identity and declare-unavailable", opts.Action)
+		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; this build executes only clear-malformed-identity, replace-third-value and declare-unavailable", opts.Action)
 	}
 	if err != nil {
 		return err
