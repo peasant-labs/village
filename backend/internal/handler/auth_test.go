@@ -1151,7 +1151,7 @@ func (f *fakeMetadataStore) read(m storage.MetadataObject) ([]byte, error) {
 	defer f.mu.Unlock()
 	stored, ok := f.objects[m.Key()]
 	if !ok {
-		return nil, storage.ErrObjectNotFound
+		return nil, storage.ErrObjectAbsentProvider
 	}
 	return append([]byte(nil), stored...), nil
 }
@@ -1188,7 +1188,7 @@ func (m *mockTranscriptBlobStore) Delete(_ context.Context, descriptor storage.B
 }
 
 // errFakeStoresNoMetadata is what a test blob store that keeps no metadata
-// returns from ReadMetadata. It is deliberately not storage.ErrObjectNotFound,
+// returns from ReadMetadata. It is deliberately not a typed absence,
 // so such a fake can never be mistaken for a row whose metadata object is
 // missing.
 var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")

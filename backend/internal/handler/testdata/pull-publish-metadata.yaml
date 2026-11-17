@@ -130,14 +130,24 @@ cases:
     want_metadata_reads: 2
 
   - name: object_missing_500
-    why: an object the unchanged row still names is a storage reconciliation matter, logged as such, and is not read twice
+    why: an unverified provider response on the unchanged row is not claimed as definite absence and the object is not read twice
     caller: owner
     fault: delete_stored_object
     want_status: 500
     want_metadata_reads: 1
-    want_log_message: publish metadata object missing
-    want_log_level: WARN
-    want_log_stage: object_missing
+    want_log_message: publish metadata verification failed
+    want_log_level: ERROR
+    want_log_stage: read
+
+  - name: consumer-publish-metadata-missing-500
+    why: an absent provider object remains a verification failure rather than a nondisclosing row-lookup 404
+    caller: owner
+    fault: delete_stored_object
+    want_status: 500
+    want_metadata_reads: 1
+    want_log_message: publish metadata verification failed
+    want_log_level: ERROR
+    want_log_stage: read
 
   - name: below_pull_contract_refused
     why: a signed-in client below the minimum pull contract is refused before the read

@@ -128,7 +128,7 @@ func (s *EncryptedTranscriptStore) Read(ctx context.Context, id uuid.UUID, d Blo
 		return nil, ContentIdentity{}, err
 	}
 	if contentType != ciphertextContentType {
-		return nil, ContentIdentity{}, fmt.Errorf("transcript decryption failed because object content type %q is not application/octet-stream in storage.EncryptedTranscriptStore.Read before authentication; no plaintext was returned; repair or restore the immutable generation", contentType)
+		return nil, ContentIdentity{}, fmt.Errorf("transcript decryption failed because the object content type is not application/octet-stream in storage.EncryptedTranscriptStore.Read before authentication; no plaintext was returned; repair or restore the immutable generation: %w", ErrObjectIntegrityUncertain)
 	}
 	aead, err := s.openDEK(ctx, id, d, "storage.EncryptedTranscriptStore.Read")
 	if err != nil {
@@ -136,11 +136,11 @@ func (s *EncryptedTranscriptStore) Read(ctx context.Context, id uuid.UUID, d Blo
 	}
 	plaintext, err := aead.Open(nil, nil, ciphertext, bodyAAD(id))
 	if err != nil {
-		return nil, ContentIdentity{}, fmt.Errorf("transcript decryption failed because AES-GCM authentication rejected ciphertext or transcript identity in storage.EncryptedTranscriptStore.Read during authentication; no plaintext was returned; restore the correct immutable generation and descriptor: %w", err)
+		return nil, ContentIdentity{}, fmt.Errorf("transcript decryption failed because AES-GCM authentication rejected ciphertext or transcript identity in storage.EncryptedTranscriptStore.Read during authentication; no plaintext was returned; restore the correct immutable generation and descriptor: %w", ErrObjectIntegrityUncertain)
 	}
 	actual := identity(plaintext)
 	if expected, known := loaded.Known(); known && (expected.Hash() != actual.Hash() || expected.PlaintextSize() != actual.PlaintextSize()) {
-		return nil, ContentIdentity{}, fmt.Errorf("transcript identity validation failed because authenticated plaintext hash or size differs from the stored identity in storage.EncryptedTranscriptStore.Read before return; no plaintext was returned; reconcile the descriptor and database identity")
+		return nil, ContentIdentity{}, fmt.Errorf("transcript identity validation failed because authenticated plaintext hash or size differs from the stored identity in storage.EncryptedTranscriptStore.Read before return; no plaintext was returned; reconcile the descriptor and database identity: %w", ErrObjectIntegrityUncertain)
 	}
 	return plaintext, actual, nil
 }
@@ -157,7 +157,7 @@ func (s *EncryptedTranscriptStore) ReadMetadata(ctx context.Context, id uuid.UUI
 		return nil, err
 	}
 	if contentType != ciphertextContentType {
-		return nil, fmt.Errorf("publish metadata decryption failed because object content type %q is not application/octet-stream in storage.EncryptedTranscriptStore.ReadMetadata before authentication; no plaintext was returned; repair or restore the immutable generation", contentType)
+		return nil, fmt.Errorf("publish metadata decryption failed because its object content type is not application/octet-stream in storage.EncryptedTranscriptStore.ReadMetadata before authentication; no plaintext was returned; repair or restore the immutable generation: %w", ErrObjectIntegrityUncertain)
 	}
 	aead, err := s.openDEK(ctx, id, d, "storage.EncryptedTranscriptStore.ReadMetadata")
 	if err != nil {
@@ -165,10 +165,10 @@ func (s *EncryptedTranscriptStore) ReadMetadata(ctx context.Context, id uuid.UUI
 	}
 	plaintext, err := aead.Open(nil, nil, ciphertext, metadataAAD(id))
 	if err != nil {
-		return nil, fmt.Errorf("publish metadata decryption failed because AES-GCM authentication rejected the ciphertext, its transcript, or its object role in storage.EncryptedTranscriptStore.ReadMetadata during authentication; no plaintext was returned; restore the correct metadata generation and content descriptor: %w", err)
+		return nil, fmt.Errorf("publish metadata decryption failed because AES-GCM authentication rejected the ciphertext, its transcript, or its object role in storage.EncryptedTranscriptStore.ReadMetadata during authentication; no plaintext was returned; restore the correct metadata generation and content descriptor: %w", ErrObjectIntegrityUncertain)
 	}
 	if actual := identity(plaintext); actual != m.identity {
-		return nil, fmt.Errorf("publish metadata identity validation failed because the authenticated plaintext hash or size differs from the stored identity in storage.EncryptedTranscriptStore.ReadMetadata before return; no plaintext was returned; reconcile the metadata object and database identity")
+		return nil, fmt.Errorf("publish metadata identity validation failed because the authenticated plaintext hash or size differs from the stored identity in storage.EncryptedTranscriptStore.ReadMetadata before return; no plaintext was returned; reconcile the metadata object and database identity: %w", ErrObjectIntegrityUncertain)
 	}
 	return plaintext, nil
 }

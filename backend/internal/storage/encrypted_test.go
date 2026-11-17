@@ -89,7 +89,7 @@ func (m *memoryStore) Get(_ context.Context, key ObjectKey) ([]byte, string, err
 	defer m.mu.Unlock()
 	o, ok := m.objects[key]
 	if !ok {
-		return nil, "", ErrObjectNotFound
+		return nil, "", ErrObjectAbsentProvider
 	}
 	return append([]byte(nil), o.body...), o.contentType, nil
 }
@@ -223,7 +223,7 @@ func TestEncryptedTranscriptStoreRewrapDeleteAndAbsence(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _, err = s.Read(ctx, id, rewrapped, NewKnownContentIdentity(identity))
-	if !errors.Is(err, ErrObjectNotFound) {
+	if !errors.Is(err, ErrObjectAbsentProvider) {
 		t.Fatalf("absence=%v", err)
 	}
 }
@@ -404,7 +404,7 @@ func TestPublishMetadataObject(t *testing.T) {
 				if err := s.DeleteMetadata(ctx, *m); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
+				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectAbsentProvider) {
 					t.Fatalf("absence=%v", err)
 				}
 				if _, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(bodyIdentity)); err != nil {

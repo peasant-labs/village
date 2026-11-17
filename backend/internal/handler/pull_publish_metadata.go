@@ -76,20 +76,24 @@ func (h *Handler) GetPullTranscriptPublishMetadata(w http.ResponseWriter, r *htt
 		return
 	}
 	body, err := h.blobs.ReadMetadata(ctx, id, first.descriptor, first.object)
-	if errors.Is(err, storage.ErrObjectNotFound) {
+	if reloadableObjectLookup(err) {
 		fresh, ok := h.authorizePublishMetadata(w, ctx, user, id)
 		if !ok {
 			return
 		}
 		if fresh.object.Key() == first.object.Key() {
-			// The row still names the object that is gone: nothing replaced
-			// it, so another read cannot succeed.
-			publishMetadataMissingResponse(w, id)
+			// An unchanged key rules out retrying a replacement. Uncertainty
+			// remains uncertainty; it is not evidence the object is missing.
+			if errors.Is(err, storage.ErrObjectAbsentProvider) {
+				publishMetadataMissingResponse(w, id)
+			} else {
+				publishMetadataUnverifiedResponse(w, id, "read")
+			}
 			return
 		}
 		body, err = h.blobs.ReadMetadata(ctx, id, fresh.descriptor, fresh.object)
 	}
-	if errors.Is(err, storage.ErrObjectNotFound) {
+	if errors.Is(err, storage.ErrObjectAbsentProvider) {
 		publishMetadataMissingResponse(w, id)
 		return
 	}

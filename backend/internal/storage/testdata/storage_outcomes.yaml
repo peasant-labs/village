@@ -1,0 +1,16 @@
+cases:
+  - name: evidence-split-absent
+    fault: absent
+    outcome: absent
+  - name: evidence-split-lookup-uncertain
+    fault: lookup
+    outcome: lookup
+  - name: evidence-split-integrity-uncertain
+    fault: content-type
+    outcome: integrity
+  - name: evidence-split-aead-uncertain
+    fault: ciphertext
+    outcome: integrity
+  - name: evidence-split-key-permanently-unavailable
+    fault: key
+    outcome: key

@@ -139,7 +139,33 @@ func (i LoadedContentIdentity) validate() error {
 	}
 }
 
-var ErrObjectNotFound = errors.New("object not found")
+// ErrObjectAbsentProvider is reserved for an exact-key provider absence whose
+// semantics have been verified in the deployment. The current S3 adapter does
+// not claim that evidence: even NoSuchKey is uncertain until verification.
+var ErrObjectAbsentProvider = errors.New("object provider absence established")
+
+// ErrObjectLookupUncertain includes masked or unverified absence, timeouts,
+// provider errors and incomplete responses. It is never evidence of absence.
+var ErrObjectLookupUncertain = errors.New("object lookup outcome uncertain")
+
+// ErrObjectIntegrityUncertain means a returned object could not authenticate.
+var ErrObjectIntegrityUncertain = errors.New("object integrity outcome uncertain")
+
+// ErrKeyPermanentlyUnavailable is reserved for an explicit custodian result;
+// the current keyring does not claim permanent key loss.
+var ErrKeyPermanentlyUnavailable = errors.New("key permanently unavailable")
+
+// objectLookupError exposes the cause for cancellation and diagnostics without
+// putting provider error text, which may include object keys, into logs.
+type objectLookupError struct{ cause error }
+
+func (e *objectLookupError) Error() string {
+	return "object lookup could not establish the requested generation in storage during retrieval; no plaintext was returned; restore provider access and retry"
+}
+
+func (e *objectLookupError) Unwrap() []error {
+	return []error{ErrObjectLookupUncertain, e.cause}
+}
 
 // UncommittedObjectCleanupError reports an uploaded generation that no
 // descriptor references and that could not be deleted after a later step of the

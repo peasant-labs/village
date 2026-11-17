@@ -65,7 +65,7 @@ func (s *maintenanceBlobStore) Rewrap(_ context.Context, _ uuid.UUID, d storage.
 func (*maintenanceBlobStore) Delete(context.Context, storage.BlobDescriptor) error { return nil }
 
 // errFakeStoresNoMetadata is what a test blob store returns from ReadMetadata.
-// It is deliberately not storage.ErrObjectNotFound, so a fake can never be
+// It is deliberately not a typed absence, so a fake can never be
 // mistaken for a row whose metadata object is missing.
 var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")
 

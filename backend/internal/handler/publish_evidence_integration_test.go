@@ -263,7 +263,7 @@ func objectExists(t *testing.T, ctx context.Context, objects storage.ObjectStore
 	if err == nil {
 		return true
 	}
-	if errors.Is(err, storage.ErrObjectNotFound) {
+	if rustfsTestKeyAbsent(err) {
 		return false
 	}
 	t.Fatalf("read object %q from RustFS: %v", key, err)
