@@ -83,8 +83,8 @@ func TestClearMalformedIdentityRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	rawHash := func(c clearCase) *string {
-		switch c.Hash {
-		case "malformed":
+		switch fixtureValue(c.Hash) {
+		case fixtureMalformed:
 			h := malformedHash
 			return &h
 		case "valid":

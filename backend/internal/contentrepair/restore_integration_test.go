@@ -164,14 +164,14 @@ func TestRestoreAttestedGenerationRealPostgres(t *testing.T) {
 			}
 			preserved := objects.objects[descriptor.ObjectKey()]
 			source := storage.ObjectKey("transcripts/" + uuid.NewString() + ".bin")
-			switch c.Source {
+			switch fixtureValue(c.Source) {
 			case "preserved":
 				objects.objects[source] = memoryObject{body: append([]byte(nil), preserved.body...), contentType: preserved.contentType}
 			case "tampered":
 				body := append([]byte(nil), preserved.body...)
 				body[len(body)-1] ^= 1
 				objects.objects[source] = memoryObject{body: body, contentType: preserved.contentType}
-			case "missing":
+			case fixtureMissing:
 			default:
 				t.Fatalf("fixture source %q is unknown", c.Source)
 			}
@@ -190,10 +190,10 @@ func TestRestoreAttestedGenerationRealPostgres(t *testing.T) {
 			}
 			row := seedRow{id: id, blobKey: string(descriptor.ObjectKey()), wrappedKey: descriptor.WrappedDEK(), keyVersion: int(descriptor.KeyVersion())}
 			hash, size := string(attested.Hash()), attested.PlaintextSize()
-			switch c.Stored {
+			switch fixtureValue(c.Stored) {
 			case "primary":
 				row.hash, row.size = &hash, &size
-			case "none":
+			case fixtureNone:
 			default:
 				t.Fatalf("fixture stored %q is unknown", c.Stored)
 			}

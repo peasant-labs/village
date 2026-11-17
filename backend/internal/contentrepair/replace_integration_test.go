@@ -96,14 +96,14 @@ func TestReplaceThirdValueRealPostgres(t *testing.T) {
 			}
 			prior := seedRow{blobKey: blobKey}
 			malformed := malformedHash
-			switch c.Stored {
+			switch fixtureValue(c.Stored) {
 			case "primary":
 				prior.hash, prior.size = &storedHash, &storedSize
 			case "segmented":
 				prior.segHash, prior.segSize = &storedHash, &storedSize
-			case "malformed":
+			case fixtureMalformed:
 				prior.hash, prior.size = &malformed, &storedSize
-			case "none":
+			case fixtureNone:
 			default:
 				t.Fatalf("fixture stored %q is unknown", c.Stored)
 			}

@@ -50,6 +50,8 @@ type operatorCase struct {
 }
 
 const (
+	// rowGone is the snapshot of a transcript that no longer exists.
+	rowGone          = "no transcript row"
 	restoreContent   = "synthetic preserved transcript"
 	ledgerCommitText = "query transcript_content_repairs for this repair ID"
 )
@@ -278,7 +280,7 @@ func (w *repairWorld) puts() int {
 	return w.objects.puts
 }
 
-// snapshot is every transcript column a repair may change, or "absent".
+// snapshot is every transcript column a repair may change, or rowGone.
 func (w *repairWorld) snapshot() string {
 	w.t.Helper()
 	var state string
@@ -288,7 +290,7 @@ func (w *repairWorld) snapshot() string {
 	err := w.h.pool.QueryRow(w.h.ctx, `SELECT content_state, content_revision, content_hash, blob_size_bytes, segmented_identity_hash, segmented_identity_size FROM transcripts WHERE id=$1`, w.id).
 		Scan(&state, &revision, &hash, &size, &segHash, &segSize)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "absent"
+		return rowGone
 	}
 	if err != nil {
 		w.t.Fatal(err)
@@ -650,9 +652,9 @@ func scenarioReplayedTerminal(t *testing.T, h *operatorHarness, c operatorCase) 
 		for _, action := range c.Actions {
 			w := h.world(t, parseAction(t, action))
 			opts := w.opts()
-			switch first {
-			case "applied":
-			case "refused":
+			switch Phase(first) {
+			case Applied:
+			case Refused:
 				opts.ExpectedRevision = 2
 			default:
 				t.Fatalf("fixture first run %q is unknown", first)
@@ -817,9 +819,9 @@ func scenarioReconciliationTerminalClears(t *testing.T, h *operatorHarness, c op
 		}
 		reconcile := w.opts()
 		reconcile.Reconciles = attempt
-		switch outcome {
-		case "applied":
-		case "refused":
+		switch Phase(outcome) {
+		case Applied:
+		case Refused:
 			reconcile.ExpectedRevision = 2
 		default:
 			t.Fatalf("fixture outcome %q is unknown", outcome)
@@ -882,9 +884,9 @@ func (w *repairWorld) sideRecords() (rewrites, governance int) {
 func (w *repairWorld) runOutcome(outcome string) Outcome {
 	w.t.Helper()
 	opts := w.opts()
-	switch outcome {
-	case "applied":
-	case "refused":
+	switch Phase(outcome) {
+	case Applied:
+	case Refused:
 		opts.ExpectedRevision = 2
 	default:
 		w.t.Fatalf("fixture outcome %q is unknown", outcome)
@@ -1050,7 +1052,7 @@ func scenarioDeleteWaitsForPublishLock(t *testing.T, h *operatorHarness, c opera
 		case <-time.After(15 * time.Second):
 			t.Fatalf("%s: the deletion never ran after the repair released the lock", action)
 		}
-		if w.snapshot() != "absent" {
+		if w.snapshot() != rowGone {
 			t.Fatalf("%s: the deletion did not remove the transcript", action)
 		}
 		if rows := w.ledger(opts.RepairID); len(rows) != 0 {
@@ -1076,7 +1078,7 @@ func deletedDuringRestore(t *testing.T, h *operatorHarness, remove func(w *repai
 	if w.puts() != 1 {
 		t.Fatalf("the object was written %d times, want 1", w.puts())
 	}
-	if w.snapshot() != "absent" {
+	if w.snapshot() != rowGone {
 		t.Fatalf("the removed transcript is still present: %s", w.snapshot())
 	}
 	// The ledger rows went with the transcript, so no alert can be raised for a
