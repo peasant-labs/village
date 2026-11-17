@@ -68,6 +68,15 @@ func TestMigration052ContentRepairRealPostgres(t *testing.T) {
 			default:
 				t.Fatalf("unknown repair audit fixture kind %q", c.Kind)
 			}
+			if c.VerifyAfterCommit != "" && !t.Failed() {
+				if err := tx.Commit(ctx); err != nil {
+					t.Fatalf("commit repair audit fixture: %v", err)
+				}
+				var verified bool
+				if err := pool.QueryRow(ctx, strings.ReplaceAll(c.VerifyAfterCommit, "{{transcript}}", transcript)).Scan(&verified); err != nil || !verified {
+					t.Fatalf("verify committed repair audit fixture: verified=%t err=%v", verified, err)
+				}
+			}
 		})
 	}
 

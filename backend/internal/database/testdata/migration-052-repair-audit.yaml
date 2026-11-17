@@ -85,10 +85,23 @@ cases:
       - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {phase: attempted, action: restore_attested_generation}}
       - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {phase: applied, action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null}}
   - name: repair-audit-action-identity-rules
+    verify_after_commit: >-
+      SELECT EXISTS (
+        SELECT 1 FROM transcript_content_repairs
+        WHERE repair_id='33333333-3333-4333-8333-333333333333'
+          AND phase='applied' AND action='replace_third_value'
+          AND prior_revision=7 AND prior_identity_hash=repeat('a',64) AND prior_identity_size=123
+          AND resulting_revision=8 AND resulting_identity_hash=repeat('b',64) AND resulting_identity_size=123
+      ) AND NOT EXISTS (
+        SELECT 1 FROM transcript_content_repairs
+        WHERE transcript_id='{{transcript}}' AND phase='applied' AND action='replace_third_value'
+          AND prior_identity_hash IS NULL AND prior_identity_size IS NULL
+      )
     steps:
       - {expect: accept, fields: {phase: applied, action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
       - {expect: accept, fields: {phase: applied, action: restore_attested_generation, failure_class: null}}
-      - {expect: accept, fields: {phase: applied, resulting_revision: 8, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: accept, fields: {repair_id: "33333333-3333-4333-8333-333333333333", phase: applied, action: replace_third_value, prior_revision: 7, prior_identity_hash: *a, prior_identity_size: 123, resulting_revision: 8, resulting_identity_hash: *b, resulting_identity_size: 123, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: replace_third_value, prior_revision: 7, prior_identity_hash: null, prior_identity_size: null, resulting_revision: 8, resulting_identity_hash: *b, resulting_identity_size: 123, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_hash: null, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_size: null, failure_class: null}}

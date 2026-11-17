@@ -32,9 +32,10 @@ type repairAuditStep struct {
 }
 
 type repairAuditCase struct {
-	Name  string            `yaml:"name"`
-	Kind  string            `yaml:"kind"`
-	Steps []repairAuditStep `yaml:"steps"`
+	Name              string            `yaml:"name"`
+	Kind              string            `yaml:"kind"`
+	Steps             []repairAuditStep `yaml:"steps"`
+	VerifyAfterCommit string            `yaml:"verify_after_commit"`
 }
 
 type repairAuditFixture struct {

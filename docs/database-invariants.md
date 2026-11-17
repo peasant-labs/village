@@ -394,9 +394,11 @@ must describe only Village-generated rewrites.
 The action set is `clear_malformed_identity`, `restore_attested_generation`,
 and `replace_third_value`. A clear removes a malformed identity without
 advancing the revision; a replacement attests the authenticated third value
-and advances once. Each row-changing action commits its applied ledger row in
-the same transaction as its conditional transcript update. A failed audit
-insert therefore also rolls back the change.
+and advances once. An applied replacement requires a complete prior identity:
+an identity-free row has no attested value for a replacement to supersede.
+Each row-changing action commits its applied ledger row in the same transaction
+as its conditional transcript update. A failed audit insert therefore also rolls
+back the change.
 
 A restore changes no transcript column. It requires a preserved ciphertext
 copy under a separate opaque key in the same bucket, authenticated against the

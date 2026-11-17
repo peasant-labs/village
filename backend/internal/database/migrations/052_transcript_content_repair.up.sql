@@ -57,6 +57,8 @@ CREATE TABLE transcript_content_repairs (
                     AND resulting_identity_size = prior_identity_size
                     AND resulting_revision = prior_revision)
                  OR (action = 'replace_third_value'
+                    AND prior_identity_hash IS NOT NULL
+                    AND prior_identity_size IS NOT NULL
                     AND resulting_identity_hash IS NOT NULL
                     AND resulting_identity_size IS NOT NULL
                     AND (resulting_identity_hash, resulting_identity_size)
