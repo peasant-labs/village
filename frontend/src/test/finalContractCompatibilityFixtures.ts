@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import { Harness } from "@peasant-labs/schema";
 import { assertExactKeys } from "@/test/fixtureAssertions";
 
 export type HarnessFixture = { name: string; value: string };
@@ -40,6 +41,8 @@ const requiredHarnessNames = [
   "codex",
   "opencode",
   "antigravity",
+  Harness.AntigravityCLI,
+  Harness.AntigravityIDE,
   "pi",
   "grok-build",
   "devin-desktop",

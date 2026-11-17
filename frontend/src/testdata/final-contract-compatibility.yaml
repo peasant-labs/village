@@ -13,6 +13,10 @@ harnesses:
     value: opencode
   - name: antigravity
     value: antigravity
+  - name: antigravity-cli
+    value: antigravity-cli
+  - name: antigravity-ide
+    value: antigravity-ide
   - name: pi
     value: pi
   - name: grok-build

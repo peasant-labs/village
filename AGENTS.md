@@ -102,8 +102,8 @@ wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
 The current backend module pin is Schema 0.53.0; its Village API version is
 0.40.0. The mounted-byte release-asset test guards this pairing. The frontend
-package pin remains `@peasant-labs/schema` 0.51.0: it will follow a Fairtrade
-release, and no producer emits the new Antigravity harness values yet.
+package pin is `@peasant-labs/schema` 0.54.0, rendered through
+`@peasant-labs/fairtrade` 0.0.71.
 
 Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
