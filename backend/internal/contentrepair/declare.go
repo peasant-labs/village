@@ -120,8 +120,10 @@ func classifyObject(ctx context.Context, deps Deps, row sqlc.Transcript) (Failur
 	stored, known := storedIdentity(row)
 	descriptor, err := storage.NewBlobDescriptor(storage.ObjectKey(row.BlobKey), row.WrappedDataKey, storage.EncryptionAlgorithm(row.EncryptionAlgorithm), storage.KeyVersion(row.KeyVersion))
 	if err != nil {
-		// A descriptor that cannot name an object cannot establish one.
-		return "", true, nil
+		// A stored descriptor that cannot be built says nothing about whether
+		// the object exists: the row may carry a descriptor this build cannot
+		// decode for a live object. Absence is never inferred from it.
+		return ObjectUncertain, false, nil
 	}
 	limit := maxDeclareReadBytes
 	if known {

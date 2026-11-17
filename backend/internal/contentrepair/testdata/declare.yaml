@@ -6,6 +6,15 @@ cases:
     read: lookup-uncertain
     phase: applied
     state_after: unavailable
+  # The stored descriptor cannot be built, so the scripted lookup would report
+  # the object absent if it were ever reached. The declare must refuse instead:
+  # a descriptor that cannot be decoded is not evidence of absence.
+  - name: undecodable-descriptor-is-refused-as-uncertain
+    read: absent-provider
+    descriptor: undecodable
+    phase: refused
+    failure_class: object_uncertain
+    state_after: present
   - name: object-authenticating-to-stored-identity-is-refused
     read: stored-identity
     phase: refused

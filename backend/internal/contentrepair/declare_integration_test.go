@@ -27,6 +27,7 @@ var declareFixtureYAML []byte
 type declareCase struct {
 	Name         string `yaml:"name"`
 	Read         string `yaml:"read"`
+	Descriptor   string `yaml:"descriptor"`
 	Phase        string `yaml:"phase"`
 	FailureClass string `yaml:"failure_class"`
 	StateAfter   string `yaml:"state_after"`
@@ -54,6 +55,7 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 	}
 	required := map[string]bool{
 		"lookup-uncertain-is-declared-unavailable":            false,
+		"undecodable-descriptor-is-refused-as-uncertain":      false,
 		"object-authenticating-to-stored-identity-is-refused": false,
 	}
 	for _, c := range fixture.Cases {
@@ -79,13 +81,24 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 	}
 	for _, c := range fixture.Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			id := seedPresentTranscript(t, ctx, pool, stored)
+			blobKey := "transcripts/" + uuid.NewString() + ".bin"
+			switch c.Descriptor {
+			case "":
+			case "undecodable":
+				// A key outside the opaque generation form cannot build a descriptor.
+				blobKey = "legacy/" + uuid.NewString()
+			default:
+				t.Fatalf("fixture descriptor %q is unknown", c.Descriptor)
+			}
+			id := seedPresentTranscript(t, ctx, pool, stored, blobKey)
 			var store scriptedBlobStore
 			switch c.Read {
 			case "lookup-uncertain":
 				store.err = storage.ErrObjectLookupUncertain
 			case "stored-identity":
 				store.identity = stored
+			case "absent-provider":
+				store.err = storage.ErrObjectAbsentProvider
 			default:
 				t.Fatalf("fixture read %q is unknown", c.Read)
 			}
@@ -137,10 +150,9 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 	}
 }
 
-func seedPresentTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, identity storage.ContentIdentity) uuid.UUID {
+func seedPresentTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, identity storage.ContentIdentity, key string) uuid.UUID {
 	t.Helper()
 	owner, id := uuid.New(), uuid.New()
-	key := "transcripts/" + uuid.NewString() + ".bin"
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
