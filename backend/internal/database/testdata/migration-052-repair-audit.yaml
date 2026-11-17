@@ -71,6 +71,8 @@ cases:
       - {expect: accept, fields: {action: clear_malformed_identity}}
       - {expect: accept, fields: {action: restore_attested_generation}}
       - {expect: accept, fields: {action: replace_third_value}}
+      - {expect: accept, fields: {action: declare_unavailable}}
+      - {expect: true, sql: "SELECT (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='transcript_content_repairs_action_closed') = 'CHECK ((action = ANY (ARRAY[''clear_malformed_identity''::text, ''restore_attested_generation''::text, ''replace_third_value''::text, ''declare_unavailable''::text])))'"}
       - {expect: reject, constraint: transcript_content_repairs_action_closed, fields: {action: rewrite}}
   - name: repair-audit-failure-class-closed
     steps:
@@ -181,3 +183,14 @@ cases:
       - {expect: reject, constraint: transcript_content_repairs_attempted_is_restore, fields: {phase: attempted, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: attempted, action: restore_attested_generation, resulting_identity_hash: *b, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: attempted, action: restore_attested_generation, resulting_revision: 8, failure_class: null}}
+  - name: repair-audit-declare-unavailable-shape
+    steps:
+      - {expect: accept, fields: {phase: applied, action: declare_unavailable, failure_class: null}}
+      - {expect: accept, fields: {phase: applied, action: declare_unavailable, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_identity_size: 124, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_revision: 8, failure_class: null}}
+  - name: repair-audit-down-refuses
+    kind: down_refusal
+    steps:
+      - {expect: accept, fields: {repair_id: "44444444-4444-4444-8444-444444444444"}}

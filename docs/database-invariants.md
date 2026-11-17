@@ -402,10 +402,13 @@ and from content-rewrite lineage, which is consumed by integrity checking and
 must describe only Village-generated rewrites.
 
 The action set is `clear_malformed_identity`, `restore_attested_generation`,
-and `replace_third_value`. A clear removes a malformed identity without
+`replace_third_value`, and `declare_unavailable`. A clear removes a malformed identity without
 advancing the revision; a replacement attests the authenticated third value
 and advances once. An applied replacement requires a complete prior identity:
 an identity-free row has no attested value for a replacement to supersede.
+An applied declaration preserves the prior identity pair, including an absent
+pair, and keeps the revision. The ledger migration is forward-only: its down
+file refuses rather than erasing repair records.
 Each row-changing action commits its applied ledger row in the same transaction
 as its conditional transcript update. A failed audit insert therefore also rolls
 back the change.

@@ -26,7 +26,7 @@ CREATE TABLE transcript_content_repairs (
         CHECK (phase IN ('attempted', 'applied', 'refused')),
     CONSTRAINT transcript_content_repairs_action_closed
         CHECK (action IN ('clear_malformed_identity', 'restore_attested_generation',
-                          'replace_third_value')),
+                          'replace_third_value', 'declare_unavailable')),
     -- Three-valued safe by construction: `failure_class IN (...)` is NULL when the
     -- column is NULL, and a CHECK accepts NULL, so `IS NOT NULL` is tested FIRST and
     -- makes the branch FALSE. A refused row without a class is refused, as
@@ -63,7 +63,11 @@ CREATE TABLE transcript_content_repairs (
                     AND resulting_identity_size IS NOT NULL
                     AND (resulting_identity_hash, resulting_identity_size)
                         IS DISTINCT FROM (prior_identity_hash, prior_identity_size)
-                    AND resulting_revision = prior_revision + 1)))
+                    AND resulting_revision = prior_revision + 1)
+                 OR (action = 'declare_unavailable'
+                    AND (resulting_identity_hash, resulting_identity_size)
+                        IS NOT DISTINCT FROM (prior_identity_hash, prior_identity_size)
+                    AND resulting_revision = prior_revision)))
         OR (phase IN ('attempted', 'refused')
             AND (resulting_identity_hash, resulting_identity_size)
                 IS NOT DISTINCT FROM (prior_identity_hash, prior_identity_size)

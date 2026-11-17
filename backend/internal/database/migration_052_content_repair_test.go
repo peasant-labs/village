@@ -34,6 +34,7 @@ const (
 
 	repairAuditRegistration repairAuditCaseKind = "registration"
 	repairAuditCatalog      repairAuditCaseKind = "catalog"
+	repairAuditDownRefusal  repairAuditCaseKind = "down_refusal"
 )
 
 type repairAuditStep struct {
@@ -87,6 +88,8 @@ var requiredRepairAuditCases = []string{
 	"repair-audit-refuses-direct-delete",
 	"repair-audit-refused-row-keeps-prior-identity",
 	"repair-audit-attempted-is-restore-only",
+	"repair-audit-declare-unavailable-shape",
+	"repair-audit-down-refuses",
 }
 
 func loadRepairAuditFixtures(t *testing.T) repairAuditFixture {
@@ -102,8 +105,11 @@ func loadRepairAuditFixtures(t *testing.T) repairAuditFixture {
 		if c.Name == "" || seen[c.Name] {
 			t.Fatalf("repair audit fixture has an empty or duplicate name %q", c.Name)
 		}
-		if len(c.Steps) == 0 && c.Kind != repairAuditCatalog && c.Kind != repairAuditRegistration {
+		if len(c.Steps) == 0 && c.Kind != repairAuditCatalog && c.Kind != repairAuditRegistration && c.Kind != repairAuditDownRefusal {
 			t.Fatalf("repair audit fixture %q has no executable assertions", c.Name)
+		}
+		if c.Kind == repairAuditDownRefusal && len(c.Steps) == 0 {
+			t.Fatalf("repair audit fixture %q must seed a row before the down file runs", c.Name)
 		}
 		seen[c.Name] = true
 	}
@@ -125,21 +131,12 @@ func TestMigration052ContentRepairStructure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !isRegisteredMigration(52) || !strings.Contains(string(up), "CREATE TABLE transcript_content_repairs") {
-		t.Fatal("content repair migration is not registered or has no ledger")
+	if !isRegisteredMigration(52) || !strings.Contains(string(up), "CREATE TABLE transcript_content_repairs") ||
+		!strings.Contains(string(up), "'declare_unavailable'") ||
+		!strings.Contains(string(down), "forward-only") || !strings.Contains(string(down), "RAISE EXCEPTION") {
+		t.Fatal("content repair migration registration, declare action or forward-only refusal is missing")
 	}
-	// The down migration removes each trigger before its function and the table.
-	previous := -1
-	for _, object := range []string{
-		"DROP TRIGGER trg_repair_audit_delete_guard", "DROP FUNCTION repair_audit_block_delete()",
-		"DROP TRIGGER trg_repair_audit_immutable", "DROP FUNCTION repair_audit_block_update()",
-		"DROP TRIGGER trg_repair_audit_actor", "DROP FUNCTION repair_audit_assign_actor()",
-		"DROP TABLE transcript_content_repairs",
-	} {
-		position := strings.Index(string(down), object)
-		if position <= previous {
-			t.Fatalf("content repair down migration omits or misorders %q", object)
-		}
-		previous = position
+	if strings.Contains(strings.ToUpper(string(down)), "DROP TABLE") {
+		t.Fatal("content repair down migration must refuse instead of dropping the ledger")
 	}
 }

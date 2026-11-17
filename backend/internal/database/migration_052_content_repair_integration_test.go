@@ -61,6 +61,34 @@ func TestMigration052ContentRepairRealPostgres(t *testing.T) {
 				}
 			case repairAuditCatalog:
 				assertRepairAuditCatalog(t, ctx, tx, fixture)
+			case repairAuditDownRefusal:
+				for i, step := range c.Steps {
+					t.Run(fmt.Sprintf("step-%d", i+1), func(t *testing.T) {
+						runRepairAuditStep(t, ctx, tx, fixture.Defaults, step, owner, transcript)
+					})
+				}
+				var before int
+				if err := tx.QueryRow(ctx, "SELECT count(*) FROM transcript_content_repairs").Scan(&before); err != nil || before == 0 {
+					t.Fatalf("seed repair ledger before down migration: rows=%d err=%v", before, err)
+				}
+				down, err := migrationsFS.ReadFile("migrations/052_transcript_content_repair.down.sql")
+				if err != nil {
+					t.Fatal(err)
+				}
+				sp, err := tx.Begin(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := sp.Exec(ctx, string(down)); err == nil || !strings.Contains(err.Error(), "forward-only") {
+					t.Fatalf("down migration must refuse as forward-only: %v", err)
+				}
+				if err := sp.Rollback(ctx); err != nil {
+					t.Fatal(err)
+				}
+				var after int
+				if err := tx.QueryRow(ctx, "SELECT count(*) FROM transcript_content_repairs").Scan(&after); err != nil || after != before {
+					t.Fatalf("repair ledger must survive down refusal: before=%d after=%d err=%v", before, after, err)
+				}
 			case "":
 				for i, step := range c.Steps {
 					t.Run(fmt.Sprintf("step-%d", i+1), func(t *testing.T) {
@@ -82,28 +110,6 @@ func TestMigration052ContentRepairRealPostgres(t *testing.T) {
 		})
 	}
 
-	t.Run("down-removes-ledger-and-functions", func(t *testing.T) {
-		tx, err := pool.Begin(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer tx.Rollback(ctx)
-		down, err := migrationsFS.ReadFile("migrations/052_transcript_content_repair.down.sql")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tx.Exec(ctx, string(down)); err != nil {
-			t.Fatal(err)
-		}
-		var absent bool
-		err = tx.QueryRow(ctx, `SELECT to_regclass('public.transcript_content_repairs') IS NULL
-			AND to_regprocedure('public.repair_audit_block_delete()') IS NULL
-			AND to_regprocedure('public.repair_audit_block_update()') IS NULL
-			AND to_regprocedure('public.repair_audit_assign_actor()') IS NULL`).Scan(&absent)
-		if err != nil || !absent {
-			t.Fatalf("down migration left a ledger or trigger function: absent=%t err=%v", absent, err)
-		}
-	})
 }
 
 func assertRepairAuditCatalog(t *testing.T, ctx context.Context, tx pgx.Tx, fixture repairAuditFixture) {
