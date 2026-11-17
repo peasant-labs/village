@@ -124,19 +124,27 @@ func restoreLocked(ctx context.Context, deps Deps, opts Options) (Outcome, error
 	default:
 		phase, class = Refused, ObjectWriteFailed
 	}
-	return recordRestoreTerminal(ctx, deps, opts, row, phase, class)
+	return recordRestoreTerminal(ctx, deps, opts, row, descriptor, phase, class)
 }
 
 // recordRestoreTerminal writes the one terminal row of a restore whose attempt
 // is committed. It re-locks the row and applies the present state only when the
 // row still carries the revision, object key and identity the attempt saw.
-func recordRestoreTerminal(ctx context.Context, deps Deps, opts Options, attempt sqlc.Transcript, phase Phase, class FailureClass) (Outcome, error) {
+//
+// An account deletion takes no publish lock, so the transcript can vanish
+// between the attempt and this transaction. A vanished row, or a ledger write
+// refused by the transcript foreign key, writes no row: the object this restore
+// wrote is deleted and the run reports ErrTranscriptDeleted.
+func recordRestoreTerminal(ctx context.Context, deps Deps, opts Options, attempt sqlc.Transcript, descriptor storage.BlobDescriptor, phase Phase, class FailureClass) (Outcome, error) {
 	detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), terminalRecordTimeout)
 	defer cancel()
 	unresolved := func(err error) error {
 		return fmt.Errorf("operator content repair could not record the terminal row of repair %s in contentrepair.Restore after its attempt was committed; the object may have been written and the attempt is unresolved; inspect the object and the transcript, then record a reconciling repair that cites this repair ID: %w", opts.RepairID, err)
 	}
 	tx, q, locked, err := lockTranscript(detached, deps, opts, "contentrepair.Restore")
+	if errors.Is(err, errTranscriptAbsent) {
+		return Outcome{}, deleteRestoredObject(detached, deps, opts, descriptor)
+	}
 	if err != nil {
 		return Outcome{}, unresolved(err)
 	}
@@ -160,6 +168,9 @@ func recordRestoreTerminal(ctx context.Context, deps Deps, opts Options, attempt
 		}
 	}
 	if err = insertLedger(detached, q, opts, phase, class, attempt, ledgerPair(attempt)); err != nil {
+		if errors.Is(err, ErrTranscriptDeleted) {
+			return Outcome{}, deleteRestoredObject(detached, deps, opts, descriptor)
+		}
 		return Outcome{}, unresolved(err)
 	}
 	if err = tx.Commit(detached); err != nil {
@@ -167,4 +178,15 @@ func recordRestoreTerminal(ctx context.Context, deps Deps, opts Options, attempt
 	}
 	return Outcome{RepairID: opts.RepairID, TranscriptID: opts.TranscriptID, Action: opts.Action, Phase: phase,
 		FailureClass: class, ContentRevision: attempt.ContentRevision, RecordedAt: deps.Now()}, nil
+}
+
+// deleteRestoredObject removes the object a restore wrote for a transcript that
+// no longer exists, outside any transaction, and returns the error the run ends
+// with. It always wraps ErrTranscriptDeleted, whether or not the delete worked,
+// because the transcript's deletion is the outcome the operator must see.
+func deleteRestoredObject(ctx context.Context, deps Deps, opts Options, descriptor storage.BlobDescriptor) error {
+	if err := deps.Blobs.Delete(ctx, descriptor); err != nil {
+		return fmt.Errorf("operator content repair %s found its transcript deleted before the terminal row in contentrepair.Restore and could not delete the object it wrote; no ledger row exists and encrypted bytes may remain in object storage under the deleted transcript's opaque key; retry the object cleanup with the storage provider's tooling: %w", opts.RepairID, errors.Join(ErrTranscriptDeleted, err))
+	}
+	return fmt.Errorf("operator content repair %s found its transcript deleted before the terminal row in contentrepair.Restore; the object it wrote was deleted and no ledger row exists; nothing remains to repair: %w", opts.RepairID, ErrTranscriptDeleted)
 }

@@ -126,7 +126,7 @@ func lockTranscript(ctx context.Context, deps Deps, opts Options, op string) (pg
 	row, err := q.GetTranscriptByIDForUpdate(ctx, pgtype.UUID{Bytes: opts.TranscriptID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = tx.Rollback(context.WithoutCancel(ctx))
-		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair found no transcript in %s while locking the row; nothing was changed and no ledger row exists for a missing transcript; check -repair-transcript", op)
+		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair found no transcript in %s while locking the row; nothing was changed and no ledger row exists for a missing transcript; check -repair-transcript: %w", op, errTranscriptAbsent)
 	}
 	if err != nil {
 		_ = tx.Rollback(context.WithoutCancel(ctx))
@@ -266,6 +266,12 @@ func insertLedgerResult(ctx context.Context, q *sqlc.Queries, opts Options, phas
 		params.ReconcilesRepairID = pgtype.UUID{Bytes: opts.Reconciles, Valid: true}
 	}
 	if err := q.InsertTranscriptContentRepair(ctx, params); err != nil {
+		if isTranscriptForeignKeyViolation(err) {
+			// Only a deletion removes the row a ledger row references, so this
+			// is the same outcome as a transcript that vanished earlier: no
+			// row exists, and the transaction is not committed.
+			return fmt.Errorf("operator content repair found transcript %s deleted when it wrote its %s ledger row in contentrepair.insertLedger; the transaction was not committed and no ledger row exists; the repair is moot because the transcript no longer exists: %w", opts.TranscriptID, phase, ErrTranscriptDeleted)
+		}
 		return fmt.Errorf("operator content repair could not write its %s ledger row in contentrepair.insertLedger; the transaction was not committed; check the repair ID is unused and the ledger migration is applied: %w", phase, err)
 	}
 	return nil

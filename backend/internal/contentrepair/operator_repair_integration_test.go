@@ -76,25 +76,26 @@ func TestOperatorRepairRealPostgres(t *testing.T) {
 	}
 	h := &operatorHarness{ctx: context.Background(), pool: scratchDatabase(t)}
 	scenarios := map[string]func(*testing.T, *operatorHarness, operatorCase){
-		"operator-repair-refuses-reserved-actor":                     scenarioReservedActor,
-		"operator-repair-refuses-unauthorized-run":                   scenarioUnauthorizedRun,
-		"operator-repair-actor-matches-guc":                          scenarioActorMatchesGUC,
-		"operator-repair-expect-revision-mismatch-refused":           scenarioExpectRevisionMismatch,
-		"operator-repair-refuses-replayed-terminal":                  scenarioReplayedTerminal,
-		"operator-repair-ambiguous-commit-resolved-by-ledger-read":   scenarioAmbiguousCommit,
-		"operator-repair-attempt-without-terminal-is-unresolved":     scenarioAttemptWithoutTerminal,
-		"operator-repair-reconciliation-cites-attempt":               scenarioReconciliationCitesAttempt,
-		"operator-repair-reconciliation-terminal-clears-alert":       scenarioReconciliationTerminalClears,
-		"operator-repair-reconciliation-attempt-does-not-clear":      scenarioReconciliationAttemptDoesNotClear,
-		"operator-repair-reconciles-only-listed-attempt":             scenarioReconcilesOnlyListed,
-		"operator-repair-writes-no-lineage":                          scenarioWritesNoLineage,
-		"operator-repair-writes-no-governance-event":                 scenarioWritesNoGovernanceEvent,
-		"operator-repair-fails-closed-without-audit-destination":     scenarioFailsClosedWithoutAudit,
-		"operator-repair-log-omits-content-and-identity":             scenarioLogOmitsContentAndIdentity,
-		"operator-repair-takes-publish-lock":                         scenarioTakesPublishLock,
-		"operator-repair-delete-waits-for-publish-lock":              scenarioDeleteWaitsForPublishLock,
-		"operator-repair-restore-transcript-deleted-before-terminal": scenarioRestoreDeletedBeforeTerminal,
-		"operator-repair-account-cascade-during-restore":             scenarioAccountCascadeDuringRestore,
+		"operator-repair-refuses-reserved-actor":                                   scenarioReservedActor,
+		"operator-repair-refuses-unauthorized-run":                                 scenarioUnauthorizedRun,
+		"operator-repair-actor-matches-guc":                                        scenarioActorMatchesGUC,
+		"operator-repair-expect-revision-mismatch-refused":                         scenarioExpectRevisionMismatch,
+		"operator-repair-refuses-replayed-terminal":                                scenarioReplayedTerminal,
+		"operator-repair-ambiguous-commit-resolved-by-ledger-read":                 scenarioAmbiguousCommit,
+		"operator-repair-attempt-without-terminal-is-unresolved":                   scenarioAttemptWithoutTerminal,
+		"operator-repair-reconciliation-cites-attempt":                             scenarioReconciliationCitesAttempt,
+		"operator-repair-reconciliation-terminal-clears-alert":                     scenarioReconciliationTerminalClears,
+		"operator-repair-reconciliation-attempt-does-not-clear":                    scenarioReconciliationAttemptDoesNotClear,
+		"operator-repair-reconciles-only-listed-attempt":                           scenarioReconcilesOnlyListed,
+		"operator-repair-writes-no-lineage":                                        scenarioWritesNoLineage,
+		"operator-repair-writes-no-governance-event":                               scenarioWritesNoGovernanceEvent,
+		"operator-repair-fails-closed-without-audit-destination":                   scenarioFailsClosedWithoutAudit,
+		"operator-repair-log-omits-content-and-identity":                           scenarioLogOmitsContentAndIdentity,
+		"operator-repair-takes-publish-lock":                                       scenarioTakesPublishLock,
+		"operator-repair-delete-waits-for-publish-lock":                            scenarioDeleteWaitsForPublishLock,
+		"operator-repair-restore-transcript-deleted-before-terminal":               scenarioRestoreDeletedBeforeTerminal,
+		"operator-repair-ledger-write-on-deleted-transcript-is-transcript-deleted": scenarioLedgerWriteOnDeletedTranscript,
+		"operator-repair-account-cascade-during-restore":                           scenarioAccountCascadeDuringRestore,
 	}
 	seen := map[string]bool{}
 	for _, c := range fixture.Cases {
@@ -449,6 +450,21 @@ func (h *operatorHarness) failCommit(t *testing.T) func() {
 CREATE FUNCTION test_fail_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic commit failure'; END $$;
 CREATE CONSTRAINT TRIGGER test_fail_commit AFTER INSERT ON transcript_content_repairs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_fail_commit();`,
 		`DROP TRIGGER IF EXISTS test_fail_commit ON transcript_content_repairs; DROP FUNCTION IF EXISTS test_fail_commit();`)
+}
+
+// deleteTranscriptOnLedgerInsert removes the transcript a ledger row references
+// just before the row is inserted, so the insert is refused by the transcript
+// foreign key (SQLSTATE 23503) as it would be if an unlocked deletion landed
+// first.
+func (h *operatorHarness) deleteTranscriptOnLedgerInsert(t *testing.T) func() {
+	return h.installSQL(t, `
+CREATE FUNCTION test_delete_transcript() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+  PERFORM set_config('app.transcript_writer_version', '1', true);
+  DELETE FROM transcripts WHERE id = NEW.transcript_id;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER test_delete_transcript BEFORE INSERT ON transcript_content_repairs FOR EACH ROW EXECUTE FUNCTION test_delete_transcript();`,
+		`DROP TRIGGER IF EXISTS test_delete_transcript ON transcript_content_repairs; DROP FUNCTION IF EXISTS test_delete_transcript();`)
 }
 
 // blockTerminal rejects every terminal ledger row, so a restore that committed
@@ -1071,12 +1087,24 @@ func deletedDuringRestore(t *testing.T, h *operatorHarness, remove func(w *repai
 			t.Errorf("the concurrent removal failed: %v", err)
 		}
 	}
+	var blobKey string
+	if err := h.pool.QueryRow(h.ctx, `SELECT blob_key FROM transcripts WHERE id=$1`, w.id).Scan(&blobKey); err != nil {
+		t.Fatal(err)
+	}
 	outcome, err := w.run(opts)
-	if err == nil || !strings.Contains(err.Error(), "unresolved") || !strings.Contains(err.Error(), opts.RepairID.String()) {
-		t.Fatalf("a transcript removed before the terminal row must report an unresolved attempt naming its repair ID, got outcome %+v err=%v", outcome, err)
+	if !errors.Is(err, ErrTranscriptDeleted) {
+		t.Fatalf("a transcript removed before the terminal row must end the run as a transcript_deleted outcome, got outcome %+v err=%v", outcome, err)
+	}
+	if strings.Contains(err.Error(), "unresolved") {
+		t.Fatalf("a deleted transcript must not be reported as an unresolved attempt: %v", err)
 	}
 	if w.puts() != 1 {
 		t.Fatalf("the object was written %d times, want 1", w.puts())
+	}
+	// The object the restore wrote belongs to a transcript that no longer
+	// exists, so the run removes it instead of leaving orphan ciphertext.
+	if _, left := w.objects.objects[storage.ObjectKey(blobKey)]; left {
+		t.Fatal("the restored object was left behind for a deleted transcript")
 	}
 	if w.snapshot() != rowGone {
 		t.Fatalf("the removed transcript is still present: %s", w.snapshot())
@@ -1098,6 +1126,35 @@ func scenarioRestoreDeletedBeforeTerminal(t *testing.T, h *operatorHarness, _ op
 	deletedDuringRestore(t, h, func(w *repairWorld) error {
 		return w.remove(`DELETE FROM transcripts WHERE id=$1`, w.id)
 	})
+}
+
+func scenarioLedgerWriteOnDeletedTranscript(t *testing.T, h *operatorHarness, c operatorCase) {
+	for _, action := range c.Actions {
+		w := h.world(t, parseAction(t, action))
+		opts := w.opts()
+		before := w.snapshot()
+		remove := h.deleteTranscriptOnLedgerInsert(t)
+		outcome, err := w.run(opts)
+		remove()
+		if !errors.Is(err, ErrTranscriptDeleted) {
+			t.Fatalf("%s: a ledger write refused by the transcript foreign key must end as a transcript_deleted outcome, got %+v err=%v", action, outcome, err)
+		}
+		// The injected deletion shares the repair's transaction, so it rolls
+		// back with it: the refused write leaves the row exactly as it was.
+		if got := w.snapshot(); got != before {
+			t.Fatalf("%s: the refused ledger write changed the row from %s to %s", action, before, got)
+		}
+		if rows := w.ledger(opts.RepairID); len(rows) != 0 {
+			t.Fatalf("%s: a ledger row exists for a deleted transcript: %+v", action, rows)
+		}
+		if w.lockHeld() {
+			t.Fatalf("%s: the publish lock leaked", action)
+		}
+		// A restore's refused insert is its attempt, so nothing was written.
+		if w.puts() != 0 {
+			t.Fatalf("%s: the object was written %d times before the ledger accepted the attempt", action, w.puts())
+		}
+	}
 }
 
 func scenarioAccountCascadeDuringRestore(t *testing.T, h *operatorHarness, _ operatorCase) {

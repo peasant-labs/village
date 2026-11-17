@@ -177,6 +177,18 @@ func runContentRepair(ctx context.Context, w io.Writer, pool *pgxpool.Pool, blob
 	default:
 		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; select one of the documented repair actions", opts.Action)
 	}
+	return reportContentRepair(w, opts, outcome, err)
+}
+
+// reportContentRepair prints the keys of a finished repair and returns the
+// error the run ends with. A transcript deleted mid-repair prints
+// outcome=transcript_deleted without a phase or failure class, because no
+// ledger row exists for it, and still fails.
+func reportContentRepair(w io.Writer, opts contentrepair.Options, outcome contentrepair.Outcome, err error) error {
+	if errors.Is(err, contentrepair.ErrTranscriptDeleted) {
+		fmt.Fprintf(w, "repair_id=%s\ntranscript_id=%s\naction=%s\noutcome=transcript_deleted\n", opts.RepairID, opts.TranscriptID, opts.Action)
+		return err
+	}
 	if err != nil {
 		return err
 	}

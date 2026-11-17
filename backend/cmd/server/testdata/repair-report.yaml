@@ -1,0 +1,27 @@
+# Each case is the result of one repair run and the stdout keys and failure the
+# operator command must produce for it. "error" names the error the executor
+# returned: none, deleted (wraps contentrepair.ErrTranscriptDeleted) or other.
+cases:
+  - name: applied-prints-phase-and-exits-zero
+    error: none
+    phase: applied
+    stdout: [phase=applied, content_revision=3]
+    stdout_absent: [outcome=, failure_class=]
+    fails: false
+  - name: refused-prints-failure-class-and-fails
+    error: none
+    phase: refused
+    failure_class: object_uncertain
+    stdout: [phase=refused, failure_class=object_uncertain]
+    stdout_absent: [outcome=]
+    fails: true
+  - name: transcript-deleted-prints-outcome-without-phase-and-fails
+    error: deleted
+    stdout: [outcome=transcript_deleted, action=restore_attested_generation]
+    stdout_absent: [phase=, failure_class=, content_revision=]
+    fails: true
+  - name: other-error-prints-nothing-and-fails
+    error: other
+    stdout: []
+    stdout_absent: [phase=, outcome=, failure_class=]
+    fails: true

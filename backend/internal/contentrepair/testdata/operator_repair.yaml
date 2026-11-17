@@ -28,6 +28,7 @@ required:
   - operator-repair-reconciliation-attempt-does-not-clear
   - operator-repair-reconciles-only-listed-attempt
   - operator-repair-writes-no-lineage
+  - operator-repair-ledger-write-on-deleted-transcript-is-transcript-deleted
   - operator-repair-writes-no-governance-event
   - operator-repair-fails-closed-without-audit-destination
   - operator-repair-log-omits-content-and-identity
@@ -111,4 +112,8 @@ cases:
   - name: operator-repair-delete-waits-for-publish-lock
     actions: *all_actions
   - name: operator-repair-restore-transcript-deleted-before-terminal
+  # The ledger insert is refused by the transcript foreign key (23503) on every
+  # action, because only a deletion can remove the row it references.
+  - name: operator-repair-ledger-write-on-deleted-transcript-is-transcript-deleted
+    actions: *all_actions
   - name: operator-repair-account-cascade-during-restore

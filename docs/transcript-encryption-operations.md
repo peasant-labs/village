@@ -279,9 +279,13 @@ hash, key, or object key, and the output carries none.
   every other writer. A concurrent publish or owner deletion of that transcript
   waits for the repair, and the repair waits for one already running.
 - An account deletion cascades without taking that lock. If it removes the
-  transcript during a restore, the restore reports an unresolved attempt naming its
-  repair ID. The transcript's ledger rows are removed with it, so there is nothing
-  left to reconcile and no alert remains.
+  transcript during a restore, no terminal row is written, the restore deletes the
+  object it wrote, prints `outcome=transcript_deleted` (with no `phase` or
+  `failure_class`) and exits non-zero. A ledger write refused by the transcript's
+  foreign key ends every action the same way. The transcript's ledger rows are
+  removed with it, so there is nothing left to reconcile and no alert remains. If
+  the object delete itself fails, the error says so: remove the leftover
+  ciphertext with the storage provider's tooling.
 - A repair never changes visibility, license, or governance state, and it writes no
   rewrite lineage and no governance event. Those records describe other things.
 - The ledger is append-only. A row is never updated or deleted. A correction is a
