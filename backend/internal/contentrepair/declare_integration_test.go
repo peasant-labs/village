@@ -33,14 +33,18 @@ type declareCase struct {
 	StateAfter   string `yaml:"state_after"`
 }
 
-// scriptedBlobStore answers only ReadBounded, the one call Declare makes.
+// scriptedBlobStore answers only ReadBounded, the one call the executors make.
 type scriptedBlobStore struct {
 	storage.TranscriptBlobStore
 	identity storage.ContentIdentity
 	err      error
+	reads    *int
 }
 
 func (s scriptedBlobStore) ReadBounded(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity, int64) ([]byte, storage.ContentIdentity, error) {
+	if s.reads != nil {
+		*s.reads++
+	}
 	return nil, s.identity, s.err
 }
 
@@ -152,6 +156,20 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 
 func seedPresentTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, identity storage.ContentIdentity, key string) uuid.UUID {
 	t.Helper()
+	hash, size := string(identity.Hash()), identity.PlaintextSize()
+	return seedTranscriptRow(t, ctx, pool, seedRow{blobKey: key, hash: &hash, size: &size})
+}
+
+// seedRow is the raw identity columns of a seeded transcript. A nil hash or
+// size is stored as NULL, and a hash need not be canonical.
+type seedRow struct {
+	blobKey string
+	hash    *string
+	size    *int64
+}
+
+func seedTranscriptRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, row seedRow) uuid.UUID {
+	t.Helper()
 	owner, id := uuid.New(), uuid.New()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -165,7 +183,7 @@ func seedPresentTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 		t.Fatal(err)
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO transcripts(id,owner_id,local_id,visibility,model_provider,blob_key,blob_size_bytes,schema_version,content_hash,wrapped_data_key,encryption_algorithm,key_version,project_hash) VALUES($1,$2,$3,'private','claude',$4,$5,'2',$6,$7,$8,1,$9)",
-		id, owner, id.String(), key, identity.PlaintextSize(), string(identity.Hash()), []byte("wrapped-key"), string(storage.EncryptionAES256GCMRandomNonceV1), "b7c2a90e4d18"); err != nil {
+		id, owner, id.String(), row.blobKey, row.size, row.hash, []byte("wrapped-key"), string(storage.EncryptionAES256GCMRandomNonceV1), "b7c2a90e4d18"); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(ctx); err != nil {

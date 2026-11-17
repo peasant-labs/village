@@ -59,22 +59,11 @@ func Declare(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	if opts.Action != DeclareUnavailable {
 		return Outcome{}, fmt.Errorf("operator content repair was refused in contentrepair.Declare because action %q is not declare-unavailable; no database or storage access happened; select the action this executor owns", opts.Action)
 	}
-	tx, err := deps.Pool.Begin(ctx)
+	tx, q, row, err := lockTranscript(ctx, deps, opts, "contentrepair.Declare")
 	if err != nil {
-		return Outcome{}, fmt.Errorf("operator content repair could not begin its transaction in contentrepair.Declare; nothing was changed; restore PostgreSQL connectivity and retry: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if err = setActor(ctx, tx, opts.ActorID); err != nil {
 		return Outcome{}, err
 	}
-	q := deps.Queries.WithTx(tx)
-	row, err := q.GetTranscriptByIDForUpdate(ctx, pgtype.UUID{Bytes: opts.TranscriptID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Outcome{}, fmt.Errorf("operator content repair found no transcript in contentrepair.Declare while locking the row; nothing was changed and no ledger row exists for a missing transcript; check -repair-transcript")
-	}
-	if err != nil {
-		return Outcome{}, fmt.Errorf("operator content repair could not lock the transcript in contentrepair.Declare; nothing was changed; retry after PostgreSQL recovers: %w", err)
-	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	prior := ledgerPair(row)
 	if contentstate.State(row.ContentState) != contentstate.Present || row.ContentRevision != opts.ExpectedRevision {
 		return refuse(ctx, deps, tx, opts, row, PreconditionMismatch)
@@ -111,6 +100,31 @@ func Declare(ctx context.Context, deps Deps, opts Options) (Outcome, error) {
 	}
 	return Outcome{RepairID: opts.RepairID, TranscriptID: opts.TranscriptID, Action: opts.Action, Phase: Applied,
 		ContentRevision: row.ContentRevision, RecordedAt: deps.Now()}, nil
+}
+
+// lockTranscript begins the repair transaction, attributes it to the operator
+// and locks the transcript row. The caller owns the returned transaction and
+// must roll it back. op names the calling executor in error messages.
+func lockTranscript(ctx context.Context, deps Deps, opts Options, op string) (pgx.Tx, *sqlc.Queries, sqlc.Transcript, error) {
+	tx, err := deps.Pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair could not begin its transaction in %s; nothing was changed; restore PostgreSQL connectivity and retry: %w", op, err)
+	}
+	if err = setActor(ctx, tx, opts.ActorID); err != nil {
+		_ = tx.Rollback(context.WithoutCancel(ctx))
+		return nil, nil, sqlc.Transcript{}, err
+	}
+	q := deps.Queries.WithTx(tx)
+	row, err := q.GetTranscriptByIDForUpdate(ctx, pgtype.UUID{Bytes: opts.TranscriptID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		_ = tx.Rollback(context.WithoutCancel(ctx))
+		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair found no transcript in %s while locking the row; nothing was changed and no ledger row exists for a missing transcript; check -repair-transcript", op)
+	}
+	if err != nil {
+		_ = tx.Rollback(context.WithoutCancel(ctx))
+		return nil, nil, sqlc.Transcript{}, fmt.Errorf("operator content repair could not lock the transcript in %s; nothing was changed; retry after PostgreSQL recovers: %w", op, err)
+	}
+	return tx, q, row, nil
 }
 
 // classifyObject reads the stored generation and decides whether declaring it
@@ -155,11 +169,11 @@ func classifyObject(ctx context.Context, deps Deps, row sqlc.Transcript) (Failur
 func refuse(ctx context.Context, deps Deps, tx pgx.Tx, opts Options, row sqlc.Transcript, class FailureClass) (Outcome, error) {
 	prior := ledgerPair(row)
 	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		return Outcome{}, fmt.Errorf("operator content repair could not release its row lock in contentrepair.Declare before recording a refusal; no refusal was recorded; retry: %w", err)
+		return Outcome{}, fmt.Errorf("operator content repair could not release its row lock in contentrepair.refuse before recording a refusal; no refusal was recorded; retry: %w", err)
 	}
 	fresh, err := deps.Pool.Begin(ctx)
 	if err != nil {
-		return Outcome{}, fmt.Errorf("operator content repair could not begin the refusal transaction in contentrepair.Declare; the refusal was not recorded; retry: %w", err)
+		return Outcome{}, fmt.Errorf("operator content repair could not begin the refusal transaction in contentrepair.refuse; the refusal was not recorded; retry: %w", err)
 	}
 	defer func() { _ = fresh.Rollback(context.WithoutCancel(ctx)) }()
 	if err = setActor(ctx, fresh, opts.ActorID); err != nil {
@@ -169,7 +183,7 @@ func refuse(ctx context.Context, deps Deps, tx pgx.Tx, opts Options, row sqlc.Tr
 		return Outcome{}, err
 	}
 	if err = fresh.Commit(ctx); err != nil {
-		return Outcome{}, fmt.Errorf("operator content repair could not confirm its refusal commit in contentrepair.Declare; the record is unknown; query transcript_content_repairs for this repair ID before retrying: %w", err)
+		return Outcome{}, fmt.Errorf("operator content repair could not confirm its refusal commit in contentrepair.refuse; the record is unknown; query transcript_content_repairs for this repair ID before retrying: %w", err)
 	}
 	return Outcome{RepairID: opts.RepairID, TranscriptID: opts.TranscriptID, Action: opts.Action, Phase: Refused,
 		FailureClass: class, ContentRevision: row.ContentRevision, RecordedAt: deps.Now()}, nil

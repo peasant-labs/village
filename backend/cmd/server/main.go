@@ -162,10 +162,17 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 // the same keys and then fails, so a script or an operator cannot mistake it
 // for a repair.
 func runContentRepair(ctx context.Context, w io.Writer, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, opts contentrepair.Options) error {
-	if opts.Action != contentrepair.DeclareUnavailable {
-		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; this build executes only declare-unavailable", opts.Action)
+	deps := contentrepair.Deps{Pool: pool, Queries: sqlc.New(pool), Blobs: blobs, Now: time.Now}
+	var outcome contentrepair.Outcome
+	var err error
+	switch opts.Action {
+	case contentrepair.ClearMalformedIdentity:
+		outcome, err = contentrepair.Clear(ctx, deps, opts)
+	case contentrepair.DeclareUnavailable:
+		outcome, err = contentrepair.Declare(ctx, deps, opts)
+	default:
+		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; this build executes only clear-malformed-identity and declare-unavailable", opts.Action)
 	}
-	outcome, err := contentrepair.Declare(ctx, contentrepair.Deps{Pool: pool, Queries: sqlc.New(pool), Blobs: blobs, Now: time.Now}, opts)
 	if err != nil {
 		return err
 	}
