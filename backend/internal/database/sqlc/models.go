@@ -297,6 +297,9 @@ type Transcript struct {
 	PublishMetadataSize                 pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
 	ConversationTurnCount               pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
 	DisplayedTurnCount                  pgtype.Int8        `db:"displayed_turn_count" json:"displayed_turn_count"`
+	ContentRevision                     int64              `db:"content_revision" json:"-"`
+	SegmentedIdentityHash               pgtype.Text        `db:"segmented_identity_hash" json:"-"`
+	SegmentedIdentitySize               pgtype.Int8        `db:"segmented_identity_size" json:"-"`
 }
 
 type TranscriptAssociation struct {

@@ -78,7 +78,8 @@ INSERT INTO transcripts (
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size
 `
 
 type CreateTranscriptParams struct {
@@ -312,6 +313,9 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
 	)
 	return i, err
 }
@@ -376,7 +380,8 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size
 FROM transcripts WHERE id = $1
 `
 
@@ -463,6 +468,9 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
 	)
 	return i, err
 }
@@ -888,7 +896,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.accepted_request_operation_fingerprint, t.session_origin,
     t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
     t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
-    t.conversation_turn_count, t.displayed_turn_count
+    t.conversation_turn_count, t.displayed_turn_count,
+    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size
 FROM transcripts t
 WHERE t.owner_id = $1
   AND t.project_hash = $2
@@ -1009,6 +1018,9 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.PublishMetadataSize,
 			&i.ConversationTurnCount,
 			&i.DisplayedTurnCount,
+			&i.ContentRevision,
+			&i.SegmentedIdentityHash,
+			&i.SegmentedIdentitySize,
 		); err != nil {
 			return nil, err
 		}
@@ -1238,7 +1250,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -1470,6 +1483,9 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
 	)
 	return i, err
 }
@@ -1498,7 +1514,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -1598,6 +1615,9 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
 	)
 	return i, err
 }

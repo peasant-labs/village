@@ -50,7 +50,8 @@ const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.descri
 	t.accepted_request_operation_fingerprint, t.session_origin,
 	t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
 	t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
-	t.conversation_turn_count, t.displayed_turn_count`
+	t.conversation_turn_count, t.displayed_turn_count,
+	t.content_revision, t.segmented_identity_hash, t.segmented_identity_size`
 
 // publishRequest is the v2 nested metadata schema from the local transcript store.
 type publishRequest struct {

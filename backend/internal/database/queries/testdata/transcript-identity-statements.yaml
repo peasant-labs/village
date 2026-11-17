@@ -1,0 +1,33 @@
+# Every INSERT or UPDATE targeting transcripts is declared, including
+# metadata-only writers. This deliberately covers more than identity columns:
+# a new statement cannot evade the inventory by hiding a write in an expression.
+statements:
+  - {name: CreateTranscript, file: transcripts.sql, verb: INSERT, kind: create}
+  - {name: UpdateTranscriptByOwnerAndLocalID, file: transcripts.sql, verb: UPDATE, kind: replacement}
+  - {name: SetAcceptedRequestOperationFingerprint, file: transcripts.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: UpdateTranscriptMetadata, file: transcripts.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: SetTranscriptContentHash, file: transcripts_pull.sql, verb: UPDATE, kind: identity-install}
+  - {name: CompareAndSwapContentIdentity, file: transcripts_pull.sql, verb: UPDATE, kind: identity-install}
+  - {name: CompareAndSwapTranscriptBlob, file: transcripts_pull.sql, verb: UPDATE, kind: replacement}
+  - {name: CompareAndSwapWrappedDataKey, file: transcripts_pull.sql, verb: UPDATE, kind: rewrap}
+  - {name: CompareAndSwapTranscriptTitles, file: title_backfill.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: CompareAndSwapTranscriptSessionOrigin, file: origin_backfill.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: SetTranscriptPublishMetadataObject, file: publish_evidence.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: ReplaceTranscriptPublishMetadataObject, file: publish_evidence.sql, verb: UPDATE, kind: metadata-visibility-license}
+boundaries:
+  - name: old-binary-absence
+    kind: old-binary-compatible
+    explanation: Older binaries do not supply the revision fields; drain them before relying on the new writer.
+  - name: restore-or-reinsert
+    kind: restore-or-reinsert
+    explanation: Restoring a database can rewind revisions; flush caches and require reload before serving it.
+checks:
+  - {name: fence-declares-every-identity-writer, operation: inventory}
+  - name: fence-refuses-undeclared-writer
+    operation: undeclared
+    statement: |
+      -- name: UndeclaredRevisionWriter :exec
+      UPDATE transcripts SET content_revision = 2 WHERE id = $1;
+  - {name: fence-parsed-verb-matches-declaration, operation: wrong-verb, statement_name: CreateTranscript}
+  - {name: fence-declares-old-binary-absence, operation: old-binary}
+  - {name: fence-declares-restore-path, operation: restore}

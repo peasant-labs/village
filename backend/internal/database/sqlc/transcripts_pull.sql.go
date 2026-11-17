@@ -82,7 +82,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size
 `
 
 type CompareAndSwapTranscriptBlobParams struct {
@@ -194,6 +195,9 @@ func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareA
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
 	)
 	return i, err
 }

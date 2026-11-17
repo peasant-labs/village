@@ -332,8 +332,50 @@ boundary are documented in
 - **050 adds `transcripts.conversation_turn_count` and the generated
   `transcripts.displayed_turn_count`.** No index, trigger, backfill or GUC. See
   section 2, "Conversation turn count (migration 050)".
+- **051 prepares content revisions.** It adds a revision and a private
+  authenticated-identity slot without reading or changing object storage. The
+  default for pre-existing rows and new inserts is one. See section 2,
+  "Content revision identity (migration 051)" for the constraints and rollout
+  boundary.
 
 ## 2. Licensing data model
+
+### Content revision identity (migration 051)
+
+Segmented reads need a stable content-generation identity that does not change
+on metadata edits or encryption-key rotation. A part of a transcript cannot
+derive a trustworthy identity for the entire object; the existing nullable
+public `content_hash` also cannot represent an authenticated identity while
+preserving the legacy pending-hash state. Migration 051 therefore adds:
+
+- `content_revision BIGINT NOT NULL DEFAULT 1`, constrained to be positive;
+- nullable `segmented_identity_hash TEXT` and `segmented_identity_size BIGINT`,
+  constrained to be both null or both present, with a 64-character lowercase
+  hexadecimal hash and a nonnegative size when present;
+- an exclusive-slot check: a non-null `content_hash` and a segmented identity
+  cannot coexist. At revisions above one, either `content_hash` and
+  `blob_size_bytes` together must be valid, or the segmented pair must be valid.
+
+Revision one intentionally tolerates an absent or malformed pre-existing
+`content_hash` and an absent or invalid legacy size. The migration does not
+authenticate, repair, or invent identity for those rows. The writer is
+responsible for authenticating a legacy predecessor before comparing content,
+installing an identity only on the matching descriptor, and atomically
+recording content replacement and its revision. An uncertain predecessor must
+not be treated as proof of absence. A separate later migration will install
+the transition guard; migration 051 itself has no new trigger and these CHECKs
+do not enforce transition rules. Until the compatible writer is deployed and
+old instances have been drained, these fields must not be used to advertise a
+segmented generation to readers.
+
+The default is PostgreSQL's constant fast default, so adding the column does
+not rewrite the table. CHECK validation still scans existing rows under the
+migration lock; plan for that cost. The added fields are internal: sqlc tags
+exclude them from JSON, and public projections do not expose them. The migration
+is forward-only: its down migration refuses instead of losing evidence that
+could cause a revision to be reused. A database restore can rewind revision
+state; operators must flush caches and require clients to reload before serving
+the restored state.
 
 ### Private organization snapshot issuance
 
