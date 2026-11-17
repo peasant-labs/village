@@ -50,11 +50,11 @@ func TestRepairReportKeys(t *testing.T) {
 				Phase: contentrepair.Phase(c.Phase), FailureClass: contentrepair.FailureClass(c.FailureClass), ContentRevision: 3}
 			var runErr error
 			switch c.Error {
-			case "none":
-			case "deleted":
+			case "no-error":
+			case "transcript-deleted":
 				outcome = contentrepair.Outcome{}
 				runErr = fmt.Errorf("the restore ended: %w", contentrepair.ErrTranscriptDeleted)
-			case "other":
+			case "database-failure":
 				outcome = contentrepair.Outcome{}
 				runErr = errors.New("database unavailable")
 			default:
@@ -75,7 +75,7 @@ func TestRepairReportKeys(t *testing.T) {
 					t.Fatalf("stdout %q carries %q", out.String(), absent)
 				}
 			}
-			if c.Error == "deleted" && !errors.Is(err, contentrepair.ErrTranscriptDeleted) {
+			if c.Error == "transcript-deleted" && !errors.Is(err, contentrepair.ErrTranscriptDeleted) {
 				t.Fatalf("the deleted outcome must keep its error, got %v", err)
 			}
 		})
