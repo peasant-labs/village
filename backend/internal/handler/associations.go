@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -132,19 +133,40 @@ func releasePublishLockConnection(conn *pgxpool.Conn, attempted []string) {
 	conn.Release()
 }
 
-// withTryPublishLock never waits for either a free pool connection or the
-// transcript's advisory lock. Optional read repair can be skipped safely.
+// tryPublishConnectionWait bounds how long an optional rewrite waits for a
+// pooled connection. pgxpool has no non-blocking acquire, so the wait is short
+// and a saturated pool is skipped without waiting at all.
+const tryPublishConnectionWait = 50 * time.Millisecond
+
+// publishLockSkips counts optional rewrites skipped because no connection or
+// lock was free, so a read path that stops migrating under load is visible.
+var publishLockSkips atomic.Int64
+
+// withTryPublishLock never waits for the transcript's advisory lock and waits at
+// most tryPublishConnectionWait for one pooled connection, taking only that one.
+// Optional read repair can be skipped safely; each skip is counted and logged
+// at debug level.
 func (h *Handler) withTryPublishLock(ctx context.Context, ownerID pgtype.UUID, localID string, fn func(*pgxpool.Conn) error) (bool, error) {
 	if h.pool == nil {
 		return true, fn(nil)
 	}
-	conns := h.pool.AcquireAllIdle(ctx)
-	if len(conns) == 0 {
+	skip := func(reason string) (bool, error) {
+		slog.Debug("optional publish-locked rewrite skipped",
+			"reason", reason, "skipped_total", publishLockSkips.Add(1),
+			"consequence", "the stored generation is read as it is and the rewrite is retried by a later read")
 		return false, nil
 	}
-	conn := conns[0]
-	for _, unused := range conns[1:] {
-		unused.Release()
+	if stat := h.pool.Stat(); stat.IdleConns() == 0 && stat.TotalConns() >= stat.MaxConns() {
+		return skip("pool_saturated")
+	}
+	acquireCtx, cancel := context.WithTimeout(ctx, tryPublishConnectionWait)
+	conn, err := h.pool.Acquire(acquireCtx)
+	cancel()
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		return skip("no_connection_available")
 	}
 	key := sessionPublishLockKey(ownerID, localID)
 	defer releasePublishLockConnection(conn, []string{key})
@@ -153,7 +175,7 @@ func (h *Handler) withTryPublishLock(ctx context.Context, ownerID pgtype.UUID, l
 		return false, err
 	}
 	if !acquired {
-		return false, nil
+		return skip("lock_held")
 	}
 	return true, fn(conn)
 }

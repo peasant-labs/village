@@ -1757,8 +1757,17 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 			queries = sqlc.New(conn)
 		}
 		current, err := queries.GetTranscriptByID(r.Context(), pgID)
-		if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "Transcript not found")
+			return nil
+		}
+		if err != nil {
+			// A database failure is not proof the transcript is gone. Nothing
+			// was changed, so the owner can retry.
+			slog.Error("transcript deletion could not re-read the row under its lock",
+				"operation", "delete", "stage", "locked_reread", "transcript_id", id,
+				"consequence", "nothing was deleted", "remediation", "retry after PostgreSQL recovers", "error", err)
+			writeError(w, http.StatusInternalServerError, "Failed to delete transcript")
 			return nil
 		}
 		if current.OwnerID != user.PgID() {

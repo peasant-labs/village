@@ -1,0 +1,9 @@
+# DeleteTranscript re-reads the row under the publish lock. Only a missing row
+# means the transcript is gone; any other database failure is not proof of that,
+# so it answers a retryable failure and deletes nothing.
+- name: locked-reread-no-rows-is-not-found
+  reread_error: no-rows
+  status: 404
+- name: locked-reread-database-failure-is-a-server-error
+  reread_error: database
+  status: 500
