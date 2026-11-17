@@ -40,11 +40,16 @@ type scriptedBlobStore struct {
 	identity storage.ContentIdentity
 	err      error
 	reads    *int
+	// hook runs when the executor reads the object, with its locks held.
+	hook func()
 }
 
 func (s scriptedBlobStore) ReadBounded(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity, int64) ([]byte, storage.ContentIdentity, error) {
 	if s.reads != nil {
 		*s.reads++
+	}
+	if s.hook != nil {
+		s.hook()
 	}
 	return nil, s.identity, s.err
 }
