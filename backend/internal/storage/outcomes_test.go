@@ -50,6 +50,13 @@ func (s *outcomeObjects) Get(ctx context.Context, key ObjectKey) ([]byte, string
 	return s.memoryStore.Get(ctx, key)
 }
 
+func (s *outcomeObjects) GetBounded(ctx context.Context, key ObjectKey, limit int64) ([]byte, string, error) {
+	if s.failure != nil {
+		return nil, "", s.failure
+	}
+	return s.memoryStore.GetBounded(ctx, key, limit)
+}
+
 type outcomeCustodian struct{ KeyCustodian }
 
 func (outcomeCustodian) Unwrap(context.Context, []byte, KeyVersion, []byte) ([]byte, error) {

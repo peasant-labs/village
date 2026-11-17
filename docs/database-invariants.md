@@ -317,7 +317,12 @@ boundary are documented in
   decision that deletes or retains a body generation (candidate, superseded,
   or delete target) applies to its metadata object too, so a republish that
   switches to legacy deletes the old metadata object with the old body.
-  A committed delete removes the body and metadata objects that
+  A single-transcript delete takes the session publish lock and re-reads its
+  row under a transaction row lock, then retains the advisory lock through
+  post-commit object cleanup. Account deletion does not take that advisory
+  lock, so the row re-read must also tolerate an account cascade winning.
+  Attachment refresh follows a committed delete even when object cleanup
+  fails, after the advisory lock is released. A committed delete removes the body and metadata objects that
   `DeleteTranscriptReturningDescriptor` returned, never the handler's earlier
   read, which a rewrite or republish can replace in between; returned columns
   that do not map delete nothing and answer 500 with reconciliation evidence.
@@ -371,9 +376,14 @@ installing an identity only on the matching descriptor, and atomically
 recording content replacement and its revision. An uncertain predecessor must
 not be treated as proof of absence. A separate later migration will install
 the transition guard; migration 051 itself has no new trigger and these CHECKs
-do not enforce transition rules. Until the compatible writer is deployed and
-old instances have been drained, these fields must not be used to advertise a
-segmented generation to readers.
+do not enforce transition rules. Until the fleet is drained, an older binary
+can replace a pre-image without checking or advancing the revision. The
+compatible writer checks the stored identity, and an operator reconciles any
+divergence through the audited repair path. The later transition guard and its
+old-binary refusal and counting checks belong after the fleet-drain gate; they
+are not provided by migrations 051 or 052. Until the compatible writer is
+deployed and old instances have been drained, these fields must not be used to
+advertise a segmented generation to readers.
 
 The default is PostgreSQL's constant fast default, so adding the column does
 not rewrite the table. CHECK validation still scans existing rows under the

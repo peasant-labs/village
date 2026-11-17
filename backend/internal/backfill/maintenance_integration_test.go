@@ -53,6 +53,9 @@ func (s *maintenanceBlobStore) Read(context.Context, uuid.UUID, storage.BlobDesc
 	}
 	return []byte("fixture"), s.readIdentity, s.readErr
 }
+func (*maintenanceBlobStore) ReadBounded(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity, int64) ([]byte, storage.ContentIdentity, error) {
+	return nil, storage.ContentIdentity{}, errors.New("bounded read is outside maintenance test")
+}
 func (s *maintenanceBlobStore) Rewrap(_ context.Context, _ uuid.UUID, d storage.BlobDescriptor) (storage.BlobDescriptor, error) {
 	if s.beforeRewrap != nil {
 		s.beforeRewrap()

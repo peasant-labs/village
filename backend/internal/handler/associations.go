@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -27,7 +28,7 @@ var ErrAssociationBinding = errors.New("association ledger binding rejected")
 // the single-transcript and whole-project paths contend on the same string
 // rather than each formatting their own and never seeing each other.
 func sessionPublishLockKey(ownerID pgtype.UUID, localID string) string {
-	return fmt.Sprintf("village:association-publish:%x:session:%s", ownerID.Bytes, localID)
+	return database.SessionPublishLockKey(ownerID, localID)
 }
 
 // associationPublishLockKey names the advisory lock that serializes work on one
@@ -86,44 +87,7 @@ func (h *Handler) withPublishLockKeys(ctx context.Context, keys []string, fn fun
 		return fmt.Errorf("acquire publish lock connection: %w", err)
 	}
 	attempted := make([]string, 0, len(orderedKeys))
-	release := func() {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		unlockFailed := false
-		for i := len(attempted) - 1; i >= 0; i-- {
-			var didUnlock bool
-			if err := conn.QueryRow(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", attempted[i]).Scan(&didUnlock); err != nil {
-				unlockFailed = true
-				slog.Error("publish advisory-lock cleanup could not prove the physical session is unlocked",
-					"operation", "publish",
-					"stage", "advisory_unlock",
-					"lock_scope_digest", fmt.Sprintf("%x", sha256.Sum256([]byte(attempted[i]))),
-					"consequence", "the pooled connection will be evicted instead of reused",
-					"remediation", "inspect PostgreSQL connectivity and advisory-lock health before retrying the publish",
-					"error", err)
-			}
-			// false means this physical session never acquired the attempted key (or
-			// already released it), which is a safe cleanup outcome.
-			_ = didUnlock
-		}
-		if unlockFailed {
-			// Returning a connection that still owns an advisory lock would make a
-			// later unrelated pool borrower inherit a deadlocking session state.
-			// Detach and close the physical connection as the fail-safe mechanism.
-			physical := conn.Hijack()
-			if err := physical.Close(unlockCtx); err != nil {
-				slog.Error("evicted publish connection could not be closed after uncertain advisory-lock cleanup",
-					"operation", "publish",
-					"stage", "physical_connection_close",
-					"consequence", "PostgreSQL must reap the detached session before its locks are certainly released",
-					"remediation", "inspect PostgreSQL sessions and network health; terminate the detached backend if it remains",
-					"error", err)
-			}
-			return
-		}
-		conn.Release()
-	}
-	defer release()
+	defer func() { releasePublishLockConnection(conn, attempted) }()
 	for _, key := range orderedKeys {
 		// Record before Exec: cancellation can race with the server granting the
 		// session lock and make the client unable to observe whether it succeeded.
@@ -133,6 +97,65 @@ func (h *Handler) withPublishLockKeys(ctx context.Context, keys []string, fn fun
 		}
 	}
 	return fn(conn)
+}
+
+// releasePublishLockConnection never returns a potentially lock-owning
+// physical session to the pool when unlock could not be proved.
+func releasePublishLockConnection(conn *pgxpool.Conn, attempted []string) {
+	unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	unlockFailed := false
+	for i := len(attempted) - 1; i >= 0; i-- {
+		var didUnlock bool
+		if err := conn.QueryRow(unlockCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", attempted[i]).Scan(&didUnlock); err != nil {
+			unlockFailed = true
+			slog.Error("publish advisory-lock cleanup could not prove the physical session is unlocked",
+				"operation", "publish", "stage", "advisory_unlock",
+				"lock_scope_digest", fmt.Sprintf("%x", sha256.Sum256([]byte(attempted[i]))),
+				"consequence", "the pooled connection will be evicted instead of reused",
+				"remediation", "inspect PostgreSQL connectivity and advisory-lock health before retrying the publish",
+				"error", err)
+		}
+		_ = didUnlock
+	}
+	if unlockFailed {
+		physical := conn.Hijack()
+		if err := physical.Close(unlockCtx); err != nil {
+			slog.Error("evicted publish connection could not be closed after uncertain advisory-lock cleanup",
+				"operation", "publish", "stage", "physical_connection_close",
+				"consequence", "PostgreSQL must reap the detached session before its locks are certainly released",
+				"remediation", "inspect PostgreSQL sessions and network health; terminate the detached backend if it remains",
+				"error", err)
+		}
+		return
+	}
+	conn.Release()
+}
+
+// withTryPublishLock never waits for either a free pool connection or the
+// transcript's advisory lock. Optional read repair can be skipped safely.
+func (h *Handler) withTryPublishLock(ctx context.Context, ownerID pgtype.UUID, localID string, fn func(*pgxpool.Conn) error) (bool, error) {
+	if h.pool == nil {
+		return true, fn(nil)
+	}
+	conns := h.pool.AcquireAllIdle(ctx)
+	if len(conns) == 0 {
+		return false, nil
+	}
+	conn := conns[0]
+	for _, unused := range conns[1:] {
+		unused.Release()
+	}
+	key := sessionPublishLockKey(ownerID, localID)
+	defer releasePublishLockConnection(conn, []string{key})
+	var acquired bool
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock(hashtextextended($1, 0))", key).Scan(&acquired); err != nil {
+		return false, err
+	}
+	if !acquired {
+		return false, nil
+	}
+	return true, fn(conn)
 }
 
 // validatePublishedAssociationBindings resolves every requested association before

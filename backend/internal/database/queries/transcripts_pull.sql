@@ -11,7 +11,9 @@ UPDATE transcripts SET content_hash = $2 WHERE id = $1;
 -- name: ListTranscriptsMissingContentHash :many
 -- Returns the complete immutable descriptor and nullable prior plaintext size
 -- needed by a descriptor-conditional identity backfill.
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version, blob_size_bytes
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm,
+       key_version, blob_size_bytes, content_hash, content_revision,
+       segmented_identity_hash, segmented_identity_size
 FROM transcripts
 WHERE content_hash IS NULL
 ORDER BY published_at ASC, id;
@@ -148,14 +150,19 @@ WHERE (t.owner_id = @user_id OR gm.user_id = @user_id) AND t.id = ANY(@transcrip
 -- name: CompareAndSwapContentIdentity :execrows
 UPDATE transcripts
 SET content_hash = @content_hash,
-    blob_size_bytes = @plaintext_size
+    blob_size_bytes = @plaintext_size,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL
 WHERE id = @id
   AND blob_key = @expected_blob_key
   AND wrapped_data_key = @expected_wrapped_data_key
   AND encryption_algorithm = @expected_encryption_algorithm
   AND key_version = @expected_key_version
-  AND content_hash IS NULL
-  AND blob_size_bytes IS NOT DISTINCT FROM @expected_prior_blob_size_bytes;
+  AND content_hash IS NOT DISTINCT FROM sqlc.narg(expected_prior_content_hash)::text
+  AND blob_size_bytes IS NOT DISTINCT FROM sqlc.narg(expected_prior_blob_size_bytes)::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_hash)::text
+  AND segmented_identity_size IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_size)::bigint
+  AND content_revision = @expected_content_revision;
 
 -- name: CompareAndSwapTranscriptBlob :one
 UPDATE transcripts
@@ -165,12 +172,20 @@ SET blob_key = @blob_key,
     key_version = @key_version,
     content_hash = @content_hash,
     blob_size_bytes = @plaintext_size,
+    content_revision = @content_revision,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL,
     updated_at = now()
 WHERE id = @id
   AND blob_key = @expected_blob_key
   AND wrapped_data_key = @expected_wrapped_data_key
   AND encryption_algorithm = @expected_encryption_algorithm
   AND key_version = @expected_key_version
+  AND content_revision = @expected_content_revision
+  AND content_hash IS NOT DISTINCT FROM sqlc.narg(expected_content_hash)::text
+  AND blob_size_bytes IS NOT DISTINCT FROM sqlc.narg(expected_blob_size_bytes)::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_hash)::text
+  AND segmented_identity_size IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_size)::bigint
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -191,7 +206,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     content_revision, segmented_identity_hash, segmented_identity_size;
 
 -- name: ListTranscriptDescriptorsForRewrap :many
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm, key_version
 FROM transcripts
 WHERE key_version < @active_key_version
   AND (key_version > @after_key_version

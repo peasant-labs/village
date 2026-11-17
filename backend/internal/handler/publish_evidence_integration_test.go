@@ -378,12 +378,12 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 					w = httptest.NewRecorder()
 					h.GetTranscriptContent(w, r)
 				case "rewrite":
-					stored, _, err := reader.Read(ctx, uuidFromPg(before.row.ID), mustDescriptor(t, before.row), mustLoadedIdentity(t, before.row))
+					stored, source, err := reader.Read(ctx, uuidFromPg(before.row.ID), mustDescriptor(t, before.row), mustLoadedIdentity(t, before.row))
 					if err != nil {
 						t.Fatalf("read the stored generation: %v", err)
 					}
 					w = httptest.NewRecorder()
-					installed, err := h.rewriteCanonicalTranscript(ctx, before.row, canonicalStoredContent(t), sniffShape(stored))
+					installed, err := h.rewriteCanonicalTranscript(ctx, before.row, source, canonicalStoredContent(t), sniffShape(stored))
 					if err != nil || installed == nil {
 						t.Fatalf("rewrite: installed=%v err=%v", installed, err)
 					}
@@ -391,7 +391,8 @@ func TestPublishEvidenceLifecycle(t *testing.T) {
 					stale := before.row
 					concurrent := &Handler{cfg: minimalConfig(), pool: pool, queries: queries, blobs: store, titles: titles}
 					h.queries = &staleReadQuerier{Querier: queries, afterRead: func() {
-						installed, err := concurrent.rewriteCanonicalTranscript(ctx, stale, canonicalStoredContent(t), ShapeBarePayload)
+						source := rewriteFixtureSourceIdentity(t, ctx, store, stale)
+						installed, err := concurrent.rewriteCanonicalTranscript(ctx, stale, source, canonicalStoredContent(t), ShapeBarePayload)
 						if err != nil || installed == nil {
 							t.Fatalf("concurrent rewrite: installed=%v err=%v", installed, err)
 						}

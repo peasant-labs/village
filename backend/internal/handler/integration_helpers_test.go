@@ -33,7 +33,27 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
+	"github.com/peasant-labs/village/backend/internal/storage"
 )
+
+// rewriteFixtureSourceIdentity obtains the same authenticated source identity
+// the mounted read passes to its optional rewrite.
+func rewriteFixtureSourceIdentity(t *testing.T, ctx context.Context, blobs storage.TranscriptBlobStore, row sqlc.Transcript) storage.ContentIdentity {
+	t.Helper()
+	descriptor, err := descriptorFromTranscript(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := identityFromTranscript(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, identity, err := blobs.Read(ctx, uuidFromPg(row.ID), descriptor, loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return identity
+}
 
 // govTestPool opens a migrated pool or skips when no DB is reachable.
 func govTestPool(t *testing.T) *pgxpool.Pool {

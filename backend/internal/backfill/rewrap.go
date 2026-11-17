@@ -44,17 +44,19 @@ func Rewrap(ctx context.Context, pool *pgxpool.Pool, blobs storage.TranscriptBlo
 			result.Scanned++
 			afterVersion = row.KeyVersion
 			afterID = row.ID
-			d, err := storage.NewBlobDescriptor(storage.ObjectKey(row.BlobKey), row.WrappedDataKey, storage.EncryptionAlgorithm(row.EncryptionAlgorithm), storage.KeyVersion(row.KeyVersion))
-			if err != nil {
-				result.Failed++
-				continue
-			}
-			next, err := blobs.Rewrap(ctx, uuid.UUID(row.ID.Bytes), d)
-			if err != nil {
-				result.Failed++
-				continue
-			}
-			installed, uncertain, err := installRewrap(ctx, pool, row, next)
+			var installed, uncertain bool
+			err := database.WithSessionPublishLock(ctx, pool, row.OwnerID, row.LocalID, func(conn *pgxpool.Conn) error {
+				d, err := storage.NewBlobDescriptor(storage.ObjectKey(row.BlobKey), row.WrappedDataKey, storage.EncryptionAlgorithm(row.EncryptionAlgorithm), storage.KeyVersion(row.KeyVersion))
+				if err != nil {
+					return err
+				}
+				next, err := blobs.Rewrap(ctx, uuid.UUID(row.ID.Bytes), d)
+				if err != nil {
+					return err
+				}
+				installed, uncertain, err = installRewrap(ctx, conn, row, next)
+				return err
+			})
 			if uncertain {
 				result.Uncertain++
 				continue
@@ -76,8 +78,8 @@ func Rewrap(ctx context.Context, pool *pgxpool.Pool, blobs storage.TranscriptBlo
 	return result, nil
 }
 
-func installRewrap(ctx context.Context, pool *pgxpool.Pool, row sqlc.ListTranscriptDescriptorsForRewrapRow, next storage.BlobDescriptor) (installed, uncertain bool, err error) {
-	tx, e := pool.Begin(ctx)
+func installRewrap(ctx context.Context, conn *pgxpool.Conn, row sqlc.ListTranscriptDescriptorsForRewrapRow, next storage.BlobDescriptor) (installed, uncertain bool, err error) {
+	tx, e := conn.Begin(ctx)
 	if e != nil {
 		return false, false, e
 	}

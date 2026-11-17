@@ -3,6 +3,7 @@
 package database
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"gopkg.in/yaml.v3"
 )
 
 func TestMigration052ContentRepairRealPostgres(t *testing.T) {
@@ -52,12 +54,12 @@ func TestMigration052ContentRepairRealPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch c.Kind {
-			case "registration":
+			case repairAuditRegistration:
 				var registered bool
 				if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version=52)").Scan(&registered); err != nil || !registered {
 					t.Fatalf("version 52 registration=%t: %v", registered, err)
 				}
-			case "catalog":
+			case repairAuditCatalog:
 				assertRepairAuditCatalog(t, ctx, tx, fixture)
 			case "":
 				for i, step := range c.Steps {
@@ -183,9 +185,9 @@ func runRepairAuditStep(t *testing.T, ctx context.Context, tx pgx.Tx, defaults m
 	actor := owner
 	switch step.Actor {
 	case "":
-	case "missing":
+	case repairAuditActorMissing:
 		actor = ""
-	case "system":
+	case repairAuditActorSystem:
 		actor = SystemActorID
 	default:
 		t.Fatalf("unknown actor fixture %q", step.Actor)
@@ -199,7 +201,7 @@ func runRepairAuditStep(t *testing.T, ctx context.Context, tx pgx.Tx, defaults m
 	}
 	defer savepoint.Rollback(ctx)
 
-	if step.Expect == "true" {
+	if step.Expect == repairAuditTrue {
 		var got bool
 		query := strings.ReplaceAll(step.SQL, "{{transcript}}", transcript)
 		if err := savepoint.QueryRow(ctx, query).Scan(&got); err != nil || !got {
@@ -233,7 +235,7 @@ func runRepairAuditStep(t *testing.T, ctx context.Context, tx pgx.Tx, defaults m
 		values["repair_id"] = repairID
 		command, err = insertRepairFixture(ctx, savepoint, values)
 	}
-	if step.Expect == "reject" {
+	if step.Expect == repairAuditReject {
 		if err == nil {
 			t.Fatal("fixture expected PostgreSQL to refuse the statement")
 		}
@@ -246,7 +248,7 @@ func runRepairAuditStep(t *testing.T, ctx context.Context, tx pgx.Tx, defaults m
 		}
 		return
 	}
-	if step.Expect != "accept" {
+	if step.Expect != repairAuditAccept {
 		t.Fatalf("unknown fixture expectation %q", step.Expect)
 	}
 	if err != nil {
@@ -276,12 +278,21 @@ func insertRepairFixture(ctx context.Context, tx pgx.Tx, values map[string]any) 
 	for _, key := range columns {
 		value := values[key]
 		if repeat, ok := value.(map[string]any); ok {
-			letter, lettersOK := repeat["repeat"].(string)
-			count, countOK := repeat["count"].(int)
-			if !lettersOK || !countOK || count < 0 || count > 1001 {
+			var encoded []byte
+			encoded, err := yaml.Marshal(repeat)
+			if err != nil {
+				return pgconn.CommandTag{}, fmt.Errorf("encode repeated fixture value for %s: %w", key, err)
+			}
+			var repeated struct {
+				Letter *string `yaml:"repeat"`
+				Count  *int    `yaml:"count"`
+			}
+			decoder := yaml.NewDecoder(bytes.NewReader(encoded))
+			decoder.KnownFields(true)
+			if err := decoder.Decode(&repeated); err != nil || repeated.Letter == nil || repeated.Count == nil || *repeated.Count < 0 || *repeated.Count > 1001 {
 				return pgconn.CommandTag{}, fmt.Errorf("invalid bounded repeated fixture value for %s", key)
 			}
-			value = strings.Repeat(letter, count)
+			value = strings.Repeat(*repeated.Letter, *repeated.Count)
 		}
 		args = append(args, value)
 	}

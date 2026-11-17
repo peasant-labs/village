@@ -3,8 +3,10 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -86,6 +88,32 @@ func (s *S3ObjectStore) Get(ctx context.Context, key ObjectKey) ([]byte, string,
 	body, err := io.ReadAll(out.Body)
 	if err != nil {
 		return nil, "", &objectLookupError{cause: err}
+	}
+	return body, aws.ToString(out.ContentType), nil
+}
+
+// GetBounded reads no more than one byte beyond the provider-reported object
+// size and never accepts a response whose size is unknown or exceeds maxBytes.
+// A short or inconsistent response is uncertain, not evidence of absence.
+func (s *S3ObjectStore) GetBounded(ctx context.Context, key ObjectKey, maxBytes int64) ([]byte, string, error) {
+	if maxBytes < 0 || maxBytes == math.MaxInt64 {
+		return nil, "", &objectLookupError{cause: errors.New("invalid bounded read limit")}
+	}
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(string(key))})
+	if err != nil {
+		return nil, "", &objectLookupError{cause: err}
+	}
+	defer out.Body.Close()
+	if out.ContentLength == nil || *out.ContentLength < 0 || *out.ContentLength > maxBytes {
+		return nil, "", &objectLookupError{cause: errors.New("object size is unavailable or exceeds the bounded read limit")}
+	}
+	size := *out.ContentLength
+	body, err := io.ReadAll(io.LimitReader(out.Body, size+1))
+	if err != nil {
+		return nil, "", &objectLookupError{cause: err}
+	}
+	if int64(len(body)) != size {
+		return nil, "", &objectLookupError{cause: errors.New("object response length does not match its declared size")}
 	}
 	return body, aws.ToString(out.ContentType), nil
 }

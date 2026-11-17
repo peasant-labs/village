@@ -325,6 +325,26 @@ type TranscriptCommit struct {
 	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
+type TranscriptContentRepair struct {
+	RepairID              pgtype.UUID        `db:"repair_id" json:"repair_id"`
+	Seq                   pgtype.Int8        `db:"seq" json:"seq"`
+	Phase                 string             `db:"phase" json:"phase"`
+	Action                string             `db:"action" json:"action"`
+	TranscriptID          pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	OperatorActor         pgtype.UUID        `db:"operator_actor" json:"operator_actor"`
+	AuthorizationRef      string             `db:"authorization_ref" json:"authorization_ref"`
+	Reason                string             `db:"reason" json:"reason"`
+	PriorRevision         int64              `db:"prior_revision" json:"prior_revision"`
+	PriorIdentityHash     pgtype.Text        `db:"prior_identity_hash" json:"prior_identity_hash"`
+	PriorIdentitySize     pgtype.Int8        `db:"prior_identity_size" json:"prior_identity_size"`
+	ResultingRevision     int64              `db:"resulting_revision" json:"resulting_revision"`
+	ResultingIdentityHash pgtype.Text        `db:"resulting_identity_hash" json:"resulting_identity_hash"`
+	ResultingIdentitySize pgtype.Int8        `db:"resulting_identity_size" json:"resulting_identity_size"`
+	FailureClass          pgtype.Text        `db:"failure_class" json:"failure_class"`
+	ReconcilesRepairID    pgtype.UUID        `db:"reconciles_repair_id" json:"reconciles_repair_id"`
+	RecordedAt            pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+}
+
 type TranscriptContentRewrite struct {
 	TranscriptID         pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
 	ReplacedContentHash  string             `db:"replaced_content_hash" json:"replaced_content_hash"`

@@ -125,8 +125,20 @@ UPDATE transcripts SET
     -- this statement replaces, so a republish that does not carry it clears the
     -- stored value instead of keeping a count of content that is gone.
     conversation_turn_count = sqlc.narg(conversation_turn_count),
+    content_revision = @content_revision,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL,
     updated_at = now()
-WHERE owner_id = $1 AND local_id = $2
+WHERE owner_id = $1 AND local_id = $2 AND id = @expected_id
+    AND blob_key = @expected_blob_key
+    AND wrapped_data_key = @expected_wrapped_data_key
+    AND encryption_algorithm = @expected_encryption_algorithm
+    AND key_version = @expected_key_version
+    AND content_revision = @expected_content_revision
+    AND content_hash IS NOT DISTINCT FROM sqlc.narg(expected_content_hash)::text
+    AND blob_size_bytes IS NOT DISTINCT FROM sqlc.narg(expected_blob_size_bytes)::bigint
+    AND segmented_identity_hash IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_hash)::text
+    AND segmented_identity_size IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_size)::bigint
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -176,6 +188,11 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     conversation_turn_count, displayed_turn_count,
     content_revision, segmented_identity_hash, segmented_identity_size
 FROM transcripts WHERE id = $1;
+
+-- name: GetTranscriptByIDForUpdate :one
+-- The content descriptor, identity, metadata object and governance axes are
+-- read under the same row lock immediately before an immutable replacement.
+SELECT * FROM transcripts WHERE id = $1 FOR UPDATE;
 
 -- name: SetAcceptedRequestOperationFingerprint :exec
 UPDATE transcripts

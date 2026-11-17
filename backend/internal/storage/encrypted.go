@@ -117,13 +117,30 @@ func (s *EncryptedTranscriptStore) openDEK(ctx context.Context, id uuid.UUID, d 
 }
 
 func (s *EncryptedTranscriptStore) Read(ctx context.Context, id uuid.UUID, d BlobDescriptor, loaded LoadedContentIdentity) ([]byte, ContentIdentity, error) {
+	return s.read(ctx, id, d, loaded, nil)
+}
+
+// ReadBounded authenticates without allowing an unexpectedly large object to
+// occupy unbounded memory while the caller holds its transaction row lock.
+func (s *EncryptedTranscriptStore) ReadBounded(ctx context.Context, id uuid.UUID, d BlobDescriptor, loaded LoadedContentIdentity, maxCiphertextBytes int64) ([]byte, ContentIdentity, error) {
+	return s.read(ctx, id, d, loaded, &maxCiphertextBytes)
+}
+
+func (s *EncryptedTranscriptStore) read(ctx context.Context, id uuid.UUID, d BlobDescriptor, loaded LoadedContentIdentity, maxCiphertextBytes *int64) ([]byte, ContentIdentity, error) {
 	if err := loaded.validate(); err != nil {
 		return nil, ContentIdentity{}, err
 	}
 	if d.algorithm != EncryptionAES256GCMRandomNonceV1 {
 		return nil, ContentIdentity{}, fmt.Errorf("transcript decryption failed because descriptor algorithm %q is unsupported in storage.EncryptedTranscriptStore.Read before object access; no plaintext was returned; restore a valid descriptor", d.algorithm)
 	}
-	ciphertext, contentType, err := s.objects.Get(ctx, d.objectKey)
+	var ciphertext []byte
+	var contentType string
+	var err error
+	if maxCiphertextBytes == nil {
+		ciphertext, contentType, err = s.objects.Get(ctx, d.objectKey)
+	} else {
+		ciphertext, contentType, err = s.objects.GetBounded(ctx, d.objectKey, *maxCiphertextBytes)
+	}
 	if err != nil {
 		return nil, ContentIdentity{}, err
 	}

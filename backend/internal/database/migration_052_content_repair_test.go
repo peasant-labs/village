@@ -20,22 +20,38 @@ type repairAuditColumn struct {
 	Default  string `yaml:"default"`
 }
 
+type repairAuditExpectation string
+type repairAuditActor string
+type repairAuditCaseKind string
+
+const (
+	repairAuditAccept repairAuditExpectation = "accept"
+	repairAuditReject repairAuditExpectation = "reject"
+	repairAuditTrue   repairAuditExpectation = "true"
+
+	repairAuditActorMissing repairAuditActor = "missing"
+	repairAuditActorSystem  repairAuditActor = "system"
+
+	repairAuditRegistration repairAuditCaseKind = "registration"
+	repairAuditCatalog      repairAuditCaseKind = "catalog"
+)
+
 type repairAuditStep struct {
-	Expect     string         `yaml:"expect"`
-	Fields     map[string]any `yaml:"fields"`
-	Actor      string         `yaml:"actor"`
-	Constraint string         `yaml:"constraint"`
-	Message    string         `yaml:"message"`
-	SQL        string         `yaml:"sql"`
-	Affected   *int64         `yaml:"affected"`
-	CheckActor bool           `yaml:"check_actor"`
+	Expect     repairAuditExpectation `yaml:"expect"`
+	Fields     map[string]any         `yaml:"fields"`
+	Actor      repairAuditActor       `yaml:"actor"`
+	Constraint string                 `yaml:"constraint"`
+	Message    string                 `yaml:"message"`
+	SQL        string                 `yaml:"sql"`
+	Affected   *int64                 `yaml:"affected"`
+	CheckActor bool                   `yaml:"check_actor"`
 }
 
 type repairAuditCase struct {
-	Name              string            `yaml:"name"`
-	Kind              string            `yaml:"kind"`
-	Steps             []repairAuditStep `yaml:"steps"`
-	VerifyAfterCommit string            `yaml:"verify_after_commit"`
+	Name              string              `yaml:"name"`
+	Kind              repairAuditCaseKind `yaml:"kind"`
+	Steps             []repairAuditStep   `yaml:"steps"`
+	VerifyAfterCommit string              `yaml:"verify_after_commit"`
 }
 
 type repairAuditFixture struct {
@@ -86,7 +102,7 @@ func loadRepairAuditFixtures(t *testing.T) repairAuditFixture {
 		if c.Name == "" || seen[c.Name] {
 			t.Fatalf("repair audit fixture has an empty or duplicate name %q", c.Name)
 		}
-		if len(c.Steps) == 0 && c.Kind != "catalog" && c.Kind != "registration" {
+		if len(c.Steps) == 0 && c.Kind != repairAuditCatalog && c.Kind != repairAuditRegistration {
 			t.Fatalf("repair audit fixture %q has no executable assertions", c.Name)
 		}
 		seen[c.Name] = true

@@ -131,9 +131,11 @@ func TestMountedBlobCleanupFailuresEmitReconciliationEvidence(t *testing.T) {
 				blobs.afterWrite = func() {
 					execAsSystem(t, context.Background(), pool, "DELETE FROM transcripts WHERE id = $1", row.ID)
 				}
-				_, _ = h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"candidate-race"}`), ShapeUnknown)
+				source := rewriteFixtureSourceIdentity(t, ctx, blobs, row)
+				_, _ = h.rewriteCanonicalTranscript(ctx, row, source, []byte(`{"kind":"candidate-race"}`), ShapeUnknown)
 			case cleanupRewriteSuperseded:
-				_, _ = h.rewriteCanonicalTranscript(ctx, row, []byte(`{"kind":"committed-rewrite"}`), ShapeUnknown)
+				source := rewriteFixtureSourceIdentity(t, ctx, blobs, row)
+				_, _ = h.rewriteCanonicalTranscript(ctx, row, source, []byte(`{"kind":"committed-rewrite"}`), ShapeUnknown)
 			case cleanupDeleteTarget:
 				request := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+uuidFromPg(row.ID).String(), nil)
 				request = withChiURLParam(request, "id", uuidFromPg(row.ID).String())

@@ -475,6 +475,102 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 	return i, err
 }
 
+const getTranscriptByIDForUpdate = `-- name: GetTranscriptByIDForUpdate :one
+SELECT id, owner_id, local_id, title, description, visibility, model_provider, model_name, harness_version, session_start, session_end, turn_count, token_count, blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id, ingested_at, source_file_path, source_format, git_branch, git_remote, git_worktree, project_hash, project_path, project_name, tool_call_count, subagent_count, duration_ms, subagents, diagnostics_warnings, diagnostics_partial, tokens_in, tokens_out, title_generated, outcome, files_touched, lines_changed, retry_loops, retry_tokens_wasted, within_session_reverts, signal_density, spec_quality_score, exploration_ratio, scope_breadth, discovery_turns, m2_token_outcome_ratio, m3_unique_tool_count, m4_error_recovery_count, m4_consecutive_error_max, m5_context_utilization_pct, m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct, m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id, wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin, input_submission_count, root_session_id, session_purpose, session_relationships, publish_metadata_key, publish_metadata_hash, publish_metadata_size, conversation_turn_count, displayed_turn_count, content_revision, segmented_identity_hash, segmented_identity_size FROM transcripts WHERE id = $1 FOR UPDATE
+`
+
+// The content descriptor, identity, metadata object and governance axes are
+// read under the same row lock immediately before an immutable replacement.
+func (q *Queries) GetTranscriptByIDForUpdate(ctx context.Context, id pgtype.UUID) (Transcript, error) {
+	row := q.db.QueryRow(ctx, getTranscriptByIDForUpdate, id)
+	var i Transcript
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.LocalID,
+		&i.Title,
+		&i.Description,
+		&i.Visibility,
+		&i.ModelProvider,
+		&i.ModelName,
+		&i.HarnessVersion,
+		&i.SessionStart,
+		&i.SessionEnd,
+		&i.TurnCount,
+		&i.TokenCount,
+		&i.BlobKey,
+		&i.BlobSizeBytes,
+		&i.SchemaVersion,
+		&i.PublishedAt,
+		&i.UpdatedAt,
+		&i.ParentSessionID,
+		&i.IngestedAt,
+		&i.SourceFilePath,
+		&i.SourceFormat,
+		&i.GitBranch,
+		&i.GitRemote,
+		&i.GitWorktree,
+		&i.ProjectHash,
+		&i.ProjectPath,
+		&i.ProjectName,
+		&i.ToolCallCount,
+		&i.SubagentCount,
+		&i.DurationMs,
+		&i.Subagents,
+		&i.DiagnosticsWarnings,
+		&i.DiagnosticsPartial,
+		&i.TokensIn,
+		&i.TokensOut,
+		&i.TitleGenerated,
+		&i.Outcome,
+		&i.FilesTouched,
+		&i.LinesChanged,
+		&i.RetryLoops,
+		&i.RetryTokensWasted,
+		&i.WithinSessionReverts,
+		&i.SignalDensity,
+		&i.SpecQualityScore,
+		&i.ExplorationRatio,
+		&i.ScopeBreadth,
+		&i.DiscoveryTurns,
+		&i.M2TokenOutcomeRatio,
+		&i.M3UniqueToolCount,
+		&i.M4ErrorRecoveryCount,
+		&i.M4ConsecutiveErrorMax,
+		&i.M5ContextUtilizationPct,
+		&i.M5PeakContextTokens,
+		&i.M5AvgMessageTokens,
+		&i.M6OutputSurvivalPct,
+		&i.M6LinesSurvived,
+		&i.M6LinesTotal,
+		&i.M7SpecWordCount,
+		&i.M7SpecHasExamples,
+		&i.M7SpecHasConstraints,
+		&i.ComputedAt,
+		&i.ComputeVersion,
+		&i.ContentHash,
+		&i.LicenseID,
+		&i.WrappedDataKey,
+		&i.EncryptionAlgorithm,
+		&i.KeyVersion,
+		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
+		&i.InputSubmissionCount,
+		&i.RootSessionID,
+		&i.SessionPurpose,
+		&i.SessionRelationships,
+		&i.PublishMetadataKey,
+		&i.PublishMetadataHash,
+		&i.PublishMetadataSize,
+		&i.ConversationTurnCount,
+		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
+	)
+	return i, err
+}
+
 const getTranscriptGovernanceForUpdate = `-- name: GetTranscriptGovernanceForUpdate :one
 SELECT id, title, description, visibility, license_id
 FROM transcripts WHERE id = $1 FOR UPDATE
@@ -1232,8 +1328,20 @@ UPDATE transcripts SET
     -- this statement replaces, so a republish that does not carry it clears the
     -- stored value instead of keeping a count of content that is gone.
     conversation_turn_count = $71,
+    content_revision = $72,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL,
     updated_at = now()
-WHERE owner_id = $1 AND local_id = $2
+WHERE owner_id = $1 AND local_id = $2 AND id = $73
+    AND blob_key = $74
+    AND wrapped_data_key = $75
+    AND encryption_algorithm = $76
+    AND key_version = $77
+    AND content_revision = $78
+    AND content_hash IS NOT DISTINCT FROM $79::text
+    AND blob_size_bytes IS NOT DISTINCT FROM $80::bigint
+    AND segmented_identity_hash IS NOT DISTINCT FROM $81::text
+    AND segmented_identity_size IS NOT DISTINCT FROM $82::bigint
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -1255,77 +1363,88 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
-	OwnerID                 pgtype.UUID        `db:"owner_id" json:"owner_id"`
-	LocalID                 string             `db:"local_id" json:"local_id"`
-	Title                   pgtype.Text        `db:"title" json:"title"`
-	Description             pgtype.Text        `db:"description" json:"description"`
-	Visibility              string             `db:"visibility" json:"visibility"`
-	ModelProvider           string             `db:"model_provider" json:"model_provider"`
-	ModelName               pgtype.Text        `db:"model_name" json:"model_name"`
-	HarnessVersion          pgtype.Text        `db:"harness_version" json:"harness_version"`
-	SessionStart            pgtype.Timestamptz `db:"session_start" json:"session_start"`
-	SessionEnd              pgtype.Timestamptz `db:"session_end" json:"session_end"`
-	TurnCount               pgtype.Int4        `db:"turn_count" json:"turn_count"`
-	TokenCount              pgtype.Int4        `db:"token_count" json:"token_count"`
-	BlobKey                 string             `db:"blob_key" json:"blob_key"`
-	BlobSizeBytes           pgtype.Int8        `db:"blob_size_bytes" json:"blob_size_bytes"`
-	SchemaVersion           string             `db:"schema_version" json:"schema_version"`
-	ParentSessionID         pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
-	IngestedAt              pgtype.Timestamptz `db:"ingested_at" json:"ingested_at"`
-	SourceFilePath          pgtype.Text        `db:"source_file_path" json:"source_file_path"`
-	SourceFormat            pgtype.Text        `db:"source_format" json:"source_format"`
-	GitBranch               pgtype.Text        `db:"git_branch" json:"git_branch"`
-	GitRemote               pgtype.Text        `db:"git_remote" json:"git_remote"`
-	GitWorktree             pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash             string             `db:"project_hash" json:"project_hash"`
-	ProjectPath             pgtype.Text        `db:"project_path" json:"project_path"`
-	ProjectName             pgtype.Text        `db:"project_name" json:"project_name"`
-	ToolCallCount           pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
-	SubagentCount           pgtype.Int4        `db:"subagent_count" json:"subagent_count"`
-	DurationMs              pgtype.Int8        `db:"duration_ms" json:"duration_ms"`
-	Subagents               []byte             `db:"subagents" json:"subagents"`
-	DiagnosticsWarnings     []byte             `db:"diagnostics_warnings" json:"diagnostics_warnings"`
-	DiagnosticsPartial      pgtype.Bool        `db:"diagnostics_partial" json:"diagnostics_partial"`
-	TokensIn                pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
-	TokensOut               pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
-	TitleGenerated          pgtype.Text        `db:"title_generated" json:"title_generated"`
-	Outcome                 pgtype.Text        `db:"outcome" json:"outcome"`
-	FilesTouched            pgtype.Int4        `db:"files_touched" json:"files_touched"`
-	LinesChanged            pgtype.Int4        `db:"lines_changed" json:"lines_changed"`
-	RetryLoops              pgtype.Int4        `db:"retry_loops" json:"retry_loops"`
-	RetryTokensWasted       pgtype.Int4        `db:"retry_tokens_wasted" json:"retry_tokens_wasted"`
-	WithinSessionReverts    pgtype.Int4        `db:"within_session_reverts" json:"within_session_reverts"`
-	SignalDensity           pgtype.Float4      `db:"signal_density" json:"signal_density"`
-	SpecQualityScore        pgtype.Float4      `db:"spec_quality_score" json:"spec_quality_score"`
-	ExplorationRatio        pgtype.Float4      `db:"exploration_ratio" json:"exploration_ratio"`
-	ScopeBreadth            pgtype.Int4        `db:"scope_breadth" json:"scope_breadth"`
-	DiscoveryTurns          pgtype.Int4        `db:"discovery_turns" json:"discovery_turns"`
-	M2TokenOutcomeRatio     pgtype.Float4      `db:"m2_token_outcome_ratio" json:"m2_token_outcome_ratio"`
-	M3UniqueToolCount       pgtype.Int4        `db:"m3_unique_tool_count" json:"m3_unique_tool_count"`
-	M4ErrorRecoveryCount    pgtype.Int4        `db:"m4_error_recovery_count" json:"m4_error_recovery_count"`
-	M4ConsecutiveErrorMax   pgtype.Int4        `db:"m4_consecutive_error_max" json:"m4_consecutive_error_max"`
-	M5ContextUtilizationPct pgtype.Float4      `db:"m5_context_utilization_pct" json:"m5_context_utilization_pct"`
-	M5PeakContextTokens     pgtype.Int4        `db:"m5_peak_context_tokens" json:"m5_peak_context_tokens"`
-	M5AvgMessageTokens      pgtype.Int4        `db:"m5_avg_message_tokens" json:"m5_avg_message_tokens"`
-	M6OutputSurvivalPct     pgtype.Float4      `db:"m6_output_survival_pct" json:"m6_output_survival_pct"`
-	M6LinesSurvived         pgtype.Int4        `db:"m6_lines_survived" json:"m6_lines_survived"`
-	M6LinesTotal            pgtype.Int4        `db:"m6_lines_total" json:"m6_lines_total"`
-	M7SpecWordCount         pgtype.Int4        `db:"m7_spec_word_count" json:"m7_spec_word_count"`
-	M7SpecHasExamples       pgtype.Bool        `db:"m7_spec_has_examples" json:"m7_spec_has_examples"`
-	M7SpecHasConstraints    pgtype.Bool        `db:"m7_spec_has_constraints" json:"m7_spec_has_constraints"`
-	ComputedAt              pgtype.Timestamptz `db:"computed_at" json:"computed_at"`
-	ComputeVersion          pgtype.Int4        `db:"compute_version" json:"compute_version"`
-	LicenseID               pgtype.Text        `db:"license_id" json:"license_id"`
-	ContentHash             pgtype.Text        `db:"content_hash" json:"content_hash"`
-	WrappedDataKey          []byte             `db:"wrapped_data_key" json:"wrapped_data_key"`
-	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
-	KeyVersion              int32              `db:"key_version" json:"key_version"`
-	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
-	InputSubmissionCount    pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
-	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
-	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
-	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
-	ConversationTurnCount   pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
+	OwnerID                       pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID                       string             `db:"local_id" json:"local_id"`
+	Title                         pgtype.Text        `db:"title" json:"title"`
+	Description                   pgtype.Text        `db:"description" json:"description"`
+	Visibility                    string             `db:"visibility" json:"visibility"`
+	ModelProvider                 string             `db:"model_provider" json:"model_provider"`
+	ModelName                     pgtype.Text        `db:"model_name" json:"model_name"`
+	HarnessVersion                pgtype.Text        `db:"harness_version" json:"harness_version"`
+	SessionStart                  pgtype.Timestamptz `db:"session_start" json:"session_start"`
+	SessionEnd                    pgtype.Timestamptz `db:"session_end" json:"session_end"`
+	TurnCount                     pgtype.Int4        `db:"turn_count" json:"turn_count"`
+	TokenCount                    pgtype.Int4        `db:"token_count" json:"token_count"`
+	BlobKey                       string             `db:"blob_key" json:"blob_key"`
+	BlobSizeBytes                 pgtype.Int8        `db:"blob_size_bytes" json:"blob_size_bytes"`
+	SchemaVersion                 string             `db:"schema_version" json:"schema_version"`
+	ParentSessionID               pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	IngestedAt                    pgtype.Timestamptz `db:"ingested_at" json:"ingested_at"`
+	SourceFilePath                pgtype.Text        `db:"source_file_path" json:"source_file_path"`
+	SourceFormat                  pgtype.Text        `db:"source_format" json:"source_format"`
+	GitBranch                     pgtype.Text        `db:"git_branch" json:"git_branch"`
+	GitRemote                     pgtype.Text        `db:"git_remote" json:"git_remote"`
+	GitWorktree                   pgtype.Text        `db:"git_worktree" json:"git_worktree"`
+	ProjectHash                   string             `db:"project_hash" json:"project_hash"`
+	ProjectPath                   pgtype.Text        `db:"project_path" json:"project_path"`
+	ProjectName                   pgtype.Text        `db:"project_name" json:"project_name"`
+	ToolCallCount                 pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
+	SubagentCount                 pgtype.Int4        `db:"subagent_count" json:"subagent_count"`
+	DurationMs                    pgtype.Int8        `db:"duration_ms" json:"duration_ms"`
+	Subagents                     []byte             `db:"subagents" json:"subagents"`
+	DiagnosticsWarnings           []byte             `db:"diagnostics_warnings" json:"diagnostics_warnings"`
+	DiagnosticsPartial            pgtype.Bool        `db:"diagnostics_partial" json:"diagnostics_partial"`
+	TokensIn                      pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
+	TokensOut                     pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
+	TitleGenerated                pgtype.Text        `db:"title_generated" json:"title_generated"`
+	Outcome                       pgtype.Text        `db:"outcome" json:"outcome"`
+	FilesTouched                  pgtype.Int4        `db:"files_touched" json:"files_touched"`
+	LinesChanged                  pgtype.Int4        `db:"lines_changed" json:"lines_changed"`
+	RetryLoops                    pgtype.Int4        `db:"retry_loops" json:"retry_loops"`
+	RetryTokensWasted             pgtype.Int4        `db:"retry_tokens_wasted" json:"retry_tokens_wasted"`
+	WithinSessionReverts          pgtype.Int4        `db:"within_session_reverts" json:"within_session_reverts"`
+	SignalDensity                 pgtype.Float4      `db:"signal_density" json:"signal_density"`
+	SpecQualityScore              pgtype.Float4      `db:"spec_quality_score" json:"spec_quality_score"`
+	ExplorationRatio              pgtype.Float4      `db:"exploration_ratio" json:"exploration_ratio"`
+	ScopeBreadth                  pgtype.Int4        `db:"scope_breadth" json:"scope_breadth"`
+	DiscoveryTurns                pgtype.Int4        `db:"discovery_turns" json:"discovery_turns"`
+	M2TokenOutcomeRatio           pgtype.Float4      `db:"m2_token_outcome_ratio" json:"m2_token_outcome_ratio"`
+	M3UniqueToolCount             pgtype.Int4        `db:"m3_unique_tool_count" json:"m3_unique_tool_count"`
+	M4ErrorRecoveryCount          pgtype.Int4        `db:"m4_error_recovery_count" json:"m4_error_recovery_count"`
+	M4ConsecutiveErrorMax         pgtype.Int4        `db:"m4_consecutive_error_max" json:"m4_consecutive_error_max"`
+	M5ContextUtilizationPct       pgtype.Float4      `db:"m5_context_utilization_pct" json:"m5_context_utilization_pct"`
+	M5PeakContextTokens           pgtype.Int4        `db:"m5_peak_context_tokens" json:"m5_peak_context_tokens"`
+	M5AvgMessageTokens            pgtype.Int4        `db:"m5_avg_message_tokens" json:"m5_avg_message_tokens"`
+	M6OutputSurvivalPct           pgtype.Float4      `db:"m6_output_survival_pct" json:"m6_output_survival_pct"`
+	M6LinesSurvived               pgtype.Int4        `db:"m6_lines_survived" json:"m6_lines_survived"`
+	M6LinesTotal                  pgtype.Int4        `db:"m6_lines_total" json:"m6_lines_total"`
+	M7SpecWordCount               pgtype.Int4        `db:"m7_spec_word_count" json:"m7_spec_word_count"`
+	M7SpecHasExamples             pgtype.Bool        `db:"m7_spec_has_examples" json:"m7_spec_has_examples"`
+	M7SpecHasConstraints          pgtype.Bool        `db:"m7_spec_has_constraints" json:"m7_spec_has_constraints"`
+	ComputedAt                    pgtype.Timestamptz `db:"computed_at" json:"computed_at"`
+	ComputeVersion                pgtype.Int4        `db:"compute_version" json:"compute_version"`
+	LicenseID                     pgtype.Text        `db:"license_id" json:"license_id"`
+	ContentHash                   pgtype.Text        `db:"content_hash" json:"content_hash"`
+	WrappedDataKey                []byte             `db:"wrapped_data_key" json:"wrapped_data_key"`
+	EncryptionAlgorithm           string             `db:"encryption_algorithm" json:"encryption_algorithm"`
+	KeyVersion                    int32              `db:"key_version" json:"key_version"`
+	SessionOrigin                 string             `db:"session_origin" json:"session_origin"`
+	InputSubmissionCount          pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
+	RootSessionID                 pgtype.Text        `db:"root_session_id" json:"root_session_id"`
+	SessionPurpose                pgtype.Text        `db:"session_purpose" json:"session_purpose"`
+	SessionRelationships          []byte             `db:"session_relationships" json:"session_relationships"`
+	ConversationTurnCount         pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
+	ContentRevision               int64              `db:"content_revision" json:"-"`
+	ExpectedID                    pgtype.UUID        `db:"expected_id" json:"expected_id"`
+	ExpectedBlobKey               string             `db:"expected_blob_key" json:"expected_blob_key"`
+	ExpectedWrappedDataKey        []byte             `db:"expected_wrapped_data_key" json:"expected_wrapped_data_key"`
+	ExpectedEncryptionAlgorithm   string             `db:"expected_encryption_algorithm" json:"expected_encryption_algorithm"`
+	ExpectedKeyVersion            int32              `db:"expected_key_version" json:"expected_key_version"`
+	ExpectedContentRevision       int64              `db:"content_revision" json:"-"`
+	ExpectedContentHash           pgtype.Text        `db:"expected_content_hash" json:"expected_content_hash"`
+	ExpectedBlobSizeBytes         pgtype.Int8        `db:"expected_blob_size_bytes" json:"expected_blob_size_bytes"`
+	ExpectedSegmentedIdentityHash pgtype.Text        `db:"expected_segmented_identity_hash" json:"expected_segmented_identity_hash"`
+	ExpectedSegmentedIdentitySize pgtype.Int8        `db:"expected_segmented_identity_size" json:"expected_segmented_identity_size"`
 }
 
 func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg UpdateTranscriptByOwnerAndLocalIDParams) (Transcript, error) {
@@ -1401,6 +1520,17 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		arg.SessionPurpose,
 		arg.SessionRelationships,
 		arg.ConversationTurnCount,
+		arg.ContentRevision,
+		arg.ExpectedID,
+		arg.ExpectedBlobKey,
+		arg.ExpectedWrappedDataKey,
+		arg.ExpectedEncryptionAlgorithm,
+		arg.ExpectedKeyVersion,
+		arg.ExpectedContentRevision,
+		arg.ExpectedContentHash,
+		arg.ExpectedBlobSizeBytes,
+		arg.ExpectedSegmentedIdentityHash,
+		arg.ExpectedSegmentedIdentitySize,
 	)
 	var i Transcript
 	err := row.Scan(

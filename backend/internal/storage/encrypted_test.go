@@ -93,6 +93,16 @@ func (m *memoryStore) Get(_ context.Context, key ObjectKey) ([]byte, string, err
 	}
 	return append([]byte(nil), o.body...), o.contentType, nil
 }
+func (m *memoryStore) GetBounded(ctx context.Context, key ObjectKey, limit int64) ([]byte, string, error) {
+	body, contentType, err := m.Get(ctx, key)
+	if err != nil {
+		return nil, "", err
+	}
+	if limit < 0 || int64(len(body)) > limit {
+		return nil, "", ErrObjectLookupUncertain
+	}
+	return body, contentType, nil
+}
 func (m *memoryStore) Delete(_ context.Context, key ObjectKey) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

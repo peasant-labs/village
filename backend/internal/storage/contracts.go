@@ -15,6 +15,10 @@ type EncryptionAlgorithm string
 
 const EncryptionAES256GCMRandomNonceV1 EncryptionAlgorithm = "aes-256-gcm-random-nonce-v1"
 
+// CiphertextOverheadBytes is the random 96-bit nonce plus the 128-bit
+// authentication tag prepended by AES-GCM with a random nonce.
+const CiphertextOverheadBytes int64 = 28
+
 type KeyVersion = config.KeyVersion
 type ObjectKey string
 type ContentHash string
@@ -191,6 +195,9 @@ type KeyCustodian interface {
 type ObjectStore interface {
 	Put(context.Context, ObjectKey, []byte, string) error
 	Get(context.Context, ObjectKey) ([]byte, string, error)
+	// GetBounded refuses an unknown, incomplete or oversized object. It never
+	// reads more than the provider's stated size plus one sentinel byte.
+	GetBounded(context.Context, ObjectKey, int64) ([]byte, string, error)
 	Delete(context.Context, ObjectKey) error
 }
 type TranscriptBlobStore interface {
@@ -200,6 +207,9 @@ type TranscriptBlobStore interface {
 	// metadata writes one object and returns a nil MetadataObject.
 	WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (BlobDescriptor, ContentIdentity, *MetadataObject, error)
 	Read(context.Context, uuid.UUID, BlobDescriptor, LoadedContentIdentity) ([]byte, ContentIdentity, error)
+	// ReadBounded authenticates a generation through a bounded ciphertext
+	// read; maxBytes is a ciphertext limit, including the nonce and tag.
+	ReadBounded(context.Context, uuid.UUID, BlobDescriptor, LoadedContentIdentity, int64) ([]byte, ContentIdentity, error)
 	// ReadMetadata unwraps the data key from the content descriptor and returns
 	// the metadata only after authentication and hash and size validation.
 	ReadMetadata(ctx context.Context, id uuid.UUID, d BlobDescriptor, m MetadataObject) ([]byte, error)
