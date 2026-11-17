@@ -131,9 +131,15 @@ func assertRepairAuditCatalog(t *testing.T, ctx context.Context, tx pgx.Tx, fixt
 		(SELECT pg_get_constraintdef(oid) FROM pg_constraint
 		 WHERE conrelid='transcript_content_repairs'::regclass AND contype='p') = 'PRIMARY KEY (repair_id, phase)'
 		AND (SELECT pg_get_expr(indpred,indrelid) FROM pg_index
-		     WHERE indexrelid='transcript_content_repairs_one_terminal'::regclass) = '(phase <> ''attempted''::text)'`).Scan(&keysMatch)
+		     WHERE indexrelid='transcript_content_repairs_one_terminal'::regclass) = '(phase <> ''attempted''::text)'
+		AND (SELECT pg_get_expr(indpred,indrelid) FROM pg_index
+		     WHERE indexrelid='transcript_content_repairs_citations'::regclass) = '(phase <> ''attempted''::text)'
+		AND (SELECT pg_get_indexdef(indexrelid,1,true) FROM pg_index
+		     WHERE indexrelid='transcript_content_repairs_citations'::regclass) = 'reconciles_repair_id'
+		AND (SELECT NOT indisunique AND indisvalid AND indisready FROM pg_index
+		     WHERE indexrelid='transcript_content_repairs_citations'::regclass)`).Scan(&keysMatch)
 	if err != nil || !keysMatch {
-		t.Fatalf("repair ledger primary or terminal key differs: matches=%t err=%v", keysMatch, err)
+		t.Fatalf("repair ledger primary key or partial indexes differ: matches=%t err=%v", keysMatch, err)
 	}
 }
 

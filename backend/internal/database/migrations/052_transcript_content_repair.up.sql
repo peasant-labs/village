@@ -177,3 +177,15 @@ END $$;
 CREATE TRIGGER trg_repair_audit_delete_guard
     BEFORE DELETE ON transcript_content_repairs
     FOR EACH ROW EXECUTE FUNCTION repair_audit_block_delete();
+
+-- Only a restore writes an attempt, and restoring requires an established
+-- identity. An identity-free attempt cannot truthfully describe that action.
+ALTER TABLE transcript_content_repairs
+    ADD CONSTRAINT transcript_content_repairs_attempt_has_identity CHECK (
+        phase <> 'attempted'
+        OR (prior_identity_hash IS NOT NULL AND prior_identity_size IS NOT NULL));
+
+-- Only terminal rows can resolve an earlier attempt by citation.
+CREATE INDEX transcript_content_repairs_citations
+    ON transcript_content_repairs (reconciles_repair_id)
+    WHERE phase <> 'attempted';

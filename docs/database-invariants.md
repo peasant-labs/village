@@ -340,8 +340,10 @@ boundary are documented in
 - **052 adds the operator content-repair ledger.** Its closed action, phase and
   failure sets, paired identity checks, derived actor, immutable-update trigger
   and direct-delete guard are described in section 2, "Operator content
-  repair". The ledger cascades with its transcript; it is neither a disclosure
-  axis nor rewrite lineage, and it adds no GUC.
+  repair". Restore attempts require a complete prior identity, and a partial
+  citation index covers terminal outcomes. The ledger cascades with its
+  transcript; it is neither a disclosure axis nor rewrite lineage, and it adds
+  no GUC.
 
 ## 2. Licensing data model
 
@@ -413,9 +415,12 @@ and refusals record the prior pair and revision; only applied rows record an
 effect. The actor is derived from transaction-local `app.actor_id`, not from a
 statement-supplied value. Three triggers derive the actor, refuse updates, and
 refuse a direct delete of an existing repair row while permitting the parent
-transcript's cascade. A no-match delete removes zero rows. The ledger contains
-no body, object key, key material or unattested identity; the companion log
-omits identity and operator details as well.
+transcript's cascade. An attempt requires a whole prior identity pair, as a
+restore cannot start without one. A partial index over terminal citations
+supports finding the terminal decision that resolves an earlier attempt. A
+no-match delete removes zero rows. The ledger contains no body, object key, key
+material or unattested identity; the companion log omits identity and operator
+details as well.
 
 ### Private organization snapshot issuance
 

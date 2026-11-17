@@ -25,6 +25,7 @@ catalog:
     - transcript_content_repairs_failure_closed
     - transcript_content_repairs_action_identity
     - transcript_content_repairs_attempted_is_restore
+    - transcript_content_repairs_attempt_has_identity
     - transcript_content_repairs_hash_shape
     - transcript_content_repairs_identity_paired
     - transcript_content_repairs_size_nonnegative
@@ -37,6 +38,7 @@ catalog:
     - transcript_content_repairs_pkey
     - transcript_content_repairs_one_terminal
     - transcript_content_repairs_transcript_seq
+    - transcript_content_repairs_citations
   triggers:
     - trg_repair_audit_actor
     - trg_repair_audit_immutable
@@ -99,7 +101,7 @@ cases:
       - {expect: accept, fields: {prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null}}
       - {expect: reject, constraint: transcript_content_repairs_identity_paired, fields: {prior_identity_size: null, resulting_identity_size: null}}
       - {expect: reject, constraint: transcript_content_repairs_identity_paired, fields: {prior_identity_hash: null, resulting_identity_hash: null}}
-      - {expect: reject, constraint: transcript_content_repairs_identity_paired, fields: {phase: attempted, action: restore_attested_generation, prior_identity_size: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempt_has_identity, fields: {phase: attempted, action: restore_attested_generation, prior_identity_size: null, resulting_identity_size: null, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_hash_shape, fields: {prior_identity_hash: bad, resulting_identity_hash: bad}}
       - {expect: reject, constraint: transcript_content_repairs_size_nonnegative, fields: {prior_identity_size: -1, resulting_identity_size: -1}}
   - name: repair-audit-revisions-positive
@@ -161,6 +163,7 @@ cases:
   - name: repair-audit-attempted-is-restore-only
     steps:
       - {expect: accept, fields: {phase: attempted, action: restore_attested_generation, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempt_has_identity, fields: {phase: attempted, action: restore_attested_generation, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_attempted_is_restore, fields: {phase: attempted, action: clear_malformed_identity, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_attempted_is_restore, fields: {phase: attempted, failure_class: null}}
       - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: attempted, action: restore_attested_generation, resulting_identity_hash: *b, failure_class: null}}
