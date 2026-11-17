@@ -1,0 +1,144 @@
+# Each case seeds one transcript whose stored object is divergent, and a
+# preserved ciphertext copy under a separate key. The transcript encryption,
+# restore source authentication and restore write run the production storage
+# code over an in-memory object provider; the transaction, row lock, statement
+# and ledger run against real PostgreSQL.
+#
+# source is the preserved copy: "preserved" is the verbatim ciphertext,
+# "missing" has no object, "tampered" has one flipped byte. attested is whether
+# the row's identity matches the preserved content ("matches") or names other
+# content ("differs"). stored "none" seeds no identity. put is how the one
+# write to the transcript's object behaves: "ok", "fail" (provider rejects it),
+# "corrupt" (the object is damaged after the write), "different-readback" (the
+# read-back authenticates to another identity) or "concurrent-change" (another
+# writer advances the content revision while the write is in flight).
+#
+# attempted is whether an attempt row exists. puts is the number of object
+# writes; when it is not zero the attempt row must already be committed at the
+# moment of the write. restored is whether the object holds the preserved bytes.
+cases:
+  - name: preserved-copy-restores-and-marks-present
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: ok
+    attempted: true
+    puts: 1
+    phase: applied
+    state_after: present
+    restored: true
+  - name: restore-keeps-revision-and-identity-when-already-present
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: present
+    put: ok
+    attempted: true
+    puts: 1
+    phase: applied
+    state_after: present
+    restored: true
+  - name: missing-source-is-refused-without-an-attempt
+    source: missing
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: ok
+    attempted: false
+    puts: 0
+    phase: refused
+    failure_class: object_uncertain
+    state_after: unavailable
+  - name: tampered-source-is-refused-without-an-attempt
+    source: tampered
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: ok
+    attempted: false
+    puts: 0
+    phase: refused
+    failure_class: object_uncertain
+    state_after: unavailable
+  - name: source-with-a-different-identity-is-a-mismatch
+    source: preserved
+    attested: differs
+    stored: primary
+    state_before: unavailable
+    put: ok
+    attempted: false
+    puts: 0
+    phase: refused
+    failure_class: object_mismatch
+    state_after: unavailable
+  - name: wrong-expected-revision-is-refused-without-an-attempt
+    source: preserved
+    attested: matches
+    stored: primary
+    expected_revision: 2
+    state_before: unavailable
+    put: ok
+    attempted: false
+    puts: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    state_after: unavailable
+  - name: identity-free-row-is-refused-without-an-attempt
+    source: preserved
+    attested: matches
+    stored: none
+    state_before: unavailable
+    put: ok
+    attempted: false
+    puts: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    state_after: unavailable
+  - name: failed-write-is-refused-as-write-failed
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: fail
+    attempted: true
+    puts: 1
+    phase: refused
+    failure_class: object_write_failed
+    state_after: unavailable
+  - name: unproved-write-is-refused-as-uncertain
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: corrupt
+    attempted: true
+    puts: 1
+    phase: refused
+    failure_class: object_uncertain
+    state_after: unavailable
+  - name: readback-of-a-different-identity-is-refused-as-uncertain
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: different-readback
+    attempted: true
+    puts: 1
+    phase: refused
+    failure_class: object_uncertain
+    state_after: unavailable
+    restored: true
+  - name: row-replaced-during-the-write-is-refused
+    source: preserved
+    attested: matches
+    stored: primary
+    state_before: unavailable
+    put: concurrent-change
+    attempted: true
+    puts: 1
+    phase: refused
+    failure_class: precondition_mismatch
+    state_after: unavailable
+    revision_after: 2
+    restored: true
