@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -130,7 +131,11 @@ func (w *orderingWorld) deleteTranscript() *httptest.ResponseRecorder {
 	rctx.URLParams.Add("id", id)
 	ctx := context.WithValue(w.ctx, chi.RouteCtxKey, rctx)
 	ctx = context.WithValue(ctx, UserContextKey, w.owner)
-	r := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+id, nil).WithContext(ctx)
+	path, err := route.VillageUpdateTranscriptPath(id) // deletion shares the transcript's own path
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodDelete, path, nil).WithContext(ctx)
 	recorder := httptest.NewRecorder()
 	w.handler.DeleteTranscript(recorder, r)
 	return recorder

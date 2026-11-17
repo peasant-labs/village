@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -75,7 +76,11 @@ func TestDeleteLockedRereadErrorMapping(t *testing.T) {
 			}
 			store := &mockTranscriptBlobStore{}
 			h := newTestHandler(q, store)
-			r := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+id.String(), nil)
+			path, err := route.VillageUpdateTranscriptPath(id.String()) // deletion shares the transcript's own path
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodDelete, path, nil)
 			r = withChiURLParam(r, "id", id.String())
 			r = r.WithContext(withUserID(r.Context(), owner))
 			w := httptest.NewRecorder()
