@@ -7,4 +7,4 @@ schema:
   module: github.com/peasant-labs/schema
 endpoints:
   callees: [api]
-  mountFiles: [backend/internal/router/router.go]
+  mountFiles: [backend/internal/router/*.go]
