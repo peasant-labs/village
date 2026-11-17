@@ -116,23 +116,25 @@ func TestRestoreAttestedGenerationRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	required := map[string]bool{
-		"preserved-copy-restores-and-marks-present":             false,
-		"missing-source-is-refused-without-an-attempt":          false,
-		"source-with-a-different-identity-is-a-mismatch":        false,
-		"failed-write-is-refused-as-write-failed":               false,
-		"unproved-write-is-refused-as-uncertain":                false,
-		"row-replaced-during-the-write-is-refused":              false,
-		"wrong-expected-revision-is-refused-without-an-attempt": false,
+		"restore-keeps-revision-and-identity-when-already-present": false,
+		"tampered-source-is-refused-without-an-attempt":            false,
+		"identity-free-row-is-refused-without-an-attempt":          false,
+		"readback-of-a-different-identity-is-refused-as-uncertain": false,
+		"preserved-copy-restores-and-marks-present":                false,
+		"missing-source-is-refused-without-an-attempt":             false,
+		"source-with-a-different-identity-is-a-mismatch":           false,
+		"failed-write-is-refused-as-write-failed":                  false,
+		"unproved-write-is-refused-as-uncertain":                   false,
+		"row-replaced-during-the-write-is-refused":                 false,
+		"wrong-expected-revision-is-refused-without-an-attempt":    false,
 	}
-	seen := map[string]bool{}
+	// The manifest is the exact set of cases: an unlisted case and a deleted
+	// case both fail, so neither can change silently.
 	for _, c := range fixture.Cases {
-		if seen[c.Name] {
-			t.Fatalf("duplicate restore case %q", c.Name)
+		if seen, known := required[c.Name]; !known || seen {
+			t.Fatalf("unknown or duplicate restore case %q", c.Name)
 		}
-		seen[c.Name] = true
-		if _, isRequired := required[c.Name]; isRequired {
-			required[c.Name] = true
-		}
+		required[c.Name] = true
 	}
 	for name, present := range required {
 		if !present {

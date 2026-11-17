@@ -43,6 +43,8 @@ func TestReplaceThirdValueRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	required := map[string]bool{
+		"malformed-identity-is-refused":                       false,
+		"unverified-lookup-is-refused-as-uncertain":           false,
 		"third-value-advances-revision-and-installs-it":       false,
 		"third-value-replaces-a-segmented-identity":           false,
 		"object-authenticating-to-stored-identity-is-refused": false,
@@ -52,15 +54,13 @@ func TestReplaceThirdValueRealPostgres(t *testing.T) {
 		"undecodable-descriptor-is-refused-as-uncertain":      false,
 		"identity-free-row-is-refused":                        false,
 	}
-	seen := map[string]bool{}
+	// The manifest is the exact set of cases: an unlisted case and a deleted
+	// case both fail, so neither can change silently.
 	for _, c := range fixture.Cases {
-		if seen[c.Name] {
-			t.Fatalf("duplicate replace case %q", c.Name)
+		if seen, known := required[c.Name]; !known || seen {
+			t.Fatalf("unknown or duplicate replace case %q", c.Name)
 		}
-		seen[c.Name] = true
-		if _, isRequired := required[c.Name]; isRequired {
-			required[c.Name] = true
-		}
+		required[c.Name] = true
 	}
 	for name, present := range required {
 		if !present {

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -32,6 +33,9 @@ type declareCase struct {
 	Phase        string `yaml:"phase"`
 	FailureClass string `yaml:"failure_class"`
 	StateAfter   string `yaml:"state_after"`
+	// Then names the repair the runbook points an operator at after this
+	// refusal. It is run with the same object and must apply.
+	Then string `yaml:"then"`
 }
 
 // scriptedBlobStore answers only ReadBounded, the one call the executors make.
@@ -64,9 +68,11 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	required := map[string]bool{
-		"lookup-uncertain-is-declared-unavailable":            false,
-		"undecodable-descriptor-is-refused-as-uncertain":      false,
-		"object-authenticating-to-stored-identity-is-refused": false,
+		"lookup-uncertain-is-declared-unavailable":                                false,
+		"undecodable-descriptor-is-refused-as-uncertain":                          false,
+		"object-authenticating-to-stored-identity-is-refused":                     false,
+		"object-authenticating-to-a-third-value-is-refused-as-mismatch":           false,
+		"provider-timeout-is-declared-unavailable-on-the-operators-authorization": false,
 	}
 	for _, c := range fixture.Cases {
 		if seen, known := required[c.Name]; !known || seen {
@@ -86,6 +92,10 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored, err := storage.NewContentIdentity(schema.ComputeTranscriptHash([]byte("fixture")), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, err := storage.NewContentIdentity(schema.ComputeTranscriptHash([]byte("a third value")), 13)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +119,11 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 				store.identity = stored
 			case "absent-provider":
 				store.err = storage.ErrObjectAbsentProvider
+			case "provider-timeout":
+				// The provider's own deadline fired while the run's context is alive.
+				store.err = errors.Join(storage.ErrObjectLookupUncertain, context.DeadlineExceeded)
+			case "third-value":
+				store.identity = third
 			default:
 				t.Fatalf("fixture read %q is unknown", c.Read)
 			}
@@ -155,6 +170,23 @@ func TestDeclareUnavailableRealPostgres(t *testing.T) {
 			}
 			if count != 1 {
 				t.Fatalf("want exactly one ledger row, got %d", count)
+			}
+			rows.Close()
+			switch c.Then {
+			case "":
+			case "replace-third-value":
+				next := Options{RepairID: uuid.New(), TranscriptID: id, Action: ReplaceThirdValue,
+					ActorID: opts.ActorID, AuthorizationRef: "ticket-2", Reason: "object kept", ExpectedRevision: 1}
+				replaced, err := ReplaceThird(ctx, Deps{Pool: pool, Queries: sqlc.New(pool), Blobs: store, Now: time.Now}, next)
+				if err != nil || replaced.Phase != Applied || replaced.ContentRevision != 2 {
+					t.Fatalf("the remedy the refusal points at did not apply: %+v err=%v", replaced, err)
+				}
+				var installed *string
+				if err := pool.QueryRow(ctx, `SELECT content_hash FROM transcripts WHERE id=$1`, id).Scan(&installed); err != nil || installed == nil || *installed != string(third.Hash()) {
+					t.Fatalf("replace-third-value installed %v, want %s (err=%v)", installed, third.Hash(), err)
+				}
+			default:
+				t.Fatalf("fixture then %q is unknown", c.Then)
 			}
 		})
 	}

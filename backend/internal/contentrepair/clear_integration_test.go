@@ -47,6 +47,8 @@ func TestClearMalformedIdentityRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	required := map[string]bool{
+		"canonical-hash-with-null-size-is-refused":       false,
+		"unverified-lookup-is-refused-as-uncertain":      false,
 		"malformed-hash-null-size-is-cleared":            false,
 		"malformed-hash-negative-size-is-cleared":        false,
 		"identity-free-row-is-not-matched":               false,
@@ -56,15 +58,13 @@ func TestClearMalformedIdentityRealPostgres(t *testing.T) {
 		"key-failure-is-refused-as-uncertain":            false,
 		"undecodable-descriptor-is-refused-as-uncertain": false,
 	}
-	seen := map[string]bool{}
+	// The manifest is the exact set of cases: an unlisted case and a deleted
+	// case both fail, so neither can change silently.
 	for _, c := range fixture.Cases {
-		if seen[c.Name] {
-			t.Fatalf("duplicate clear case %q", c.Name)
+		if seen, known := required[c.Name]; !known || seen {
+			t.Fatalf("unknown or duplicate clear case %q", c.Name)
 		}
-		seen[c.Name] = true
-		if _, isRequired := required[c.Name]; isRequired {
-			required[c.Name] = true
-		}
+		required[c.Name] = true
 	}
 	for name, present := range required {
 		if !present {
