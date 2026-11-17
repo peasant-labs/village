@@ -1,0 +1,3 @@
+cases:
+  - {name: malformed-null-size-cleared, prior_hash: "zz", prior_size: null}
+  - {name: malformed-negative-size-cleared, prior_hash: "legacy-invalid", prior_size: -1}

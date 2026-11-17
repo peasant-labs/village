@@ -1,0 +1,13 @@
+# Each case seeds one present transcript with an established identity and
+# scripts what the object lookup returns. The object store is a fake; the
+# transaction, row lock, statement and ledger run against real PostgreSQL.
+cases:
+  - name: lookup-uncertain-is-declared-unavailable
+    read: lookup-uncertain
+    phase: applied
+    state_after: unavailable
+  - name: object-authenticating-to-stored-identity-is-refused
+    read: stored-identity
+    phase: refused
+    failure_class: precondition_mismatch
+    state_after: present

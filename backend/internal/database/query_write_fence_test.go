@@ -46,6 +46,7 @@ type parsedStatement struct {
 	Name         string
 	File         string
 	Verb         string
+	Body         string
 	WriteTargets []string
 	MentionsRef  bool
 }
@@ -183,7 +184,7 @@ func parseQueryFile(t *testing.T, file, content string) []parsedStatement {
 				"writes; extend the parser deliberately rather than letting an unclassified statement pass.",
 				current.Name, file, err)
 		}
-		current.Verb, current.WriteTargets = verb, targets
+		current.Verb, current.WriteTargets, current.Body = verb, targets, joined
 		current.MentionsRef = mentionsTable(joined, derivedShareTable)
 		statements = append(statements, *current)
 		current, body = nil, nil

@@ -14,6 +14,7 @@ statements:
   - {name: CompareAndSwapTranscriptSessionOrigin, file: origin_backfill.sql, verb: UPDATE, kind: metadata-visibility-license}
   - {name: SetTranscriptPublishMetadataObject, file: publish_evidence.sql, verb: UPDATE, kind: metadata-visibility-license}
   - {name: ReplaceTranscriptPublishMetadataObject, file: publish_evidence.sql, verb: UPDATE, kind: metadata-visibility-license}
+  - {name: RepairTranscriptContentIdentity, file: content_repair.sql, verb: UPDATE, kind: operator-repair}
 boundaries:
   - name: old-binary-absence
     kind: old-binary-compatible
@@ -31,3 +32,9 @@ checks:
   - {name: fence-parsed-verb-matches-declaration, operation: wrong-verb, statement_name: CreateTranscript}
   - {name: fence-declares-old-binary-absence, operation: old-binary}
   - {name: fence-declares-restore-path, operation: restore}
+  - {name: fence-declares-repair-writer, operation: repair, statement_name: RepairTranscriptContentIdentity}
+  - name: fence-state-only-cannot-write-identity
+    operation: state-only
+    statement: |
+      -- name: DeclareTranscriptContentUnavailable :execrows
+      UPDATE transcripts SET content_state = 'unavailable', content_revision = 2 WHERE id = $1;

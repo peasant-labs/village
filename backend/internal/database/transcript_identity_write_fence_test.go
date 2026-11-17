@@ -3,6 +3,7 @@ package database
 import (
 	_ "embed"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -59,6 +60,25 @@ var requiredIdentityFenceChecks = []string{
 	"fence-parsed-verb-matches-declaration",
 	"fence-declares-old-binary-absence",
 	"fence-declares-restore-path",
+	"fence-declares-repair-writer",
+	"fence-state-only-cannot-write-identity",
+}
+
+var contentStateOnlyUpdate = regexp.MustCompile(`(?is)^\s*UPDATE\s+transcripts\s+SET\s+content_state\s*=\s*'(present|unavailable)'\s+WHERE\b`)
+
+// The two state transitions are not identity writers. Exempt only their
+// exact names and single-column SET form, not arbitrary metadata updates.
+func isContentStateOnly(statement parsedStatement) bool {
+	if statement.File != "content_repair.sql" || len(statement.WriteTargets) != 1 ||
+		identityWriterVerb(statement.Verb) != identityUpdate {
+		return false
+	}
+	switch statement.Name {
+	case "DeclareTranscriptContentUnavailable", "MarkTranscriptContentPresent":
+		return contentStateOnlyUpdate.MatchString(statement.Body)
+	default:
+		return false
+	}
 }
 
 func validateIdentityStatements(parsed []parsedStatement, declared []identityStatement) error {
@@ -96,7 +116,7 @@ func validateIdentityStatements(parsed []parsedStatement, declared []identitySta
 				writesTranscript = true
 			}
 		}
-		if !writesTranscript || identityWriterVerb(statement.Verb) == identityDelete {
+		if !writesTranscript || identityWriterVerb(statement.Verb) == identityDelete || isContentStateOnly(statement) {
 			continue
 		}
 		if statement.Verb != string(identityInsert) && statement.Verb != string(identityUpdate) {
@@ -156,6 +176,21 @@ func TestTranscriptIdentityWriteFence(t *testing.T) {
 				}
 				if err := validateIdentityStatements(parsed, declared); err == nil {
 					t.Fatal("a mismatched parsed verb escaped the fence")
+				}
+			case "repair":
+				found := false
+				for _, row := range declared {
+					if row.Name == c.StatementName && row.Kind == identityRepair && row.Verb == identityUpdate {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("missing declared operator-repair identity writer %q", c.StatementName)
+				}
+			case "state-only":
+				injected := parseQueryFile(t, "content_repair.sql", c.Statement)
+				if len(injected) != 1 || isContentStateOnly(injected[0]) {
+					t.Fatal("identity-changing state writer escaped the fence")
 				}
 			case "old-binary", "restore":
 				want := identityOldBinary

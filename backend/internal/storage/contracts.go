@@ -26,6 +26,15 @@ type ContentHash string
 var canonicalContentHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var opaqueObjectKey = regexp.MustCompile(`^transcripts/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$`)
 
+// NewObjectKey validates the same opaque-generation form as a blob descriptor.
+// It deliberately omits the supplied key from errors.
+func NewObjectKey(value string) (ObjectKey, error) {
+	if !opaqueObjectKey.MatchString(value) {
+		return "", errors.New("object key validation failed before object access; no object was read or written; provide an opaque transcript generation key")
+	}
+	return ObjectKey(value), nil
+}
+
 type BlobDescriptor struct {
 	objectKey  ObjectKey
 	wrappedDEK []byte
