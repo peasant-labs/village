@@ -203,7 +203,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size;
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state;
 
 -- name: ListTranscriptDescriptorsForRewrap :many
 SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm, key_version

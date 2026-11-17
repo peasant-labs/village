@@ -79,7 +79,7 @@ INSERT INTO transcripts (
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 `
 
 type CreateTranscriptParams struct {
@@ -316,6 +316,7 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.ContentRevision,
 		&i.SegmentedIdentityHash,
 		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }
@@ -381,7 +382,7 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 FROM transcripts WHERE id = $1
 `
 
@@ -471,12 +472,13 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.ContentRevision,
 		&i.SegmentedIdentityHash,
 		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }
 
 const getTranscriptByIDForUpdate = `-- name: GetTranscriptByIDForUpdate :one
-SELECT id, owner_id, local_id, title, description, visibility, model_provider, model_name, harness_version, session_start, session_end, turn_count, token_count, blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id, ingested_at, source_file_path, source_format, git_branch, git_remote, git_worktree, project_hash, project_path, project_name, tool_call_count, subagent_count, duration_ms, subagents, diagnostics_warnings, diagnostics_partial, tokens_in, tokens_out, title_generated, outcome, files_touched, lines_changed, retry_loops, retry_tokens_wasted, within_session_reverts, signal_density, spec_quality_score, exploration_ratio, scope_breadth, discovery_turns, m2_token_outcome_ratio, m3_unique_tool_count, m4_error_recovery_count, m4_consecutive_error_max, m5_context_utilization_pct, m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct, m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id, wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin, input_submission_count, root_session_id, session_purpose, session_relationships, publish_metadata_key, publish_metadata_hash, publish_metadata_size, conversation_turn_count, displayed_turn_count, content_revision, segmented_identity_hash, segmented_identity_size FROM transcripts WHERE id = $1 FOR UPDATE
+SELECT id, owner_id, local_id, title, description, visibility, model_provider, model_name, harness_version, session_start, session_end, turn_count, token_count, blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id, ingested_at, source_file_path, source_format, git_branch, git_remote, git_worktree, project_hash, project_path, project_name, tool_call_count, subagent_count, duration_ms, subagents, diagnostics_warnings, diagnostics_partial, tokens_in, tokens_out, title_generated, outcome, files_touched, lines_changed, retry_loops, retry_tokens_wasted, within_session_reverts, signal_density, spec_quality_score, exploration_ratio, scope_breadth, discovery_turns, m2_token_outcome_ratio, m3_unique_tool_count, m4_error_recovery_count, m4_consecutive_error_max, m5_context_utilization_pct, m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct, m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id, wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin, input_submission_count, root_session_id, session_purpose, session_relationships, publish_metadata_key, publish_metadata_hash, publish_metadata_size, conversation_turn_count, displayed_turn_count, content_revision, segmented_identity_hash, segmented_identity_size, content_state FROM transcripts WHERE id = $1 FOR UPDATE
 `
 
 // The content descriptor, identity, metadata object and governance axes are
@@ -567,6 +569,7 @@ func (q *Queries) GetTranscriptByIDForUpdate(ctx context.Context, id pgtype.UUID
 		&i.ContentRevision,
 		&i.SegmentedIdentityHash,
 		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }
@@ -993,7 +996,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
     t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
     t.conversation_turn_count, t.displayed_turn_count,
-    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size
+    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size, t.content_state
 FROM transcripts t
 WHERE t.owner_id = $1
   AND t.project_hash = $2
@@ -1117,6 +1120,7 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.ContentRevision,
 			&i.SegmentedIdentityHash,
 			&i.SegmentedIdentitySize,
+			&i.ContentState,
 		); err != nil {
 			return nil, err
 		}
@@ -1359,7 +1363,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -1616,6 +1620,7 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.ContentRevision,
 		&i.SegmentedIdentityHash,
 		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }
@@ -1645,7 +1650,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -1748,6 +1753,7 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.ContentRevision,
 		&i.SegmentedIdentityHash,
 		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }

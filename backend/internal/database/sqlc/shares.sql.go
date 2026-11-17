@@ -266,7 +266,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
     t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
     t.conversation_turn_count, t.displayed_turn_count,
-    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size
+    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size, t.content_state
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
@@ -362,6 +362,7 @@ type ListGroupTranscriptsRow struct {
 	ContentRevision         int64              `db:"content_revision" json:"-"`
 	SegmentedIdentityHash   pgtype.Text        `db:"segmented_identity_hash" json:"-"`
 	SegmentedIdentitySize   pgtype.Int8        `db:"segmented_identity_size" json:"-"`
+	ContentState            string             `db:"content_state" json:"-"`
 }
 
 // The pull-share query ListApprovedTranscriptShareGroups lives in the sibling
@@ -459,6 +460,7 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 			&i.ContentRevision,
 			&i.SegmentedIdentityHash,
 			&i.SegmentedIdentitySize,
+			&i.ContentState,
 		); err != nil {
 			return nil, err
 		}

@@ -349,6 +349,18 @@ boundary are documented in
   citation index covers terminal outcomes. The ledger cascades with its
   transcript; it is neither a disclosure axis nor rewrite lineage, and it adds
   no GUC.
+- **053 records content availability and a retracted link's last collective
+  audience.** `content_state` is `present` or `unavailable`, defaults to
+  `present`, and is not a governance axis. The deletion trigger captures the
+  approved shares of a `shared` transcript before its children cascade. The
+  retained audience has no transcript FK and no owner or content; it leaves with
+  its collective. Both migration down files refuse: see §5 and §6.
+  PostgreSQL 16 can add the constant non-null default without a table rewrite,
+  but `ALTER TABLE` takes an `ACCESS EXCLUSIVE` lock, and validation of the new
+  CHECK scans existing rows while that lock is held until migration commit.
+  Schedule this migration as a deploy step with sufficient lock and scan time;
+  the runner's transaction timeout applies. Drain older binaries before declaring
+  any content unavailable, since they do not check the new state.
 
 ## 2. Licensing data model
 
@@ -934,6 +946,25 @@ the "most turns" sort orders by.
 - Audit-table INSERTs are unrestricted (append-only ≠ insert-blocked); the
   fail-closed actor rule applies to the `transcripts` triggers that produce
   the rows, not to direct historical appends (which only tests perform).
+- **Retraction audience (053):** `transcript_retraction_audiences` stores only
+  `(transcript_id, group_id)`, with no transcript FK, owner, timestamp or content.
+  The group FK cascades. The deletion trigger records exactly the approved
+  derived shares when the old visibility was `shared`. A public or private
+  transcript records no audience rows. Transcript and account deletion retain the
+  existing governance event and hard-delete the transcript; there is no
+  soft-delete. Deletions before 053 have no captured audience.
+
+  On a disposable PostgreSQL 16 database with 100,000 unrelated audit rows and
+  20,200 current shares across 101 transcripts and 200 collectives,
+  `TestMigration053RetractionPlans` ran `EXPLAIN (ANALYZE, BUFFERS)` without
+  planner overrides. The latest-event and latest-retracted lookups each used
+  `idx_gov_events_transcript` and visited one row (4 shared buffer hits, no
+  reads; 0.023 ms and 0.017 ms execution respectively). The audience insert
+  used `transcript_shares_pkey`, visited 200 matching rows (4 index buffer hits,
+  no reads) and inserted 200 rows in 4.463 ms. These are synthetic local
+  observations, not production latency guarantees; no extra index was needed.
+  The reproducible test asserts index selection and the bound, and logs the
+  full plans and buffer counts.
 
 ## 6. Triggers
 
@@ -945,6 +976,7 @@ The audit triggers (migration 026), the share-derivation triggers
 | `trg_audit_transcript_publish` | AFTER INSERT ON transcripts | `published` | **No WHEN clause** - every transcript INSERT requires an actor |
 | `trg_audit_transcript_governance` | AFTER UPDATE … WHEN (license/visibility `IS DISTINCT FROM`) | `license_changed` / `visibility_changed` / `governance_changed` | The WHEN clause IS the no-op suppression - a title-only or content_hash-only UPDATE never fires it and needs no actor |
 | `trg_audit_transcript_retract` | BEFORE DELETE ON transcripts | `retracted` (from `OLD.*`) | Fires per cascaded row too - the only mechanism covering `DeleteAccount`'s `ON DELETE CASCADE` (migration 010), which runs no per-transcript Go |
+| `trg_retraction_audience_immutable` | BEFORE UPDATE OR DELETE ON the audience table | - (RAISE) | Refuses direct mutation; permits a group cascade and the transaction-local audit-maintenance escape |
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
 | `trg_derive_transcript_share` | AFTER INSERT OR UPDATE ON transcript_share_attempts | the derived `transcript_shares` row | Upserts the row with the latest attempt's status for `pending`/`approved`/`rejected`, and DELETES it for `retracted`/`revoked`. **INSERT OR UPDATE, not INSERT**: decisions, withdrawals and removals are all UPDATEs of an existing attempt |
 | `trg_transcript_shares_fail_closed` | BEFORE INSERT OR UPDATE OR DELETE ON transcript_shares | - (RAISE) | Application SQL cannot write the derived row at all. Only the derivation may, and it proves that by holding `app.share_state_derivation`. A foreign-key cascade is allowed through, recognised by its parent row already being gone |
@@ -952,6 +984,11 @@ The audit triggers (migration 026), the share-derivation triggers
 | `trg_share_attempt_immutable` | BEFORE UPDATE ON transcript_share_attempts | - (RAISE) | Decided attempts (`approved`, `rejected`, `retracted`, `revoked`) are history. The one permitted change is the `decided_by` FK's `ON DELETE SET NULL`, which anonymises a deleted moderator's past decisions rather than blocking the deletion |
 
 - Every trigger function here is `SET search_path = pg_catalog, public`.
+- Migration 053 replaces `audit_transcript_retract()` without changing the
+  existing trigger: the event and `shared` audience capture commit or roll
+  back with the deletion. Capture uses the approved current-share projection,
+  before its transcript cascade. The audience trigger uses the existing
+  `app.audit_maintenance` escape and introduces no new GUC.
 - **`session_origin` is not a governance axis.** It is discovery metadata, so a
   `session_origin`-only UPDATE does not satisfy the governance trigger's WHEN
   clause and appends no audit row. This holds however the value was decided: a

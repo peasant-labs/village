@@ -23,3 +23,5 @@ sql:
             go_struct_tag: 'json:"-" db:"segmented_identity_hash"'
           - column: transcripts.segmented_identity_size
             go_struct_tag: 'json:"-" db:"segmented_identity_size"'
+          - column: transcripts.content_state
+            go_struct_tag: 'json:"-" db:"content_state"'

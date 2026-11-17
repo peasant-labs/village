@@ -79,6 +79,7 @@ var migrations = []migration{
 	{version: 50, file: "migrations/050_conversation_turn_count.up.sql"},
 	{version: 51, file: "migrations/051_transcript_content_revision.up.sql"},
 	{version: 52, file: "migrations/052_transcript_content_repair.up.sql"},
+	{version: 53, file: "migrations/053_transcript_absentee_state.up.sql"},
 }
 
 func RunMigrations(pool *pgxpool.Pool) error {

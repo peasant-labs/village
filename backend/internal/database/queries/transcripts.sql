@@ -45,7 +45,7 @@ INSERT INTO transcripts (
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size;
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state;
 
 -- name: UpdateTranscriptByOwnerAndLocalID :one
 UPDATE transcripts SET
@@ -156,7 +156,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size;
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state;
 
 -- name: GetTranscriptIDByOwnerAndLocalID :one
 -- Publish-path existence probe (create vs re-publish). ID-only ON PURPOSE: the
@@ -186,7 +186,7 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 FROM transcripts WHERE id = $1;
 
 -- name: GetTranscriptByIDForUpdate :one
@@ -234,7 +234,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
     conversation_turn_count, displayed_turn_count,
-    content_revision, segmented_identity_hash, segmented_identity_size;
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state;
 
 -- name: DeleteTranscript :exec
 DELETE FROM transcripts WHERE id = $1;
@@ -329,7 +329,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
     t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
     t.conversation_turn_count, t.displayed_turn_count,
-    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size
+    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size, t.content_state
 FROM transcripts t
 WHERE t.owner_id = @owner_id
   AND t.project_hash = @project_hash

@@ -63,7 +63,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
     t.publish_metadata_key, t.publish_metadata_hash, t.publish_metadata_size,
     t.conversation_turn_count, t.displayed_turn_count,
-    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size
+    t.content_revision, t.segmented_identity_hash, t.segmented_identity_size, t.content_state
 FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 WHERE ts.group_id = $1 AND ts.status = 'approved'

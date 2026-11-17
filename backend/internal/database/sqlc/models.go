@@ -300,6 +300,7 @@ type Transcript struct {
 	ContentRevision                     int64              `db:"content_revision" json:"-"`
 	SegmentedIdentityHash               pgtype.Text        `db:"segmented_identity_hash" json:"-"`
 	SegmentedIdentitySize               pgtype.Int8        `db:"segmented_identity_size" json:"-"`
+	ContentState                        string             `db:"content_state" json:"-"`
 }
 
 type TranscriptAssociation struct {
@@ -392,6 +393,11 @@ type TranscriptIntegrityResult struct {
 	Verdict      string             `db:"verdict" json:"verdict"`
 	FlaggedTurns []int32            `db:"flagged_turns" json:"flagged_turns"`
 	CheckedAt    pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
+}
+
+type TranscriptRetractionAudience struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
 }
 
 // DERIVED current-state row, written only by trg_derive_transcript_share from transcript_share_attempts. Application code never writes it. Rebuild with rebuild_transcript_shares(); verify with check_transcript_shares_drift().
