@@ -99,7 +99,16 @@
   scenario: descriptor-moved
   why: a moved descriptor is refused rather than reclassified
   expect: *moved
-- name: republish-established-identity-definite-absence-refused
+- name: republish-unavailable-refused-409
+  scenario: unavailable
+  why: a recorded loss refuses before a predecessor read, audience change or candidate upload
+  expect: {status: 409, revision: 1, reads: 0, writes: 0, visibility: public}
+- name: republish-unavailable-rechecked-under-row-lock
+  scenario: unavailable-after
+  why: a declaration committed after classification is rechecked and the candidate is removed
+  expect: {status: 409, revision: 1, reads: 1, writes: 1, visibility: public}
+- name: republish-usable-identity-absent-refused
+  stage: n1
   scenario: known-absent
-  why: a typed definite absence on an established identity cannot become a baseline
+  why: a provider-verified absence on an established identity cannot become a baseline
   expect: {status: 409, revision: 1, reads: 1, writes: 0, visibility: public}

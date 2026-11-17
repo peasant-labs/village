@@ -361,6 +361,13 @@ boundary are documented in
   Schedule this migration as a deploy step with sufficient lock and scan time;
   the runner's transaction timeout applies. Drain older binaries before declaring
   any content unavailable, since they do not check the new state.
+- **Republishing a recorded loss refuses before object access.** After an exact
+  accepted-fingerprint replay has been recognized, a republish of an
+  `unavailable` row returns 409 with operator guidance before reading its object,
+  narrowing visibility, or staging a candidate. The replacement transaction
+  rechecks the state under its row lock; if it moved after classification, it
+  refuses and follows the existing candidate cleanup and audience-restore path.
+  Declaring a loss and restoring its ciphertext remain operator-only operations.
 
 ## 2. Licensing data model
 

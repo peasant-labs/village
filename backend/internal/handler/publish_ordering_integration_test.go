@@ -64,6 +64,7 @@ var requiredCanonicalRewritePreimageCases = []string{
 
 type publishOrderingCase struct {
 	Name     string `yaml:"name"`
+	Stage    string `yaml:"stage"`
 	Scenario string `yaml:"scenario"`
 	Why      string `yaml:"why"`
 	Expect   struct {
@@ -102,7 +103,9 @@ var requiredPublishOrderingCases = []string{
 	"republish-preimage-identity-wins",
 	"republish-external-object-move-uncertain-answers-503",
 	"republish-external-descriptor-move-refused",
-	"republish-established-identity-definite-absence-refused",
+	"republish-unavailable-refused-409",
+	"republish-unavailable-rechecked-under-row-lock",
+	"republish-usable-identity-absent-refused",
 }
 
 func loadPublishOrderingCases(t *testing.T) []publishOrderingCase {
@@ -117,6 +120,9 @@ func loadPublishOrderingCases(t *testing.T) []publishOrderingCase {
 			t.Fatalf("ordering case must have a unique name, scenario and reason: %+v", c)
 		}
 		seen[c.Name] = true
+		if c.Stage != "" && c.Stage != "n" && c.Stage != "n1" {
+			t.Fatalf("unknown ordering stage %q", c.Stage)
+		}
 	}
 	for _, name := range requiredPublishOrderingCases {
 		if !seen[name] {
@@ -373,6 +379,9 @@ func TestPublishOrdering(t *testing.T) {
 	t.Cleanup(pool.Close)
 	objects := publishEvidenceObjects(t)
 	for ordinal, c := range loadPublishOrderingCases(t) {
+		if c.Stage == "n1" {
+			continue
+		}
 		t.Run(c.Name, func(t *testing.T) {
 			initial := attachmentPublicationContent()
 			if c.Scenario == "rewrite-skips" || c.Scenario == "competing-writers" {
@@ -521,6 +530,16 @@ func runPublishOrderingScenario(t *testing.T, w *orderingWorld, c publishOrderin
 			failure = storage.ErrObjectAbsentProvider
 		}
 		w.store.readHook = func(context.Context, int) error { return failure }
+	case "unavailable":
+		if _, err := w.pool.Exec(w.ctx, `UPDATE transcripts SET content_state='unavailable' WHERE id=$1`, w.id); err != nil {
+			t.Fatal(err)
+		}
+		w.initial = w.row()
+	case "unavailable-after":
+		w.store.afterWrite = func(ctx context.Context, _ int) error {
+			_, err := w.pool.Exec(ctx, `UPDATE transcripts SET content_state='unavailable' WHERE id=$1`, w.id)
+			return err
+		}
 	case "uncertain-after":
 		w.store.readHook = func(_ context.Context, n int) error {
 			if n == 2 {
@@ -570,6 +589,14 @@ func runPublishOrderingScenario(t *testing.T, w *orderingWorld, c publishOrderin
 		t.Fatalf("read/write calls=%d/%d want %d/%d (%s)", reads, writes, expect.Reads, expect.Writes, c.Why)
 	}
 	row := w.row()
+	if c.Scenario == "unavailable" {
+		if !strings.Contains(response.Body.String(), "stored content is recorded as lost") || !reflect.DeepEqual(row, w.initial) {
+			t.Fatalf("unavailable refusal must name the loss without modifying the row: status=%d body=%s", response.Code, response.Body.String())
+		}
+	}
+	if c.Scenario == "unavailable-after" && row.ContentState != "unavailable" {
+		t.Fatal("locked recheck did not preserve the declared unavailable state")
+	}
 	if row.ContentRevision != expect.Revision || row.Visibility != expect.Visibility {
 		t.Fatalf("revision/visibility=%d/%s want %d/%s", row.ContentRevision, row.Visibility, expect.Revision, expect.Visibility)
 	}

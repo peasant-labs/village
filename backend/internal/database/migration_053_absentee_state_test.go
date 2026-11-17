@@ -3,8 +3,10 @@ package database
 import (
 	"bytes"
 	_ "embed"
+	"reflect"
 	"testing"
 
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 	"gopkg.in/yaml.v3"
 )
 
@@ -71,7 +73,22 @@ func loadAbsenteeStateFixtures(t *testing.T) absenteeStateFixture {
 }
 
 func TestMigration053AbsenteeStateStructure(t *testing.T) {
-	loadAbsenteeStateFixtures(t)
+	fixture := loadAbsenteeStateFixtures(t)
+	var states []string
+	for _, state := range contentstate.All {
+		if !state.IsValid() {
+			t.Fatalf("invalid content state %q in Go menu", state)
+		}
+		states = append(states, state.String())
+	}
+	if !reflect.DeepEqual(states, fixture.States) {
+		t.Fatalf("content state menu=%v, database fixture=%v", states, fixture.States)
+	}
+	for _, invalid := range fixture.InvalidStates {
+		if contentstate.State(invalid).IsValid() {
+			t.Fatalf("invalid content state %q accepted by Go menu", invalid)
+		}
+	}
 	if !isRegisteredMigration(53) {
 		t.Fatal("absentee-state migration is not registered")
 	}

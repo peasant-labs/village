@@ -3,11 +3,13 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -17,7 +19,11 @@ var (
 	errPreImageMoved        = errors.New("republish could not use the previous transcript because its storage generation moved in handler.PublishTranscript; nothing was replaced; reload and retry")
 	errGenerationGone       = errors.New("republish could not use the previous transcript because it was deleted in handler.PublishTranscript; nothing was replaced; reload and retry")
 	errPreImageDiverged     = errors.New("republish could not verify the previous transcript because its authenticated content matches neither the stored identity nor the replacement in handler.PublishTranscript; nothing was replaced; ask an operator to reconcile the previous generation")
+	errContentUnavailable   = errors.New("Republish refused: this transcript's stored content is recorded as lost, so Village cannot compare your new version with the previous one. Ask a Village operator to restore the stored copy (Operator content repair). Nothing was uploaded or changed.")
+	errStoredObjectAbsent   = fmt.Errorf("%w: definite absence of the previous stored object", errPreImageMoved)
 )
+
+const storedObjectAbsentCopy = "Republish refused: the stored copy of this transcript's previous version is missing, so Village cannot compare your new version with it. A Village operator can restore it from a preserved copy, or record it as unavailable (Operator content repair). Nothing was uploaded or changed."
 
 type publishPredecessor struct {
 	row        sqlc.Transcript
@@ -67,6 +73,9 @@ func equalContentIdentity(a, b storage.ContentIdentity) bool {
 // or staging anything. A changed same-descriptor identity may have been
 // installed by a concurrent first read; one refresh observes that case.
 func (h *Handler) classifyPredecessor(ctx context.Context, q Querier, row sqlc.Transcript, candidate storage.ContentIdentity) (publishPredecessor, error) {
+	if contentstate.State(row.ContentState) == contentstate.Unavailable {
+		return publishPredecessor{}, errContentUnavailable
+	}
 	expected, known, err := establishedRevisionIdentity(row)
 	if err != nil {
 		return publishPredecessor{}, err
@@ -97,6 +106,9 @@ func (h *Handler) classifyPredecessor(ctx context.Context, q Querier, row sqlc.T
 				return publishPredecessor{}, identityErr
 			}
 			if freshKnown {
+				if errors.Is(err, storage.ErrObjectAbsentProvider) {
+					return publishPredecessor{}, errStoredObjectAbsent
+				}
 				return publishPredecessor{}, errPreImageMoved
 			}
 			// A malformed or incomplete non-NULL primary hash is not the
@@ -129,6 +141,9 @@ func (h *Handler) classifyPredecessor(ctx context.Context, q Querier, row sqlc.T
 // the object observation, so the writer and the transition guard compare the
 // same predecessor against the candidate.
 func (h *Handler) lockedPredecessor(ctx context.Context, previous publishPredecessor, locked sqlc.Transcript, candidate storage.ContentIdentity) (storage.ContentIdentity, error) {
+	if contentstate.State(locked.ContentState) == contentstate.Unavailable {
+		return storage.ContentIdentity{}, errContentUnavailable
+	}
 	d, err := descriptorFromTranscript(locked)
 	if err != nil || !descriptorsEqual(previous.descriptor, d) || locked.ContentRevision != previous.row.ContentRevision {
 		return storage.ContentIdentity{}, errPreImageMoved
@@ -210,6 +225,10 @@ func writePublishRevisionRefusal(w http.ResponseWriter, err error, audienceNote 
 	case errors.Is(err, errUncertainPredecessor):
 		w.Header().Set("Retry-After", "5")
 		writeError(w, http.StatusServiceUnavailable, errUncertainPredecessor.Error()+audienceNote)
+	case errors.Is(err, errContentUnavailable):
+		writeError(w, http.StatusConflict, errContentUnavailable.Error()+audienceNote)
+	case errors.Is(err, errStoredObjectAbsent):
+		writeError(w, http.StatusConflict, storedObjectAbsentCopy+audienceNote)
 	case errors.Is(err, errPreImageMoved):
 		writeError(w, http.StatusConflict, errPreImageMoved.Error()+audienceNote)
 	case errors.Is(err, errGenerationGone):
