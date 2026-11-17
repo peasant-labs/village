@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -45,9 +46,10 @@ type unstringConfig struct {
 }
 
 // TestUnstringMountFilesCoverRouteMounts fails when a production router file
-// mounts a group-relative route and is missing from endpoints.mountFiles.
-// The live tree is the positive case: router.go lists /health, which is
-// outside the default /api/v1 prefix, and that file is already listed.
+// mounts a group-relative route and matches no endpoints.mountFiles entry.
+// Each entry is a path or a glob. The live tree is the positive case:
+// router.go lists /health, which is outside the default /api/v1 prefix, and
+// backend/internal/router/*.go matches that file.
 func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 	root := repoRoot(t)
 	cfg := readUnstringConfig(t, filepath.Join(root, ".unstring.yaml"))
@@ -56,9 +58,9 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 		// unstring-allow: go-endpoint-literal — config default when prefixes are empty, not a route
 		prefixes = []string{"/api/v1"}
 	}
-	listed := make(map[string]struct{}, len(cfg.Endpoints.MountFiles))
-	for _, name := range cfg.Endpoints.MountFiles {
-		listed[filepath.ToSlash(name)] = struct{}{}
+	mountEntries := make([]string, len(cfg.Endpoints.MountFiles))
+	for i, name := range cfg.Endpoints.MountFiles {
+		mountEntries[i] = filepath.ToSlash(name)
 	}
 
 	routerDir := filepath.Join(root, "backend", "internal", "router")
@@ -75,13 +77,16 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 		}
 		scanned++
 		rel := filepath.ToSlash(filepath.Join("backend", "internal", "router", name))
-		path := filepath.Join(routerDir, name)
+		src := filepath.Join(routerDir, name)
 		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
+		file, err := parser.ParseFile(fset, src, nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v; a router file that does not parse cannot be checked against endpoints.mountFiles", rel, err)
 		}
-		_, known := listed[rel]
+		known, err := mountEntryCovers(mountEntries, rel)
+		if err != nil {
+			t.Fatalf("match %s against endpoints.mountFiles: %v; an entry must be a path or a glob path.Match accepts", rel, err)
+		}
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || len(call.Args) == 0 {
@@ -122,7 +127,7 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 					return true
 				}
 				pos := fset.Position(lit.Pos())
-				t.Errorf("%s:%d: route literal %q is group-relative, so the mount rule ignores it unless the file is listed in endpoints.mountFiles; add %q to endpoints.mountFiles", rel, pos.Line, value, rel)
+				t.Errorf("%s:%d: route literal %q is group-relative, so the mount rule ignores it unless the file matches an endpoints.mountFiles entry; add %q or a glob that matches it", rel, pos.Line, value, rel)
 				return true
 			})
 			return true
@@ -134,6 +139,23 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 	if inScope == 0 {
 		t.Fatal("no group-relative route literal in backend/internal/router; the live tree should mount /health outside the endpoint prefix, so this pass would be vacuous")
 	}
+}
+
+// mountEntryCovers reports whether rel matches any endpoints.mountFiles entry.
+// An entry is an exact repo-relative path or a glob. path.Match treats * as
+// any run of non-slash characters, so backend/internal/router/*.go covers
+// router.go and not a file in a subdirectory. The live config does not use **.
+func mountEntryCovers(entries []string, rel string) (bool, error) {
+	for _, entry := range entries {
+		ok, err := path.Match(entry, rel)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // groupRelative reports whether pattern is a route the mount rule sees only in

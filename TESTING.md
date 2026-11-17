@@ -14,6 +14,15 @@ rather than detector work. Run `RACE=1` (or `go test -race ./...`) to get race
 coverage locally; CI restores it explicitly once the suite is measured and
 partitioned.
 
+## Where the checks run
+
+The pull-request workflows and the merge queue are the same checks. `journey`
+boots the app and posts its evidence comment, `merge-gate` aggregates the
+backend and frontend jobs, and `title-guard` validates the pull request title.
+The queue re-runs all three on the combined group commit, so a green pull
+request is not proof that the group is green; the group build is. Docs-only
+pull requests still run the queue and must report every required context.
+
 ## Test documentation map
 
 | Layer | Build tag | Needs Postgres? | Runs in CI as | Where it's covered |

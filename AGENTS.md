@@ -58,7 +58,7 @@ See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
 ## Static guard
 
-`make check-unstring` runs `unstring` v0.0.2 over the frontend and backend. It
+`make check-unstring` runs `unstring` v0.0.4 over the frontend and backend. It
 needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
 A cold cache downloads the pinned module through the Go module proxy.
 `.unstring-baseline.yaml` is generated and can only shrink; run
@@ -70,10 +70,9 @@ The catalog's closed sets come from the schema module each root pins, so a
 schema pin change moves the counts; run `make unstring-update` in the same
 commit and say why in the commit message.
 
-A production file in `backend/internal/router` that mounts a group-relative
-route must be listed in `endpoints.mountFiles`; the control here checks that
-package. The mount rule scans group-relative route literals only in those
-files, and the tool does not accept globs there today.
+The config lists `backend/internal/router/*.go`. The tool accepts globs there.
+The control asserts every production file in that package matches a mount entry,
+so a file that mounts a group-relative route and matches no entry fails the test.
 
 ## Database and migration safety
 
@@ -103,8 +102,8 @@ wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
 The current backend module pin is Schema 0.53.0; its Village API version is
 0.40.0. The mounted-byte release-asset test guards this pairing. The frontend
-package pin remains `@peasant-labs/schema` 0.51.0: it will follow a Fairtrade
-release, and no producer emits the new Antigravity harness values yet.
+package pin is `@peasant-labs/schema` 0.54.0, rendered through
+`@peasant-labs/fairtrade` 0.0.71.
 
 Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
