@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -265,9 +266,15 @@ func TestRestoreAttestedGenerationRealPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantRevision := max(c.RevisionAfter, 1)
-			if state != c.StateAfter || revision != wantRevision || !equalPtr(gotHash, row.hash) || !equalPtr(gotSize, row.size) || segmentedHash != nil || segmentedSize != nil {
+			wantHash, wantSize := row.hash, row.size
+			if c.Put == "concurrent-change" {
+				// The concurrent writer replaced the stored identity (advanceRevision).
+				replacementHash, replacementSize := strings.Repeat("e", 64), int64(3)
+				wantHash, wantSize = &replacementHash, &replacementSize
+			}
+			if state != c.StateAfter || revision != wantRevision || !equalPtr(gotHash, wantHash) || !equalPtr(gotSize, wantSize) || segmentedHash != nil || segmentedSize != nil {
 				t.Fatalf("row after restore: state=%s revision=%d identity=%v/%v, want state=%s revision=%d identity=%v/%v",
-					state, revision, deref(gotHash), deref(gotSize), c.StateAfter, wantRevision, deref(row.hash), deref(row.size))
+					state, revision, deref(gotHash), deref(gotSize), c.StateAfter, wantRevision, deref(wantHash), deref(wantSize))
 			}
 
 			rows, err := pool.Query(ctx, `SELECT phase, COALESCE(failure_class,''), prior_revision, resulting_revision,
@@ -321,7 +328,10 @@ func countLedgerPhase(t *testing.T, ctx context.Context, pool *pgxpool.Pool, rep
 }
 
 // advanceRevision moves the transcript to revision two as another writer
-// would, under the identity writer marker the fence requires.
+// would, under the identity writer marker the fence requires. It is a
+// concurrent replacement of the stored identity: the transition guard refuses a
+// revision change with no change of identity, so the writer installs another
+// primary pair and the next revision.
 func advanceRevision(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) {
 	t.Helper()
 	tx, err := pool.Begin(ctx)
@@ -332,7 +342,7 @@ func advanceRevision(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id u
 	if _, err = tx.Exec(ctx, "SELECT set_config('app.actor_id',$1,true), set_config('app.transcript_writer_version','1',true)", database.SystemActorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(ctx, `UPDATE transcripts SET content_revision=2 WHERE id=$1`, id); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE transcripts SET content_hash=repeat('e', 64), blob_size_bytes=3, segmented_identity_hash=NULL, segmented_identity_size=NULL, content_revision=2 WHERE id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(ctx); err != nil {

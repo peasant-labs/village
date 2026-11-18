@@ -97,6 +97,34 @@ func execAsSystem(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql str
 	}
 }
 
+// execFixtureIdentity writes a stored identity onto an existing row for a test
+// that needs one particular value, including a value no writer could produce.
+// The revision transition guard refuses exactly this (an in-place identity
+// change), so the statement runs with triggers disabled for its one transaction
+// (session_replication_role = replica, which needs the superuser the test
+// service uses). Fixture state is not a writer path; the guard has its own
+// cases in the database package.
+func execFixtureIdentity(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Errorf("execFixtureIdentity: begin: %v", err)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL session_replication_role = 'replica'"); err != nil {
+		t.Errorf("execFixtureIdentity: disable triggers for the fixture write (the test role must be a superuser): %v", err)
+		return
+	}
+	if _, err := tx.Exec(ctx, sql, args...); err != nil {
+		t.Errorf("execFixtureIdentity: %s: %v", sql, err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Errorf("execFixtureIdentity: commit: %v", err)
+	}
+}
+
 // putTranscriptContent stores body under key in the fake blob store AND records
 // body's real identity (content hash and plaintext size) on the transcript row
 // that the key backs, as the system actor under the transcript writer fence.
@@ -107,7 +135,7 @@ func execAsSystem(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql str
 func putTranscriptContent(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blobs *fakeBlobStore, transcriptID pgtype.UUID, key string, body []byte) {
 	t.Helper()
 	blobs.put(key, body)
-	execAsSystem(t, ctx, pool,
+	execFixtureIdentity(t, ctx, pool,
 		`UPDATE transcripts SET content_hash = $2, blob_size_bytes = $3 WHERE id = $1`,
 		transcriptID, schema.ComputeTranscriptHash(body), int64(len(body)))
 }

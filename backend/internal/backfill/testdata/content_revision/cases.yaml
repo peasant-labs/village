@@ -12,8 +12,9 @@
 #   revision   the content revision the row carries; no job may change it
 #   holds_lock another session holds the transcript's publish lock for the run
 #   during     a writer outside the lock changes the row while the job reads:
-#                revision-advance   the content revision moves forward; the
-#                                   identity columns the job compares stay equal
+#                revision-advance   a replacement installs another primary pair and
+#                                   moves the content revision forward, so the
+#                                   segmented pair the job compares is gone
 #   outcome    how the job counts the row: installed, failed or stale
 #   row_after  what the row looks like afterward:
 #                consolidated  primary pair is the object's identity, segmented pair cleared
