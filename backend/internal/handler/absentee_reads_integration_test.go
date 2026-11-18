@@ -129,6 +129,27 @@ func TestAbsenteeReads(t *testing.T) {
 	if len(required) != 0 {
 		t.Fatalf("missing cases: %v", required)
 	}
+	requireRoutes := func(routes []absenteeRoute, expected map[absenteeRoute]bool) {
+		t.Helper()
+		for _, route := range routes {
+			if !expected[route] {
+				t.Fatalf("unexpected or duplicate route: %+v", route)
+			}
+			delete(expected, route)
+		}
+		if len(expected) != 0 {
+			t.Fatalf("missing routes: %v", expected)
+		}
+	}
+	requireRoutes(fixture.ContentRoutes, map[absenteeRoute]bool{
+		{"GET", "/content"}: true, {"GET", "/segments?v=2"}: true,
+		{"GET", "/segments/0?v=2"}: true, {"GET", "/window?v=2"}: true,
+		{"GET", "/header"}: true, {"POST", "/segments/locate"}: true,
+	})
+	requireRoutes(fixture.PullRoutes, map[absenteeRoute]bool{
+		{"GET", ""}: true, {"GET", "/content"}: true,
+		{"GET", "/annotations"}: true, {"GET", "/publish-metadata"}: true,
+	})
 	content, err := decodeFixtureDocument[struct {
 		Content        string                       `yaml:"content"`
 		HistoryContent string                       `yaml:"history_content"`
