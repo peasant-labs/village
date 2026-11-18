@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 	"testing"
@@ -93,7 +94,7 @@ func BenchmarkCookNumberCold(b *testing.B) {
 			b.Fatalf("partition failed: %v", err)
 		}
 	}
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 5 && os.Getenv("COOK_PROFILE_SINGLE") == ""; i++ {
 		runtime.GC()
 		pass()
 	}
