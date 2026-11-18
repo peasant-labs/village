@@ -1,0 +1,247 @@
+# Cases for the transcript content source: which stored rows a partition
+# serves, in what order, with which producer-assigned number, and where each
+# turn lies in the held bytes. The cooking and numbering rule is owned by the
+# contract module and replayed through the contract's own corpus; these cases
+# assert only what the source does with the rule's answer: membership decided
+# before any cut, every coordinate an index in the served order, one pass per
+# partition, and a refusal that leaves nothing behind.
+#
+# A case builds one canonical envelope: `main` is the main partition's turn
+# array (omit_main drops the member), and each entry of `history` is one earlier
+# history section's turn array. `indent` re-indents the whole document so the
+# byte offsets cross whitespace. `document`, when set, replaces the built
+# document. `reads` lists the partitions asked for, in order, as `main` or
+# `history-N`; unset, it is main and every section once. `rows` lists the
+# served rows of a partition as stored position and number, in served order.
+- name: source-drops-cooked-out-rows-before-position
+  why: A row the rule removes is in no served position, so the rows after it move up and the verdict still covers the stored row.
+  harness: codex
+  main: '[{"role":"user","content":"first","depth":0},{"role":"system","content":"short","depth":0},{"role":"assistant","content":"answer","depth":0},{"role":"assistant","content":"","depth":0},{"role":"user","content":"second","depth":0}]'
+  expect:
+    main:
+      stored_total: 5
+      rows: [{stored: 0, number: "1"}, {stored: 2, number: "1a"}, {stored: 4, number: "2"}]
+
+- name: source-numbering-follows-tasks
+  why: A user turn at depth zero opens a task; every other served row takes the task number and a letter, and a nested user turn is not a boundary.
+  harness: codex
+  main: '[{"role":"user","content":"one","depth":0},{"role":"assistant","content":"r1","depth":0},{"role":"assistant","content":"r2","depth":0},{"role":"user","content":"nested","depth":1},{"role":"user","content":"two","depth":0},{"role":"assistant","content":"r3","depth":0}]'
+  expect:
+    main:
+      stored_total: 6
+      rows: [{stored: 0, number: "1"}, {stored: 1, number: "1a"}, {stored: 2, number: "1b"}, {stored: 3, number: "1c"}, {stored: 4, number: "2"}, {stored: 5, number: "2a"}]
+
+- name: source-history-section-restarts-numbering
+  why: Each history section is its own partition and starts numbering again, whatever the main partition numbered.
+  harness: codex
+  main: '[{"role":"user","content":"main one","depth":0},{"role":"assistant","content":"main reply","depth":0},{"role":"user","content":"main two","depth":0}]'
+  history:
+    - '[{"role":"user","content":"old one","depth":0},{"role":"assistant","content":"old reply","depth":0}]'
+    - '[{"role":"assistant","content":"lead in","depth":0},{"role":"user","content":"old two","depth":0}]'
+  expect:
+    main:
+      stored_total: 3
+      rows: [{stored: 0, number: "1"}, {stored: 1, number: "1a"}, {stored: 2, number: "2"}]
+    history:
+      - stored_total: 2
+        rows: [{stored: 0, number: "1"}, {stored: 1, number: "1a"}]
+      - stored_total: 2
+        rows: [{stored: 0, number: "1"}, {stored: 1, number: "2"}]
+
+- name: source-main-and-history-never-dedupe-across
+  why: Equal adjacent rows collapse inside one partition only, so a history section that opens with the main partition's last row keeps it.
+  harness: codex
+  main: '[{"role":"user","content":"hello there","depth":0}]'
+  history:
+    - '[{"role":"user","content":"hello there","depth":0},{"role":"user","content":"hello there","depth":0}]'
+  expect:
+    main:
+      stored_total: 1
+      rows: [{stored: 0, number: "1"}]
+    history:
+      - stored_total: 2
+        rows: [{stored: 0, number: "1"}]
+
+- name: source-duplicate-with-tool-call-replaces-earlier
+  why: Of two equal adjacent rows the later one stays when it carries a tool call and the earlier does not, so the verdict removes the earlier stored row.
+  harness: codex
+  main: '[{"role":"user","content":"start","depth":0},{"role":"assistant","content":"run it","depth":0},{"role":"assistant","content":"run it","depth":0,"toolCalls":[{"id":"t1","name":"Read","arguments":"{}","result":""}]}]'
+  expect:
+    main:
+      stored_total: 3
+      rows: [{stored: 0, number: "1"}, {stored: 2, number: "1a"}]
+
+- name: source-pi-keeps-every-row
+  why: The same stored turns as the first case, served under the Pi producer, keep every row because that producer declares its own noise policy.
+  harness: pi
+  main: '[{"role":"user","content":"first","depth":0},{"role":"system","content":"short","depth":0},{"role":"assistant","content":"answer","depth":0},{"role":"assistant","content":"","depth":0},{"role":"user","content":"second","depth":0}]'
+  expect:
+    main:
+      stored_total: 5
+      rows: [{stored: 0, number: "1"}, {stored: 1, number: "1a"}, {stored: 2, number: "1b"}, {stored: 3, number: "1c"}, {stored: 4, number: "2"}]
+
+- name: source-pi-skips-evidence-validation
+  why: A turn whose evidence reference is null cannot be cooked for another producer but is served for Pi, which the rule does not validate.
+  harness: pi
+  main: '[{"role":"user","content":"hello","sourceEntryRef":null,"depth":0}]'
+  expect:
+    main:
+      stored_total: 1
+      rows: [{stored: 0, number: "1"}]
+
+- name: source-absent-and-null-turns-are-empty-partitions
+  why: A partition with no turn array, a null one or an empty one is empty and served, never refused and never invented.
+  harness: codex
+  omit_main: true
+  history: ['null', '[]']
+  expect:
+    main:
+      stored_total: 0
+      rows: []
+    history:
+      - stored_total: 0
+        rows: []
+      - stored_total: 0
+        rows: []
+
+- name: source-indented-document-offsets-exact
+  why: Byte ranges are offsets in the held document, so whitespace and separators between turns must not move them.
+  harness: codex
+  indent: true
+  main: '[{"role":"user","content":"one","depth":0},{"role":"assistant","content":"two","depth":0}]'
+  history:
+    - '[{"role":"user","content":"older","depth":0}]'
+  expect:
+    main:
+      stored_total: 2
+      rows: [{stored: 0, number: "1"}, {stored: 1, number: "1a"}]
+    history:
+      - stored_total: 1
+        rows: [{stored: 0, number: "1"}]
+
+- name: source-keeps-recorded-index-apart-from-position
+  why: A turn's recorded index is not its stored or served position; an absent or invalid index is reported as such and never filled in.
+  harness: codex
+  main: '[{"role":"system","content":"short","depth":0},{"index":7,"role":"user","content":"first","depth":0},{"role":"assistant","content":"reply","depth":0},{"index":-3,"role":"assistant","content":"later reply","depth":0}]'
+  expect:
+    main:
+      stored_total: 4
+      rows:
+        - {stored: 1, number: "1", recorded: "present:7"}
+        - {stored: 2, number: "1a", recorded: "absent"}
+        - {stored: 3, number: "1b", recorded: "invalid"}
+
+- name: source-cooks-once-per-partition
+  why: The pass runs once per partition for the life of the index, so a repeated main read and a repeated history read cook nothing again.
+  harness: codex
+  main: '[{"role":"user","content":"one","depth":0}]'
+  history:
+    - '[{"role":"user","content":"older","depth":0}]'
+  reads: [main, history-0, main, history-0, main]
+  cook_calls: 2
+  expect:
+    main:
+      stored_total: 1
+      rows: [{stored: 0, number: "1"}]
+    history:
+      - stored_total: 1
+        rows: [{stored: 0, number: "1"}]
+
+- name: source-uncookable-evidence-refuses
+  why: A partition the rule cannot cook is refused whole, with no partial rows, and the refusal wraps the contract's reason.
+  harness: codex
+  main: '[{"role":"user","content":"hello","sourceEntryRef":null,"depth":0}]'
+  expect:
+    main:
+      refuse: uncookable
+
+- name: source-uncookable-duplicate-without-content-refuses
+  why: Two equal adjacent rows with no content cannot be compared, so the rule refuses the partition rather than guessing.
+  harness: codex
+  main: '[{"role":"assistant","depth":0,"toolCalls":[{"id":"t1","name":"Read","arguments":"{}","result":""}]},{"role":"assistant","depth":0,"toolCalls":[{"id":"t2","name":"Read","arguments":"{}","result":""}]}]'
+  expect:
+    main:
+      refuse: uncookable
+
+- name: source-uncookable-leaves-no-partial-partition
+  why: A refused partition is not remembered as a partial index, so each later ask runs the pass again and is refused the same way.
+  harness: codex
+  main: '[{"role":"user","content":"hello","sourceEntryRef":null,"depth":0}]'
+  reads: [main, main]
+  cook_calls: 2
+  expect:
+    main:
+      refuse: uncookable
+
+- name: source-uncookable-main-leaves-history-servable
+  why: The partitions are independent, so a main partition that cannot be cooked does not stop a history section that can.
+  harness: codex
+  main: '[{"role":"user","content":"hello","sourceEntryRef":null,"depth":0}]'
+  history:
+    - '[{"role":"user","content":"older","depth":0}]'
+  expect:
+    main:
+      refuse: uncookable
+    history:
+      - stored_total: 1
+        rows: [{stored: 0, number: "1"}]
+
+- name: source-absent-partition-keys-refused
+  why: A history section beyond the recorded ones, a main key that names a section and a history key without one are not partitions of the generation.
+  harness: codex
+  main: '[{"role":"user","content":"one","depth":0}]'
+  history:
+    - '[{"role":"user","content":"older","depth":0}]'
+  reads: [main]
+  absent:
+    - {kind: history, section: 1}
+    - {kind: main, section: 0}
+    - {kind: history, section: -1}
+  expect:
+    main:
+      stored_total: 1
+      rows: [{stored: 0, number: "1"}]
+
+- name: source-reads-turn-bytes-only-within-the-document
+  why: The byte reader returns exactly the requested range of the held document and refuses a range that leaves it.
+  harness: codex
+  main: '[{"role":"user","content":"one","depth":0}]'
+  reads: [main]
+  ranges:
+    - {start: 0, end: 1, ok: true}
+    - {start: 0, end: 0, ok: true}
+    - {start: -1, end: 3, ok: false}
+    - {start: 4, end: 2, ok: false}
+    - {start: 0, end: 100000, ok: false}
+  expect:
+    main:
+      stored_total: 1
+      rows: [{stored: 0, number: "1"}]
+
+- name: source-refuses-document-without-session-detail
+  why: A document that carries no session detail has nothing to index and is refused at construction.
+  harness: codex
+  document: '{"contractVersion":"0.1.0","kind":"session_detail"}'
+  expect:
+    construct: uncookable
+
+- name: source-refuses-duplicate-turns-member
+  why: Two turn arrays in one session detail have no single meaning, so the document is refused rather than read as the first or the last.
+  harness: codex
+  document: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"harness":"codex","turns":[],"turns":[]}}'
+  expect:
+    construct: uncookable
+
+- name: source-refuses-turns-that-are-not-an-array
+  why: A turn member that is not an array cannot hold rows and is refused at construction.
+  harness: codex
+  document: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"harness":"codex","turns":{"role":"user"}}}'
+  expect:
+    construct: uncookable
+
+- name: source-refuses-content-after-the-envelope
+  why: Bytes after the envelope are not part of the generation, and indexing past them would hide a corrupted object.
+  harness: codex
+  document: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"harness":"codex","turns":[]}} {}'
+  expect:
+    construct: uncookable
