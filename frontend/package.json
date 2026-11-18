@@ -16,9 +16,9 @@
     "journey:update": "playwright test --config playwright.journey.config.mjs --update-snapshots",
     "journey:report": "playwright show-report scripts/journey/.artifacts/html",
     "journey:collectives-built": "node scripts/journey/run-collectives-built.mjs",
-    "lint": "eslint",
+    "lint": "node scripts/assert-unstring-eslint-enabled.mjs && eslint",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run && pnpm run test:mutation",
-    "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs",
+    "test:mutation": "node scripts/test-unstring-eslint-enabled.mjs && node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs",
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
     "shoot:explore": "node scripts/visual/explore-shoot.mjs",
@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.71",
-    "@peasant-labs/schema": "0.54.0",
+    "@peasant-labs/schema": "0.57.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.10.1",
@@ -79,10 +79,12 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "eslint-plugin-unstring": "0.2.1",
     "jsdom": "^30.0.1",
     "puppeteer-core": "^25.2.1",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "typescript-eslint": "8.56.1",
     "vitest": "^4.1.10",
     "yaml": "^2.9.0"
   }

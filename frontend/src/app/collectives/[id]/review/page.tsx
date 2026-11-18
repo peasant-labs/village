@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageReviewDecision } from "@peasant-labs/schema";
+
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Lock } from "lucide-react";
@@ -316,10 +318,10 @@ export default function GroupReviewPage({
                     sessionActions={(session) => (
                       <div className="on-review-row-actions">
                         <Button size="sm" variant="secondary" disabled={deciding || listing.isFetching || session.locked}
-                          loading={deciding && quickDecisionID === session.id && review.variables?.status === "approved"}
+                          loading={deciding && quickDecisionID === session.id && review.variables?.status === VillageReviewDecision.Approved}
                           aria-label={`approve ${session.label}`} onClick={() => void decide("approved", session.id)}>approve</Button>
                         <Button size="sm" variant="ghost" disabled={deciding || listing.isFetching || session.locked}
-                          loading={deciding && quickDecisionID === session.id && review.variables?.status === "rejected"}
+                          loading={deciding && quickDecisionID === session.id && review.variables?.status === VillageReviewDecision.Rejected}
                           aria-label={`reject ${session.label}`} onClick={() => void decide("rejected", session.id)}>reject</Button>
                         {review.isError && quickDecisionID === session.id && <p role="alert" className="on-review-error">
                           {review.error instanceof Error ? review.error.message : "the decision could not be applied. try again."}
@@ -373,7 +375,7 @@ export default function GroupReviewPage({
       )}
 
       {review.isSuccess && (review.data?.decided.length ?? 0) > 0 && <p role="status" className="on-review-result">
-        {review.data!.decided.length} {review.variables?.status === "approved" ? "approved" : "rejected"}
+        {review.data!.decided.length} {review.variables?.status === VillageReviewDecision.Approved ? "approved" : "rejected"}
       </p>}
       {(selectedCount > 0 || stale.size > 0 || (review.isError && quickDecisionID == null)) && <div className="on-contribute-footer">
         <div className="on-contribute-footer-inner">
@@ -395,7 +397,7 @@ export default function GroupReviewPage({
           {selectedCount > 0 && <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
-              loading={deciding && quickDecisionID == null && review.variables?.status === "rejected"}
+              loading={deciding && quickDecisionID == null && review.variables?.status === VillageReviewDecision.Rejected}
               disabled={selectedCount === 0 || deciding}
               onClick={() => void decide("rejected")}
             >
@@ -403,7 +405,7 @@ export default function GroupReviewPage({
             </Button>
             <Button
               variant="primary"
-              loading={deciding && quickDecisionID == null && review.variables?.status === "approved"}
+              loading={deciding && quickDecisionID == null && review.variables?.status === VillageReviewDecision.Approved}
               disabled={selectedCount === 0 || deciding}
               onClick={() => void decide("approved")}
             >

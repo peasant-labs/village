@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveAcceptanceMode } from "@peasant-labs/schema";
+
 import { useId, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { UserCheck } from "lucide-react";
@@ -177,7 +179,7 @@ export default function InvitationsBlock({ discoverable }: { discoverable: boole
                     <tr key={invitation.id} data-invitation-id={invitation.id}>
                       <td>
                         <span className="is-title normal-case">{invitation.collective.name}</span>
-                        {invitation.collective.acceptance_mode === "curated" ? (
+                        {invitation.collective.acceptance_mode === VillageCollectiveAcceptanceMode.Curated ? (
                           <>
                             {" "}
                             <span className="is-sub">joins by invitation</span>

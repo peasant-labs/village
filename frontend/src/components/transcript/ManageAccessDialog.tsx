@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveViewerRole, VillageShareStatus } from "@peasant-labs/schema";
+
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { VillageUserCollectiveShare } from "@peasant-labs/schema";
@@ -106,13 +108,13 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
   for (let index = 0; index < liveGroups.length; index++) {
     const group = liveGroups[index];
     const row = submissions[index].data?.find((s) => s.id === transcriptId);
-    if (!row || (row.status !== "approved" && row.status !== "pending")) continue;
+    if (!row || (row.status !== VillageShareStatus.Approved && row.status !== VillageShareStatus.Pending)) continue;
     const at = items.findIndex((item) => item.id === group.id);
     const item: AccessItem = {
       id: group.id,
       name: group.name,
       members: memberCounts.get(group.id),
-      ...(row.status === "pending" ? { pending: "approval" as const } : {}),
+      ...(row.status === VillageShareStatus.Pending ? { pending: "approval" as const } : {}),
     };
     if (at < 0) items.push(item);
     else items[at] = item;
@@ -122,7 +124,7 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
     const present = new Set(items.map((item) => item.id));
     const needle = query.trim().toLowerCase();
     return (groups.data ?? [])
-      .filter((g) => g.role && g.role !== "pending" && !present.has(g.id))
+      .filter((g) => g.role && g.role !== VillageCollectiveViewerRole.Pending && !present.has(g.id))
       .filter((g) => !needle || g.name.toLowerCase().includes(needle))
       .map((g) => ({
         id: g.id,

@@ -1,3 +1,4 @@
+import { VillageTranscriptVisibility } from "@peasant-labs/schema";
 import type { ContributableTranscript } from "./types";
 import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "./tree";
 
@@ -72,7 +73,7 @@ export function selectAll<Row extends TreeRowFacts>(tree: ProjectNode<Row>[]): S
 export function privateIds(selection: Selection, tree: ProjectNode<ContributableTranscript>[]): string[] {
   const rows = tree.flatMap((project) => sessionNodes(project));
   return rows
-    .filter((session) => selection.has(session.id) && session.row.visibility === "private")
+    .filter((session) => selection.has(session.id) && session.row.visibility === VillageTranscriptVisibility.Private)
     .map((session) => session.id);
 }
 
