@@ -1136,6 +1136,15 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			visible, lookupErr := h.retractedTranscriptVisible(r.Context(), toPgUUID(id), GetUser(r.Context()))
+			if lookupErr != nil {
+				writeError(w, http.StatusInternalServerError, "Cannot determine transcript availability because the database lookup failed; retry the request.")
+				return
+			}
+			if visible {
+				writeRetractedTranscript(w)
+				return
+			}
 			writeError(w, http.StatusNotFound, "Transcript not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "Cannot read transcript detail because the database lookup failed. No availability decision was made; retry the lookup.")
@@ -2760,17 +2769,9 @@ func (h *Handler) transcriptViewAccess(ctx context.Context, user *AuthUser, t sq
 		if err != nil {
 			return false, err
 		}
-		for _, groupID := range shares {
-			member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
-				GroupID: groupID,
-				UserID:  user.PgID(),
-			})
-			if err == nil && canReadData(member.Role, "contributors") {
-				return true, nil
-			}
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return false, err
-			}
+		allowed, err := h.canReadTranscriptGroups(ctx, user, shares)
+		if err != nil || allowed {
+			return allowed, err
 		}
 	}
 	// Collective owners can preview transcripts shared with their collective

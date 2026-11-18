@@ -361,6 +361,12 @@ func (m *mockQuerier) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sq
 func (m *mockQuerier) GetTranscriptByIDForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
 	return m.GetTranscriptByID(ctx, id)
 }
+func (m *mockQuerier) GetLatestRetractionVisibility(context.Context, pgtype.UUID) (string, error) {
+	return "", pgx.ErrNoRows
+}
+func (m *mockQuerier) ListRetractionAudiences(context.Context, pgtype.UUID) ([]pgtype.UUID, error) {
+	return nil, nil
+}
 func (m *mockQuerier) GetTranscriptGovernanceForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.GetTranscriptGovernanceForUpdateRow, error) {
 	if m.getTranscriptGovernanceForUpdate != nil {
 		return m.getTranscriptGovernanceForUpdate(ctx, id)
