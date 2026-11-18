@@ -3,7 +3,7 @@
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
 # Static guard against stringly-typed values, pinned to the published tool.
-UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.4
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.2.1
 BUILD_REVISION ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null)
 BACKEND_REVISION_LDFLAGS = -X github.com/peasant-labs/village/backend/internal/handler.buildRevision=$(BUILD_REVISION)
 
