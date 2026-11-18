@@ -7,6 +7,14 @@
 # statuses the production router answers without and with a session: they pin
 # the route's auth policy, so a stub cannot change from optional to required
 # auth unnoticed. Landing a real handler deletes its row.
+#
+# The test runs the router with no database. A session is accepted only after
+# its account is read from the database, so with none the session cannot be
+# confirmed: on an optional-auth stub `signed_in` equals `anonymous` (the
+# caller is served anonymously and reaches the stub), and on an auth-required
+# stub `signed_in` is 503 (the session is refused as unconfirmed before the
+# stub runs). A signed-in caller with a live account is proved against
+# PostgreSQL by the session identity probe test.
 routes:
   # The segmented reads carry the access rule of GET /transcripts/{id}/content:
   # auth is optional, so an anonymous caller reaches the stub as well.

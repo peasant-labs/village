@@ -50,6 +50,16 @@ func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 			t.Fatalf("the declared stub routes fixture has an empty or repeated name %q", r.Name)
 		}
 		present[r.Name] = true
+		// With no database a session cannot be confirmed: an optional-auth stub
+		// serves the signed-in caller anonymously, and an auth-required stub
+		// refuses it as unconfirmed. The fixture states that answer.
+		wantSignedIn := r.Anonymous
+		if r.Anonymous == http.StatusUnauthorized {
+			wantSignedIn = http.StatusServiceUnavailable
+		}
+		if r.SignedIn != wantSignedIn {
+			t.Fatalf("row %q pins signed_in %d with anonymous %d; with no database signed_in must equal anonymous on an optional-auth stub and be 503 on an auth-required one", r.Name, r.SignedIn, r.Anonymous)
+		}
 		// A request for the row must be a request for its route: same path with
 		// the parameters filled in, so a row cannot pin one route and probe another.
 		requestPath, _, _ := strings.Cut(r.Path, "?")
