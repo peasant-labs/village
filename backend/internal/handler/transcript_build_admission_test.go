@@ -183,7 +183,7 @@ func TestBuildAdmission(t *testing.T) {
 }
 
 func testAdmissionRelease(t *testing.T, modes []string) {
-	required := map[string]bool{"error": true, "panic": true, "cancel": true}
+	required := map[string]bool{"cook-failure": true, "panic": true, "cancel": true}
 	for _, mode := range modes {
 		if !required[mode] {
 			t.Fatalf("unexpected mode %q", mode)
@@ -200,7 +200,7 @@ func testAdmissionRelease(t *testing.T, modes []string) {
 				if mode == "panic" {
 					panic("test panic")
 				}
-				if mode == "error" {
+				if mode == "cook-failure" {
 					return nil, errors.New("test error")
 				}
 				return schema.CookTranscriptRows(turns, h)
@@ -232,7 +232,7 @@ func testAdmissionRelease(t *testing.T, modes []string) {
 			a()
 			close(unblock)
 			result := <-done
-			if result.panicked != (mode == "panic") || (result.err != nil) != (mode == "error") {
+			if result.panicked != (mode == "panic") || (result.err != nil) != (mode == "cook-failure") {
 				t.Fatalf("outcome: %+v", result)
 			}
 			c.mu.Lock()

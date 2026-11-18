@@ -9,5 +9,5 @@
 - name: build-admission-denied-viewer-404-before-admission
 - name: build-admission-warm-read-and-waiter-take-no-slot
 - name: build-admission-releases-on-failure-and-cancel
-  modes: [error, panic, cancel]
+  modes: [cook-failure, panic, cancel]
 - name: build-admission-refusal-reserves-nothing
