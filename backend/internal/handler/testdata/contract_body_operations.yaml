@@ -182,6 +182,7 @@
 - name: locate transcript entry
   method: POST
   path: /api/v1/transcripts/{id}/segments/locate
+  access_first: true
   conforming: '{"reference":"entry","revision":"1","representation":"r1","contentHash":"hash"}'
   malformed:
     - {name: reference missing, body: '{"revision":"1","representation":"r1","contentHash":"hash"}', expect: "/: missing properties: 'reference'"}
