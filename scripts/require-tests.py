@@ -7,9 +7,6 @@ import sys
 def main():
     with open(sys.argv[1], encoding="utf-8") as file:
         groups = json.load(file)  # JSON is a strict subset of YAML.
-    required = groups.get(sys.argv[2])
-    if not isinstance(required, list) or not required or len(required) != len(set(required)):
-        raise ValueError("unknown or invalid required-test group")
     passed = set()
     started = set()
     errors = []
@@ -22,6 +19,16 @@ def main():
             started.add(name)
         if action == "pass" and name:
             passed.add(name)
+    selected = sys.argv[2]
+    if selected == "auto":
+        names = started | passed
+        candidates = [group for group, tests in groups.items() if names.intersection(tests)]
+        if len(candidates) != 1:
+            raise ValueError("cannot uniquely identify required-test group from test events")
+        selected = candidates[0]
+    required = groups.get(selected)
+    if not isinstance(required, list) or not required or len(required) != len(set(required)):
+        raise ValueError("unknown or invalid required-test group")
     missing = set(required) - (passed & started)
     errors.extend(f"required test did not pass: {name}" for name in sorted(missing))
     if not passed:
