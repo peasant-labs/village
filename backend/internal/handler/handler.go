@@ -156,7 +156,6 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 	h := &Handler{
 		cfg:                    cfg,
 		pool:                   pool,
-		queries:                sqlc.New(pool),
 		blobs:                  blobs,
 		titles:                 titles,
 		preservationEvaluator:  productionObservedModelPreservationEvaluator{},
@@ -170,6 +169,13 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		contributableRowLimit: defaultContributableRowLimit,
 		githubDispatcher:      noopGitHubDispatcher{},
 		contentCache:          newTranscriptContentCache(transcriptContentCacheConfig{}),
+	}
+	// A handler built without a database has no queries rather than queries
+	// over a nil pool. authenticate then refuses to confirm any session
+	// explicitly (auth-required routes answer 503, optional-auth routes serve
+	// the caller anonymously) instead of dereferencing the missing pool.
+	if pool != nil {
+		h.queries = sqlc.New(pool)
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),

@@ -82,6 +82,8 @@ func TestMetadataLookupErrorsPreserveFailureAndPrivacy(t *testing.T) {
 					return sqlc.Transcript{OwnerID: toPgUUID(uuid.New())}, lookupErr
 				},
 				getGroupByID: func(context.Context, pgtype.UUID) (sqlc.Group, error) { lookups++; return sqlc.Group{}, lookupErr },
+				// The caller's account exists; only the metadata lookups fail.
+				getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) { return sqlc.User{ID: id}, nil },
 			}
 			h := newTestHandler(q, nil)
 			token, err := auth.CreateToken(h.cfg.JWTSecret, caller, "lookup-reader")

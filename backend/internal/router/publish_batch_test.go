@@ -74,7 +74,10 @@ func (b *forbiddenBatchBlobStore) Write(context.Context, uuid.UUID, []byte) (sto
 	return storage.BlobDescriptor{}, storage.ContentIdentity{}, fmt.Errorf("unimplemented batch route must not reach object persistence")
 }
 
-func assertRegisteredBatchRefusal(t *testing.T, pool *pgxpool.Pool, c batchRefusalCase) {
+// assertRegisteredBatchRefusal drives one case through the production router.
+// An authenticated case signs in as account, which must exist in pool: the
+// auth middleware confirms a session's account before the route runs.
+func assertRegisteredBatchRefusal(t *testing.T, pool *pgxpool.Pool, account uuid.UUID, c batchRefusalCase) *httptest.ResponseRecorder {
 	t.Helper()
 	cfg := &config.Config{JWTSecret: "batch-route-test-only-secret", FrontendURL: "https://example.test"}
 	blobs := &forbiddenBatchBlobStore{}
@@ -82,7 +85,7 @@ func assertRegisteredBatchRefusal(t *testing.T, pool *pgxpool.Pool, c batchRefus
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish/batch", strings.NewReader(c.Body))
 	r.Header.Set("Content-Type", "application/json")
 	if c.Authenticated {
-		token, err := auth.CreateToken(cfg.JWTSecret, uuid.New(), "batch-refusal")
+		token, err := auth.CreateToken(cfg.JWTSecret, account, "batch-refusal")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,14 +105,28 @@ func assertRegisteredBatchRefusal(t *testing.T, pool *pgxpool.Pool, c batchRefus
 	if blobs.writes.Load() != 0 {
 		t.Fatal("batch refusal attempted an object write")
 	}
+	return w
 }
 
 func TestRegisteredPublishBatchRefusesBeforePersistence(t *testing.T) {
 	for _, c := range batchRefusalCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
-			// A database access with no pool would fail, not produce the expected
-			// registered 401/501. The real router and auth middleware run here.
-			assertRegisteredBatchRefusal(t, nil, c)
+			// The real router and auth middleware run here with no database. A
+			// session's account is confirmed in the database before an
+			// auth-required route runs, so with no pool a signed-in case cannot
+			// reach the stub and must be refused as unconfirmed (503, retryable).
+			// TestRegisteredPublishBatchLeavesDatabaseUnchanged runs the signed-in
+			// cases against a real account and asserts their fixture answer.
+			if !c.Authenticated {
+				assertRegisteredBatchRefusal(t, nil, uuid.Nil, c)
+				return
+			}
+			c.Status = http.StatusServiceUnavailable
+			c.Error = "Could not confirm your signed-in account: the account lookup failed before the request ran, so nothing was read or changed. Retry in a few seconds; if it keeps failing, Village's database is unavailable."
+			w := assertRegisteredBatchRefusal(t, nil, uuid.New(), c)
+			if w.Header().Get("Retry-After") == "" {
+				t.Fatal("an unconfirmed session's 503 carries no Retry-After")
+			}
 		})
 	}
 }
