@@ -546,6 +546,9 @@ func (h *Handler) observePartition(ctx context.Context, get func(string, url.Val
 		return q
 	}
 	first := get("/segments", query())
+	if first.status == http.StatusServiceUnavailable {
+		return part, revision, 0, errPagedReadBusy
+	}
 	part.DirectoryStatus = first.status
 	if first.status != http.StatusOK {
 		return part, revision, 0, nil
@@ -565,6 +568,9 @@ func (h *Handler) observePartition(ctx context.Context, get func(string, url.Val
 			q := query()
 			q.Set("page", strconv.Itoa(number))
 			next := get("/segments", q)
+			if next.status == http.StatusServiceUnavailable {
+				return part, revision, history, errPagedReadBusy
+			}
 			if next.status != http.StatusOK {
 				part.DirectoryStatus = next.status
 				break
@@ -582,6 +588,9 @@ func (h *Handler) observePartition(ctx context.Context, get func(string, url.Val
 			return part, revision, history, err
 		}
 		response := get("/segments/"+strconv.Itoa(ordinal), query())
+		if response.status == http.StatusServiceUnavailable {
+			return part, revision, history, errPagedReadBusy
+		}
 		part.SegmentStatus[ordinal] = response.status
 		if response.status != http.StatusOK {
 			continue

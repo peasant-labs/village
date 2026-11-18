@@ -28,8 +28,9 @@ type buildAdmissionCase struct {
 	Name   string   `yaml:"name"`
 	Modes  []string `yaml:"modes"`
 	Routes []struct {
-		Name string `yaml:"name"`
-		Path string `yaml:"path"`
+		Name     string `yaml:"name"`
+		Path     string `yaml:"path"`
+		Template string `yaml:"template"`
 	} `yaml:"routes"`
 }
 
@@ -290,10 +291,20 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 	h.contentCache.retained = 0
 	h.contentCache.reserved = h.contentCache.budget
 	h.contentCache.mu.Unlock()
+	weightLabel := transcriptRefusalLabel{route: "/transcripts/{id}/segments", kind: transcriptRefusalWeight}
+	transcriptRefusals.Lock()
+	weightBefore := transcriptRefusals.counts[weightLabel]
+	transcriptRefusals.Unlock()
 	baseline := httptest.NewRecorder()
 	mux.ServeHTTP(baseline, httptest.NewRequest(http.MethodGet, base+"/segments?v=2", nil))
 	if baseline.Code != 503 || baseline.Header().Get("Retry-After") != "1" {
 		t.Fatalf("cache refusal: %d %s", baseline.Code, baseline.Body.String())
+	}
+	transcriptRefusals.Lock()
+	weightAfter := transcriptRefusals.counts[weightLabel]
+	transcriptRefusals.Unlock()
+	if weightAfter != weightBefore+1 {
+		t.Fatal("weight refusal counter did not increment")
 	}
 	expected := baseline.Body.Bytes()
 	for _, route := range tc.Routes {
@@ -333,10 +344,20 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 			defer b()
 			req := httptest.NewRequest(method, base+route.Path, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
+			label := transcriptRefusalLabel{route: route.Template, kind: transcriptRefusalCount}
+			transcriptRefusals.Lock()
+			before := transcriptRefusals.counts[label]
+			transcriptRefusals.Unlock()
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			if w.Code != 503 || w.Header().Get("Retry-After") != "1" {
 				t.Fatalf("got %d retry %q body %s", w.Code, w.Header().Get("Retry-After"), w.Body.String())
+			}
+			transcriptRefusals.Lock()
+			after := transcriptRefusals.counts[label]
+			transcriptRefusals.Unlock()
+			if after != before+1 {
+				t.Fatalf("count refusal counter did not increment for %s", route.Template)
 			}
 			if expected == nil {
 				expected = append([]byte(nil), w.Body.Bytes()...)
