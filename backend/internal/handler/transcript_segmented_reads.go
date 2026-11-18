@@ -131,16 +131,26 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 }
 
 func readGeneration(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := r.URL.Query().Get("v")
-	if raw == "" {
+	values, present := r.URL.Query()["v"]
+	if !present {
 		return 1, true
 	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || (n != 1 && n != 2) {
+	if len(values) != 1 {
 		segmentedError(w, http.StatusBadRequest, "Cannot select the segmented read version; use a supported version.")
 		return 0, false
 	}
-	return n, true
+	n, err := strconv.Atoi(values[0])
+	version, supported := schema.SegmentedReadProtocolVersion(n)
+	if err == nil && supported {
+		switch version {
+		case schema.SegmentedReadMinVersion:
+			return 1, true
+		case schema.SegmentedReadAPIVersion:
+			return 2, true
+		}
+	}
+	segmentedError(w, http.StatusBadRequest, "Cannot select the segmented read version; use a supported version.")
+	return 0, false
 }
 
 func readPartition(w http.ResponseWriter, r *http.Request, version int) (partitionKey, schema.TranscriptSegmentPartition, bool) {

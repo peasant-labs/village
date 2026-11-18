@@ -3,6 +3,7 @@ package handler
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -11,6 +12,51 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
+
+//go:embed testdata/segmented_read_negotiation.yaml
+var segmentedReadNegotiationYAML []byte
+
+type segmentedReadNegotiationCase struct {
+	Name      string `yaml:"name"`
+	Query     string `yaml:"query"`
+	Status    int    `yaml:"status"`
+	Supported bool   `yaml:"supported"`
+}
+
+func TestSegmentedReadNegotiation(t *testing.T) {
+	cases, err := decodeFixtureRows[segmentedReadNegotiationCase](segmentedReadNegotiationYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	required := map[string]bool{"omitted": true, "refused": true, "malformed": true, "empty": true, "duplicate-same": true, "duplicate-mixed": true}
+	for _, tc := range cases {
+		if !required[tc.Name] {
+			t.Fatalf("unexpected or duplicate case %q", tc.Name)
+		}
+		delete(required, tc.Name)
+		t.Run(tc.Name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			_, ok := readGeneration(w, httptest.NewRequest(http.MethodGet, "/"+tc.Query, nil))
+			if ok != tc.Supported || w.Code != tc.Status {
+				t.Fatalf("supported %t status %d, want %t %d", ok, w.Code, tc.Supported, tc.Status)
+			}
+		})
+	}
+	if len(required) != 0 {
+		t.Fatalf("missing cases: %v", required)
+	}
+	for _, generation := range schema.SegmentedReadGenerations() {
+		t.Run(fmt.Sprintf("contract-generation-%d", generation), func(t *testing.T) {
+			w := httptest.NewRecorder()
+			actual, ok := readGeneration(w, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/?v=%d", generation), nil))
+			wantVersion, declared := schema.SegmentedReadProtocolVersion(generation)
+			actualVersion, valid := schema.SegmentedReadProtocolVersion(actual)
+			if !declared || !ok || !valid || actualVersion != wantVersion {
+				t.Fatalf("selector %d resolves to %d (%q), want %q", generation, actual, actualVersion, wantVersion)
+			}
+		})
+	}
+}
 
 func TestSegmentedReadVersionAdvertisement(t *testing.T) {
 	w := httptest.NewRecorder()

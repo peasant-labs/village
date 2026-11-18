@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -29,6 +30,7 @@ type segmentedReadsEncryptedCase struct {
 	Private       bool   `yaml:"private"`
 	Missing       bool   `yaml:"missing"`
 	FailIntegrity bool   `yaml:"fail_integrity"`
+	CompareTo     string `yaml:"compare_to"`
 }
 
 type failingIntegrityQueries struct{ Querier }
@@ -42,7 +44,7 @@ func TestSegmentedReadsEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{"header-cold-no-partition": true, "positioned-directory": true, "positioned-segment": true, "positioned-window-default": true, "positioned-window-anchored": true, "legacy-directory": true, "legacy-segment": true, "legacy-window": true, "protocol-absent": true, "protocol-refused": true, "header": true, "header-bad-revision": true, "header-bad-representation": true, "header-revalidation": true, "etag-integrity-lookup-fails": true, "representation-mismatch": true, "access-denied": true, "etag-conditional-denied": true, "deleted-indistinguishable": true}
+	required := map[string]bool{"header-cold-no-partition": true, "positioned-directory": true, "positioned-segment": true, "positioned-window-default": true, "positioned-window-anchored": true, "legacy-directory": true, "zero-directory": true, "legacy-segment": true, "zero-segment": true, "legacy-window": true, "zero-window": true, "protocol-absent": true, "protocol-refused": true, "protocol-malformed": true, "protocol-duplicate": true, "protocol-empty": true, "header": true, "header-bad-revision": true, "header-bad-representation": true, "header-revalidation": true, "etag-integrity-lookup-fails": true, "representation-mismatch": true, "access-denied": true, "etag-conditional-denied": true, "deleted-indistinguishable": true}
 	fixture, err := decodeFixtureDocument[struct {
 		Content        string                       `yaml:"content"`
 		HistoryContent string                       `yaml:"history_content"`
@@ -66,6 +68,7 @@ func TestSegmentedReadsEncrypted(t *testing.T) {
 	base := "/transcripts/" + uuidFromPg(world.id).String()
 	etag := ""
 	denied := ""
+	bodies := make(map[string][]byte)
 	for _, tc := range cases {
 		if !required[tc.Name] {
 			t.Fatalf("unexpected or repeated case %q", tc.Name)
@@ -101,6 +104,13 @@ func TestSegmentedReadsEncrypted(t *testing.T) {
 			if w.Code != tc.Status {
 				t.Fatalf("status %d, want %d: %s", w.Code, tc.Status, w.Body.String())
 			}
+			if tc.CompareTo != "" {
+				want, ok := bodies[tc.CompareTo]
+				if !ok || !bytes.Equal(w.Body.Bytes(), want) {
+					t.Fatalf("body differs from %s: got %s, want %s", tc.CompareTo, w.Body.Bytes(), want)
+				}
+			}
+			bodies[tc.Name] = bytes.Clone(w.Body.Bytes())
 			if tc.Name == "access-denied" {
 				denied = w.Body.String()
 			}

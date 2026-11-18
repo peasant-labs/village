@@ -4,10 +4,16 @@
 - {name: positioned-window-default, path: "/window?v=2", status: 200}
 - {name: positioned-window-anchored, path: "/window?v=2&anchor=0", status: 200}
 - {name: legacy-directory, path: "/segments?v=1", status: 200}
+- {name: zero-directory, path: "/segments?v=0", status: 200, compare_to: legacy-directory}
 - {name: legacy-segment, path: "/segments/0?v=1", status: 200}
+- {name: zero-segment, path: "/segments/0?v=0", status: 200, compare_to: legacy-segment}
 - {name: legacy-window, path: "/window?v=1&anchor=0", status: 200}
+- {name: zero-window, path: "/window?v=0&anchor=0", status: 200, compare_to: legacy-window}
 - {name: protocol-absent, path: "/segments", status: 200}
 - {name: protocol-refused, path: "/segments?v=3", status: 400}
+- {name: protocol-malformed, path: "/segments?v=no", status: 400}
+- {name: protocol-duplicate, path: "/segments?v=1&v=1", status: 400}
+- {name: protocol-empty, path: "/segments?v=", status: 400}
 - {name: header, path: "/header?revision=1", status: 200}
 - {name: header-bad-revision, path: "/header?revision=bad", status: 400}
 - {name: header-bad-representation, path: "/header?representation=bad", status: 400}
