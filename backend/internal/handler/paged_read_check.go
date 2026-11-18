@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/peasant-labs/schema"
 	schemaRoute "github.com/peasant-labs/schema/route"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 // This file is the paged-read parity check: it reads one transcript through
@@ -413,7 +414,6 @@ func (c *capturedResponse) Write(b []byte) (int, error) {
 // patterns, relative to the API prefix, for in-process reads.
 func (h *Handler) pagedReadRoutes() http.Handler {
 	mux := chi.NewRouter()
-	mux.Get("/transcripts/{id}/content", h.GetTranscriptContent)
 	for _, mount := range []struct {
 		route   schemaRoute.Route
 		handler http.HandlerFunc
@@ -456,11 +456,7 @@ func (h *Handler) observePagedReads(ctx context.Context, routes http.Handler, id
 		return w
 	}
 	var obs pagedReadObservation
-	content := get("/content", nil)
-	obs.ContentStatus = content.status
-	if content.status == http.StatusOK {
-		obs.Content = content.body.Bytes()
-	}
+	obs.ContentStatus, obs.Content = h.observeContentWithoutWrites(ctx, id, viewer)
 	main, revision, history, err := h.observePartition(ctx, get, mainPartitionKey(), "")
 	if err != nil {
 		return obs, err
@@ -474,6 +470,36 @@ func (h *Handler) observePagedReads(ctx context.Context, routes http.Handler, id
 		obs.Partitions = append(obs.Partitions, part)
 	}
 	return obs, nil
+}
+
+// observeContentWithoutWrites uses the same authorization, decryption, body
+// preparation and owner projection as the content route, without read repair.
+func (h *Handler) observeContentWithoutWrites(ctx context.Context, id uuid.UUID, viewer *AuthUser) (int, []byte) {
+	row, err := h.queries.GetTranscriptByID(ctx, toPgUUID(id))
+	if err != nil || !h.canViewTranscript(ctx, viewer, row) {
+		return http.StatusNotFound, nil
+	}
+	read, err := h.readEncryptedTranscript(ctx, row, "", func(fresh sqlc.Transcript) bool {
+		return h.canViewTranscript(ctx, viewer, fresh)
+	})
+	if err != nil {
+		return http.StatusInternalServerError, nil
+	}
+	prepared, err := contentResponseBody(ctx, read.Plaintext)
+	if err != nil {
+		return http.StatusInternalServerError, nil
+	}
+	owner, err := h.resolvePublicOwner(ctx, viewer, row.OwnerID)
+	if err != nil {
+		return http.StatusInternalServerError, nil
+	}
+	if !owner.IsProfile() {
+		prepared.body, err = withholdContentRepository(prepared.body)
+		if err != nil {
+			return http.StatusInternalServerError, nil
+		}
+	}
+	return http.StatusOK, prepared.body
 }
 
 func pagedReadPath(id uuid.UUID, suffix string) string {
