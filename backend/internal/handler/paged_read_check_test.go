@@ -26,7 +26,10 @@ type pagedReadParityFixture struct {
 		Perturbation string `yaml:"perturbation"`
 		Kind         string `yaml:"kind"`
 	} `yaml:"detections"`
-	Corpus []string `yaml:"corpus"`
+	Corpus      []string          `yaml:"corpus"`
+	StateReads  map[string]string `yaml:"state_reads"`
+	Unreachable map[string]string `yaml:"unreachable"`
+	Content     string            `yaml:"content"`
 }
 
 func loadPagedReadParityFixture(t *testing.T) pagedReadParityFixture {
@@ -76,6 +79,25 @@ func TestPagedReadParityCorpusCoversClosedShapeSet(t *testing.T) {
 		}
 		if len(generated) != len(allTranscriptRowStates())*len(allTranscriptAudienceKinds()) {
 			t.Fatalf("the generated corpus is not the full product of the two closed sets")
+		}
+		var states []string
+		for _, state := range allTranscriptRowStates() {
+			states = append(states, state.String())
+			if outcome := fixture.StateReads[state.String()]; outcome != "served" && outcome != "refused" && outcome != "unreachable" {
+				t.Fatalf("state_reads gives row state %s the outcome %q; give served or refused", state, outcome)
+			}
+		}
+		if len(fixture.StateReads) != len(states) {
+			t.Fatalf("state_reads names %d states, the closed set has %v", len(fixture.StateReads), states)
+		}
+		if len(fixture.Unreachable) != 1 || fixture.Unreachable["l1d"] != "transcripts_content_revision_identity" {
+			t.Fatalf("unexpected unreachable state constraints: %v", fixture.Unreachable)
+		}
+		for state := range fixture.StateReads {
+			_, unreachable := fixture.Unreachable[state]
+			if unreachable != (fixture.StateReads[state] == "unreachable") {
+				t.Fatalf("unreachable state membership differs for %s", state)
+			}
 		}
 	})
 }

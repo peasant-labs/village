@@ -60,3 +60,19 @@ corpus:
   - parity-shape-l1d-owner
   - parity-shape-l1d-collective-member
   - parity-shape-l1d-collective-owner-preview
+# What both reads of a stored row in each state must do: serve it, or refuse
+# it. A row state outside this map fails the corpus.
+state_reads:
+  n: served
+  n2-l4: refused
+  l1: served
+  l2: served
+  l3: served
+  l1m: refused
+  l1d: unreachable
+unreachable:
+  l1d: transcripts_content_revision_identity
+# The corpus subject, published through the production publish path before
+# its row is moved into each state. It has a row the cooking rule removes, so
+# a served row set that included it would be a break.
+content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"paged-read-parity-session","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":5,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"parity corpus first prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"system","content":"short","timestamp":"2026-01-01T00:00:02Z","depth":0},{"index":2,"role":"assistant","content":"parity corpus answer","timestamp":"2026-01-01T00:00:03Z","depth":0},{"index":3,"role":"user","content":"parity corpus second prompt","timestamp":"2026-01-01T00:00:04Z","depth":0},{"index":4,"role":"assistant","content":"parity corpus reply","timestamp":"2026-01-01T00:00:05Z","depth":0}]}}'
