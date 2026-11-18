@@ -125,6 +125,36 @@ func execFixtureIdentity(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	}
 }
 
+// swapFixtureDescriptor replaces a row's stored descriptor and identity with
+// another one, in either direction, for a test that serves stored content a
+// writer would never leave behind. The revision transition guard refuses it
+// (a different identity must advance the revision, and a revert would lower it),
+// so it runs with triggers disabled, as execFixtureIdentity does. It matches the
+// row on its current object key and reports a miss.
+func swapFixtureDescriptor(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID, from, to sqlc.Transcript) {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("swapFixtureDescriptor: begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL session_replication_role = 'replica'"); err != nil {
+		t.Fatalf("swapFixtureDescriptor: disable triggers for the fixture write (the test role must be a superuser): %v", err)
+	}
+	tag, err := tx.Exec(ctx, `UPDATE transcripts SET blob_key = $3, wrapped_data_key = $4, encryption_algorithm = $5, key_version = $6,
+			content_hash = $7, blob_size_bytes = $8, content_revision = $9,
+			segmented_identity_hash = $10, segmented_identity_size = $11
+		WHERE id = $1 AND blob_key = $2`,
+		id, from.BlobKey, to.BlobKey, to.WrappedDataKey, to.EncryptionAlgorithm, to.KeyVersion,
+		to.ContentHash, to.BlobSizeBytes, to.ContentRevision, to.SegmentedIdentityHash, to.SegmentedIdentitySize)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("swapFixtureDescriptor: rows=%d err=%v", tag.RowsAffected(), err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("swapFixtureDescriptor: commit: %v", err)
+	}
+}
+
 // putTranscriptContent stores body under key in the fake blob store AND records
 // body's real identity (content hash and plaintext size) on the transcript row
 // that the key backs, as the system actor under the transcript writer fence.
