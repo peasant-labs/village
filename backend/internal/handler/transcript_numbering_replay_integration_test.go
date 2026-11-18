@@ -25,6 +25,13 @@ var numberingReplayYAML []byte
 
 const schemaNumberingFixturePath = "testdata/transcript_numbering.yaml"
 
+type numberingCorpusOutcome string
+
+const (
+	numberingCooked  numberingCorpusOutcome = "cooked"
+	numberingRefused numberingCorpusOutcome = "refused"
+)
+
 type numberingReplayManifest struct {
 	Name              string   `yaml:"name"`
 	ControlTurns      string   `yaml:"control_turns"`
@@ -40,7 +47,7 @@ type schemaNumberingCase struct {
 		Turns   string `yaml:"turnsJSON"`
 	} `yaml:"input"`
 	Expect struct {
-		Outcome string `yaml:"outcome"`
+		Outcome numberingCorpusOutcome `yaml:"outcome"`
 	} `yaml:"expect"`
 	Expected []struct {
 		Position       int    `yaml:"position"`
@@ -161,12 +168,12 @@ func TestNumberingSchemaReplay(t *testing.T) {
 					t.Fatalf("construct held content index: %v", err)
 				}
 				part, err := index.Partition(mainPartitionKey())
-				if tc.Expect.Outcome == "refused" {
+				if tc.Expect.Outcome == numberingRefused {
 					if err == nil || part != nil || len(index.Partitions) != 0 {
 						t.Fatalf("expected cook refusal without partial partition: partition=%+v error=%v", part, err)
 					}
 				} else {
-					if tc.Expect.Outcome != "cooked" || err != nil {
+					if tc.Expect.Outcome != numberingCooked || err != nil {
 						t.Fatalf("expected cooked partition, got outcome %q error %v", tc.Expect.Outcome, err)
 					}
 					served := 0
