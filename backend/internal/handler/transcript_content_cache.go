@@ -49,6 +49,9 @@ const (
 	// whose row records no size. It is conservative and is replaced by the
 	// loaded bytes' real size when the load ends.
 	transcriptContentCacheUnknownWeight int64 = transcriptContentCacheBudgetBytes / 8
+
+	// transcriptHeavyWorkLimit bounds concurrent loads and index builds.
+	transcriptHeavyWorkLimit = 2
 )
 
 // errTranscriptReadBusy is the bounded refusal for a read the cache cannot
@@ -171,11 +174,12 @@ type transcriptContentCache struct {
 	every  time.Duration
 	now    func() time.Time
 
-	mu       sync.Mutex
-	entries  map[transcriptCacheKey]*transcriptCacheEntry
-	flights  map[transcriptCacheKey]*transcriptCacheFlight
-	retained int64 // bytes held by entries
-	reserved int64 // bytes reserved by in-budget loads in flight
+	mu        sync.Mutex
+	entries   map[transcriptCacheKey]*transcriptCacheEntry
+	flights   map[transcriptCacheKey]*transcriptCacheFlight
+	retained  int64 // bytes held by entries
+	reserved  int64 // bytes reserved by in-budget loads in flight
+	heavyWork int   // loads and builds currently in flight
 	// oversized names the one active load whose weight exceeds the budget.
 	oversized *transcriptCacheFlight
 	purged    [purgeReasonCount]int
@@ -264,18 +268,14 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 		return c.wait(ctx, flight)
 	}
 	flight := &transcriptCacheFlight{key: key, owner: load.Owner, weight: weight, done: make(chan struct{}), waiters: 1}
+	if err := c.admitLocked(weight); err != nil {
+		c.mu.Unlock()
+		return nil, err
+	}
 	if weight > c.budget {
-		if c.oversized != nil {
-			c.mu.Unlock()
-			return nil, errTranscriptReadBusy
-		}
 		flight.oversized = true
 		c.oversized = flight
 	} else {
-		if c.retained+c.reserved+weight > c.budget {
-			c.mu.Unlock()
-			return nil, errTranscriptReadBusy
-		}
 		c.reserved += weight
 	}
 	// The load outlives the reader that started it, so a second reader that
@@ -287,6 +287,44 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 
 	go c.run(flight, loader)
 	return c.wait(ctx, flight)
+}
+
+// admitLocked checks both limits before changing any accounting. A zero
+// weight represents a build against an already-open generation.
+func (c *transcriptContentCache) admitLocked(weight int64) error {
+	if weight > c.budget {
+		if c.oversized != nil {
+			return errTranscriptReadBusy
+		}
+	} else if c.retained+c.reserved+weight > c.budget {
+		return errTranscriptReadBusy
+	}
+	if c.heavyWork >= transcriptHeavyWorkLimit {
+		return errTranscriptReadBusy
+	}
+	c.heavyWork++
+	return nil
+}
+
+// AcquireBuild reserves a heavy-work slot until its caller finishes building.
+func (c *transcriptContentCache) AcquireBuild(ctx context.Context) (func(), error) {
+	if c == nil {
+		return func() {}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	err := c.admitLocked(0)
+	c.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		c.mu.Lock()
+		c.heavyWork--
+		c.mu.Unlock()
+	}, nil
 }
 
 func (c *transcriptContentCache) wait(ctx context.Context, flight *transcriptCacheFlight) (*openedTranscript, error) {
@@ -326,6 +364,7 @@ func (c *transcriptContentCache) run(flight *transcriptCacheFlight, loader trans
 	}
 
 	c.mu.Lock()
+	c.heavyWork--
 	if c.flights[flight.key] == flight {
 		delete(c.flights, flight.key)
 	}
