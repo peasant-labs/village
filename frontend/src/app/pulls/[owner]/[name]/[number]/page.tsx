@@ -1,5 +1,7 @@
 "use client";
 
+import { DigestItemKind, VillagePullRequestAttachmentState } from "@peasant-labs/schema";
+
 import { use, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
@@ -21,11 +23,7 @@ import {
 import { transcriptQueryOptions } from "@/lib/queries/transcripts";
 import { transcriptCollectivesQueryOptions } from "@/lib/queries/collectives";
 import { useAuth } from "@/providers/AuthProvider";
-import type {
-  PromptDigest as PromptDigestPayload,
-  PromptDigestItem,
-  VillagePullRequestAttachmentState,
-} from "@peasant-labs/schema";
+import type { PromptDigest as PromptDigestPayload, PromptDigestItem } from "@peasant-labs/schema";
 import type { TranscriptCollective, TranscriptDetailResponse } from "@/lib/types";
 import DocsLink from "@/components/online/DocsLink";
 import { DOCS_ATTACH_URL, DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
@@ -60,11 +58,11 @@ const GITHUB_HOST = "https://github.com";
 /** One chain item's destination: the turn, the transcript, or the commit. A
  *  transcript link names this pull request as the place it was opened from. */
 function itemHref(item: PromptDigestItem, owner: string, name: string, number: number): string {
-  if (item.kind === "commit") {
+  if (item.kind === DigestItemKind.Commit) {
     return `${GITHUB_HOST}/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commit/${encodeURIComponent(item.commitSha ?? item.text)}`;
   }
   const context: TranscriptContext = { kind: "pull", owner, name, number };
-  if ((item.kind === "prompt" || item.kind === "skill") && item.turnIndex != null) {
+  if ((item.kind === DigestItemKind.Prompt || item.kind === DigestItemKind.Skill) && item.turnIndex != null) {
     return transcriptHref(item.transcriptId, context, item.turnIndex);
   }
   return transcriptHref(item.transcriptId, context);
@@ -76,7 +74,7 @@ function digestTranscriptIds(digest: PromptDigestPayload | null | undefined): st
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const item of digest.items) {
-    if (item.kind === "session" && !seen.has(item.transcriptId)) {
+    if (item.kind === DigestItemKind.Session && !seen.has(item.transcriptId)) {
       seen.add(item.transcriptId);
       ids.push(item.transcriptId);
     }
@@ -161,10 +159,10 @@ interface TranscriptRowData {
  */
 function transcriptRows(digest: PromptDigestPayload | null): TranscriptRowData[] {
   if (!digest) return [];
-  const leading = digest.items.length > 0 && digest.items[0].kind !== "session" ? 1 : 0;
+  const leading = digest.items.length > 0 && digest.items[0].kind !== DigestItemKind.Session ? 1 : 0;
   const rows: TranscriptRowData[] = [];
   for (const item of digest.items) {
-    if (item.kind !== "session") continue;
+    if (item.kind !== DigestItemKind.Session) continue;
     rows.push({
       transcriptId: item.transcriptId,
       label: item.text,
@@ -202,7 +200,7 @@ export default function PullRequestPage({
   // The author is told who can read what they attach, from each transcript's own
   // reads. Nobody else is: a reader sees only the transcripts they can open, and
   // the audience of those is the transcript page's to state.
-  const readsAudience = viewerIsAuthor && (state === "preview" || state === "attached");
+  const readsAudience = viewerIsAuthor && (state === VillagePullRequestAttachmentState.Preview || state === VillagePullRequestAttachmentState.Attached);
   const audienceIds = readsAudience ? sessionIds : [];
   const reads = useQueries({
     queries: audienceIds.flatMap((id) => [
@@ -255,7 +253,7 @@ export default function PullRequestPage({
     const titled = {
       ...digest,
       items: digest.items.map((item) => {
-        const title = item.kind === "session" ? titles.get(item.transcriptId) : undefined;
+        const title = item.kind === DigestItemKind.Session ? titles.get(item.transcriptId) : undefined;
         return title ? { ...item, text: title } : item;
       }),
     };
@@ -385,7 +383,7 @@ export default function PullRequestPage({
     detach.mutate();
   };
   const hasActions =
-    viewerIsAuthor && (state === "preview" || state === "attached" || state === "waiting");
+    viewerIsAuthor && (state === VillagePullRequestAttachmentState.Preview || state === VillagePullRequestAttachmentState.Attached || state === VillagePullRequestAttachmentState.Waiting);
   const actions = hasActions ? (
     <AuthorActions
       state={state}
@@ -489,7 +487,7 @@ export default function PullRequestPage({
             </p>
           ) : (
             <p className="on-pr-note" data-testid="digest-absent">
-              {state === "attached"
+              {state === VillagePullRequestAttachmentState.Attached
                 ? "no prompts are shown for this pull request."
                 : "the prompts appear here once the author attaches them."}
             </p>
@@ -657,7 +655,7 @@ function AuthorBand({
 }) {
   let line: ReactNode;
   switch (state) {
-    case "preview":
+    case VillagePullRequestAttachmentState.Preview:
       line = (
         <>
           <strong>
@@ -669,7 +667,7 @@ function AuthorBand({
         </>
       );
       break;
-    case "attached":
+    case VillagePullRequestAttachmentState.Attached:
       line = (
         <strong>
           <span className="on-pr-n">{matching}</span> of your transcripts{" "}
@@ -677,7 +675,7 @@ function AuthorBand({
         </strong>
       );
       break;
-    case "waiting":
+    case VillagePullRequestAttachmentState.Waiting:
       line = (
         <>
           <strong>none of your transcripts match this pull request yet.</strong>{" "}
@@ -685,7 +683,7 @@ function AuthorBand({
         </>
       );
       break;
-    case "requested":
+    case VillagePullRequestAttachmentState.Requested:
       line = (
         <>
           <strong>you were asked to attach your transcripts.</strong>{" "}
@@ -693,7 +691,7 @@ function AuthorBand({
         </>
       );
       break;
-    case "detached":
+    case VillagePullRequestAttachmentState.Detached:
       line = (
         <>
           <strong>you detached your transcripts from this pull request.</strong>{" "}
@@ -751,7 +749,7 @@ function AuthorActions({
   onDetach: () => void;
 }) {
   switch (state) {
-    case "preview":
+    case VillagePullRequestAttachmentState.Preview:
       return (
         <>
           <Button
@@ -772,8 +770,8 @@ function AuthorActions({
           </Button>
         </>
       );
-    case "attached":
-    case "waiting":
+    case VillagePullRequestAttachmentState.Attached:
+    case VillagePullRequestAttachmentState.Waiting:
       return (
         <Button
           variant="secondary"

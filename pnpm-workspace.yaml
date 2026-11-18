@@ -25,3 +25,4 @@ allowBuilds:
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - '@peasant-labs/*'
+  - 'eslint-plugin-unstring'

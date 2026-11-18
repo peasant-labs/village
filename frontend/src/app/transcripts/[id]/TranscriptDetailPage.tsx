@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveViewerRole, VillageShareStatus } from "@peasant-labs/schema";
+
 import { use, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
@@ -76,10 +78,10 @@ export default function TranscriptDetailPage({
   const pendingReviews = useMemo<PendingReview[]>(() => {
     if (!data || !myGroups) return [];
     const ownedGroupIds = new Set(
-      myGroups.filter((g) => g.role === "owner").map((g) => g.id)
+      myGroups.filter((g) => g.role === VillageCollectiveViewerRole.Owner).map((g) => g.id)
     );
     return (data.enriched_shares ?? [])
-      .filter((s) => s.status === "pending" && ownedGroupIds.has(s.group_id))
+      .filter((s) => s.status === VillageShareStatus.Pending && ownedGroupIds.has(s.group_id))
       .map((s) => ({ groupId: s.group_id, groupName: s.group_name }));
   }, [data, myGroups]);
 

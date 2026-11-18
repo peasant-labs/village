@@ -1,4 +1,6 @@
 "use client";
+
+import { VillageShareStatus } from "@peasant-labs/schema";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/api";
@@ -40,7 +42,7 @@ function MyContributionRow({ share, groupID, onUnshare, unsharing, helperGroups,
       <Link href={transcriptHref(share.id, { kind: "collective", id: groupID })} className="text-[length:var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
         {share.title || "untitled"}
       </Link>
-      {share.status === "pending" && (<span className="text-sm font-mono text-ink-3 tracking-wider shrink-0">
+      {share.status === VillageShareStatus.Pending && (<span className="text-sm font-mono text-ink-3 tracking-wider shrink-0">
           pending
         </span>)}
       <span className="text-sm font-mono text-ink-3 tabular-nums shrink-0">

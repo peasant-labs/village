@@ -1,3 +1,4 @@
+import { RelationshipNavigationStatus } from "@peasant-labs/schema";
 import type { SessionRelationshipNavigation } from '@peasant-labs/schema';
 
 /**
@@ -37,7 +38,7 @@ export interface ExactRelationshipAnchor {
 export function exactRelationshipAnchor(
   navigation: SessionRelationshipNavigation,
 ): ExactRelationshipAnchor | null {
-  if (navigation.status !== 'resolved') return null;
+  if (navigation.status !== RelationshipNavigationStatus.Resolved) return null;
   const anchor = navigation.anchor;
   if (!anchor) return null;
   if (!EXACT_ANCHOR_KINDS.includes(anchor.kind as ExactAnchorKind)) return null;
