@@ -35,6 +35,7 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
+	segmentedReadsMounted bool
 	groupedScopes         groupedScopeService
 	cfg                   *config.Config
 	pool                  *pgxpool.Pool
@@ -69,6 +70,11 @@ type Handler struct {
 
 	// integrity is the background integrity check, nil when it is off.
 	integrity *integrityService
+
+	// contentCache is the process-local transcript content cache the positioned
+	// reads open generations through. Nil means no caching and no purging, so a
+	// handler built without one behaves as it did before the cache existed.
+	contentCache *transcriptContentCache
 
 	// projectNames resolves the one display name every surface renders for a
 	// project. Its RemoteLabeler seam is filled by the contract module's
@@ -162,6 +168,7 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		scanContent:           scanner.ScanForSecrets,
 		contributableRowLimit: defaultContributableRowLimit,
 		githubDispatcher:      noopGitHubDispatcher{},
+		contentCache:          newTranscriptContentCache(transcriptContentCacheConfig{}),
 	}
 	// A handler built without a database has no queries rather than queries
 	// over a nil pool. authenticate then refuses to confirm any session

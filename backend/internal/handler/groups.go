@@ -1105,6 +1105,7 @@ func (h *Handler) removeGroupMemberLocked(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Could not retract the member's transcripts; the membership operation was rolled back. Retry the removal.")
 			return
 		}
+		h.purgeOwnerContent(pgTargetID, purgeUnshare)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

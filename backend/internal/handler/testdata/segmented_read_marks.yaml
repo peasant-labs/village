@@ -1,0 +1,10 @@
+- name: remap-and-drop-removed
+  document: >-
+    {"sessionDetail":{"harness":"codex","turns":[{"index":10,"role":"user","content":"first"},{"index":20,"role":"system","content":"short"},{"index":30,"role":"assistant","content":"answer"}]}}
+  stored: [1, 2]
+  marks: [{position: 1, turn: 30}]
+- name: sort-and-deduplicate
+  document: >-
+    {"sessionDetail":{"harness":"pi","turns":[{"index":10,"role":"user","content":"first"},{"index":30,"role":"assistant","content":"answer"}]}}
+  stored: [1, 0, 1]
+  marks: [{position: 0, turn: 10}, {position: 1, turn: 30}]

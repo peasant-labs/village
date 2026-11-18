@@ -441,19 +441,11 @@ func TestCanonicalRewritePreimageMove(t *testing.T) {
 				t.Fatal("fixture did not change the legacy pre-image")
 			}
 			w := newOrderingWorld(t, pool, objects, 100+ordinal, body)
-			tx, err := pool.Begin(w.ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback(context.Background())
-			if _, err := tx.Exec(w.ctx, "SELECT set_config('app.transcript_writer_version','1',true)"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := tx.Exec(w.ctx, "UPDATE transcripts SET content_hash=NULL WHERE id=$1", w.id); err != nil {
-				t.Fatal(err)
-			}
-			if err := tx.Commit(w.ctx); err != nil {
-				t.Fatal(err)
+			// The legacy pre-image has no recorded hash. The transition guard refuses a
+			// writer that clears a usable identity, so the fixture bypasses it.
+			execFixtureIdentity(t, w.ctx, pool, "UPDATE transcripts SET content_hash=NULL WHERE id=$1", w.id)
+			if t.Failed() {
+				t.FailNow()
 			}
 			w.initial = w.row()
 			w.store.readHook = func(ctx context.Context, n int) error {

@@ -1,0 +1,23 @@
+# Stored shapes the content source normalizes in memory, without writing. Each
+# case states the stored bytes and what the normalized document must be.
+# `same_bytes` means the stored object is already canonical and is held as it is.
+- name: normalize-canonical-envelope-is-held-as-stored
+  why: A stored object that is already canonical is the generation's bytes, so nothing is re-encoded and the whole-document read and the source hold one document.
+  stored: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"canonical","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"hello there","timestamp":"2026-01-01T00:00:01Z","depth":0}]}}'
+  same_bytes: true
+  turn_count: 1
+
+- name: normalize-bare-payload-is-wrapped-in-the-current-envelope
+  why: A legacy bare payload is served inside the current envelope with its harness spelled canonically, and the stored object is left as it was.
+  stored: '{"id":"legacy","harness":"claude","turns":[{"index":0,"role":"user","content":"hello there","depth":0}]}'
+  same_bytes: false
+  harness: claude-code
+  turn_count: 1
+
+- name: normalize-older-contract-envelope-is-restamped
+  why: An envelope of an older contract shape is re-stamped with the current contract version and its harness spelled canonically, as the whole-document read serves it.
+  stored: '{"contractVersion":"0.0.1","kind":"session_detail","sessionDetail":{"id":"older","harness":"gemini","turns":[{"index":0,"role":"user","content":"hello there","depth":0}]}}'
+  same_bytes: false
+  harness: gemini-cli
+  contract_version: "0.1.1"
+  turn_count: 1

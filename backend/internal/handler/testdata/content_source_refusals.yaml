@@ -1,0 +1,16 @@
+- name: refusal-invalid-utf8
+  turns: '[{"index":0,"role":"user","content":"__INVALID_UTF8__","depth":0}]'
+- name: refusal-duplicate-member
+  turns: '[{"index":0,"role":"user","role":"assistant","content":"x","depth":0}]'
+- name: refusal-turns-not-array
+  turns: '{"unexpected":true}'
+- name: refusal-role-type
+  turns: '[{"index":0,"role":4,"content":"x","depth":0}]'
+- name: refusal-depth-type
+  turns: '[{"index":0,"role":"user","content":"x","depth":"bad"}]'
+- name: refusal-nesting-too-deep
+  turns: '[{"index":0,"role":"user","content":"x","depth":0,"extra":__DEEP__}]'
+- name: refusal-envelope-in-turn-array
+  turns: '[{"sessionDetail":{"id":"nested","turns":[]}}]'
+- name: legacy-lone-surrogate-refused
+  turns: '[{"index":0,"role":"user","content":"\ud800","depth":0}]'

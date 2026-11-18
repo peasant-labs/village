@@ -14,6 +14,8 @@ type encryptedReadResult struct {
 	Row         sqlc.Transcript
 	Identity    storage.ContentIdentity
 	NotModified bool
+	Strict      bool
+	Reloaded    bool
 }
 
 func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Transcript, ifNoneMatch string, authorize func(sqlc.Transcript) bool) (encryptedReadResult, error) {
@@ -36,10 +38,11 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 		if err != nil {
 			return encryptedReadResult{}, err
 		}
-		if _, err := validateContentBoundary(plaintext, row.ModelProvider, contentStoredRead); err != nil {
+		boundary, err := validateContentBoundary(plaintext, row.ModelProvider, contentStoredRead)
+		if err != nil {
 			return encryptedReadResult{}, fmt.Errorf("encrypted transcript validation failed in handler.readEncryptedTranscript before serving or pulling; stored data was not changed; repair or republish the stored content and retry: %w", err)
 		}
-		return encryptedReadResult{Plaintext: plaintext, Row: row, Identity: identity}, nil
+		return encryptedReadResult{Plaintext: plaintext, Row: row, Identity: identity, Strict: boundary.canonical != nil}, nil
 	}
 	result, err := read(initial)
 	if err == nil || !reloadableObjectLookup(err) {
@@ -57,7 +60,9 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 	if descriptorsEqual(oldDescriptor, newDescriptor) {
 		return encryptedReadResult{}, fmt.Errorf("encrypted transcript read failed because the unchanged immutable generation could not be retrieved in handler.readEncryptedTranscript after the sole reload; no body was returned and absence is not assumed; restore storage access or reconcile the descriptor and retry: %w", err)
 	}
-	return read(fresh)
+	result, err = read(fresh)
+	result.Reloaded = true
+	return result, err
 }
 
 func reloadableObjectLookup(err error) bool {

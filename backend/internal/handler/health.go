@@ -16,6 +16,13 @@ var shortBuildRevision = regexp.MustCompile(`^[0-9a-f]{7,12}$`)
 type healthTrait string
 
 const healthPublishRevision healthTrait = "publish-revision-n"
+const healthSegmentedReads healthTrait = "segmented-reads-v2"
+
+// SetSegmentedReadsMounted configures the probe during router composition,
+// before the handler is made available to concurrent requests.
+func (h *Handler) SetSegmentedReadsMounted(mounted bool) {
+	h.segmentedReadsMounted = mounted
+}
 
 type healthProbe struct {
 	Status        string        `json:"status"`
@@ -27,9 +34,10 @@ type healthProbe struct {
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	probe := healthProbe{
 		Status: "ok",
-		// The compile-time feature set is already sorted and unique. Segmented
-		// reads remain stubs and therefore are not advertised here.
 		Serves: []healthTrait{healthPublishRevision},
+	}
+	if h.segmentedReadsMounted {
+		probe.Serves = append(probe.Serves, healthSegmentedReads)
 	}
 	if shortBuildRevision.MatchString(buildRevision) {
 		probe.BuildRevision = buildRevision

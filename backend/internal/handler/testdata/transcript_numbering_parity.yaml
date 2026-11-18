@@ -1,0 +1,5 @@
+- name: number-pi-partition-parity
+  harness: pi
+  turns: '[{"index":0,"role":"user","content":"first","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"system","content":"short","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":2,"role":"assistant","content":"","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":3,"role":"user","content":"last","timestamp":"2026-01-01T00:00:01Z","depth":0}]'
+  main_numbers: ["1", "1a", "1b", "2"]
+  history_numbers: ["1", "1a", "2"]

@@ -143,6 +143,49 @@ the current system. Do not claim that account deletion physically removed every
 object. Handle discovered orphan ciphertext conservatively and retain it unless
 the authoritative-primary and no-in-flight proof succeeds.
 
+## Transcript content cache
+
+Builds and locator scans in flight are limited to k = 2 per process, shared
+with cache loads. A warm `locate` can answer 503 with `Retry-After: 1` when
+both slots are busy. Refusal logs contain only the route template and refusal
+kind (`weight` or `count`), never transcript content or identifiers.
+
+Each Village process keeps a process-local cache of decrypted transcript
+content for the positioned reads (the segmented reads answer `501` until the
+release that serves them; the cache and its purges exist before that). It holds one entry per transcript, content
+revision, model provider and harness. A main read and a history read of one
+generation share the entry, and two viewers who open the same generation at the
+same moment cause one object read and one decryption. The cache never decides
+access: every read applies the viewer's access rule to a freshly read row before
+it asks the cache for a byte.
+
+Operating constants, all compiled into the binary:
+
+- **Byte budget: 256 MiB** of retained plaintext
+  (`transcriptContentCacheBudgetBytes`). It is strict. A read that would exceed
+  it is refused with a retryable `503` and no partial entry. A single
+  transcript larger than the whole budget is served and not retained, one such
+  load runs at a time, and a second one is refused while it runs.
+- **Idle lifetime: 15 minutes** without a read
+  (`transcriptContentCacheIdleLifetime`). A background ticker sweeps once a
+  minute; no request sweeps.
+- The Go soft memory limit is separate from this budget. The budget bounds
+  retained plaintext; it does not bound a process's resident memory while loads
+  are in flight.
+
+A process drops a transcript's entries when it publishes, rewrites, changes the
+visibility of, unshares or deletes that transcript, and drops an owner's entries
+on account deletion. It also drops a transcript's older entries when a read sees
+the row at another revision or harness. A write by another process, or by the
+operator repair mode, cannot reach this process's cache: the next read of that
+transcript sees the new revision and drops the older generation, and an entry
+for a deleted transcript is never served because the row read fails first.
+
+After a database restore, restart every Village process so each starts with an
+empty cache, then require readers to reload. A restore can rewind a revision,
+and a cache entry keyed by a revision the restored database reissues with other
+bytes would otherwise be served.
+
 ## Operator content repair
 
 Use this only when a transcript's stored content is damaged or lost and the

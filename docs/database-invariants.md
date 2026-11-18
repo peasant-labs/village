@@ -394,15 +394,15 @@ responsible for authenticating a legacy predecessor before comparing content,
 installing an identity only on the matching descriptor, and atomically
 recording content replacement and its revision. An uncertain predecessor must
 not be treated as proof of absence. A separate later migration will install
-the transition guard; migration 051 itself has no new trigger and these CHECKs
-do not enforce transition rules. Until the fleet is drained, an older binary
-can replace a pre-image without checking or advancing the revision. The
-compatible writer checks the stored identity, and an operator reconciles any
-divergence through the audited repair path. The later transition guard and its
-old-binary refusal and counting checks belong after the fleet-drain gate; they
-are not provided by migrations 051 or 052. Until the compatible writer is
-deployed and old instances have been drained, these fields must not be used to
-advertise a segmented generation to readers.
+the transition guard (migration 054, below); migration 051 itself has no new
+trigger and these CHECKs do not enforce transition rules. Until the fleet is
+drained and 054 is applied, an older binary can replace a pre-image without
+checking or advancing the revision. The compatible writer checks the stored
+identity, and an operator reconciles any divergence through the audited repair
+path. The guard and its old-binary refusal and counting checks belong after the
+fleet-drain gate; they are not provided by migrations 051 or 052. Until the
+compatible writer is deployed and old instances have been drained, these fields
+must not be used to advertise a segmented generation to readers.
 
 The default is PostgreSQL's constant fast default, so adding the column does
 not rewrite the table. CHECK validation still scans existing rows under the
@@ -458,6 +458,61 @@ supports finding the terminal decision that resolves an earlier attempt. A
 no-match delete removes zero rows. The ledger contains no body, object key, key
 material or unattested identity; the companion log omits identity and operator
 details as well.
+
+### Content revision transition guard (migration 054)
+
+Migration 054 makes the database back the revision arithmetic of the writer.
+A pair of `BEFORE UPDATE` row triggers compares every UPDATE of the primary
+pair (`content_hash`, `blob_size_bytes`), the segmented pair, `content_revision`
+or `blob_key` with the row it replaces. It adds no table and no column, and it
+does not read `wrapped_data_key`, `encryption_algorithm` or `key_version`, so a
+rewrap keeps its identity and revision. The migration is forward-only (its down
+file refuses) and has no INSERT rule: a create takes the default revision 1.
+
+A row is in one of five identity states: `complete` (a canonical primary hash
+with a non-negative size), `segmented` (the segmented pair), `hash_only` (a
+canonical primary hash without a usable size), `malformed` (a primary hash that
+is not canonical) and `free` (no hash). The compared pair is always the row's
+stored pre-image identity.
+
+| Pre-image to new | Outcome |
+|---|---|
+| complete to complete (1a) | an equal pair keeps the revision; a different pair advances it by exactly one |
+| segmented to complete (1b) | the same, and the segmented pair is cleared in the same statement |
+| complete to segmented (1c) | refused: a usable identity is never cleared |
+| segmented to segmented (1d) | the same pair on the same object is a no-op; a different pair, or a move of the object without a complete pair, is refused |
+| free to complete or segmented, same object (2a, 2b) | an install: the revision is kept and a writer-supplied change is refused |
+| hash-only to complete, same object, same hash (2c) | an install of the missing size: the revision is kept; a different hash is refused |
+| malformed to complete, same object (2d) | an install of an authenticated identity over a hash that never was one: the revision is kept |
+| free to complete, new object (3, 4) | refused, unless the writer names `content_revision` and keeps it: the approved baseline, which makes no equality claim |
+| usable identity to anything unusable (5) | refused; a malformed pair alone may be cleared to free, on the same object with the revision kept (the operator repair) |
+| an advance past 2^63-1 (6) | refused |
+
+A statement that changes an identity or the object without changing anything
+the table allows is refused with SQLSTATE `TR054`, and the exception names the
+operation, the rule and the identity states only: never an id, hash, object key,
+path, session id, owner or content. A different identity written to a row that
+already had a complete or segmented identity, by a writer that does not name
+`content_revision` in its SET list, is counted: the guard advances the revision
+by one. This is the older binary's replacement. The same statement against an
+identity-free row is refused (rule 3), because the older writer leaves no
+identity to compare.
+
+The guard cannot see how a writer learned what it wrote. Whether the old object
+was authenticated, or a missing object was classified as definite absence before
+a writer asked for rule 4, is the writer's claim; the write fence, the typed
+storage outcomes and review are the control. A writer's "naming" of
+`content_revision` is observable because PostgreSQL fires
+`BEFORE UPDATE OF content_revision` only for a statement that lists the column.
+`trg_transcript_writer_version_revision_aware` records that in the
+transaction-local `app.transcript_revision_named` setting, and
+`trg_transcript_writer_version_revision_guard` reads and clears it before it
+decides, so it never outlives the row it was set for. Both trigger names extend
+`trg_transcript_writer_version`, so they fire after the writer fence: a
+statement without the writer marker still gets the fence's message.
+
+A new identity writer is a change to this table: add its transition here and a
+case to `testdata/migration-054-revision-guard.yaml` in the same commit.
 
 ### Private organization snapshot issuance
 
@@ -986,6 +1041,8 @@ The audit triggers (migration 026), the share-derivation triggers
 | `trg_audit_transcript_publish` | AFTER INSERT ON transcripts | `published` | **No WHEN clause** - every transcript INSERT requires an actor |
 | `trg_audit_transcript_governance` | AFTER UPDATE … WHEN (license/visibility `IS DISTINCT FROM`) | `license_changed` / `visibility_changed` / `governance_changed` | The WHEN clause IS the no-op suppression - a title-only or content_hash-only UPDATE never fires it and needs no actor |
 | `trg_audit_transcript_retract` | BEFORE DELETE ON transcripts | `retracted` (from `OLD.*`) | Fires per cascaded row too - the only mechanism covering `DeleteAccount`'s `ON DELETE CASCADE` (migration 010), which runs no per-transcript Go |
+| `trg_transcript_writer_version_revision_aware` | BEFORE UPDATE OF content_revision ON transcripts | - (sets `app.transcript_revision_named`) | Migration 054. Fires only for a statement that lists `content_revision` in its SET list; records that the writer is revision-aware. Sorts after the writer fence and before the guard |
+| `trg_transcript_writer_version_revision_guard` | BEFORE UPDATE OF content_hash, blob_size_bytes, segmented_identity_hash, segmented_identity_size, content_revision, blob_key ON transcripts | - (RAISE `TR054`, or counts a revision) | Migration 054. The transition guard of the "Content revision transition guard" section; clears the signal before it decides |
 | `trg_retraction_audience_immutable` | BEFORE UPDATE OR DELETE ON the audience table | - (RAISE) | Refuses direct mutation; permits a group cascade and the transaction-local audit-maintenance escape |
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
 | `trg_derive_transcript_share` | AFTER INSERT OR UPDATE ON transcript_share_attempts | the derived `transcript_shares` row | Upserts the row with the latest attempt's status for `pending`/`approved`/`rejected`, and DELETES it for `retracted`/`revoked`. **INSERT OR UPDATE, not INSERT**: decisions, withdrawals and removals are all UPDATEs of an existing attempt |
@@ -1286,6 +1343,10 @@ authenticating. Both are custom Postgres parameters read via
 
 - **The transcript integrity tables (migration 049) add no GUC and no
   trigger.** The registry above is unchanged.
+- **Migration 054 adds one internal GUC, `app.transcript_revision_named`.**
+  The signal trigger sets it to `on` and the guard trigger clears it in the
+  same row's processing; nothing in Go sets or reads it. It is not authorization:
+  it only records that a statement listed `content_revision`.
 - **Operator content repair (migration 052) adds no GUC.** Its attributed
   transactions set `app.actor_id`; transcript updates also set
   `app.transcript_writer_version`. They do not use `app.audit_maintenance`.

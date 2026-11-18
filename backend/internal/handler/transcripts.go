@@ -437,6 +437,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var narrowedFrom string
 	var narrowedID pgtype.UUID
 	var audienceLeftPrivate bool
+	// republishedID is the transcript a republish may have replaced, set before
+	// its first write so every outcome, including an ambiguous commit, drops
+	// its cached content.
+	var republishedID pgtype.UUID
 	responseWritten := false
 	err = h.withPublishLocks(r.Context(), ownerPgID, string(req.Identity.SessionID), req.Git.Associations, func(conn *pgxpool.Conn) error {
 		lockedQueries := h.queries
@@ -465,6 +469,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		if isUpdate {
 			operation = "republish"
 			transcriptID = existingID
+			republishedID = existingID
 		} else {
 			transcriptID = toPgUUID(uuid.New())
 		}
@@ -899,6 +904,9 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
+	// The republish may have replaced the stored generation, so nothing cached
+	// for the transcript is trusted, whatever this handler answers.
+	h.purgeTranscriptContent(republishedID, purgePublish)
 	// A republish narrows the transcript before replacing its content. Whether
 	// the visibility it found was put back (the usual case) or the transcript
 	// was left private (an ambiguous commit, or a restore that itself failed),
@@ -1128,6 +1136,15 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			visible, lookupErr := h.retractedTranscriptVisible(r.Context(), toPgUUID(id), GetUser(r.Context()))
+			if lookupErr != nil {
+				writeError(w, http.StatusInternalServerError, "Cannot determine transcript availability because the database lookup failed; retry the request.")
+				return
+			}
+			if visible {
+				writeRetractedTranscript(w)
+				return
+			}
 			writeError(w, http.StatusNotFound, "Transcript not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "Cannot read transcript detail because the database lookup failed. No availability decision was made; retry the lookup.")
@@ -1268,6 +1285,10 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if refuseUnavailableTranscript(w, transcript) {
+		return
+	}
+
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
 		return h.canViewTranscript(r.Context(), user, fresh)
 	})
@@ -1283,16 +1304,8 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	// the migrated payload is its sessionDetail. A shape-compatible stored blob is
 	// already canonical and is served byte-for-byte; a normalized payload is
 	// re-stamped, installed, and served in the envelope.
-	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
+	prepared, err := contentResponseBody(r.Context(), raw)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := validateObservedModelValues(payload); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := validateThinkingLevelValues(payload); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1305,46 +1318,22 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 			servedHash = readResult.Identity.Hash()
 		}
 	}
-	response := raw
-	if rewrite {
-		encoded, encodeErr := encodeCanonicalTranscript(payload)
-		if encodeErr == nil {
-			response = encoded
-			installed, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, readResult.Identity, encoded, sniffShape(raw))
-			if err != nil {
-				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
-					writeError(w, http.StatusInternalServerError, err.Error())
-					return
-				}
-				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
-			} else if installed != nil {
-				servedHash = installed.Hash()
-				h.nudgeIntegrity()
-			}
-		} else if errors.Is(encodeErr, errCanonicalRewriteTooLarge) {
-			// Escaping during an optional read repair must not poison a valid
-			// stored generation. Serve its validated wire without a storage write.
-			response, err = originalContentEnvelope(raw)
-			if err != nil {
+	response := prepared.body
+	if prepared.rewrite {
+		installed, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, readResult.Identity, response, sniffShape(raw))
+		if err != nil {
+			if prepared.requiresPersistence {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-		} else {
-			// Sparse legacy content the strict canonical encoder cannot represent
-			// (for example a missing session harness) is still served, wrapped in
-			// the same durable envelope, so historical sessions stay readable. No
-			// canonical generation is installed here.
-			if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
-				writeError(w, http.StatusInternalServerError, "Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
-				return
-			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
-			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
+		} else if installed != nil {
+			servedHash = installed.Hash()
+			h.nudgeIntegrity()
 		}
+	}
+	if prepared.encodeError != nil {
+		log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), prepared.encodeError)
 	}
 
 	// The envelope carries no owner, so the repository identity of an owner
@@ -1368,6 +1357,47 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(response)
+}
+
+type preparedContentResponse struct {
+	body                []byte
+	rewrite             bool
+	requiresPersistence bool
+	encodeError         error
+}
+
+// contentResponseBody computes the whole-document response without changing storage.
+func contentResponseBody(ctx context.Context, raw []byte) (preparedContentResponse, error) {
+	payload, rewrite, err := defaultContentMigrator.Migrate(ctx, raw)
+	if err != nil {
+		return preparedContentResponse{}, err
+	}
+	if err := validateObservedModelValues(payload); err != nil {
+		return preparedContentResponse{}, err
+	}
+	if err := validateThinkingLevelValues(payload); err != nil {
+		return preparedContentResponse{}, err
+	}
+	result := preparedContentResponse{body: raw}
+	if !rewrite {
+		return result, nil
+	}
+	encoded, err := encodeCanonicalTranscript(payload)
+	if err == nil {
+		result.body, result.rewrite = encoded, true
+		result.requiresPersistence = len(schema.RequiredContentCapabilities(*payload)) != 0
+		return result, nil
+	}
+	if errors.Is(err, errCanonicalRewriteTooLarge) {
+		result.body, err = originalContentEnvelope(raw)
+		return result, err
+	}
+	if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
+		return preparedContentResponse{}, errors.New("Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
+	}
+	result.encodeError = err
+	result.body, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
+	return result, err
 }
 
 // errRewriteRaceLost rolls back a rewrite transaction whose compare-and-swap
@@ -1560,6 +1590,7 @@ func (h *Handler) rewriteCanonicalTranscriptLocked(ctx context.Context, conn *pg
 	if lost {
 		return nil, nil
 	}
+	h.purgeTranscriptContent(row.ID, purgeRewrite)
 	return &identity, nil
 }
 
@@ -1696,6 +1727,7 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	if patch.Visibility != nil && updated.Visibility != lockedVisibility {
 		// The change committed; going public enters the checked set.
 		h.nudgeIntegrity()
+		h.purgeTranscriptContent(pgID, purgeVisibility)
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
 		}
@@ -1868,6 +1900,9 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		deleteSucceeded = true
 		return nil
 	})
+	if rowDeleted {
+		h.purgeTranscriptContent(pgID, purgeDelete)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to serialize transcript deletion; restore PostgreSQL access and retry")
 		return
@@ -1923,6 +1958,7 @@ func (h *Handler) ShareTranscript(w http.ResponseWriter, r *http.Request) {
 	// The repost runs after the publish locks are released, because it may take
 	// them itself, and it never fails the share.
 	if widened {
+		h.purgeTranscriptContent(transcript.ID, purgeVisibility)
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), transcript.ID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a share widened a transcript failed: %v", refreshErr)
 		}
@@ -2097,6 +2133,8 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 			" because the withdrawal could not be recorded. Retry the unshare: repeating it is safe, because it withdraws only a submission that is still live.")
 		return
 	}
+
+	h.purgeTranscriptContent(pgID, purgeUnshare)
 
 	// A pull request's check says whether anyone besides the author can read
 	// what is attached, so the narrowing is what changes what the pull request
@@ -2735,17 +2773,9 @@ func (h *Handler) transcriptViewAccess(ctx context.Context, user *AuthUser, t sq
 		if err != nil {
 			return false, err
 		}
-		for _, groupID := range shares {
-			member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
-				GroupID: groupID,
-				UserID:  user.PgID(),
-			})
-			if err == nil && canReadData(member.Role, "contributors") {
-				return true, nil
-			}
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return false, err
-			}
+		allowed, err := h.canReadTranscriptGroups(ctx, user, shares)
+		if err != nil || allowed {
+			return allowed, err
 		}
 	}
 	// Collective owners can preview transcripts shared with their collective

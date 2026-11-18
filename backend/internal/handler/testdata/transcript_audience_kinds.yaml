@@ -1,0 +1,31 @@
+# Row audience facts -> the audience kinds some viewer reaches the row through,
+# as the census counts them. `member_roles` are the roles of non-owner members
+# of collectives holding an approved share; the contributors read rule decides
+# which of them read. Every member of the closed audience set must appear in
+# some case's kinds.
+- name: audience-public-row-anonymous-and-owner
+  public: true
+  member_roles: [member]
+  preview_owner: true
+  kinds: [public, owner]
+- name: audience-private-row-owner-only
+  kinds: [owner]
+- name: audience-shared-row-reading-member
+  shared: true
+  member_roles: [contributor]
+  kinds: [owner, collective-member]
+- name: audience-shared-row-pending-member-does-not-read
+  shared: true
+  member_roles: [pending]
+  kinds: [owner]
+- name: audience-private-row-with-a-submission-preview
+  preview_owner: true
+  kinds: [owner, collective-owner-preview]
+- name: audience-shared-row-member-and-preview
+  shared: true
+  member_roles: [member, owner]
+  preview_owner: true
+  kinds: [owner, collective-member, collective-owner-preview]
+- name: audience-approved-share-on-private-row-grants-no-member
+  member_roles: [member]
+  kinds: [owner]

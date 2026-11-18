@@ -1,0 +1,16 @@
+- name: strict-main-evidence
+  validation: published_strict
+  document: >-
+    {"contractVersion":"0.1.1","sessionDetail":{"id":"session-a","harness":"pi","turns":[{"index":0,"role":"user","content":"hello","usage":{"ownerId":"u","sourceEntryRef":"s","scope":"assistant","completeness":"unknown"}}],"nativeMetadata":[]}}
+  session: session-a
+  usage: present
+  native: absent
+  history: 0
+- name: migrated-history-evidence
+  validation: migrated
+  document: >-
+    {"contractVersion":"0.1.1","sessionDetail":{"id":"session-b","harness":"pi","turns":[],"earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":5,"role":"user","content":"old"}],"nativeMetadata":[{"id":"m","kind":"unknown","source":{"entryRef":"s","sourceType":"unknown"},"data":{}}]}]}}
+  session: session-b
+  usage: unknown
+  native: present
+  history: 1

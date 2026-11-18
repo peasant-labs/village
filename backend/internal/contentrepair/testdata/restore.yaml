@@ -11,7 +11,8 @@
 # write to the transcript's object behaves: "ok", "fail" (provider rejects it),
 # "corrupt" (the object is damaged after the write), "different-readback" (the
 # read-back authenticates to another identity) or "concurrent-change" (another
-# writer advances the content revision while the write is in flight).
+# writer replaces the stored identity and advances the content revision while
+# the write is in flight).
 #
 # attempted is whether an attempt row exists. puts is the number of object
 # writes; when it is not zero the attempt row must already be committed at the

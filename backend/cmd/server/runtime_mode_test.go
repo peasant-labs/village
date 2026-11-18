@@ -44,8 +44,8 @@ func loadRuntimeModeCases(t *testing.T) []runtimeModeCase {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		t.Fatalf("runtime mode fixture has a trailing document: %v", err)
 	}
-	if len(cases) != 20 {
-		t.Fatalf("runtime mode fixture rows=%d, want 20", len(cases))
+	if len(cases) != 25 {
+		t.Fatalf("runtime mode fixture rows=%d, want 25", len(cases))
 	}
 	return cases
 }
@@ -108,6 +108,8 @@ func runtimeModeName(mode runtimeMode) string {
 		return "privacy-seed"
 	case runtimeModeShareStateCheck:
 		return "share-state-check"
+	case runtimeModePagedReadCheck:
+		return "paged-read-check"
 	default:
 		return "unknown"
 	}

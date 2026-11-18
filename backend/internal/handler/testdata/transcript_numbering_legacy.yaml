@@ -1,0 +1,10 @@
+- name: number-legacy-shapes-parity
+  variants:
+    - name: duplicate-index
+      turns: '[{"index":1,"role":"user","content":"first"},{"index":1,"role":"assistant","content":"reply"}]'
+    - name: nonmonotonic-index
+      turns: '[{"index":5,"role":"user","content":"first"},{"index":2,"role":"assistant","content":"reply"}]'
+    - name: missing-index
+      turns: '[{"role":"user","content":"first"},{"role":"assistant","content":"reply"}]'
+    - name: pre-typed-shape
+      turns: '[{"role":"user","content":"first"},{"role":"system","content":"short"},{"role":"assistant","content":"reply"}]'

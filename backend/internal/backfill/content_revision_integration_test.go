@@ -88,6 +88,13 @@ func (s readHookStore) Read(ctx context.Context, id uuid.UUID, d storage.BlobDes
 
 const revisionTestKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 
+// The primary pair a concurrent writer installs in the revision-advance case: a
+// canonical hash the object does not authenticate to, and a size.
+const (
+	concurrentReplacementHash       = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	concurrentReplacementSize int64 = 3
+)
+
 func TestMaintenanceWritersKeepRevisionAndWaitForThePublishLockRealPostgres(t *testing.T) {
 	var fixture struct {
 		Required []string              `yaml:"required"`
@@ -159,7 +166,10 @@ func TestMaintenanceWritersKeepRevisionAndWaitForThePublishLockRealPostgres(t *t
 			var hook func()
 			if c.During == "revision-advance" {
 				hook = func() {
-					markedExec(t, ctx, pool, "UPDATE transcripts SET content_revision=content_revision+1 WHERE id=$1", id)
+					// The transition guard refuses a revision change with no change of
+					// identity, so the concurrent writer is a real replacement of the
+					// stored identity: another primary pair and the next revision.
+					markedExec(t, ctx, pool, "UPDATE transcripts SET content_hash=$2, blob_size_bytes=$3, segmented_identity_hash=NULL, segmented_identity_size=NULL, content_revision=content_revision+1 WHERE id=$1", id, concurrentReplacementHash, concurrentReplacementSize)
 				}
 			} else if c.During != "" {
 				t.Fatalf("fixture during %q is unknown", c.During)
@@ -212,10 +222,13 @@ func TestMaintenanceWritersKeepRevisionAndWaitForThePublishLockRealPostgres(t *t
 					t.Fatalf("row after backfill = %+v, want the object's identity as the primary pair, no segmented pair, revision %d", after, c.Revision)
 				}
 			case "identity-kept":
-				wantRevision := before.revision
 				if c.During == "revision-advance" {
-					wantRevision++
+					if after.hash != concurrentReplacementHash || after.size != concurrentReplacementSize || after.segHash != "" || after.segSize != -1 || after.revision != before.revision+1 {
+						t.Fatalf("row changed from %+v to %+v, want only the concurrent replacement's primary pair at revision %d", before, after, before.revision+1)
+					}
+					break
 				}
+				wantRevision := before.revision
 				if after.hash != before.hash || after.size != before.size || after.segHash != before.segHash || after.segSize != before.segSize || after.revision != wantRevision {
 					t.Fatalf("row changed from %+v to %+v, want identity unchanged at revision %d", before, after, wantRevision)
 				}

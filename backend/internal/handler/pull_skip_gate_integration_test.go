@@ -55,15 +55,11 @@ func callSkipGate(t *testing.T, h *Handler, caller uuid.UUID, req schema.PullSki
 	return resp
 }
 
-// setServerContentHash records the served-plaintext hash through the fixed
-// system writer transaction required for storage identity mutations.
+// setServerContentHash records the served-plaintext hash on the row as a
+// fixture, including values that are not canonical hashes.
 func setServerContentHash(t *testing.T, ctx context.Context, h *Handler, id pgtype.UUID, hash string) {
 	t.Helper()
-	if err := h.inTxAsSystem(ctx, func(q Querier) error {
-		return q.SetTranscriptContentHash(ctx, sqlc.SetTranscriptContentHashParams{ID: id, ContentHash: pgtype.Text{String: hash, Valid: true}})
-	}); err != nil {
-		t.Fatalf("set server content hash: %v", err)
-	}
+	execFixtureIdentity(t, ctx, h.pool, `UPDATE transcripts SET content_hash = $2 WHERE id = $1`, id, hash)
 }
 
 // pushSessionAnnotations pushes owner-scoped session-target annotations linking to

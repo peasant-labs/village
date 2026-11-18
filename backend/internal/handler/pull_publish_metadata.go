@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -133,7 +134,7 @@ func (h *Handler) authorizePublishMetadata(w http.ResponseWriter, ctx context.Co
 		writeError(w, http.StatusInternalServerError, "Failed to read the transcript")
 		return storedPublishMetadata{}, false
 	}
-	if !allowed {
+	if !allowed || t.ContentState == contentstate.Unavailable.String() {
 		writeError(w, http.StatusNotFound, publishMetadataNotFound)
 		return storedPublishMetadata{}, false
 	}

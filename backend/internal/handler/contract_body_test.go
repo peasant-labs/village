@@ -11,9 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
 //go:embed testdata/contract_body_operations.yaml
@@ -26,11 +29,12 @@ type contractBodyMalformed struct {
 }
 
 type contractBodyOperationCase struct {
-	Name       string                  `yaml:"name"`
-	Method     string                  `yaml:"method"`
-	Path       string                  `yaml:"path"`
-	Conforming string                  `yaml:"conforming"`
-	Malformed  []contractBodyMalformed `yaml:"malformed"`
+	Name        string                  `yaml:"name"`
+	Method      string                  `yaml:"method"`
+	Path        string                  `yaml:"path"`
+	Conforming  string                  `yaml:"conforming"`
+	Malformed   []contractBodyMalformed `yaml:"malformed"`
+	AccessFirst bool                    `yaml:"access_first"`
 }
 
 // requiredContractBodyOperations names the operations the fixture must cover,
@@ -68,6 +72,9 @@ func loadContractBodyOperations(t *testing.T) []contractBodyOperationCase {
 	present := map[string]bool{}
 	for _, c := range cases {
 		key := c.Method + " " + c.Path
+		if c.AccessFirst != (key == opLocateTranscriptEntry.String()) {
+			t.Fatalf("operation %q has incorrect access-first ordering", key)
+		}
 		if present[key] {
 			t.Fatalf("the contract body fixture repeats operation %q", key)
 		}
@@ -252,6 +259,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 			r.Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
 		}
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
+		r.Post("/transcripts/{id}/segments/locate", h.LocateTranscriptEntry)
 		r.Patch("/users/me/settings", h.UpdateUserSettings)
 		r.Put("/users/me/email", h.SetMyNotificationEmail)
 		r.Post("/users/me/email/verify", h.VerifyMyNotificationEmail)
@@ -269,6 +277,54 @@ func contractBodyTarget(path string) string {
 	return replacer.Replace(path)
 }
 
+// The locator is the only contract-body operation that must look up the row
+// and check access first: an absent or invisible id must stay a 404 even when
+// the body is malformed. Model a readable cached generation or a missing row
+// while exercising the same mounted production handler and decoder.
+func contractBodyLocatorRouter(t *testing.T, readable bool) (http.Handler, *int) {
+	t.Helper()
+	calls := 0
+	id := uuid.MustParse(testGroupID)
+	row := sqlc.Transcript{
+		ID:                  pgtype.UUID{Bytes: id, Valid: true},
+		OwnerID:             pgtype.UUID{Bytes: contractBodyTestUser, Valid: true},
+		ModelProvider:       string(schema.HarnessPi),
+		ContentRevision:     1,
+		BlobKey:             "transcripts/" + contractBodyTestUser.String() + ".bin",
+		WrappedDataKey:      []byte("test-wrapped-key"),
+		EncryptionAlgorithm: string(storage.EncryptionAES256GCMRandomNonceV1),
+		KeyVersion:          1,
+	}
+	q := &mockQuerier{getTranscriptByID: func(context.Context, pgtype.UUID) (sqlc.Transcript, error) {
+		calls++
+		if !readable {
+			return sqlc.Transcript{}, pgx.ErrNoRows
+		}
+		return row, nil
+	}}
+	h := newTestHandler(q, nil)
+	if readable {
+		h.contentCache = newTranscriptContentCache(transcriptContentCacheConfig{})
+		key := transcriptCacheKeyForRow(row)
+		opened := cacheTestOpened(t, key, 512, 0)
+		opened.SourceRow = row
+		_, err := h.contentCache.Acquire(context.Background(), key, transcriptCacheLoad{Owner: contractBodyTestUser, Weight: 512}, func(context.Context) (*openedTranscript, error) {
+			return opened, nil
+		})
+		if err != nil {
+			t.Fatalf("prepare readable transcript: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(withUserID(req.Context(), contractBodyTestUser)))
+		})
+	})
+	r.Post(opLocateTranscriptEntry.Path, h.LocateTranscriptEntry)
+	return r, &calls
+}
+
 func TestContractBody_HandlersAnswer400BeforeTouchingTheDatabase(t *testing.T) {
 	router := contractBodyRouter(t)
 	for _, c := range loadContractBodyOperations(t) {
@@ -277,7 +333,18 @@ func TestContractBody_HandlersAnswer400BeforeTouchingTheDatabase(t *testing.T) {
 				req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(m.Body))
 				req.Header.Set("Content-Type", "application/json")
 				rec := httptest.NewRecorder()
-				router.ServeHTTP(rec, req)
+				selected := router
+				if c.AccessFirst {
+					missing, calls := contractBodyLocatorRouter(t, false)
+					absent := httptest.NewRecorder()
+					missingRequest := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(m.Body))
+					missing.ServeHTTP(absent, missingRequest)
+					if absent.Code != http.StatusNotFound || *calls != 1 {
+						t.Fatalf("missing locator: status = %d, row lookups = %d; want 404 after one lookup", absent.Code, *calls)
+					}
+					selected, _ = contractBodyLocatorRouter(t, true)
+				}
+				selected.ServeHTTP(rec, req)
 				if rec.Code != http.StatusBadRequest {
 					t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
 				}
@@ -418,9 +485,16 @@ func TestContractBody_HandlersKeepInvalidJSONWording(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(`{"name":`))
 			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
+			selected := router
+			if c.AccessFirst {
+				selected, _ = contractBodyLocatorRouter(t, true)
+			}
+			selected.ServeHTTP(rec, req)
 			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Invalid request body") {
 				t.Fatalf("status = %d body = %s; want 400 Invalid request body", rec.Code, rec.Body.String())
+			}
+			if c.AccessFirst && (rec.Header().Get("Cache-Control") != "no-store" || rec.Header().Get("Vary") != "Authorization, Cookie") {
+				t.Fatalf("locator refusal headers = %v; want no-store and Vary: Authorization, Cookie", rec.Header())
 			}
 		})
 	}

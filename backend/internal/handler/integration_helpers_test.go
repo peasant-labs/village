@@ -97,6 +97,64 @@ func execAsSystem(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql str
 	}
 }
 
+// execFixtureIdentity writes a stored identity onto an existing row for a test
+// that needs one particular value, including a value no writer could produce.
+// The revision transition guard refuses exactly this (an in-place identity
+// change), so the statement runs with triggers disabled for its one transaction
+// (session_replication_role = replica, which needs the superuser the test
+// service uses). Fixture state is not a writer path; the guard has its own
+// cases in the database package.
+func execFixtureIdentity(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Errorf("execFixtureIdentity: begin: %v", err)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL session_replication_role = 'replica'"); err != nil {
+		t.Errorf("execFixtureIdentity: disable triggers for the fixture write (the test role must be a superuser): %v", err)
+		return
+	}
+	if _, err := tx.Exec(ctx, sql, args...); err != nil {
+		t.Errorf("execFixtureIdentity: %s: %v", sql, err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Errorf("execFixtureIdentity: commit: %v", err)
+	}
+}
+
+// swapFixtureDescriptor replaces a row's stored descriptor and identity with
+// another one, in either direction, for a test that serves stored content a
+// writer would never leave behind. The revision transition guard refuses it
+// (a different identity must advance the revision, and a revert would lower it),
+// so it runs with triggers disabled, as execFixtureIdentity does. It matches the
+// row on its current object key and reports a miss.
+func swapFixtureDescriptor(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID, from, to sqlc.Transcript) {
+	t.Helper()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("swapFixtureDescriptor: begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL session_replication_role = 'replica'"); err != nil {
+		t.Fatalf("swapFixtureDescriptor: disable triggers for the fixture write (the test role must be a superuser): %v", err)
+	}
+	tag, err := tx.Exec(ctx, `UPDATE transcripts SET blob_key = $3, wrapped_data_key = $4, encryption_algorithm = $5, key_version = $6,
+			content_hash = $7, blob_size_bytes = $8, content_revision = $9,
+			segmented_identity_hash = $10, segmented_identity_size = $11
+		WHERE id = $1 AND blob_key = $2`,
+		id, from.BlobKey, to.BlobKey, to.WrappedDataKey, to.EncryptionAlgorithm, to.KeyVersion,
+		to.ContentHash, to.BlobSizeBytes, to.ContentRevision, to.SegmentedIdentityHash, to.SegmentedIdentitySize)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("swapFixtureDescriptor: rows=%d err=%v", tag.RowsAffected(), err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("swapFixtureDescriptor: commit: %v", err)
+	}
+}
+
 // putTranscriptContent stores body under key in the fake blob store AND records
 // body's real identity (content hash and plaintext size) on the transcript row
 // that the key backs, as the system actor under the transcript writer fence.
@@ -107,7 +165,7 @@ func execAsSystem(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql str
 func putTranscriptContent(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blobs *fakeBlobStore, transcriptID pgtype.UUID, key string, body []byte) {
 	t.Helper()
 	blobs.put(key, body)
-	execAsSystem(t, ctx, pool,
+	execFixtureIdentity(t, ctx, pool,
 		`UPDATE transcripts SET content_hash = $2, blob_size_bytes = $3 WHERE id = $1`,
 		transcriptID, schema.ComputeTranscriptHash(body), int64(len(body)))
 }

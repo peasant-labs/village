@@ -1,0 +1,109 @@
+# Cases for the process-local transcript content cache. The cache is a unit
+# whose collaborators are a loader and a clock, so these cases drive the
+# production cache with a counting loader and a fake clock. What needs the
+# encrypted store, a real row or a mounted write path is in
+# content_cache_encrypted.yaml. Every case states in `why` the failure it
+# exists to catch. Sizes are plaintext bytes; a document is padded to exactly
+# its size, so a budget and a weight compare with what is really held.
+- name: cache-single-flight-two-viewers
+  scenario: single-flight
+  why: Two viewers opening one generation at the same moment must cause one load; without the shared flight each pays an object read and a decryption.
+  budget: 4096
+  sizes: [512]
+  readers: 2
+- name: cache-single-flight-joiner-survives-starter-cancel
+  scenario: joiner-survives-cancel
+  why: The reader that started a load can leave; a reader that joined it must still get the result, so the load is canceled only when every reader has gone.
+  budget: 4096
+  sizes: [512]
+  readers: 2
+- name: cache-abandoned-load-is-canceled-and-releases-its-weight
+  scenario: abandoned-load
+  why: A load nobody waits for must stop and give its reserved bytes back, or a burst of abandoned reads would leave the cache refusing admission to everyone.
+  budget: 1000
+  sizes: [1000]
+- name: cache-admission-refusal-503
+  scenario: admission-refusal-retained
+  why: A generation that does not fit beside the retained bytes is refused before anything is read, with the bounded refusal and no partial entry; room freed by a purge admits it.
+  budget: 1000
+  sizes: [400, 400, 400]
+- name: cache-admission-counts-reserved-bytes
+  scenario: admission-refusal-reserved
+  why: Bytes reserved by a load in flight count against the budget, so two loads that each fit alone cannot both run when together they do not.
+  budget: 1000
+  sizes: [600, 600]
+- name: cache-oversized-single-flight
+  scenario: oversized-single-flight
+  why: 'A generation heavier than the whole budget is its own single-flight case: viewers of it share one load, it is served and not retained, a second oversized transcript is refused while one runs, and small loads are not blocked.'
+  budget: 1000
+  sizes: [2500, 2500, 300]
+  readers: 2
+- name: cache-retention-is-strict-after-load
+  scenario: strict-retention
+  why: A load admitted on a low estimate may hold more than it was weighed at; the real bytes are checked again at retention, and an entry that would break the budget is served and not kept.
+  budget: 1000
+  sizes: [400, 900]
+- name: cache-lifetime-expiry
+  scenario: lifetime-expiry
+  why: An entry idle for the lifetime is dropped by the sweep and not before; a read refreshes it; and a request never sweeps.
+  budget: 4096
+  sizes: [300, 300]
+- name: cache-sweeper-ticker-drops-idle-entries
+  scenario: sweeper-ticker
+  why: The idle lifetime is enforced by the background ticker, which must start, drop an idle entry on its own and stop when drained.
+  budget: 4096
+  sizes: [300]
+- name: cache-key-varies-by-revision-model-provider-and-harness
+  scenario: key-varies
+  why: A different revision, model provider or harness is a different generation; sharing an entry across any of them would serve numbers cooked for another class or bytes of another revision.
+  budget: 65536
+  sizes: [300]
+  vary: [revision, model_provider, cooking_class]
+- name: cache-key-holds-no-build-component
+  scenario: key-fields
+  why: The representation version, cut version and build are constants of the process and cannot tell two live entries apart; a field for one would split one generation across rolling deploys for no reason.
+  fields: [ID, Revision, ModelProvider, Harness]
+- name: cache-partition-index-keyed-by-partition-and-section
+  scenario: partition-keyed
+  why: One entry holds the bytes once and one index per partition and section, so a history read finds its own index and a main key can never resolve a section's.
+  budget: 65536
+  sizes: [900]
+- name: cache-single-decrypt-for-main-then-history
+  scenario: main-then-history
+  why: A history read after a main read must open the entry the main read built and index from its held bytes, with no second load.
+  budget: 65536
+  sizes: [900]
+- name: cache-load-failure-is-not-remembered
+  scenario: failed-load
+  why: A failed load must refuse every reader that joined it and leave nothing behind, so a later read loads again.
+  budget: 4096
+  sizes: [300]
+  readers: 2
+- name: cache-purge-on-write-drops-transcript-and-owner
+  scenario: purge-scopes
+  why: A write path purges one transcript, or every transcript of one owner; neither purge may touch another transcript or another owner, and every revision of the purged transcript goes.
+  budget: 65536
+  sizes: [300]
+- name: cache-purge-during-load-is-not-retained
+  scenario: purge-during-load
+  why: A write that commits while a load is in flight makes that load's bytes untrusted; its readers are served and the result is not kept.
+  budget: 4096
+  sizes: [300]
+- name: cache-purge-on-generation-move
+  scenario: generation-moved
+  why: A read that sees a transcript at another revision drops the older generation, and a load that reports a newer revision than it was asked for is kept under the revision it holds.
+  budget: 65536
+  sizes: [300]
+- name: cache-purge-on-harness-change
+  scenario: harness-changed
+  why: A row whose harness or provider changed must not be served numbers cooked for the other class; the older entry goes, and it is counted as a harness change and not as a generation move.
+  budget: 65536
+  sizes: [300]
+- name: cache-entry-cooked-under-another-harness-is-not-retained
+  scenario: harness-mismatch
+  why: An entry may be kept only under a key whose harness is the cooking class its rows were numbered with; one cooked under another class is served and not kept.
+  budget: 4096
+  sizes: [300]
+- name: cache-absent-cache-loads-and-purges-nothing
+  scenario: nil-cache
+  why: A handler built without a cache loads on every read and its purge calls are no-ops, so no write path needs a cache to exist.

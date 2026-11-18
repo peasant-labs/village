@@ -67,18 +67,11 @@ func TestMountedEncryptedTranscriptLifecycleRealPostgresRustFS(t *testing.T) {
 	id := uuidFromPg(published.Transcript.ID)
 	defer purgeAuditRows(t, ctx, pool, []pgtype.UUID{toPgUUID(id)})
 
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin pending identity fixture transaction: %v", err)
-	}
-	if _, err := tx.Exec(ctx, "SELECT set_config('app.actor_id', $1, true), set_config('app.transcript_writer_version', '1', true)", database.SystemActorID); err != nil {
-		t.Fatalf("install fixed writer markers for pending identity fixture: %v", err)
-	}
-	if _, err := tx.Exec(ctx, "UPDATE transcripts SET content_hash = NULL, blob_size_bytes = NULL WHERE id = $1", id); err != nil {
-		t.Fatalf("create pending identity fixture row: %v", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit pending identity fixture row: %v", err)
+	// The pending-identity row is fixture state: the transition guard refuses a
+	// writer that clears a usable identity, so the fixture bypasses it.
+	execFixtureIdentity(t, ctx, pool, "UPDATE transcripts SET content_hash = NULL, blob_size_bytes = NULL WHERE id = $1", id)
+	if t.Failed() {
+		t.FailNow()
 	}
 	queries := sqlc.New(pool)
 	pendingRows, err := queries.ListTranscriptsMissingContentHash(ctx)
@@ -107,10 +100,11 @@ func TestMountedEncryptedTranscriptLifecycleRealPostgresRustFS(t *testing.T) {
 	if !foundRewrap {
 		t.Fatal("rewrap keyset query omitted the below-active complete descriptor")
 	}
-	tx, err = pool.Begin(ctx)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin identity restore transaction: %v", err)
 	}
+	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx, "SELECT set_config('app.actor_id', $1, true), set_config('app.transcript_writer_version', '1', true)", database.SystemActorID); err != nil {
 		t.Fatalf("install fixed writer markers for identity restore: %v", err)
 	}
