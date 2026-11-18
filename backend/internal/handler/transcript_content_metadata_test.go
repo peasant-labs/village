@@ -39,7 +39,7 @@ func TestContentSourceMetadata(t *testing.T) {
 			if x.Validation != tc.Validation || x.ContentSessionID == nil || *x.ContentSessionID != tc.Session || x.NativePresence != tc.Native || len(x.History) != tc.History {
 				t.Fatalf("unexpected metadata: %+v", x)
 			}
-			p, err := x.Partition(mainPartitionKey())
+			p, err := x.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 			if err != nil {
 				t.Fatal(err)
 			}

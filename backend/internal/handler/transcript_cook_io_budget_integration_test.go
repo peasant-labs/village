@@ -46,7 +46,7 @@ func TestCookNumberIOBudget(t *testing.T) {
 		if cold != 1 {
 			t.Fatalf("cold load performed %d encrypted reads, want exactly one", cold)
 		}
-		partition, err := opened.Index.Partition(mainPartitionKey())
+		partition, err := opened.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 		if err != nil || len(partition.Rows) == 0 {
 			t.Fatalf("numbering partition: %v", err)
 		}

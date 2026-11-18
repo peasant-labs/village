@@ -239,7 +239,7 @@ func TestCookNumberContentSource(t *testing.T) {
 				if !ok {
 					t.Fatalf("fixture reads %s but expects nothing of it", read)
 				}
-				partition, err := index.Partition(key)
+				partition, err := index.Partition(key, noTranscriptBuildReserve)
 				if want.Refuse != "" {
 					if want.Refuse != "uncookable" || !errors.Is(err, errUncookable) || partition != nil {
 						t.Fatalf("%s = (%v, %v), want the uncookable refusal and no partial partition", read, partition, err)
@@ -258,7 +258,7 @@ func TestCookNumberContentSource(t *testing.T) {
 				t.Fatalf("the cooking pass ran %d times, want %d", cookCalls, *c.CookCalls)
 			}
 			for _, absent := range c.Absent {
-				if _, err := index.Partition(partitionKey{Kind: absent.Kind, Section: absent.Section}); !errors.Is(err, errPartitionAbsent) {
+				if _, err := index.Partition(partitionKey{Kind: absent.Kind, Section: absent.Section}, noTranscriptBuildReserve); !errors.Is(err, errPartitionAbsent) {
 					t.Fatalf("partition %+v = %v, want errPartitionAbsent", absent, err)
 				}
 			}
@@ -450,7 +450,7 @@ func TestCookNumberNormalizesStoredShapes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("index the normalized document: %v", err)
 			}
-			main, err := index.Partition(mainPartitionKey())
+			main, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 			if err != nil || len(main.Rows) != c.TurnCount {
 				t.Fatalf("main partition = (%v, %v), want %d served rows", main, err, c.TurnCount)
 			}

@@ -308,7 +308,11 @@ func (x *transcriptIndex) ReadTurnBytes(ctx context.Context, start, end int64) (
 // bytes on first use. The cooking pass runs once per partition for the life of
 // the index; a failure is not remembered, so a later call repeats it and
 // refuses the same way. Concurrent first calls build once.
-func (x *transcriptIndex) Partition(key partitionKey) (*partitionIndex, error) {
+type transcriptBuildReserve func() (func(), error)
+
+func noTranscriptBuildReserve() (func(), error) { return func() {}, nil }
+
+func (x *transcriptIndex) Partition(key partitionKey, reserve transcriptBuildReserve) (*partitionIndex, error) {
 	layout, ok := x.partitionLayout(key)
 	if !ok {
 		return nil, errPartitionAbsent
@@ -318,6 +322,11 @@ func (x *transcriptIndex) Partition(key partitionKey) (*partitionIndex, error) {
 	if built, ok := x.Partitions[key]; ok {
 		return built, nil
 	}
+	release, err := reserve()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	built, err := x.buildPartition(layout)
 	if err != nil {
 		return nil, err

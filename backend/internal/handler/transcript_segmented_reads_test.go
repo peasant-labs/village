@@ -136,7 +136,7 @@ func TestSegmentedMarkRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := x.Partition(mainPartitionKey())
+			p, err := x.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 			if err != nil {
 				t.Fatal(err)
 			}

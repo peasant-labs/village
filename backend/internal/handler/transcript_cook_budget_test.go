@@ -121,7 +121,7 @@ func coldBudgetBench(b *testing.B, content bool) {
 					if err != nil {
 						b.Fatal(err)
 					}
-					part, err := index.Partition(mainPartitionKey())
+					part, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 					if err != nil || len(part.Rows) != size.Turns {
 						b.Fatalf("partition failed: %v", err)
 					}

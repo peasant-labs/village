@@ -130,11 +130,11 @@ func TestTranscriptContentCacheEncrypted(t *testing.T) {
 				row = w.row()
 				gated.reads = 0
 				mainRead := open(row)
-				if _, err := mainRead.Index.Partition(mainPartitionKey()); err != nil {
+				if _, err := mainRead.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve); err != nil {
 					t.Fatal(err)
 				}
 				historyRead := open(row)
-				if _, err := historyRead.Index.Partition(historyPartitionKey(0)); err != nil {
+				if _, err := historyRead.Index.Partition(historyPartitionKey(0), noTranscriptBuildReserve); err != nil {
 					t.Fatal(err)
 				}
 				if got := gated.count(); got != 1 || historyRead != mainRead {
@@ -175,16 +175,16 @@ func TestTranscriptContentCacheEncrypted(t *testing.T) {
 				row = w.row()
 				gated.reads = 0
 				mainRead := open(row)
-				built, err := mainRead.Index.Partition(mainPartitionKey())
+				built, err := mainRead.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
 				again := open(row)
-				gotMain, err := again.Index.Partition(mainPartitionKey())
+				gotMain, err := again.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil || gotMain != built {
 					t.Fatalf("the retained entry did not hold the index it built (%v)", err)
 				}
-				history, err := again.Index.Partition(historyPartitionKey(0))
+				history, err := again.Index.Partition(historyPartitionKey(0), noTranscriptBuildReserve)
 				if err != nil || history == built || len(history.Rows) == 0 {
 					t.Fatalf("history section index: %+v (%v)", history, err)
 				}

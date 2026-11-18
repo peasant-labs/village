@@ -532,27 +532,27 @@ func TestTranscriptContentCache(t *testing.T) {
 				loader := c.loader(t, key, c.Sizes[0])
 				loader.hist = 2
 				opened := cacheAcquire(t, cache, key, loader)
-				main, err := opened.Index.Partition(mainPartitionKey())
+				main, err := opened.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
-				first, err := opened.Index.Partition(historyPartitionKey(0))
+				first, err := opened.Index.Partition(historyPartitionKey(0), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
-				second, err := opened.Index.Partition(historyPartitionKey(1))
+				second, err := opened.Index.Partition(historyPartitionKey(1), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if main == first || first == second || main == second {
 					t.Fatal("partitions of one entry share an index")
 				}
-				if _, err := opened.Index.Partition(partitionKey{Kind: schema.TranscriptPartitionMain, Section: 0}); !errors.Is(err, errPartitionAbsent) {
+				if _, err := opened.Index.Partition(partitionKey{Kind: schema.TranscriptPartitionMain, Section: 0}, noTranscriptBuildReserve); !errors.Is(err, errPartitionAbsent) {
 					t.Fatalf("a main key that names a section resolved: %v", err)
 				}
 				again := cacheAcquire(t, cache, key, loader)
-				gotMain, _ := again.Index.Partition(mainPartitionKey())
-				gotSecond, _ := again.Index.Partition(historyPartitionKey(1))
+				gotMain, _ := again.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
+				gotSecond, _ := again.Index.Partition(historyPartitionKey(1), noTranscriptBuildReserve)
 				if again != opened || gotMain != main || gotSecond != second {
 					t.Fatal("a later read of the entry did not find the indexes it already held")
 				}
@@ -572,11 +572,11 @@ func TestTranscriptContentCache(t *testing.T) {
 				loader := c.loader(t, key, c.Sizes[0])
 				loader.hist = 1
 				mainRead := cacheAcquire(t, cache, key, loader)
-				if _, err := mainRead.Index.Partition(mainPartitionKey()); err != nil {
+				if _, err := mainRead.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve); err != nil {
 					t.Fatal(err)
 				}
 				historyRead := cacheAcquire(t, cache, key, loader)
-				if _, err := historyRead.Index.Partition(historyPartitionKey(0)); err != nil {
+				if _, err := historyRead.Index.Partition(historyPartitionKey(0), noTranscriptBuildReserve); err != nil {
 					t.Fatal(err)
 				}
 				if historyRead != mainRead || loader.loads.Load() != 1 {

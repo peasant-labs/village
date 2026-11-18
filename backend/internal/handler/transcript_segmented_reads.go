@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,7 @@ type segmentedRead struct {
 	withheld       bool
 	native         schema.TranscriptNativePresence
 	representation string
+	reserve        transcriptBuildReserve
 }
 
 func segmentedHeaders(w http.ResponseWriter) {
@@ -154,7 +156,9 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 		segmentedError(w, http.StatusConflict, "The transcript was re-projected; reload before continuing.")
 		return nil, false
 	}
-	return &segmentedRead{row: row, opened: opened, withheld: withheld, native: native, representation: representation}, true
+	return &segmentedRead{row: row, opened: opened, withheld: withheld, native: native, representation: representation, reserve: func() (func(), error) {
+		return h.contentCache.AcquireBuild(context.WithoutCancel(r.Context()))
+	}}, true
 }
 
 func readGeneration(w http.ResponseWriter, r *http.Request) (int, bool) {
@@ -215,7 +219,7 @@ func (s *segmentedRead) visibleContentHash() string {
 }
 
 func segmentPartition(w http.ResponseWriter, s *segmentedRead, key partitionKey) (*partitionIndex, bool) {
-	part, err := s.opened.Index.Partition(key)
+	part, err := s.opened.Index.Partition(key, s.reserve)
 	if errors.Is(err, errPartitionAbsent) {
 		segmentedError(w, http.StatusNotFound, "Transcript partition not found")
 		return nil, false

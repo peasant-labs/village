@@ -123,11 +123,11 @@ func TestCookNumberEncryptedRead(t *testing.T) {
 				if index.ModelProvider != row.ModelProvider {
 					t.Fatalf("index model provider %q, row %q", index.ModelProvider, row.ModelProvider)
 				}
-				first, err := index.Partition(mainPartitionKey())
+				first, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
-				second, err := index.Partition(mainPartitionKey())
+				second, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -193,11 +193,11 @@ func TestCookNumberEncryptedRead(t *testing.T) {
 				if err != nil {
 					t.Fatalf("open the stored generation: %v", err)
 				}
-				main, err := opened.Index.Partition(mainPartitionKey())
+				main, err := opened.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}
-				history, err := opened.Index.Partition(historyPartitionKey(0))
+				history, err := opened.Index.Partition(historyPartitionKey(0), noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}

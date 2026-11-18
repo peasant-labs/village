@@ -154,7 +154,7 @@ func servedSelfTestObservation() (pagedReadObservation, error) {
 		keys = append(keys, historyPartitionKey(section))
 	}
 	for _, key := range keys {
-		part, err := index.Partition(key)
+		part, err := index.Partition(key, noTranscriptBuildReserve)
 		if err != nil {
 			return pagedReadObservation{}, err
 		}

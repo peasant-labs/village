@@ -59,7 +59,7 @@ func TestContentSourceSegmentCut(t *testing.T) {
 			}
 			check := func(key partitionKey, input []schema.TurnDetail) {
 				t.Helper()
-				part, err := index.Partition(key)
+				part, err := index.Partition(key, noTranscriptBuildReserve)
 				if err != nil {
 					t.Fatal(err)
 				}

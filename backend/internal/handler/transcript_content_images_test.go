@@ -51,7 +51,7 @@ func TestContentSourceOmittedImages(t *testing.T) {
 			if len(index.Partitions) != 0 {
 				t.Fatal("image count unexpectedly opened a partition")
 			}
-			main, err := index.Partition(mainPartitionKey())
+			main, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 			if err != nil {
 				t.Fatal(err)
 			}

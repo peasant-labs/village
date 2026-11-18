@@ -167,7 +167,7 @@ func TestNumberingSchemaReplay(t *testing.T) {
 				if err != nil {
 					t.Fatalf("construct held content index: %v", err)
 				}
-				part, err := index.Partition(mainPartitionKey())
+				part, err := index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
 				if tc.Expect.Outcome == numberingRefused {
 					if err == nil || part != nil || len(index.Partitions) != 0 {
 						t.Fatalf("expected cook refusal without partial partition: partition=%+v error=%v", part, err)
