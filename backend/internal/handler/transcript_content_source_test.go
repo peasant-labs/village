@@ -457,3 +457,13 @@ func TestCookNumberNormalizesStoredShapes(t *testing.T) {
 		})
 	}
 }
+
+// TestCookNumberRefusesInvalidUTF8InsideTurns keeps the header projection's
+// refusal of a session detail that is not valid UTF-8 when the invalid byte is
+// inside a turn, which the header itself is not given.
+func TestCookNumberRefusesInvalidUTF8InsideTurns(t *testing.T) {
+	document := []byte("{\"contractVersion\":\"0.1.0\",\"kind\":\"session_detail\",\"sessionDetail\":{\"harness\":\"codex\",\"turns\":[{\"role\":\"user\",\"content\":\"bad \xff byte\",\"depth\":0}]}}")
+	if _, err := newTranscriptIndex(transcriptIndexInput{Bytes: document}); !errors.Is(err, errUncookable) {
+		t.Fatalf("an invalid UTF-8 byte inside a turn was indexed: %v", err)
+	}
+}

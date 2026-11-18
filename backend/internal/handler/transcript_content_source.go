@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -215,11 +217,21 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 			Diagnostics     json.RawMessage   `json:"diagnostics"`
 		} `json:"sessionDetail"`
 	}
-	if err := json.Unmarshal(in.Bytes, &envelope); err != nil {
+	// The envelope metadata and the header are read from a view without the
+	// turn arrays: neither reads a turn, and the arrays are most of the bytes.
+	view, viewDetail := layout.metadataView(in.Bytes)
+	if err := json.Unmarshal(view, &envelope); err != nil {
 		return nil, fmt.Errorf("%w: envelope metadata could not be read", errUncookable)
 	}
 	index.ContractVersion = envelope.ContractVersion
-	index.Header, err = schema.NewTranscriptSessionHeader(index.SessionDetail())
+	// The header projection refuses a detail that is not valid UTF-8 anywhere,
+	// turns included; the view no longer holds the turns, so their bytes are
+	// checked here to keep that refusal. JSON syntax was checked by the
+	// structural pass.
+	if !utf8.Valid(index.SessionDetail()) {
+		return nil, fmt.Errorf("%w: header metadata could not be projected", errUncookable)
+	}
+	index.Header, err = schema.NewTranscriptSessionHeader(view[viewDetail.Start:viewDetail.End])
 	if err != nil {
 		return nil, fmt.Errorf("%w: header metadata could not be projected", errUncookable)
 	}
@@ -358,8 +370,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 	cursor := layout.Turns.Start + 1 // after the array's opening bracket
 	for stored, turn := range turns {
 		served := turn.Raw()
-		raw := served.Raw()
-		start, end, next, err := x.locateTurn(cursor, raw, stored == len(turns)-1)
+		start, end, next, err := x.locateTurn(cursor, stored == len(turns)-1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: stored turn %d: %w", errUncookable, stored, err)
 		}
@@ -402,6 +413,9 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			RecordedIndex:      recorded,
 		})
 	}
+	if len(turns) != 0 && cursor != layout.Turns.End {
+		return nil, fmt.Errorf("%w: the cooking rule captured %d turns where the structural pass located more in handler.transcriptIndex.buildPartition", errUncookable, len(turns))
+	}
 	cuts := schema.CutTranscriptSegments(details, schema.TranscriptSegmentBudgetBytes)
 	refs := make([]schema.PositionedSegmentRef, 0, len(cuts))
 	positions := make([]positionRef, 0, len(cuts))
@@ -440,14 +454,16 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 }
 
 // locateTurn finds where the next stored turn lies in the held bytes. The
-// capture decoded the array element by element, so the turn's own bytes are
-// exactly the array element: this walk only skips the whitespace and commas
-// between elements and checks that the bytes are those the capture returned.
-func (x *transcriptIndex) locateTurn(cursor int64, raw []byte, last bool) (start, end, next int64, err error) {
+// capture was taken from these same array bytes and decoded them element by
+// element, so the next stored turn is the next array element: this walk skips
+// the whitespace and the comma before it and the object itself, without
+// copying the captured turn back out to compare it. The bytes passed the
+// structural pass's JSON syntax check, so only strings and nesting matter.
+func (x *transcriptIndex) locateTurn(cursor int64, last bool) (start, end, next int64, err error) {
 	cursor = skipJSONSpace(x.Bytes, cursor)
-	end = cursor + int64(len(raw))
-	if end > int64(len(x.Bytes)) || !bytes.Equal(x.Bytes[cursor:end], raw) {
-		return 0, 0, 0, errors.New("the captured turn is not where the structural pass expected it in handler.transcriptIndex.locateTurn; the document was not indexed; report this as a defect")
+	end, err = jsonObjectEnd(x.Bytes, cursor)
+	if err != nil {
+		return 0, 0, 0, err
 	}
 	next = skipJSONSpace(x.Bytes, end)
 	if next >= int64(len(x.Bytes)) {
@@ -461,6 +477,33 @@ func (x *transcriptIndex) locateTurn(cursor int64, raw []byte, last bool) (start
 		return 0, 0, 0, errors.New("the turn array has an unexpected separator in handler.transcriptIndex.locateTurn; the document was not indexed; report this as a defect")
 	}
 	return cursor, end, next + 1, nil
+}
+
+// jsonObjectEnd returns the offset just past the JSON object that starts at
+// at. b must hold valid JSON from at onward.
+func jsonObjectEnd(b []byte, at int64) (int64, error) {
+	if at >= int64(len(b)) || b[at] != '{' {
+		return 0, errors.New("a captured turn is not an object where the structural pass located it in handler.jsonObjectEnd; the document was not indexed; report this as a defect")
+	}
+	depth := 0
+	for i := at; i < int64(len(b)); i++ {
+		switch b[i] {
+		case '"':
+			for i++; i < int64(len(b)) && b[i] != '"'; i++ {
+				if b[i] == '\\' {
+					i++
+				}
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return i + 1, nil
+			}
+		}
+	}
+	return 0, errors.New("a captured turn does not end inside the held document in handler.jsonObjectEnd; the document was not indexed; report this as a defect")
 }
 
 func skipJSONSpace(b []byte, at int64) int64 {
@@ -496,6 +539,39 @@ type contentLayout struct {
 	Main          partitionLayout
 	History       []partitionLayout
 	OmittedImages int
+}
+
+// metadataView returns a copy of document in which every turn array the
+// structural pass located holds null instead, and the session detail's span in
+// that copy. Only members named turns are replaced, so every other member, the
+// member names and their order are as stored; a reader that does not read turns
+// decodes the view exactly as it decodes the document.
+func (l contentLayout) metadataView(document []byte) ([]byte, byteSpan) {
+	spans := make([]byteSpan, 0, 1+len(l.History))
+	if l.Main.Present {
+		spans = append(spans, l.Main.Turns)
+	}
+	for _, section := range l.History {
+		if section.Present {
+			spans = append(spans, section.Turns)
+		}
+	}
+	// The main turns may follow earlierHistory in the stored member order.
+	sort.Slice(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
+	removed := int64(0)
+	for _, span := range spans {
+		removed += span.End - span.Start - int64(len("null"))
+	}
+	view := make([]byte, 0, int64(len(document))-removed)
+	cursor := int64(0)
+	for _, span := range spans {
+		view = append(view, document[cursor:span.Start]...)
+		view = append(view, "null"...)
+		cursor = span.End
+	}
+	view = append(view, document[cursor:]...)
+	// Every turn array lies inside the session detail.
+	return view, byteSpan{Start: l.Detail.Start, End: l.Detail.End - removed}
 }
 
 // layoutScanner walks a document with a token decoder so that offsets are
@@ -641,34 +717,45 @@ func (s *layoutScanner) history(layout *contentLayout) error {
 	return s.close(']')
 }
 
-// turnArray reads one value that must be an array or null.
+// storedTurnFacts is the part of one stored turn the structural pass reads. A
+// turn whose members do not decode into it contributes nothing.
+type storedTurnFacts struct {
+	ContentParts []json.RawMessage `json:"contentParts"`
+	Usage        json.RawMessage   `json:"usage"`
+	ToolCalls    json.RawMessage   `json:"toolCalls"`
+}
+
+// turnArray reads one value that must be an array or null. The array is
+// walked element by element with the scanner's own decoder, so each stored
+// turn is read once here and the array is never decoded whole or copied.
 func (s *layoutScanner) turnArray() (partitionLayout, error) {
-	value, err := s.skip()
+	token, err := s.dec.Token()
 	if err != nil {
 		return partitionLayout{}, err
 	}
-	trimmed := bytes.TrimSpace(value.bytes)
-	if bytes.Equal(trimmed, []byte("null")) {
+	if token == nil {
 		return partitionLayout{UsagePresent: schema.TranscriptUsageUnknown}, nil
 	}
-	if len(trimmed) == 0 || trimmed[0] != '[' {
+	if token != json.Delim('[') {
 		return partitionLayout{}, errors.New("turns is not an array")
 	}
+	start := s.dec.InputOffset() - 1
 	// Count only typed image parts with a stated omission reason, before the
 	// lazy cook so even a removed row or an unopened history contributes.
-	var turns []json.RawMessage
-	if err := json.Unmarshal(trimmed, &turns); err != nil {
-		return partitionLayout{}, err
-	}
 	usage := schema.TranscriptUsageUnknown
-	for _, turn := range turns {
-		var row struct {
-			ContentParts []json.RawMessage `json:"contentParts"`
-			Usage        json.RawMessage   `json:"usage"`
-			ToolCalls    json.RawMessage   `json:"toolCalls"`
-		}
-		if err := json.Unmarshal(turn, &row); err != nil {
-			continue
+	stored := 0
+	for s.dec.More() {
+		var row storedTurnFacts
+		err := s.dec.Decode(&row)
+		stored++
+		if err != nil {
+			// A turn of another shape is consumed whole and skipped; broken
+			// JSON stops the pass.
+			var mismatch *json.UnmarshalTypeError
+			if errors.As(err, &mismatch) {
+				continue
+			}
+			return partitionLayout{}, err
 		}
 		if len(row.Usage) > 0 && string(row.Usage) != "null" {
 			usage = schema.TranscriptUsagePresent
@@ -697,7 +784,10 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 			}
 		}
 	}
-	return partitionLayout{Turns: value.span, Present: true, StoredTurns: len(turns), UsagePresent: usage}, nil
+	if err := s.close(']'); err != nil {
+		return partitionLayout{}, err
+	}
+	return partitionLayout{Turns: byteSpan{Start: start, End: s.dec.InputOffset()}, Present: true, StoredTurns: stored, UsagePresent: usage}, nil
 }
 
 type skippedValue struct {

@@ -1,0 +1,112 @@
+# Corpus for the served-byte golden of the positioned transcript reads. Each
+# document is stored as plaintext behind the fake encrypted store and read
+# through the production handlers: header, directory, every segment, and
+# windows, for every segmented-read generation, for main and every history
+# section, as an anonymous viewer (repository withheld) and as a viewer who may
+# see the owner's profile. The recorded answers live in
+# content_source_golden.json; any change to a served byte, status or ETag fails.
+#
+# `document` is the stored envelope verbatim. A document marked `stored_legacy`
+# carries shapes the strict read validator now refuses (an absent recorded
+# index, an absent turn array); it is indexed by the production content source
+# directly and installed in the content cache, so the same handlers serve it. `generate`, when set, appends
+# that many generated turns to the main partition (replacing the literal
+# __GENERATED__ marker) so a partition crosses the segment budget without a
+# multi-megabyte fixture. `flagged` lists the stored positions an open integrity
+# flag names, which the header remaps through the cook's verdict.
+- name: golden-claude-main-history-images
+  why: Dropped and duplicate rows, tool calls with usage, typed image omissions in main and history, native metadata attached to turns, and two history sections with their own states.
+  flagged: [0, 1, 2, 4, 7, 99]
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"550e8400-e29b-41d4-a716-446655440000","harness":"claude-code","model":"claude-sonnet","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":9,"toolCallCount":2,
+    "turns":[
+    {"index":0,"role":"user","content":"first prompt","timestamp":"2026-01-01T00:00:01Z","depth":0,"contentParts":[{"type":"text","text":"first prompt"},{"type":"image","image":{"omittedReason":"not_published"}}]},
+    {"index":1,"role":"system","content":"short","timestamp":"2026-01-01T00:00:02Z","depth":0},
+    {"index":2,"role":"assistant","content":"let me look","timestamp":"2026-01-01T00:00:03Z","depth":0,"sourceEntryRef":"ref-a","usage":{"ownerId":"owner-a","sourceEntryRef":"ref-a","scope":"assistant","completeness":"partial","tokens":{"input":10,"output":5}}},
+    {"index":3,"role":"assistant","content":"let me look","timestamp":"2026-01-01T00:00:04Z","depth":0,"toolCalls":[{"id":"t1","name":"Read","arguments":"{\"path\":\"a.go\"}","result":"package a\n\tfunc A() {}"}]},
+    {"index":4,"role":"assistant","content":"","timestamp":"2026-01-01T00:00:05Z","depth":0},
+    {"index":5,"role":"user","content":"nested \u00e9t\u00e9 \"quoted\"","timestamp":"2026-01-01T00:00:06Z","depth":1},
+    {"index":6,"role":"assistant","content":"tool time","timestamp":"2026-01-01T00:00:07Z","depth":0,"toolCalls":[{"id":"t2","name":"Bash","arguments":"{\"cmd\":\"ls\"}","result":"a\nb","resultEntryRef":"ref-t2","usage":{"ownerId":"owner-t2","sourceEntryRef":"ref-t2","scope":"tool","completeness":"partial","tokens":{"input":3}}}]},
+    {"index":7,"role":"user","content":"second prompt","timestamp":"2026-01-01T00:00:08Z","depth":0,"contentParts":[{"type":"image","image":{"omittedReason":"not_published"}},{"type":"text","text":"caption"},{"type":"image","image":{"omittedReason":"not_published"}}]},
+    {"index":8,"role":"assistant","content":"done","timestamp":"2026-01-01T00:00:09Z","depth":0}],
+    "earlierHistory":[
+    {"state":"uncertain_migrated","turns":[{"index":0,"role":"user","content":"older prompt","timestamp":"2025-12-31T00:00:01Z","depth":0,"contentParts":[{"type":"image","image":{"omittedReason":"not_published"}}]},{"index":1,"role":"assistant","content":"older answer","timestamp":"2025-12-31T00:00:02Z","depth":0,"sourceEntryRef":"ref-h","usage":{"ownerId":"owner-h","sourceEntryRef":"ref-h","scope":"assistant","completeness":"unknown"}},{"index":2,"role":"user","content":"older follow up","timestamp":"2025-12-31T00:00:03Z","depth":0}]},
+    {"state":"uncertain_migrated","turns":[{"index":0,"role":"assistant","content":"lead in","timestamp":"2025-12-30T00:00:01Z","depth":0},{"index":1,"role":"user","content":"oldest","timestamp":"2025-12-30T00:00:02Z","depth":0}]}]}}
+
+- name: golden-legacy-index-shapes
+  why: Absent, negative, unsafe-large and repeated recorded indexes, which the legacy reads refuse and the positioned reads carry as states.
+  stored_legacy: true
+  flagged: [0, 3]
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"legacy-session","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[
+    {"role":"system","content":"short","depth":0},
+    {"index":7,"role":"user","content":"first","depth":0},
+    {"role":"assistant","content":"reply","depth":0},
+    {"index":-3,"role":"assistant","content":"later reply","depth":0},
+    {"index":9007199254740993,"role":"assistant","content":"huge","depth":0},
+    {"index":7,"role":"user","content":"second","depth":0}]}}
+
+- name: golden-legacy-consistent-indexes
+  why: Every row carries a usable recorded index, so the legacy directory, segment and window are served alongside the positioned ones.
+  flagged: [1]
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"550e8400-e29b-41d4-a716-446655440001","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[
+    {"index":0,"role":"user","content":"one","depth":0,"timestamp":"2026-01-01T00:00:01Z"},
+    {"index":1,"role":"assistant","content":"r1","depth":0,"timestamp":"2026-01-01T00:00:01Z"},
+    {"index":2,"role":"user","content":"two","depth":0,"timestamp":"2026-01-01T00:00:01Z"},
+    {"index":3,"role":"assistant","content":"r2","depth":0,"timestamp":"2026-01-01T00:00:01Z","toolCalls":[{"id":"x","name":"Read","arguments":"{}","result":"ok","resultEntryRef":"ref-x","usage":{"ownerId":"owner-x","sourceEntryRef":"ref-x","scope":"tool","completeness":"unknown"}}]}]}}
+
+- name: golden-pi-keeps-every-row
+  why: The Pi producer keeps rows other producers drop and carries native metadata attached to turns, under an older contract version the read migrates.
+  flagged: [1, 2, 6]
+  document: >-
+    {"contractVersion":"0.0.9","kind":"session_detail","sessionDetail":{
+    "id":"public-fixture","harness":"pi","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z",
+    "durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":7,"toolCallCount":1,
+    "turns":[
+    {"index":10,"role":"user","content":"request [image omitted]","timestamp":"2026-01-01T00:00:00Z","depth":0},
+    {"index":20,"role":"assistant","content":"thinking once; answer [image omitted]","timestamp":"2026-01-01T00:00:01Z","depth":0,"hasThinking":true,"observedModel":"example/model","sourceEntryRef":"ref-assistant",
+    "usage":{"ownerId":"owner-assistant","sourceEntryRef":"ref-assistant","scope":"assistant","completeness":"complete","tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"cost":{"source":"recorded_harness_estimate","input":"1e-7","total":"0.30000000000000004"}},
+    "toolCalls":[{"id":"tool-public","name":"inspect","namespace":"Extension.Tools","arguments":"{\"nested\":{\"items\":[1,2]}}","result":"error [image omitted]","isError":true,"callEntryRef":"ref-call","resultEntryRef":"ref-result","usage":{"ownerId":"owner-tool","sourceEntryRef":"ref-result","scope":"tool","completeness":"partial","tokens":{"input":4,"reasoning":2}}}]},
+    {"index":30,"role":"system","content":"visible context [image omitted]","timestamp":"2026-01-01T00:00:02Z","depth":0,"sourceEntryRef":"ref-context"},
+    {"index":40,"role":"system","content":"compaction summary","timestamp":"2026-01-01T00:00:03Z","depth":0,"sourceEntryRef":"ref-compaction","usage":{"ownerId":"owner-compaction","sourceEntryRef":"ref-compaction","scope":"summary","completeness":"unknown","cost":{"source":"recorded_harness_estimate","total":"2e-8"}}},
+    {"index":50,"role":"system","content":"branch summary","timestamp":"2026-01-01T00:00:04Z","depth":0,"sourceEntryRef":"ref-branch","usage":{"ownerId":"owner-branch","sourceEntryRef":"ref-branch","scope":"summary","completeness":"unknown"}},
+    {"index":60,"role":"assistant","content":"","timestamp":"2026-01-01T00:00:05Z","depth":0,"sourceEntryRef":"ref-equal","usage":{"ownerId":"owner-equal","sourceEntryRef":"ref-equal","scope":"assistant","completeness":"complete","tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0}}},
+    {"index":70,"role":"user","content":"second","timestamp":"2026-01-01T00:00:06Z","depth":0}],
+    "nativeMetadata":[
+    {"id":"meta-custom","kind":"pi.custom.data","source":{"entryRef":"ref-custom","sourceType":"pi.custom"},"customType":"extension.state","data":{"deferred":true,"values":[9007199254740991,-9007199254740991,0.30000000000000004,1e-7]}},
+    {"id":"meta-context","kind":"pi.custommessage.details","source":{"entryRef":"ref-context","sourceType":"pi.custom_message"},"attachment":{"turnIndex":30},"customType":"extension.context","data":{"image":{"type":"image","mimeType":"image/png","bytesOmitted":true,"placeholder":"[image omitted]"}}},
+    {"id":"meta-tool","kind":"pi.toolresult.details","source":{"entryRef":"ref-result","sourceType":"pi.message","messageRole":"toolResult"},"attachment":{"turnIndex":20,"toolCallId":"tool-public"},"data":{"nested":{"result":"details stay separate"}}},
+    {"id":"meta-compaction","kind":"pi.compaction.details","source":{"entryRef":"ref-compaction","sourceType":"pi.compaction"},"attachment":{"turnIndex":40},"data":{"summary":"retained"}}]}}
+
+- name: golden-indented-empty-main
+  why: Whitespace between members and turns moves every offset, and an absent main turn array is an empty partition beside a populated history.
+  stored_legacy: true
+  document: |-
+    {
+      "contractVersion": "0.1.0",
+      "kind": "session_detail",
+      "sessionDetail": {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "harness": "codex",
+        "startTime": "2026-01-01T00:00:00Z", "endTime": "2026-01-01T00:05:00Z", "durationMins": 5,
+        "totalTokens": 0, "tokensIn": 0, "tokensOut": 0, "turnCount": 0, "toolCallCount": 0,
+        "earlierHistory": [
+          {
+            "state": "uncertain_migrated",
+            "nativeMetadata": [ { "kind": "note", "attachment": { "turnIndex": 0 }, "data": {} } ],
+            "turns": [
+              { "index": 0, "role": "user", "content": "older", "depth": 0 } ,
+              { "index": 1, "role": "assistant", "content": "older reply", "depth": 0 }
+            ]
+          }
+        ]
+      }
+    }
+
+- name: golden-multi-segment
+  why: A main partition larger than the segment budget is cut into several segments, so every segment and the window coordinates cross segment boundaries.
+  generate: 600
+  flagged: [0, 300, 599]
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"550e8400-e29b-41d4-a716-446655440004","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[__GENERATED__]}}
