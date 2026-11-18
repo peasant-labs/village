@@ -160,6 +160,8 @@ func TestPublishHarnessAcceptance(t *testing.T) {
 			now := pgtype.Timestamptz{Time: time.Unix(1700000000, 0), Valid: true}
 			var saved *sqlc.CreateTranscriptParams
 			q := &mockQuerier{
+				// The session's account exists, so the auth middleware lets it in.
+				getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) { return sqlc.User{ID: id}, nil },
 				getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
 					return pgtype.UUID{}, pgx.ErrNoRows
 				},

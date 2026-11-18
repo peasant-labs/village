@@ -1312,6 +1312,16 @@ authenticating. Both are custom Postgres parameters read via
 - **`users → transcripts` is `ON DELETE CASCADE`** (migration 010); groups
   cascade from their creator. Account deletion is a DB-level cascade - any
   future per-transcript bookkeeping must therefore live in triggers, not Go.
+- **A session lives only as long as its `users` row.** A session cookie or
+  bearer JWT is accepted only after `authenticate`
+  (`internal/handler/auth_middleware.go`) reads the account it names by primary
+  key, so deleting the row ends every session for that account at once; there
+  is no revocation list or token version. A missing row makes auth-required
+  routes answer `401` and optional-auth routes serve the caller anonymously. A
+  failed lookup never grants access: auth-required routes answer `503` with
+  `Retry-After`, optional-auth routes serve the caller anonymously. API keys
+  were already looked up in the database and go with the account
+  (`ON DELETE CASCADE`).
 - **`project_hash` is a REQUIRED identity column on transcripts** (migration
   035). It is what makes two transcripts the same project; a name can change and
   can be withheld for privacy, the identity cannot. Production held zero null

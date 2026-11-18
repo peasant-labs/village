@@ -76,7 +76,9 @@ func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 // TestDeclaredStubRoutes_AnswerNotImplemented drives every stub through the
 // production router with no database or object store: a stub that read
 // anything would fail instead of answering 501. It pins each route's status
-// without and with a session.
+// without and with a session. With no database the session's account cannot be
+// confirmed, so an optional-auth stub serves the signed-in caller anonymously
+// and an auth-required stub would answer 503 instead of reaching the stub.
 func TestDeclaredStubRoutes_AnswerNotImplemented(t *testing.T) {
 	cfg := &config.Config{JWTSecret: "declared-stub-test-only-secret", FrontendURL: "https://example.test"}
 	routes := New(cfg, nil, nil, nil)
