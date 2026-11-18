@@ -46,7 +46,7 @@ func TestContentSourceRefusals(t *testing.T) {
 	}
 	requiredRoutes := map[string]bool{"content": false, "header": false, "directory": false, "segment": false, "window": false, "locate": false}
 	for _, route := range routes {
-		if _, ok := requiredRoutes[route.Name]; !ok || requiredRoutes[route.Name] || route.Status != http.StatusInternalServerError || route.BodyClass != "error" {
+		if _, ok := requiredRoutes[route.Name]; !ok || requiredRoutes[route.Name] || route.Status != http.StatusInternalServerError || route.BodyClass == "" {
 			t.Fatalf("invalid refusal route: %+v", route)
 		}
 		requiredRoutes[route.Name] = true
@@ -75,8 +75,8 @@ func TestContentSourceRefusals(t *testing.T) {
 			id := pgtype.UUID{Bytes: uuid.MustParse("30000000-0000-4000-8000-000000000001"), Valid: true}
 			owner := pgtype.UUID{Bytes: uuid.MustParse("30000000-0000-4000-8000-ffffffffffff"), Valid: true}
 			blobs := newFakeBlobStore()
-			blobs.put("refusal", doc)
-			row := sqlc.Transcript{ID: id, OwnerID: owner, Visibility: "public", ContentRevision: 3, ModelProvider: "claude-code", BlobKey: "refusal", WrappedDataKey: []byte("key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1, ContentHash: pgtype.Text{String: schema.ComputeTranscriptHash(doc), Valid: true}, BlobSizeBytes: pgtype.Int8{Int64: int64(len(doc)), Valid: true}}
+			blobs.put("transcripts/30000000-0000-4000-8000-000000000001.bin", doc)
+			row := sqlc.Transcript{ID: id, OwnerID: owner, Visibility: "public", ContentRevision: 3, ModelProvider: "claude-code", BlobKey: "transcripts/30000000-0000-4000-8000-000000000001.bin", WrappedDataKey: []byte("key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1, ContentHash: pgtype.Text{String: schema.ComputeTranscriptHash(doc), Valid: true}, BlobSizeBytes: pgtype.Int8{Int64: int64(len(doc)), Valid: true}}
 			q := &mockQuerier{
 				getTranscriptByID: func(context.Context, pgtype.UUID) (sqlc.Transcript, error) { return row, nil },
 				listPublicOwnersForViewer: func(context.Context, sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error) {
@@ -96,7 +96,7 @@ func TestContentSourceRefusals(t *testing.T) {
 			for _, route := range routes {
 				w := httptest.NewRecorder()
 				mux.ServeHTTP(w, httptest.NewRequest(route.Method, base+route.Path, strings.NewReader("{}")))
-				if w.Code != route.Status || !strings.Contains(w.Body.String(), `"error"`) {
+				if w.Code != route.Status || !strings.Contains(w.Body.String(), `"error"`) || !strings.Contains(w.Body.String(), route.BodyClass) {
 					t.Errorf("%s: got %d %s, want %d %s", route.Name, w.Code, w.Body.String(), route.Status, route.BodyClass)
 				}
 			}

@@ -1,6 +1,6 @@
-- {name: content, method: GET, path: /content, status: 500, body_class: error}
-- {name: header, method: GET, path: /header, status: 500, body_class: error}
-- {name: directory, method: GET, path: '/segments?v=2', status: 500, body_class: error}
-- {name: segment, method: GET, path: '/segments/0?v=2', status: 500, body_class: error}
-- {name: window, method: GET, path: '/window?v=2', status: 500, body_class: error}
-- {name: locate, method: POST, path: /segments/locate, status: 500, body_class: error}
+- {name: content, method: GET, path: /content, status: 500, body_class: encrypted transcript validation failed}
+- {name: header, method: GET, path: /header, status: 500, body_class: Cannot open transcript content}
+- {name: directory, method: GET, path: '/segments?v=2', status: 500, body_class: Cannot open transcript content}
+- {name: segment, method: GET, path: '/segments/0?v=2', status: 500, body_class: Cannot open transcript content}
+- {name: window, method: GET, path: '/window?v=2', status: 500, body_class: Cannot open transcript content}
+- {name: locate, method: POST, path: /segments/locate, status: 500, body_class: Cannot open transcript content}
