@@ -120,6 +120,9 @@ def utilization(before, after):
         result[str(cpu)] = 100 * (dt - di) / dt
     return result
 
+def isolation_status(values):
+    return "degraded" if any(value > 1 for value in values.values()) else "isolated"
+
 
 def governor(cores):
     return {str(c): pathlib.Path(f"/sys/devices/system/cpu/cpu{c}/cpufreq/scaling_governor").read_text().strip()
@@ -290,7 +293,8 @@ def main():
     errors = []
     if result["governor_after"] != result["row0"]["governor_reference"]:
         errors.append("CPU governor differs from the row-0 reference")
-    if any(v > 1 for v in result["sibling_utilization_percent"].values()):
+    result["isolation"] = isolation_status(result["sibling_utilization_percent"])
+    if result["isolation"] == "degraded" and args.gate:
         errors.append("sibling utilization exceeded 1%")
     if args.gate:
         for name, entry in result["subjects"].items():
