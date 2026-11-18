@@ -80,7 +80,9 @@ func run(ctx context.Context, args []string) error {
 	// Repair must never create its own audit destination. A missing ledger or
 	// state migration is a precondition failure, not permission to migrate
 	// immediately before an operator action.
-	if selection.Mode() != runtimeModeContentRepair {
+	// The paged-read check is read-only and is run against a deployed
+	// database, so it applies no migration either.
+	if selection.Mode() != runtimeModeContentRepair && selection.Mode() != runtimeModePagedReadCheck {
 		if err = database.RunMigrations(pool); err != nil {
 			return fmt.Errorf("runtime startup failed because database migration failed in run before mode dispatch; no job or listener started; repair the migration precondition and retry: %w", err)
 		}
@@ -92,6 +94,9 @@ func run(ctx context.Context, args []string) error {
 		// Handled here, beside migrate-only, so it never constructs blob storage
 		// or a key authority it has no use for.
 		return reportShareStateConsistency(ctx, pool)
+	}
+	if selection.Mode() == runtimeModePagedReadCheck && !selection.PagedReadCheckOptions().Mode.ReadsContent() {
+		return handler.RunPagedReadCensus(ctx, pool, os.Stdout)
 	}
 	titles, err := constructTitlePipeline()
 	if err != nil {
@@ -148,6 +153,8 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 		return runSeedWithCreator(ctx, selection.Mode(), pool, blobs, handler.NewWithTitlePipeline(cfg, pool, blobs, titles))
 	case runtimeModeContentRepair:
 		return runContentRepair(ctx, os.Stdout, pool, blobs, selection.RepairOptions())
+	case runtimeModePagedReadCheck:
+		return handler.NewWithTitlePipeline(cfg, pool, blobs, titles).RunPagedReadCheck(ctx, os.Stdout, selection.PagedReadCheckOptions())
 	case runtimeModeServe:
 		logTranscriptEncryptionAuthorityReady(keyring)
 		evaluateAndLogPreservationProofs()

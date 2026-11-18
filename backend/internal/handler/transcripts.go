@@ -1291,16 +1291,8 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	// the migrated payload is its sessionDetail. A shape-compatible stored blob is
 	// already canonical and is served byte-for-byte; a normalized payload is
 	// re-stamped, installed, and served in the envelope.
-	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
+	prepared, err := contentResponseBody(r.Context(), raw)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := validateObservedModelValues(payload); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := validateThinkingLevelValues(payload); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -1313,46 +1305,22 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 			servedHash = readResult.Identity.Hash()
 		}
 	}
-	response := raw
-	if rewrite {
-		encoded, encodeErr := encodeCanonicalTranscript(payload)
-		if encodeErr == nil {
-			response = encoded
-			installed, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, readResult.Identity, encoded, sniffShape(raw))
-			if err != nil {
-				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
-					writeError(w, http.StatusInternalServerError, err.Error())
-					return
-				}
-				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
-			} else if installed != nil {
-				servedHash = installed.Hash()
-				h.nudgeIntegrity()
-			}
-		} else if errors.Is(encodeErr, errCanonicalRewriteTooLarge) {
-			// Escaping during an optional read repair must not poison a valid
-			// stored generation. Serve its validated wire without a storage write.
-			response, err = originalContentEnvelope(raw)
-			if err != nil {
+	response := prepared.body
+	if prepared.rewrite {
+		installed, err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, readResult.Identity, response, sniffShape(raw))
+		if err != nil {
+			if prepared.requiresPersistence {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-		} else {
-			// Sparse legacy content the strict canonical encoder cannot represent
-			// (for example a missing session harness) is still served, wrapped in
-			// the same durable envelope, so historical sessions stay readable. No
-			// canonical generation is installed here.
-			if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
-				writeError(w, http.StatusInternalServerError, "Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
-				return
-			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
-			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
+		} else if installed != nil {
+			servedHash = installed.Hash()
+			h.nudgeIntegrity()
 		}
+	}
+	if prepared.encodeError != nil {
+		log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), prepared.encodeError)
 	}
 
 	// The envelope carries no owner, so the repository identity of an owner
@@ -1376,6 +1344,47 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(response)
+}
+
+type preparedContentResponse struct {
+	body                []byte
+	rewrite             bool
+	requiresPersistence bool
+	encodeError         error
+}
+
+// contentResponseBody computes the whole-document response without changing storage.
+func contentResponseBody(ctx context.Context, raw []byte) (preparedContentResponse, error) {
+	payload, rewrite, err := defaultContentMigrator.Migrate(ctx, raw)
+	if err != nil {
+		return preparedContentResponse{}, err
+	}
+	if err := validateObservedModelValues(payload); err != nil {
+		return preparedContentResponse{}, err
+	}
+	if err := validateThinkingLevelValues(payload); err != nil {
+		return preparedContentResponse{}, err
+	}
+	result := preparedContentResponse{body: raw}
+	if !rewrite {
+		return result, nil
+	}
+	encoded, err := encodeCanonicalTranscript(payload)
+	if err == nil {
+		result.body, result.rewrite = encoded, true
+		result.requiresPersistence = len(schema.RequiredContentCapabilities(*payload)) != 0
+		return result, nil
+	}
+	if errors.Is(err, errCanonicalRewriteTooLarge) {
+		result.body, err = originalContentEnvelope(raw)
+		return result, err
+	}
+	if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
+		return preparedContentResponse{}, errors.New("Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
+	}
+	result.encodeError = err
+	result.body, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
+	return result, err
 }
 
 // errRewriteRaceLost rolls back a rewrite transaction whose compare-and-swap

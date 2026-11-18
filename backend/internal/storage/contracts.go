@@ -23,7 +23,13 @@ type KeyVersion = config.KeyVersion
 type ObjectKey string
 type ContentHash string
 
-var canonicalContentHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
+// CanonicalContentHashPattern is the stored content hash syntax: lowercase
+// hexadecimal SHA3-256. It is valid both as a Go regexp and as a PostgreSQL
+// POSIX regular expression, so a content-free SQL census can classify rows by
+// the same pattern NewContentIdentity enforces.
+const CanonicalContentHashPattern = `^[0-9a-f]{64}$`
+
+var canonicalContentHash = regexp.MustCompile(CanonicalContentHashPattern)
 var opaqueObjectKey = regexp.MustCompile(`^transcripts/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$`)
 
 // NewObjectKey validates the same opaque-generation form as a blob descriptor.

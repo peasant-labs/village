@@ -146,3 +146,38 @@
   authority: ""
   rewrap_limit: 0
   error_contains: mutually exclusive
+- name: paged read census with database authority only
+  args: ["-check-paged-reads=census"]
+  valid: true
+  mode: paged-read-check
+  authority: postgresql
+  rewrap_limit: 0
+  error_contains: ""
+- name: paged read sample with recorded authorization decrypts
+  args: ["-check-paged-reads=sample", "-check-authorization-ref=ops/parity-2026-11-18"]
+  valid: true
+  mode: paged-read-check
+  authority: blob-processing
+  rewrap_limit: 0
+  error_contains: ""
+- name: paged read sample without authorization refused
+  args: ["-check-paged-reads=sample"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: recorded operator authorization
+- name: paged read transcripts outside their mode refused
+  args: ["-check-transcripts=5e1f0c3a-0000-4000-8000-00000000d1d1"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: without -check-paged-reads
+- name: paged read unknown mode refused
+  args: ["-check-paged-reads=everything"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: not one of census, sample or transcripts
