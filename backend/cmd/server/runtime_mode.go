@@ -8,6 +8,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/backfill"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/contentrepair"
+	"github.com/peasant-labs/village/backend/internal/handler"
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 	runtimeModeSeedPrivacy
 	runtimeModeShareStateCheck
 	runtimeModeContentRepair
+	runtimeModePagedReadCheck
 )
 
 // runtimeSelection is the validated result of parsing process arguments. It is
@@ -40,6 +42,7 @@ type runtimeSelection struct {
 	titleMode   backfill.TitleBackfillMode
 	originMode  backfill.OriginBackfillMode
 	repair      contentrepair.Options
+	pagedReads  handler.PagedReadCheckOptions
 }
 
 func (s runtimeSelection) Mode() runtimeMode { return s.mode }
@@ -55,6 +58,10 @@ func (s runtimeSelection) TitleBackfillMode() backfill.TitleBackfillMode { retur
 func (s runtimeSelection) OriginBackfillMode() backfill.OriginBackfillMode { return s.originMode }
 
 func (s runtimeSelection) RepairOptions() contentrepair.Options { return s.repair }
+
+func (s runtimeSelection) PagedReadCheckOptions() handler.PagedReadCheckOptions {
+	return s.pagedReads
+}
 
 // parseRuntimeSelection performs no I/O other than parsing the supplied
 // arguments. In particular, it does not read authority, construct a job, or
@@ -81,6 +88,9 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	repairExpectedRevision := flags.Int64("repair-expect-revision", 0, "expected locked content revision")
 	repairSource := flags.String("repair-source-key", "", "preserved ciphertext generation key for restore")
 	repairReconciles := flags.String("repair-reconciles", "", "unresolved repair ID to reconcile")
+	pagedReadCheck := flags.String("check-paged-reads", "", "compare the whole-document read with the paged reads (census, sample or transcripts) and exit")
+	pagedReadTranscripts := flags.String("check-transcripts", "", "comma-separated transcript UUIDs for -check-paged-reads=transcripts")
+	pagedReadAuthorization := flags.String("check-authorization-ref", "", "recorded operator authorization for a content-reading paged-read check")
 
 	if err := flags.Parse(args); err != nil {
 		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because an argument is unknown or malformed in parseRuntimeSelection before authority loading; no job or listener was started; select exactly one documented mode and use -rewrap-limit only with -rewrap-transcript-keys: %w", err)
@@ -90,13 +100,13 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	}
 
 	selected := 0
-	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *originBackfill != "", *rewrap, *seedCore, *seedPrivacy, *shareStateCheck, *repair} {
+	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *originBackfill != "", *rewrap, *seedCore, *seedPrivacy, *shareStateCheck, *repair, *pagedReadCheck != ""} {
 		if enabled {
 			selected++
 		}
 	}
 	if selected > 1 {
-		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, origin backfill, rewrap, core seed, privacy seed, or share-state check", selected)
+		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, origin backfill, rewrap, core seed, privacy seed, share-state check, or paged-read check", selected)
 	}
 	rewrapLimitSupplied := false
 	repairSourceSupplied, repairReconcilesSupplied, repairArgumentSupplied := false, false, false
@@ -118,6 +128,17 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	})
 	if repairArgumentSupplied && !*repair {
 		return runtimeSelection{}, fmt.Errorf("runtime mode parsing refused repair arguments without -repair-transcript-content before any authority loading; no job or listener started; select the repair mode or remove its flags")
+	}
+	if (*pagedReadTranscripts != "" || *pagedReadAuthorization != "") && *pagedReadCheck == "" {
+		return runtimeSelection{}, fmt.Errorf("runtime mode parsing refused paged-read check arguments without -check-paged-reads before any authority loading; no job or listener started; select the check mode or remove its flags")
+	}
+	var parsedPagedReads handler.PagedReadCheckOptions
+	if *pagedReadCheck != "" {
+		var checkErr error
+		parsedPagedReads, checkErr = handler.ParsePagedReadCheckOptions(*pagedReadCheck, *pagedReadTranscripts, *pagedReadAuthorization)
+		if checkErr != nil {
+			return runtimeSelection{}, checkErr
+		}
 	}
 	if rewrapLimitSupplied && !*rewrap {
 		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because -rewrap-limit was supplied without -rewrap-transcript-keys in parseRuntimeSelection before authority loading; no job or listener was started; remove the limit or select the bounded rewrap mode")
@@ -179,6 +200,14 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 		return runtimeSelection{mode: runtimeModeShareStateCheck, authority: config.PostgreSQLAuthority}, nil
 	case *repair:
 		return runtimeSelection{mode: runtimeModeContentRepair, authority: config.BlobProcessingAuthority, repair: parsedRepair}, nil
+	case *pagedReadCheck != "":
+		// The census reads counts from PostgreSQL only and so composes no
+		// object storage or key authority; the reading modes decrypt.
+		authority := config.PostgreSQLAuthority
+		if parsedPagedReads.Mode.ReadsContent() {
+			authority = config.BlobProcessingAuthority
+		}
+		return runtimeSelection{mode: runtimeModePagedReadCheck, authority: authority, pagedReads: parsedPagedReads}, nil
 	default:
 		return runtimeSelection{mode: runtimeModeServe, authority: config.ServingAuthority}, nil
 	}
