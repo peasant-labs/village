@@ -98,7 +98,7 @@ func TestNumberingLifecycle(t *testing.T) {
 				if cache.Sweep() != 1 {
 					t.Fatal("idle sweep did not evict the warmed entry")
 				}
-			case "replace":
+			case "republish":
 				changed := strings.Replace(initial, `"turnCount":2`, `"turnCount":3`, 1)
 				changed = strings.Replace(changed, `],"earlierHistory":`, `,{"index":2,"role":"user","content":"new prompt","timestamp":"2026-01-01T00:00:03Z","depth":0}],"earlierHistory":`, 1)
 				if response := w.request([]byte(changed), "replacement")(w.ctx); response.Code != http.StatusOK {

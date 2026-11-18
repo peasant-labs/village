@@ -3,6 +3,6 @@
   before: ["1", "1a"]
   after: ["1", "1a"]
 - name: number-stable-across-revision-change
-  scenario: replace
+  scenario: republish
   before: ["1", "1a"]
   after: ["1", "1a", "2"]
