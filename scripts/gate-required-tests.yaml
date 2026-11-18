@@ -1,0 +1,5 @@
+{
+  "io": ["TestCookNumberIOBudget"],
+  "parity": ["TestServedBytesGolden", "TestContentSourceRefusals", "TestNumberingSchemaReplay", "TestBuildAdmission"],
+  "schema": ["TestTranscriptCaptureDifferential"]
+}
