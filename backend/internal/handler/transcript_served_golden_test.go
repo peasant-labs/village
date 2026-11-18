@@ -193,10 +193,9 @@ func TestServedBytesGolden(t *testing.T) {
 	// Every document must reach the content source, or the golden guards a
 	// refusal instead of served rows.
 	for _, d := range documents {
-		// The current contract refuses a lone surrogate while cooking turns;
-		// retain its recorded refusal rather than presenting it as served data.
+		// The read boundary refuses a lone surrogate before it is cached.
 		if d.Name == "golden-lone-surrogate-escape" {
-			if want[d.Name]["profile directory positioned main"].Status != http.StatusInternalServerError {
+			if want[d.Name]["profile header"].Status != http.StatusInternalServerError || want[d.Name]["profile directory positioned main"].Status != http.StatusInternalServerError {
 				t.Errorf("%s: expected the recorded cook refusal", d.Name)
 			}
 			continue

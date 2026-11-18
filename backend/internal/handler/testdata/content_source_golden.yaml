@@ -121,7 +121,6 @@
     {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-pair","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"\ud83d\ude00","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
 - name: golden-lone-surrogate-escape
   why: The decoder's handling of a lone surrogate stays stable.
-  stored_legacy: true
   document: >-
     {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-lone","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"\ud800","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
 - name: golden-nul-escape
