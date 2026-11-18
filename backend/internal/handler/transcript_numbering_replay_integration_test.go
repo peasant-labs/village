@@ -39,6 +39,9 @@ type schemaNumberingCase struct {
 		Harness string `yaml:"harness"`
 		Turns   string `yaml:"turnsJSON"`
 	} `yaml:"input"`
+	Expect struct {
+		Outcome string `yaml:"outcome"`
+	} `yaml:"expect"`
 	Expected []struct {
 		Position       int    `yaml:"position"`
 		Keep           bool   `yaml:"keep"`
@@ -153,6 +156,34 @@ func TestNumberingSchemaReplay(t *testing.T) {
 				// Only envelope-level fields are supplied here. The case's
 				// turn array is inserted verbatim, including member spellings.
 				body := fmt.Sprintf(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":%q,"harness":%q,"startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":0,"toolCallCount":0,"turns":%s}}`, w.localID, tc.Input.Harness, tc.Input.Turns)
+				index, err := newTranscriptIndex(transcriptIndexInput{Bytes: []byte(body)})
+				if err != nil {
+					t.Fatalf("construct held content index: %v", err)
+				}
+				part, err := index.Partition(mainPartitionKey())
+				if tc.Expect.Outcome == "refused" {
+					if err == nil || part != nil || len(index.Partitions) != 0 {
+						t.Fatalf("expected cook refusal without partial partition: partition=%+v error=%v", part, err)
+					}
+				} else {
+					if tc.Expect.Outcome != "cooked" || err != nil {
+						t.Fatalf("expected cooked partition, got outcome %q error %v", tc.Expect.Outcome, err)
+					}
+					served := 0
+					for _, want := range tc.Expected {
+						if !want.Keep {
+							continue
+						}
+						if served >= len(part.Rows) || part.Rows[served].Stored != want.Position ||
+							part.Rows[served].ServedPosition != want.ServedPosition || part.Rows[served].DisplayNumber != want.DisplayNumber {
+							t.Fatalf("index stored %d row %d: got %+v, want position %d number %q", want.Position, served, part.Rows, want.ServedPosition, want.DisplayNumber)
+						}
+						served++
+					}
+					if served != len(part.Rows) {
+						t.Fatalf("index served %d rows, want %d", len(part.Rows), served)
+					}
+				}
 				installHistoricalNumberingContent(t, w, []byte(body), tc.Input.Harness)
 				directory := read("/segments?v=2")
 				if classes[tc.Name] {
