@@ -30,6 +30,7 @@ func installHistoricalNumberingContent(t *testing.T, w *orderingWorld, raw []byt
 	}
 	_, err = tx.Exec(w.ctx, `UPDATE transcripts SET blob_key=$2, wrapped_data_key=$3, encryption_algorithm=$4, key_version=$5,
 		content_hash=$6, blob_size_bytes=$7, segmented_identity_hash=NULL, segmented_identity_size=NULL,
+		publish_metadata_key=NULL, publish_metadata_hash=NULL, publish_metadata_size=NULL,
 		content_revision=content_revision+1, model_provider=$8 WHERE id=$1`,
 		w.id, string(d.ObjectKey()), d.WrappedDEK(), string(d.Algorithm()), int32(d.KeyVersion()), string(identity.Hash()), identity.PlaintextSize(), harness)
 	if err != nil {
