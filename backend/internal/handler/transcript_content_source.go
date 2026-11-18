@@ -109,10 +109,21 @@ type indexedTurn struct {
 // partitionIndex is one partition's view: the served rows and, by stored
 // position, the verdict on every stored row.
 type partitionIndex struct {
-	Rows    []indexedTurn
-	Verdict []schema.CookedTurn
+	Rows                   []indexedTurn
+	Verdict                []schema.CookedTurn
+	Refs                   []schema.PositionedSegmentRef
+	Positions              []positionRef
+	TotalSegments          int
+	TotalConversationTurns *int
 	// TotalTurns is the number of served rows.
 	TotalTurns int
+}
+
+// positionRef identifies a segment's inclusive range in served order.
+type positionRef struct {
+	Ordinal             int
+	SourceFirstPosition int
+	SourceLastPosition  int
 }
 
 // cookRowsFunc is the cooking rule. Production is schema.CookTranscriptRows.
@@ -124,6 +135,7 @@ type transcriptIndex struct {
 	ContentHash   storage.ContentHash // empty while the generation's identity is pending
 	Harness       schema.Harness      // the served harness; the cooking rule's producer class
 	ModelProvider string
+	OmittedImages int
 	// Bytes is the canonical plaintext, one copy per generation.
 	Bytes []byte
 	// Ranges holds one entry per partition, recorded by the structural pass.
@@ -169,6 +181,7 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 		ContentHash:   in.ContentHash,
 		Harness:       canonicalHarness(layout.Harness),
 		ModelProvider: in.ModelProvider,
+		OmittedImages: layout.OmittedImages,
 		Bytes:         in.Bytes,
 		layout:        layout,
 		cook:          cook,
@@ -240,7 +253,8 @@ func (x *transcriptIndex) partitionLayout(key partitionKey) (partitionLayout, bo
 // stored turns once, cooks them, and keeps only per-row facts.
 func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionIndex, error) {
 	if !layout.Present {
-		return &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}}, nil
+		zero := 0
+		return &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}, Refs: []schema.PositionedSegmentRef{}, Positions: []positionRef{}, TotalConversationTurns: &zero}, nil
 	}
 	array := x.Bytes[layout.Turns.Start:layout.Turns.End]
 	// The capture takes one session-detail-shaped object. Only the partition's
@@ -263,6 +277,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 	}
 
 	rows := make([]indexedTurn, 0, len(turns))
+	details := make([]schema.TurnDetail, 0, len(turns))
 	cursor := layout.Turns.Start + 1 // after the array's opening bracket
 	for stored, turn := range turns {
 		served := turn.Raw()
@@ -286,6 +301,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			return nil, fmt.Errorf("%w: the cooking rule gave stored turn %d served position %d and number %q where position %d and a number were expected in handler.transcriptIndex.buildPartition", errUncookable, stored, cooked.ServedPosition, cooked.DisplayNumber, len(rows))
 		}
 		detail := turn.Detail()
+		details = append(details, detail)
 		state, recorded := schema.DecodeTranscriptRecordedIndex(served)
 		rows = append(rows, indexedTurn{
 			Stored:             stored,
@@ -300,7 +316,35 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			RecordedIndex:      recorded,
 		})
 	}
-	return &partitionIndex{Rows: rows, Verdict: verdict, TotalTurns: len(rows)}, nil
+	cuts := schema.CutTranscriptSegments(details, schema.TranscriptSegmentBudgetBytes)
+	refs := make([]schema.PositionedSegmentRef, 0, len(cuts))
+	positions := make([]positionRef, 0, len(cuts))
+	next := 0
+	conversationTotal := 0
+	for _, cut := range cuts {
+		first, size := next, 0
+		// Each turn's contract byte measure is positive. Consume exactly the
+		// bytes the contract cut returned rather than applying the cut rule here.
+		for next < len(rows) && size < cut.ByteLength {
+			size += rows[next].ByteLength
+			next++
+		}
+		if size != cut.ByteLength || next == first {
+			return nil, fmt.Errorf("%w: the contract cut cannot be mapped to served rows", errUncookable)
+		}
+		last := next - 1
+		ref := schema.PositionedSegmentRef{Index: cut.Index, SourceFirstPosition: first, SourceLastPosition: last, ByteLength: cut.ByteLength, ConversationTurns: cut.ConversationTurns}
+		if rows[first].RecordedIndex != nil && rows[last].RecordedIndex != nil {
+			ref.FirstTurn, ref.LastTurn = rows[first].RecordedIndex, rows[last].RecordedIndex
+		}
+		refs = append(refs, ref)
+		positions = append(positions, positionRef{Ordinal: cut.Index, SourceFirstPosition: first, SourceLastPosition: last})
+		conversationTotal += cut.ConversationTurns.Count
+	}
+	if next != len(rows) {
+		return nil, fmt.Errorf("%w: the contract cut omitted served rows", errUncookable)
+	}
+	return &partitionIndex{Rows: rows, Verdict: verdict, Refs: refs, Positions: positions, TotalTurns: len(rows), TotalSegments: len(refs), TotalConversationTurns: &conversationTotal}, nil
 }
 
 // locateTurn finds where the next stored turn lies in the held bytes. The
@@ -351,16 +395,18 @@ type partitionLayout struct {
 
 // contentLayout is what the structural pass learns about one generation.
 type contentLayout struct {
-	Detail  byteSpan
-	Harness string
-	Main    partitionLayout
-	History []partitionLayout
+	Detail        byteSpan
+	Harness       string
+	Main          partitionLayout
+	History       []partitionLayout
+	OmittedImages int
 }
 
 // layoutScanner walks a document with a token decoder so that offsets are
 // exact. Every value it does not need is skipped whole.
 type layoutScanner struct {
-	dec *json.Decoder
+	dec           *json.Decoder
+	omittedImages int
 }
 
 func scanContentLayout(document []byte) (contentLayout, error) {
@@ -372,6 +418,7 @@ func scanContentLayout(document []byte) (contentLayout, error) {
 	if _, err := scanner.dec.Token(); !errors.Is(err, io.EOF) {
 		return contentLayout{}, errors.New("the stored document has content after its envelope in handler.scanContentLayout; nothing was indexed; republish the transcript")
 	}
+	layout.OmittedImages = scanner.omittedImages
 	return layout, nil
 }
 
@@ -487,6 +534,34 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 	}
 	if len(trimmed) == 0 || trimmed[0] != '[' {
 		return partitionLayout{}, errors.New("turns is not an array")
+	}
+	// Count only typed image parts with a stated omission reason, before the
+	// lazy cook so even a removed row or an unopened history contributes.
+	var turns []json.RawMessage
+	if err := json.Unmarshal(trimmed, &turns); err != nil {
+		return partitionLayout{}, err
+	}
+	for _, turn := range turns {
+		var row struct {
+			ContentParts []json.RawMessage `json:"contentParts"`
+		}
+		if err := json.Unmarshal(turn, &row); err != nil {
+			continue
+		}
+		for _, rawPart := range row.ContentParts {
+			var part struct {
+				Type  schema.TurnPartType `json:"type"`
+				Image *struct {
+					OmittedReason string `json:"omittedReason"`
+				} `json:"image"`
+			}
+			if err := json.Unmarshal(rawPart, &part); err != nil {
+				continue
+			}
+			if part.Type == schema.TurnPartTypeImage && part.Image != nil && part.Image.OmittedReason != "" {
+				s.omittedImages++
+			}
+		}
 	}
 	return partitionLayout{Turns: value.span, Present: true}, nil
 }

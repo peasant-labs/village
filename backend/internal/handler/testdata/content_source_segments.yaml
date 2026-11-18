@@ -1,0 +1,16 @@
+- name: empty-partition
+  main: 0
+  history: 0
+  bytes: 0
+- name: main-one-segment
+  main: 3
+  history: 0
+  bytes: 8
+- name: main-crosses-budget
+  main: 3
+  history: 0
+  bytes: 600000
+- name: history-cuts-independently
+  main: 2
+  history: 3
+  bytes: 600000

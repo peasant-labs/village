@@ -1,0 +1,7 @@
+- name: header-omitted-images-counts-typed-omission-parts
+  document: >-
+    {"sessionDetail":{"harness":"codex","turns":[
+      {"role":"user","content":"duplicate","contentParts":[{"type":"image","image":{"omittedReason":"not_published"}},{"type":"image","image":{}}]},
+      {"role":"system","content":"short","contentParts":[{"type":"image","image":{"omittedReason":"not_published"}}]}],
+      "earlierHistory":[{"turns":[{"role":"user","content":"history","contentParts":[{"type":"image","image":{"omittedReason":"not_published"}}]}]}]}}
+  count: 3
