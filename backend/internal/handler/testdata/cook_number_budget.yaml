@@ -1,2 +1,11 @@
 name: cook-number-100000-turns
 turns: 100000
+sizes:
+  - {name: turns-10000, turns: 10000}
+  - {name: turns-20000, turns: 20000}
+  - {name: turns-50000, turns: 50000}
+  - {name: turns-100000, turns: 100000}
+subjects:
+  - {name: ascii, text: ''}
+  - name: escaped-multibyte
+    text: ' \" \\ \u00e9 \ud83d\ude00 中文'
