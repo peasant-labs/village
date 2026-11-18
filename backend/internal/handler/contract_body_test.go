@@ -252,6 +252,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 			r.Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
 		}
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
+		r.Post("/transcripts/{id}/segments/locate", h.LocateTranscriptEntry)
 		r.Patch("/users/me/settings", h.UpdateUserSettings)
 		r.Put("/users/me/email", h.SetMyNotificationEmail)
 		r.Post("/users/me/email/verify", h.VerifyMyNotificationEmail)

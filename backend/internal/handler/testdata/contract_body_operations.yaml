@@ -179,3 +179,9 @@
   conforming: '{"token":"abc"}'
   malformed:
     - {name: token missing, body: '{}', expect: "/: missing properties: 'token'"}
+- name: locate transcript entry
+  method: POST
+  path: /api/v1/transcripts/{id}/segments/locate
+  conforming: '{"reference":"entry","revision":"1","representation":"r1","contentHash":"hash"}'
+  malformed:
+    - {name: reference missing, body: '{"revision":"1","representation":"r1","contentHash":"hash"}', expect: "/: missing properties: 'reference'"}

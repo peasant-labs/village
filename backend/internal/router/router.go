@@ -143,6 +143,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
 		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptSegments.Pattern(), apiV1Prefix), h.GetTranscriptSegments)
+		r.With(h.AuthOptional).Post(strings.TrimPrefix(schemaRoute.VillageLocateTranscriptEntry.Pattern(), apiV1Prefix), h.LocateTranscriptEntry)
 		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptSegment.Pattern(), apiV1Prefix), h.GetTranscriptSegment)
 		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptWindow.Pattern(), apiV1Prefix), h.GetTranscriptWindow)
 		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptHeader.Pattern(), apiV1Prefix), h.GetTranscriptHeader)
