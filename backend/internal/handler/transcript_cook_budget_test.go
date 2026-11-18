@@ -4,16 +4,24 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 //go:embed testdata/cook_number_budget.yaml
@@ -31,6 +39,44 @@ type cookBudgetFixture struct {
 		Text  string `yaml:"text"`
 		Dense bool   `yaml:"dense"`
 	} `yaml:"subjects"`
+}
+
+// TestCookBudgetGenerate is an operator-invoked fixture generator. Ordinary
+// tests do not write a file or perform budget measurements.
+func TestCookBudgetGenerate(t *testing.T) {
+	path := os.Getenv("COOK_BUDGET_GENERATE")
+	if path == "" {
+		return
+	}
+	count, err := strconv.Atoi(os.Getenv("COOK_BUDGET_TURNS"))
+	if err != nil || count <= 0 {
+		t.Fatal("COOK_BUDGET_TURNS must be a positive integer")
+	}
+	fixture, err := decodeFixtureDocument[cookBudgetFixture](cookNumberBudgetFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, subject := range fixture.Subjects {
+		if subject.Name != os.Getenv("COOK_BUDGET_SUBJECT") {
+			continue
+		}
+		data := cookBudgetDocument(count, subject.Text, subject.Dense)
+		if len(data) > 127<<20 {
+			t.Fatalf("subject exceeds 127 MiB: %d", len(data))
+		}
+		if _, err := validateContentBoundary(data, "claude-code", contentStoredRead); err != nil {
+			t.Fatalf("stored read refused subject: %v", err)
+		}
+		if _, err := newTranscriptIndex(transcriptIndexInput{Bytes: data}); err != nil {
+			t.Fatalf("content source refused subject: %v", err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("generated turns=%d bytes=%d", count, len(data))
+		return
+	}
+	t.Fatal("unknown COOK_BUDGET_SUBJECT")
 }
 
 func TestDenseBudgetFixture(t *testing.T) {
@@ -140,6 +186,10 @@ func BenchmarkCookNumber(b *testing.B) {
 // the content pass prepares and writes the response to an in-memory writer.
 // GC and five warmups are outside the timed intervals.
 func coldBudgetBench(b *testing.B, content bool) {
+	if path := os.Getenv("COOK_BUDGET_INPUT"); path != "" {
+		externalBudgetBench(b, path, content)
+		return
+	}
 	fixture, err := decodeFixtureDocument[cookBudgetFixture](cookNumberBudgetFixture)
 	if err != nil {
 		b.Fatal(err)
@@ -193,6 +243,92 @@ func coldBudgetBench(b *testing.B, content bool) {
 			})
 		}
 	}
+}
+
+func externalBudgetBench(b *testing.B, path string, content bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	cold := os.Getenv("COOK_BUDGET_COLD") == "1"
+	if cold && b.N != 1 {
+		b.Fatal("cold mode requires -benchtime=1x")
+	}
+	var pass func()
+	if content {
+		id := pgtype.UUID{Bytes: uuid.MustParse("30000000-0000-4000-8000-000000000001"), Valid: true}
+		owner := pgtype.UUID{Bytes: uuid.MustParse("30000000-0000-4000-8000-ffffffffffff"), Valid: true}
+		blobs := newFakeBlobStore()
+		blobs.put("transcripts/30000000-0000-4000-8000-000000000001.bin", data)
+		row := sqlc.Transcript{ID: id, OwnerID: owner, Visibility: "public", ContentRevision: 3, ModelProvider: "claude-code", BlobKey: "transcripts/30000000-0000-4000-8000-000000000001.bin", WrappedDataKey: []byte("key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1, ContentHash: pgtype.Text{String: schema.ComputeTranscriptHash(data), Valid: true}, BlobSizeBytes: pgtype.Int8{Int64: int64(len(data)), Valid: true}}
+		q := &mockQuerier{getTranscriptByID: func(context.Context, pgtype.UUID) (sqlc.Transcript, error) { return row, nil }}
+		h := newTestHandler(q, blobs)
+		mux := chi.NewRouter()
+		mux.Get("/transcripts/{id}/content", h.GetTranscriptContent)
+		target := "/transcripts/" + uuid.UUID(id.Bytes).String() + "/content"
+		pass = func() {
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, target, nil))
+			if w.Code != http.StatusOK {
+				b.Fatalf("content handler returned %d: %s", w.Code, w.Body.String())
+			}
+		}
+	} else {
+		pass = func() {
+			index, err := newTranscriptIndex(transcriptIndexInput{Bytes: data})
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := index.Partition(mainPartitionKey()); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	if !cold {
+		for range 5 {
+			pass()
+		}
+	}
+	type sample struct {
+		WallNS    int64  `json:"wall_ns"`
+		CPUNS     int64  `json:"cpu_ns"`
+		Allocated uint64 `json:"allocated_bytes"`
+		MaxRSSKiB int64  `json:"max_rss_kib"`
+	}
+	samples := make([]sample, 0, b.N)
+	b.ResetTimer()
+	for range b.N {
+		b.StopTimer()
+		if !cold {
+			runtime.GC()
+		}
+		var before, after syscall.Rusage
+		var m0, m1 runtime.MemStats
+		runtime.ReadMemStats(&m0)
+		if err := syscall.Getrusage(syscall.RUSAGE_SELF, &before); err != nil {
+			b.Fatal(err)
+		}
+		b.StartTimer()
+		started := time.Now()
+		pass()
+		elapsed := time.Since(started)
+		b.StopTimer()
+		if err := syscall.Getrusage(syscall.RUSAGE_SELF, &after); err != nil {
+			b.Fatal(err)
+		}
+		runtime.ReadMemStats(&m1)
+		cpu := func(r syscall.Rusage) int64 { return r.Utime.Nano() + r.Stime.Nano() }
+		samples = append(samples, sample{WallNS: elapsed.Nanoseconds(), CPUNS: cpu(after) - cpu(before), Allocated: m1.TotalAlloc - m0.TotalAlloc, MaxRSSKiB: after.Maxrss})
+	}
+	encoded, err := json.Marshal(samples)
+	if err != nil {
+		b.Fatal(err)
+	}
+	mode := "warm"
+	if cold {
+		mode = "cold"
+	}
+	fmt.Printf("mode=%s passes=%d samples=%s\n", mode, len(samples), encoded)
 }
 
 func BenchmarkCookNumberCold(b *testing.B) { coldBudgetBench(b, false) }
