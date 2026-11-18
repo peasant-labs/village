@@ -1,0 +1,13 @@
+- name: build-admission-refuses-503-retry-after
+  routes:
+    - {name: header, path: '/header'}
+    - {name: directory, path: '/segments?v=2'}
+    - {name: segment, path: '/segments/0?v=2'}
+    - {name: window, path: '/window?v=2'}
+    - {name: locate, path: '/segments/locate'}
+    - {name: history, path: '/segments?v=2&partition=history&section=0'}
+- name: build-admission-denied-viewer-404-before-admission
+- name: build-admission-warm-read-and-waiter-take-no-slot
+- name: build-admission-releases-on-failure-and-cancel
+  modes: [error, panic, cancel]
+- name: build-admission-refusal-reserves-nothing
