@@ -29,7 +29,11 @@ var contentSourceGoldenYAML []byte
 //go:embed testdata/content_source_golden.json
 var contentSourceGoldenJSON []byte
 
-// servedGoldenUpdateEnv rewrites testdata/content_source_golden.json from the
+// servedGoldenPath is the recorded answers' file; the embed above names the
+// same file.
+const servedGoldenPath = "testdata/content_source_golden.json"
+
+// servedGoldenUpdateEnv rewrites servedGoldenPath from the
 // current build instead of asserting it. Use it only for a deliberate change
 // to served bytes, and say why in the commit.
 const servedGoldenUpdateEnv = "VILLAGE_UPDATE_SERVED_GOLDEN"
@@ -149,10 +153,10 @@ func TestServedBytesGolden(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile("testdata/content_source_golden.json", append(encoded, '\n'), 0o644); err != nil {
+		if err := os.WriteFile(servedGoldenPath, append(encoded, '\n'), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("rewrote testdata/content_source_golden.json; unset %s to assert it", servedGoldenUpdateEnv)
+		t.Logf("rewrote %s; unset %s to assert it", servedGoldenPath, servedGoldenUpdateEnv)
 		return
 	}
 	var want map[string]map[string]servedGoldenAnswer
