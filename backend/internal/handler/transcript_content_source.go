@@ -400,11 +400,15 @@ func (s *layoutScanner) envelope() (contentLayout, error) {
 	return layout, nil
 }
 
+// detailHarnessKey is the sessionDetail member that names the producing harness. It is a
+// payload field name, not a value of the actor-origin vocabulary.
+const detailHarnessKey = "harness"
+
 func (s *layoutScanner) detail(layout *contentLayout) (byteSpan, error) {
 	seen := map[string]bool{}
 	return s.object(func(key string) error {
 		switch key {
-		case "harness", "turns", "earlierHistory":
+		case detailHarnessKey, "turns", "earlierHistory":
 			if seen[key] {
 				return fmt.Errorf("%s appears twice", key)
 			}
@@ -414,7 +418,7 @@ func (s *layoutScanner) detail(layout *contentLayout) (byteSpan, error) {
 			return err
 		}
 		switch key {
-		case "harness":
+		case detailHarnessKey:
 			raw, err := s.skip()
 			if err != nil {
 				return err

@@ -164,7 +164,7 @@ func (c contentSourceCase) partitionTurns(key partitionKey) string {
 
 func contentSourceKey(t *testing.T, read string) partitionKey {
 	t.Helper()
-	if read == "main" {
+	if read == string(schema.TranscriptPartitionMain) {
 		return mainPartitionKey()
 	}
 	section, found := strings.CutPrefix(read, "history-")
