@@ -1,0 +1,12 @@
+- name: number-history-section-restarts
+  partition: history
+  numbers: ["1", "1a", "2"]
+- name: number-main-and-history-independent
+  partition: both
+  numbers: ["1", "1a", "2"]
+- name: number-entry-pass-computes-once
+  partition: repeat
+  numbers: ["1", "1a"]
+- name: number-no-body-read-for-numbering
+  partition: repeat
+  numbers: ["1", "1a"]
