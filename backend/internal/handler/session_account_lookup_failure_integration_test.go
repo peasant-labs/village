@@ -3,12 +3,17 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +34,8 @@ type sessionLookupCredential string
 const (
 	sessionLookupCredentialCookie sessionLookupCredential = "cookie"
 	sessionLookupCredentialBearer sessionLookupCredential = "bearer"
+	// The failing account's cookie plus a live bearer session for another account.
+	sessionLookupCredentialCookieWithLiveBearer sessionLookupCredential = "cookie_with_live_bearer"
 )
 
 // failingAccountLookup is the production queries with one dependency failure:
@@ -36,7 +43,8 @@ const (
 // write, including reads of other accounts, reaches PostgreSQL.
 type failingAccountLookup struct {
 	Querier
-	account pgtype.UUID
+	account  pgtype.UUID
+	failures *atomic.Int64
 }
 
 // unstring-allow: go-endpoint-literal — API key creation is not in the served contract yet
@@ -46,6 +54,7 @@ var errAccountLookupUnavailable = errors.New("connection to the account database
 
 func (q failingAccountLookup) GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error) {
 	if id == q.account {
+		q.failures.Add(1)
 		return sqlc.User{}, errAccountLookupUnavailable
 	}
 	return q.Querier.GetUserByID(ctx, id)
@@ -59,20 +68,16 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{
-		"session-lookup-failure-fails-closed":        false,
-		"session-cookie-lookup-failure-fails-closed": false,
-	}
+	names := []string{}
 	for _, c := range cases {
-		if seen, ok := required[c.Name]; !ok || seen {
-			t.Fatalf("unknown/repeated session lookup failure fixture %q", c.Name)
-		}
-		required[c.Name] = true
+		names = append(names, c.Name)
 	}
-	for name, seen := range required {
-		if !seen {
-			t.Fatalf("missing required session lookup failure fixture %q", name)
-		}
+	if err := requireExactNames("session account lookup failure", names, []string{
+		"cookie-lookup-failure-with-live-bearer-fails-closed",
+		"session-cookie-lookup-failure-fails-closed",
+		"session-lookup-failure-fails-closed",
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	ctx := context.Background()
@@ -81,21 +86,37 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 	accountName := "lookup-fail-" + suffix
 	account := shareInsertUser(t, ctx, pool, accountName)
-	other := shareInsertUser(t, ctx, pool, "lookup-other-"+suffix)
+	otherName := "lookup-other-" + suffix
+	other := shareInsertUser(t, ctx, pool, otherName)
 	t.Cleanup(func() { cleanupOwners(t, context.Background(), pool, account, other) })
 	own := shareInsertTranscript(t, ctx, pool, account, "lookup-own-"+suffix, dbVisibilityPrivate)
 	public := shareInsertTranscript(t, ctx, pool, other, "lookup-public-"+suffix, dbVisibilityPublic)
 
 	h := NewWithTitlePipeline(minimalConfig(), pool, nil, nil)
-	h.queries = failingAccountLookup{Querier: h.queries, account: account}
+	var failures atomic.Int64
+	h.queries = failingAccountLookup{Querier: h.queries, account: account, failures: &failures}
 	// The same middleware and handlers the production router mounts for these
 	// paths; only the account read fails.
 	routes := chi.NewRouter()
 	routes.With(h.AuthRequired).Get(route.VillageGetAuthenticatedVillageUser.Pattern(), h.Me)
 	routes.With(h.AuthRequired).Post(lookupFailureCreateAPIKeyPath, h.CreateAPIKey)
 	routes.With(h.AuthOptional).Get(route.VillageGetTranscriptMetadata.Pattern(), h.GetTranscript)
+	// Probes that echo the viewer the same middleware attached, so anonymity is
+	// observed directly rather than inferred from a route's answer.
+	routes.With(h.AuthOptional).Get(lookupFailureOptionalProbePath, lookupFailureViewerProbe)
+	routes.With(h.AuthRequired).Get(lookupFailureRequiredProbePath, lookupFailureViewerProbe)
+
+	// Capture the structured log for the failing requests. Restored on cleanup.
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
 
 	token, err := auth.CreateToken(h.cfg.JWTSecret, uuid.UUID(account.Bytes), accountName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherToken, err := auth.CreateToken(h.cfg.JWTSecret, uuid.UUID(other.Bytes), otherName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,21 +142,31 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 				sign = func(r *http.Request) { r.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token}) }
 			case sessionLookupCredentialBearer:
 				sign = func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+token) }
+			case sessionLookupCredentialCookieWithLiveBearer:
+				sign = func(r *http.Request) {
+					r.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+					r.Header.Set("Authorization", "Bearer "+otherToken)
+				}
 			default:
 				t.Fatalf("unknown credential %q", c.Credential)
 			}
 			for _, required := range []struct{ method, path, body string }{
 				{http.MethodGet, route.VillageGetAuthenticatedVillageUser.Pattern(), ""},
 				{http.MethodPost, lookupFailureCreateAPIKeyPath, `{"label":"during outage"}`},
+				{http.MethodGet, lookupFailureRequiredProbePath, ""},
 			} {
 				got := serve(required.method, required.path, required.body, sign)
-				if got.Code != http.StatusServiceUnavailable || got.Header().Get("Retry-After") == "" ||
-					!strings.Contains(got.Body.String(), "Could not confirm your signed-in account") ||
-					!strings.Contains(got.Body.String(), "nothing was read or changed") ||
-					!strings.Contains(got.Body.String(), "Retry") {
-					t.Fatalf("%s %s with an unreadable account = %d (Retry-After %q) %s, want an actionable retryable 503",
-						required.method, required.path, got.Code, got.Header().Get("Retry-After"), got.Body.String())
+				var body map[string]string
+				_ = json.Unmarshal(got.Body.Bytes(), &body)
+				want := map[string]string{"error": sessionAccountUnconfirmedMessage}
+				if got.Code != http.StatusServiceUnavailable || got.Header().Get("Retry-After") != sessionAccountRetryAfterSeconds || !maps.Equal(body, want) {
+					t.Fatalf("%s %s with an unreadable account = %d (Retry-After %q) %s, want 503 (Retry-After %q) %v",
+						required.method, required.path, got.Code, got.Header().Get("Retry-After"), got.Body.String(), sessionAccountRetryAfterSeconds, want)
 				}
+			}
+			probe := serve(http.MethodGet, lookupFailureOptionalProbePath, "", sign)
+			if probe.Code != http.StatusOK || strings.TrimSpace(probe.Body.String()) != `{"viewer":""}` {
+				t.Fatalf("the optional-auth probe during the outage = %d %s, want no viewer", probe.Code, probe.Body.String())
 			}
 			var keys int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1`, account).Scan(&keys); err != nil || keys != 0 {
@@ -151,7 +182,33 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 			}
 		})
 	}
+
+	// One log line per failed lookup, naming no account, username or token.
+	captured := logs.String()
+	if got, want := int64(strings.Count(captured, "session account lookup failed")), failures.Load(); want == 0 || got != want {
+		t.Fatalf("logged %d lookup failures for %d failed lookups:\n%s", got, want, captured)
+	}
+	for _, secret := range []string{uuid.UUID(account.Bytes).String(), accountName, token, uuid.UUID(other.Bytes).String(), otherName, otherToken} {
+		if strings.Contains(captured, secret) {
+			t.Fatalf("the lookup-failure log carries identity data %q:\n%s", secret, captured)
+		}
+	}
 }
+
+const (
+	lookupFailureOptionalProbePath = "/probe/optional"
+	lookupFailureRequiredProbePath = "/probe/required"
+)
+
+// lookupFailureViewerProbe answers the viewer the auth middleware attached, or
+// an empty viewer when it attached none.
+var lookupFailureViewerProbe = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	viewer := ""
+	if user := GetUser(r.Context()); user != nil {
+		viewer = user.ID.String()
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"viewer": viewer})
+})
 
 func sessionLookupTranscriptPath(t *testing.T, id uuid.UUID) string {
 	t.Helper()
