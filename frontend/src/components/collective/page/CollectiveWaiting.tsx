@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageReviewDecision } from "@peasant-labs/schema";
+
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/lib/ft-ui";
@@ -151,11 +153,11 @@ export default function CollectiveWaiting({
                       {canReview && <>
                         <Button size="sm" variant="secondary" aria-label={`approve ${row.title || "untitled"}`}
                           disabled={review.isPending || pending.isFetching || isStale}
-                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === "approved"}
+                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === VillageReviewDecision.Approved}
                           onClick={() => void decide(row.transcript_id, "approved")}>approve</Button>
                         <Button size="sm" variant="ghost" aria-label={`reject ${row.title || "untitled"}`}
                           disabled={review.isPending || pending.isFetching || isStale}
-                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === "rejected"}
+                          loading={review.isPending && touchedID === row.transcript_id && review.variables?.status === VillageReviewDecision.Rejected}
                           onClick={() => void decide(row.transcript_id, "rejected")}>reject</Button>
                       </>}
                     </div>

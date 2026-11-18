@@ -1,3 +1,4 @@
+import { SessionListItemKind } from "@peasant-labs/schema";
 import type { VillageSessionListItem } from "@peasant-labs/schema";
 
 /**
@@ -11,7 +12,7 @@ export function groupedContributionBatches(selected: readonly VillageSessionList
   const seen = new Set<string>();
   for (const item of selected) {
     const row = item.transcript;
-    if (item.kind !== "transcript" || !row || item.context) {
+    if (item.kind !== SessionListItemKind.Transcript || !row || item.context) {
       throw new Error("groupedContributionBatches refused before submission: a context container or helper group cannot be selected; nothing was sent; expand the group and select an eligible transcript individually");
     }
     const contribution = row.contributable;
@@ -75,7 +76,7 @@ export function groupedReviewSelection(selected: readonly VillageSessionListItem
   const seen = new Set<string>();
   for (const item of selected) {
     const row = item.transcript;
-    if (item.kind !== "transcript" || !row || item.context) {
+    if (item.kind !== SessionListItemKind.Transcript || !row || item.context) {
       throw new Error("review selection refused before submission: a context container or helper group cannot be decided; nothing was sent; expand the group and select an eligible submission individually");
     }
     const pending = row.pending;

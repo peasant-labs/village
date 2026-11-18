@@ -73,10 +73,10 @@ rules:
     frontend/src/accountSettings.test.tsx: 7
     frontend/src/app/HomePage.tsx: 2
     frontend/src/app/collectives/[id]/contribute/page.test.tsx: 3
-    frontend/src/app/collectives/[id]/contribute/page.tsx: 2
-    frontend/src/app/collectives/[id]/page.tsx: 10
+    frontend/src/app/collectives/[id]/contribute/page.tsx: 1
+    frontend/src/app/collectives/[id]/page.tsx: 7
     frontend/src/app/collectives/[id]/review/page.test.tsx: 6
-    frontend/src/app/collectives/[id]/review/page.tsx: 7
+    frontend/src/app/collectives/[id]/review/page.tsx: 2
     frontend/src/app/collectives/[id]/settings/page.tsx: 7
     frontend/src/app/collectives/collectivesVisibleBadges.test.tsx: 2
     frontend/src/app/collectives/page.tsx: 1
@@ -86,10 +86,10 @@ rules:
     frontend/src/app/discover/discover.test.tsx: 3
     frontend/src/app/discover/page.tsx: 2
     frontend/src/app/discover/unifiedDiscover.test.tsx: 1
-    frontend/src/app/pulls/[owner]/[name]/[number]/page.tsx: 19
+    frontend/src/app/pulls/[owner]/[name]/[number]/page.tsx: 2
     frontend/src/app/rootMetadata.test.ts: 1
     frontend/src/app/sessionPageOrchestration.test.tsx: 2
-    frontend/src/app/transcripts/[id]/TranscriptDetailPage.tsx: 3
+    frontend/src/app/transcripts/[id]/TranscriptDetailPage.tsx: 1
     frontend/src/app/transcripts/[id]/shareCardMetadata.test.ts: 1
     frontend/src/app/users/[username]/projects/[projectHash]/page.tsx: 1
     frontend/src/collectiveInviteSearch.test.tsx: 2
@@ -99,32 +99,26 @@ rules:
     frontend/src/collectiveRemovalAccount.test.tsx: 4
     frontend/src/collectiveSettings.test.tsx: 10
     frontend/src/components/ProviderIcon.tsx: 5
-    frontend/src/components/collective/ShareEventLog.tsx: 5
-    frontend/src/components/collective/page/CollectiveWaiting.tsx: 2
     frontend/src/components/collective/page/PolicyChips.tsx: 2
     frontend/src/components/collective/page/useCollectiveGithub.ts: 1
     frontend/src/components/collective/settings/ChoiceCards.tsx: 7
-    frontend/src/components/collective/settings/SettingsSections.tsx: 2
-    frontend/src/components/collectives/InvitationsBlock.tsx: 1
     frontend/src/components/collectives/NewCollectiveDialog.tsx: 5
     frontend/src/components/collectives/newCollectiveDialog.test.tsx: 8
     frontend/src/components/contribute/ContributeTree.tsx: 6
     frontend/src/components/contribute/TranscriptPreview.test.tsx: 2
     frontend/src/components/dev/DevAnnotateOverlay.tsx: 6
-    frontend/src/components/group/CollectiveTranscriptLibrary.tsx: 4
+    frontend/src/components/group/CollectiveTranscriptLibrary.tsx: 3
     frontend/src/components/group/LeaveCollectiveDialog.tsx: 2
-    frontend/src/components/home/HomeWaiting.tsx: 1
     frontend/src/components/online/ViewMenu.tsx: 2
     frontend/src/components/session-detail/v2/SessionDetailV2.tsx: 2
     frontend/src/components/session-detail/v2/transcriptChrome.ts: 2
     frontend/src/components/shell/OnlineSidebar.tsx: 2
     frontend/src/components/shell/PublicTopBar.tsx: 2
     frontend/src/components/transcript/ContributePicker.tsx: 1
-    frontend/src/components/transcript/ManageAccessDialog.tsx: 9
+    frontend/src/components/transcript/ManageAccessDialog.tsx: 6
     frontend/src/components/transcript/PendingApprovalBar.tsx: 2
-    frontend/src/components/transcript/ScopedGroupedHelperSection.tsx: 1
     frontend/src/components/transcript/ScopedHelperGroups.test.tsx: 4
-    frontend/src/components/transcript/ScopedHelperGroups.tsx: 6
+    frontend/src/components/transcript/ScopedHelperGroups.tsx: 3
     frontend/src/components/transcript/TranscriptEditDialog.tsx: 5
     frontend/src/components/transcript/TranscriptHeaderActions.tsx: 1
     frontend/src/components/transcript/TranscriptList.tsx: 7
@@ -140,8 +134,7 @@ rules:
     frontend/src/lib/collectivePolicyCopy.ts: 8
     frontend/src/lib/collectiveSections.ts: 4
     frontend/src/lib/contribute/collectiveGroupedSelection.test.ts: 2
-    frontend/src/lib/contribute/groupedSelection.ts: 2
-    frontend/src/lib/contribute/selection.ts: 3
+    frontend/src/lib/contribute/selection.ts: 2
     frontend/src/lib/contribute/tree.test.ts: 7
     frontend/src/lib/format.ts: 8
     frontend/src/lib/homeView.test.ts: 3
@@ -153,14 +146,12 @@ rules:
     frontend/src/lib/queries/transcriptContent.ts: 2
     frontend/src/lib/queries/transcriptPaging.test.tsx: 3
     frontend/src/lib/queries/transcripts.signal.test.tsx: 5
-    frontend/src/lib/relationshipAnchor.ts: 1
     frontend/src/lib/repoLinks.ts: 3
     frontend/src/lib/server/loadPublicTranscript.ts: 1
     frontend/src/lib/server/loadShareCard.test.ts: 9
     frontend/src/lib/server/shareCardEnv.test.ts: 2
     frontend/src/lib/server/shareCardImage.test.tsx: 7
     frontend/src/lib/server/transcriptPageAccess.ts: 1
-    frontend/src/lib/shareEvents.ts: 14
     frontend/src/lib/transcriptContext.ts: 5
     frontend/src/lib/transcriptExport.ts: 2
     frontend/src/lib/transcriptPageRequest.test.ts: 1

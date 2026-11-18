@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageShareStatus } from "@peasant-labs/schema";
+
 import { Ban, Check, CornerUpLeft, Send, X } from "lucide-react";
 import type { ComponentType } from "react";
 import { DataState } from "@/lib/ft-ui";
@@ -18,15 +20,15 @@ import {
  */
 function eventIcon(status: ShareEventStatus): ComponentType<{ className?: string; size?: number }> {
   switch (status) {
-    case "pending":
+    case VillageShareStatus.Pending:
       return Send;
-    case "approved":
+    case VillageShareStatus.Approved:
       return Check;
-    case "rejected":
+    case VillageShareStatus.Rejected:
       return X;
-    case "retracted":
+    case VillageShareStatus.Retracted:
       return CornerUpLeft;
-    case "revoked":
+    case VillageShareStatus.Revoked:
       return Ban;
     default:
       return assertShareEventStatusExhaustive(status);

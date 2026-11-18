@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveAcceptanceMode, VillageCollectiveDataAccess } from "@peasant-labs/schema";
+
 import { use, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -77,7 +79,7 @@ export default function GroupDetailPage({
   const canRead = !!data?.can_read;
   const linkedOrg = data?.group.linked_github_org ?? null;
   const acceptanceMode = data?.group.acceptance_mode ?? "open";
-  const reviews = isOwner && acceptanceMode === "curated";
+  const reviews = isOwner && acceptanceMode === VillageCollectiveAcceptanceMode.Curated;
 
   // The collective response already holds page one. Later pages read bounded
   // offsets, and a new account or collective always starts at page one.
@@ -171,7 +173,7 @@ export default function GroupDetailPage({
     canRead,
   };
 
-  const joinable = group.acceptance_mode !== "curated";
+  const joinable = group.acceptance_mode !== VillageCollectiveAcceptanceMode.Curated;
   const canJoin = !!user && role === "" && joinable;
   // Somebody reading without an account is asked to sign in where joining
   // would need one, and comes back here afterwards.
@@ -259,7 +261,7 @@ export default function GroupDetailPage({
       icon={<Lock />}
       title="data access restricted"
       body={
-        group.data_access === "members_only"
+        group.data_access === VillageCollectiveDataAccess.MembersOnly
           ? "only members can read this collective's transcripts."
           : "only members and contributors can read this collective's transcripts."
       }

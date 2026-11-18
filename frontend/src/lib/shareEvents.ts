@@ -1,3 +1,4 @@
+import { VillageShareEventActor, VillageShareStatus } from "@peasant-labs/schema";
 import {
   assertShareEventActorExhaustive,
   assertShareEventStatusExhaustive,
@@ -34,14 +35,14 @@ export const CONTRIBUTION_COUNTER_LABELS = {
  */
 export function submissionPairChip(status: ShareEventStatus): string {
   switch (status) {
-    case "pending":
+    case VillageShareStatus.Pending:
       return "pending";
-    case "approved":
+    case VillageShareStatus.Approved:
       return "approved";
-    case "rejected":
+    case VillageShareStatus.Rejected:
       return "rejected";
-    case "retracted":
-    case "revoked":
+    case VillageShareStatus.Retracted:
+    case VillageShareStatus.Revoked:
       return "withdrawn";
     default:
       return assertShareEventStatusExhaustive(status);
@@ -60,15 +61,15 @@ export function submissionPairChip(status: ShareEventStatus): string {
  */
 export function shareEventVerb(status: ShareEventStatus): string {
   switch (status) {
-    case "pending":
+    case VillageShareStatus.Pending:
       return "submitted";
-    case "approved":
+    case VillageShareStatus.Approved:
       return "approved";
-    case "rejected":
+    case VillageShareStatus.Rejected:
       return "rejected";
-    case "retracted":
+    case VillageShareStatus.Retracted:
       return "retracted";
-    case "revoked":
+    case VillageShareStatus.Revoked:
       return "revoked";
     default:
       return assertShareEventStatusExhaustive(status);
@@ -85,13 +86,13 @@ export function shareEventVerb(status: ShareEventStatus): string {
  */
 export function shareEventActorClause(actor: ShareEventActor): string {
   switch (actor) {
-    case "":
+    case VillageShareEventActor.None:
       return "";
-    case "owner":
+    case VillageShareEventActor.Owner:
       return "by owner";
-    case "collective":
+    case VillageShareEventActor.Collective:
       return "by collective";
-    case "moderator":
+    case VillageShareEventActor.Moderator:
       return "by moderator";
     default:
       return assertShareEventActorExhaustive(actor);
@@ -144,7 +145,7 @@ export function shareEventTime(
   if (event.decided_at != null) {
     return { text: formatShareEventTime(event.decided_at), known: true };
   }
-  if (event.status === "pending") {
+  if (event.status === VillageShareStatus.Pending) {
     return { text: formatShareEventTime(event.recorded_at), known: true };
   }
   return { text: UNKNOWN_DECISION_TIME, known: false };

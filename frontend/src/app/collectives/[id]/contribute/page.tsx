@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageTranscriptVisibility } from "@peasant-labs/schema";
+
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Lock } from "lucide-react";
@@ -104,7 +106,7 @@ export default function GroupContributePage({
   // its checkboxes state the same thing.
   const selection = helper.selectedIds;
   const helperPrivateSelected = useMemo(
-    () => [...helper.helperItems.values()].filter((item) => item.transcript?.session.visibility === "private"),
+    () => [...helper.helperItems.values()].filter((item) => item.transcript?.session.visibility === VillageTranscriptVisibility.Private),
     [helper.helperItems],
   );
   // The receipt list is keyed by `project_hash` (the run's grouping key), but

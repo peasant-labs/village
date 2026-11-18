@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveRole } from "@peasant-labs/schema";
+
 import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -170,7 +172,7 @@ export function MembersSection({
                 {profile?.display_name && <span className="on-mem-name">{profile.display_name}</span>}
               </span>
               {/* A member the server did not name carries no id to act on. */}
-              {member.role === "owner" || !profile ? (
+              {member.role === VillageCollectiveRole.Owner || !profile ? (
                 <span className="on-chrome">owner</span>
               ) : (
                 <span className="select-wrap">
@@ -185,7 +187,7 @@ export function MembersSection({
                   </select>
                 </span>
               )}
-              {member.role === "owner" || !profile ? (
+              {member.role === VillageCollectiveRole.Owner || !profile ? (
                 <span />
               ) : (
                 <button
