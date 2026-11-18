@@ -1,0 +1,10 @@
+# A validly signed session whose account cannot be read because the account
+# lookup itself fails (a database error, not a missing row). Access is never
+# granted on that error: auth-required routes answer 503 with Retry-After and
+# write nothing, and optional-auth reads serve the caller anonymously.
+#
+# `credential` is how the session is presented: a `cookie` or a `bearer` JWT.
+- name: session-lookup-failure-fails-closed
+  credential: bearer
+- name: session-cookie-lookup-failure-fails-closed
+  credential: cookie

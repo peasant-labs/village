@@ -1,0 +1,45 @@
+# How a credential issued to an account behaves before and after that account
+# is deleted through DELETE /api/v1/auth/me, driven through the production
+# router against PostgreSQL.
+#
+# `credential` is how the caller signs in: a session `cookie`, a session JWT
+# sent as a `bearer` token, or an `api_key` created through the API with that
+# account's session. `delete_account` deletes the account with that same
+# credential before the assertions run.
+#
+# `signed_in` states what every assertion expects:
+#   true  - the caller is the account: GET /auth/me answers 200 with it, POST
+#           /auth/api-keys creates a key for it, and its own private transcript
+#           answers 200.
+#   false - the caller is refused on auth-required routes (401 "Authentication
+#           required", no key row written) and is anonymous on optional-auth
+#           reads: its former private transcript and another owner's private
+#           transcript answer the missing-id 404, and another owner's public
+#           transcript is served exactly as an anonymous caller sees it.
+cases:
+  - name: session-cookie-refused-after-account-deletion
+    credential: cookie
+    delete_account: true
+    signed_in: false
+  - name: session-bearer-refused-after-account-deletion
+    credential: bearer
+    delete_account: true
+    signed_in: false
+  - name: session-valid-for-existing-account
+    credential: bearer
+    delete_account: false
+    signed_in: true
+  - name: session-cookie-valid-for-existing-account
+    credential: cookie
+    delete_account: false
+    signed_in: true
+  # API keys were already looked up in the database and cascade with the
+  # account; the session check must not change that in either direction.
+  - name: api-key-unchanged-after-change
+    credential: api_key
+    delete_account: false
+    signed_in: true
+  - name: api-key-refused-after-account-deletion
+    credential: api_key
+    delete_account: true
+    signed_in: false
