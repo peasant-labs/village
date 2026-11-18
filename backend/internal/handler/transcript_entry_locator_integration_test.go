@@ -29,7 +29,7 @@ func TestTranscriptLocatorEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{"locator-no-match-404": true, "locator-authorizes-before-generation": true, "locator-ref-not-echoed": true, "locator-body-contract-violation-400": true, "locator-stale-revision-409": true, "locator-stale-representation-409": true, "locator-carried-hash-mismatch-general-link": true, "locator-scan-bounded-to-partition": true, "access-locator-denied-equals-no-match": true}
+	required := map[string]bool{"locator-no-match-404": true, "locator-authorizes-before-generation": true, "locator-ref-not-echoed": true, "locator-body-contract-violation-400": true, "locator-stale-revision-409": true, "locator-stale-representation-409": true, "locator-carried-hash-mismatch-general-link": true, "locator-scan-bounded-to-partition": true, "access-locator-denied-equals-no-match": true, "locator-malformed-missing-equals-not-found": true, "locator-malformed-denied-equals-not-found": true, "locator-malformed-readable-refusal-headers": true, "locator-oversized-missing-equals-not-found": true, "locator-oversized-denied-equals-not-found": true, "locator-oversized-readable-refusal-headers": true}
 	fixture, err := decodeFixtureDocument[struct {
 		Content        string                       `yaml:"content"`
 		HistoryContent string                       `yaml:"history_content"`
@@ -118,12 +118,26 @@ func TestTranscriptLocatorEncrypted(t *testing.T) {
 				q.ContentHash = "stale"
 			case "history-only":
 				q.Reference = "history-ref"
+			case "malformed-missing", "oversized-missing":
+				target, owner = missingID, false
+			case "malformed-denied", "oversized-denied":
+				owner = false
+			case "malformed-readable":
+				expected = http.StatusBadRequest
+			case "oversized-readable":
+				expected = http.StatusRequestEntityTooLarge
 			default:
 				t.Fatalf("unknown scenario %q", tc.Scenario)
 			}
 			payload := body(q)
 			if tc.Scenario == "bad-body" {
 				payload = `{}`
+			}
+			if strings.HasPrefix(tc.Scenario, "malformed-") {
+				payload = `{"reference":`
+			}
+			if strings.HasPrefix(tc.Scenario, "oversized-") {
+				payload = strings.Repeat(" ", maxContractBodyBytes+1)
 			}
 			if tc.Scenario == "denied" {
 				world.handler.contentCache = newTranscriptContentCache(transcriptContentCacheConfig{})
@@ -139,6 +153,19 @@ func TestTranscriptLocatorEncrypted(t *testing.T) {
 				}
 				if got.Body.String() != missing.Body.String() || !reflect.DeepEqual(got.Header(), missing.Header()) {
 					t.Fatalf("denial differs from missing: %v %q vs %v %q", got.Header(), got.Body.String(), missing.Header(), missing.Body.String())
+				}
+			}
+			if strings.HasSuffix(tc.Scenario, "-missing") || strings.HasSuffix(tc.Scenario, "-denied") {
+				if got.Body.String() != missing.Body.String() || !reflect.DeepEqual(got.Header(), missing.Header()) {
+					t.Fatalf("refusal differs from missing: %v %q vs %v %q", got.Header(), got.Body.String(), missing.Header(), missing.Body.String())
+				}
+				if counting.count() != before {
+					t.Fatal("missing or denied request read object")
+				}
+			}
+			if strings.HasSuffix(tc.Scenario, "-readable") || tc.Scenario == "bad-body" {
+				if got.Header().Get("Cache-Control") != "no-store" || got.Header().Get("Vary") != "Authorization, Cookie" {
+					t.Fatalf("invalid body refusal headers: %v", got.Header())
 				}
 			}
 			if tc.Scenario == "no-match" || tc.Scenario == "wrong-hash" || tc.Scenario == "history-only" {

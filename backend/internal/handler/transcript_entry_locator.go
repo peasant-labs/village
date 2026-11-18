@@ -9,14 +9,18 @@ import (
 
 // LocateTranscriptEntry locates a reference only in the served main partition.
 func (h *Handler) LocateTranscriptEntry(w http.ResponseWriter, r *http.Request) {
-	var request schema.TranscriptEntryLocateRequest
-	if !h.decodeContractBody(w, r, opLocateTranscriptEntry, &request) {
-		return
-	}
 	s, ok := h.beginSegmentedRead(w, r)
 	if !ok {
 		return
 	}
+	// The contract decoder writes its own errors. Apply the refusal policy
+	// before calling it, then restore the successful read policy afterwards.
+	w.Header().Set("Cache-Control", "no-store")
+	var request schema.TranscriptEntryLocateRequest
+	if !h.decodeContractBody(w, r, opLocateTranscriptEntry, &request) {
+		return
+	}
+	segmentedHeaders(w)
 	if request.Revision != s.opened.Index.Revision.String() {
 		segmentedError(w, http.StatusConflict, "The transcript changed; reload before continuing.")
 		return

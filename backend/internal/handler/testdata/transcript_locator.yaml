@@ -16,3 +16,15 @@
   scenario: history-only
 - name: access-locator-denied-equals-no-match
   scenario: denied-equals
+- name: locator-malformed-missing-equals-not-found
+  scenario: malformed-missing
+- name: locator-malformed-denied-equals-not-found
+  scenario: malformed-denied
+- name: locator-malformed-readable-refusal-headers
+  scenario: malformed-readable
+- name: locator-oversized-missing-equals-not-found
+  scenario: oversized-missing
+- name: locator-oversized-denied-equals-not-found
+  scenario: oversized-denied
+- name: locator-oversized-readable-refusal-headers
+  scenario: oversized-readable
