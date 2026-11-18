@@ -641,34 +641,45 @@ func (s *layoutScanner) history(layout *contentLayout) error {
 	return s.close(']')
 }
 
-// turnArray reads one value that must be an array or null.
+// storedTurnFacts is the part of one stored turn the structural pass reads. A
+// turn whose members do not decode into it contributes nothing.
+type storedTurnFacts struct {
+	ContentParts []json.RawMessage `json:"contentParts"`
+	Usage        json.RawMessage   `json:"usage"`
+	ToolCalls    json.RawMessage   `json:"toolCalls"`
+}
+
+// turnArray reads one value that must be an array or null. The array is
+// walked element by element with the scanner's own decoder, so each stored
+// turn is read once here and the array is never decoded whole or copied.
 func (s *layoutScanner) turnArray() (partitionLayout, error) {
-	value, err := s.skip()
+	token, err := s.dec.Token()
 	if err != nil {
 		return partitionLayout{}, err
 	}
-	trimmed := bytes.TrimSpace(value.bytes)
-	if bytes.Equal(trimmed, []byte("null")) {
+	if token == nil {
 		return partitionLayout{UsagePresent: schema.TranscriptUsageUnknown}, nil
 	}
-	if len(trimmed) == 0 || trimmed[0] != '[' {
+	if token != json.Delim('[') {
 		return partitionLayout{}, errors.New("turns is not an array")
 	}
+	start := s.dec.InputOffset() - 1
 	// Count only typed image parts with a stated omission reason, before the
 	// lazy cook so even a removed row or an unopened history contributes.
-	var turns []json.RawMessage
-	if err := json.Unmarshal(trimmed, &turns); err != nil {
-		return partitionLayout{}, err
-	}
 	usage := schema.TranscriptUsageUnknown
-	for _, turn := range turns {
-		var row struct {
-			ContentParts []json.RawMessage `json:"contentParts"`
-			Usage        json.RawMessage   `json:"usage"`
-			ToolCalls    json.RawMessage   `json:"toolCalls"`
-		}
-		if err := json.Unmarshal(turn, &row); err != nil {
-			continue
+	stored := 0
+	for s.dec.More() {
+		var row storedTurnFacts
+		err := s.dec.Decode(&row)
+		stored++
+		if err != nil {
+			// A turn of another shape is consumed whole and skipped; broken
+			// JSON stops the pass.
+			var mismatch *json.UnmarshalTypeError
+			if errors.As(err, &mismatch) {
+				continue
+			}
+			return partitionLayout{}, err
 		}
 		if len(row.Usage) > 0 && string(row.Usage) != "null" {
 			usage = schema.TranscriptUsagePresent
@@ -697,7 +708,10 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 			}
 		}
 	}
-	return partitionLayout{Turns: value.span, Present: true, StoredTurns: len(turns), UsagePresent: usage}, nil
+	if err := s.close(']'); err != nil {
+		return partitionLayout{}, err
+	}
+	return partitionLayout{Turns: byteSpan{Start: start, End: s.dec.InputOffset()}, Present: true, StoredTurns: stored, UsagePresent: usage}, nil
 }
 
 type skippedValue struct {
