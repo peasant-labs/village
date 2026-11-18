@@ -2,3 +2,6 @@
   scenario: dropped
 - name: number-refusal-uncookable-no-partial-body
   scenario: cook-error
+- name: historical-uncookable-refusal
+  scenario: historical-error
+  turns: '[{"role":"assistant","provenance":{}}]'

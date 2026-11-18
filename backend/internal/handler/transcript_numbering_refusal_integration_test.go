@@ -23,6 +23,7 @@ var numberingRefusalYAML []byte
 type numberingRefusalCase struct {
 	Name     string `yaml:"name"`
 	Scenario string `yaml:"scenario"`
+	Turns    string `yaml:"turns"`
 }
 
 func TestNumberingRefusal(t *testing.T) {
@@ -38,7 +39,7 @@ func TestNumberingRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{"number-absent-never-fabricated": true, "number-refusal-uncookable-no-partial-body": true}
+	required := map[string]bool{"number-absent-never-fabricated": true, "number-refusal-uncookable-no-partial-body": true, "historical-uncookable-refusal": true}
 	pool := publishLockPool(t, 8)
 	t.Cleanup(pool.Close)
 	objects := publishEvidenceObjects(t)
@@ -56,6 +57,18 @@ func TestNumberingRefusal(t *testing.T) {
 				t.Fatalf("republish: %d %s", response.Code, response.Body.String())
 			}
 			w.handler.contentCache = newTranscriptContentCache(transcriptContentCacheConfig{})
+			if tc.Scenario == "historical-error" {
+				turns := tc.Turns
+				captured, err := schema.NewTranscriptCookTurns([]byte(`{"turns":` + turns + `}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := schema.CookTranscriptRows(captured, schema.HarnessClaudeCode); err == nil {
+					t.Fatal("historical fixture must be refused by the Schema cooking rule")
+				}
+				body := `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"` + w.localID + `","harness":"claude-code","turns":` + turns + `}}`
+				installHistoricalNumberingContent(t, w, []byte(body), "claude-code")
+			}
 			if tc.Scenario == "cook-error" {
 				opened, err := w.handler.openCachedTranscript(w.ctx, w.row(), func(sqlc.Transcript) bool { return true })
 				if err != nil {
@@ -64,7 +77,7 @@ func TestNumberingRefusal(t *testing.T) {
 				opened.Index.cook = func([]schema.TranscriptCookTurn, schema.Harness) ([]schema.CookedTurn, error) {
 					return nil, errors.New("synthetic cooking refusal")
 				}
-			} else if tc.Scenario != "dropped" {
+			} else if tc.Scenario != "dropped" && tc.Scenario != "historical-error" {
 				t.Fatalf("unknown scenario %q", tc.Scenario)
 			}
 			mux := chi.NewRouter()
@@ -74,7 +87,7 @@ func TestNumberingRefusal(t *testing.T) {
 			r = r.WithContext(context.WithValue(r.Context(), UserContextKey, w.owner))
 			response := httptest.NewRecorder()
 			mux.ServeHTTP(response, r)
-			if tc.Scenario == "cook-error" {
+			if tc.Scenario == "cook-error" || tc.Scenario == "historical-error" {
 				if response.Code != http.StatusInternalServerError || strings.Contains(response.Body.String(), `"rows"`) || strings.Contains(response.Body.String(), "main prompt") {
 					t.Fatalf("refusal status %d body %s", response.Code, response.Body.String())
 				}
