@@ -6,7 +6,9 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peasant-labs/village/backend/internal/database"
 )
@@ -21,13 +23,22 @@ func TestRegisteredPublishBatchLeavesDatabaseUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.RunMigrations(pool); err != nil {
 		t.Fatal(err)
 	}
+	account := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO users(id,github_id,github_username,provider_user_id) VALUES($1,$2,$3::text,$3::text)`, account, time.Now().UnixNano(), "batch-refusal-"+account.String()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), "DELETE FROM users WHERE id=$1", account); err != nil {
+			t.Errorf("delete the batch refusal account: %v", err)
+		}
+	})
 	snapshot := func() string {
 		var value string
 		err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
@@ -44,7 +55,7 @@ func TestRegisteredPublishBatchLeavesDatabaseUnchanged(t *testing.T) {
 	for _, c := range batchRefusalCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			before := snapshot()
-			assertRegisteredBatchRefusal(t, pool, c)
+			assertRegisteredBatchRefusal(t, pool, account, c)
 			if snapshot() != before {
 				t.Fatal("registered batch refusal changed transcript, audit, attempt, or share rows")
 			}
