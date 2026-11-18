@@ -284,13 +284,10 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 	h.contentCache.mu.Lock()
 	h.contentCache.entries = make(map[transcriptCacheKey]*transcriptCacheEntry)
 	h.contentCache.retained = 0
+	h.contentCache.reserved = h.contentCache.budget
 	h.contentCache.mu.Unlock()
-	a, _ := h.contentCache.AcquireBuild(context.Background())
-	b, _ := h.contentCache.AcquireBuild(context.Background())
 	baseline := httptest.NewRecorder()
 	mux.ServeHTTP(baseline, httptest.NewRequest(http.MethodGet, base+"/segments?v=2", nil))
-	a()
-	b()
 	if baseline.Code != 503 || baseline.Header().Get("Retry-After") != "1" {
 		t.Fatalf("cache refusal: %d %s", baseline.Code, baseline.Body.String())
 	}
