@@ -39,9 +39,9 @@ func (h *Handler) retractedTranscriptVisible(ctx context.Context, id pgtype.UUID
 		return false, err
 	}
 	switch visibility {
-	case "public":
+	case dbVisibilityPublic:
 		return true, nil
-	case "shared":
+	case dbVisibilityShared:
 		if user == nil {
 			return false, nil
 		}
