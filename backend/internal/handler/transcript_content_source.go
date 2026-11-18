@@ -99,6 +99,7 @@ type indexedTurn struct {
 	// Role, ConversationTurn and ByteLength are what the segment cut and the
 	// window need; they come from the turn decoded with the cooked one.
 	Role             schema.Role
+	Depth            int
 	ConversationTurn bool
 	ByteLength       int
 	// RecordedIndex is the turn's own index member, kept apart from its position.
@@ -115,6 +116,8 @@ type partitionIndex struct {
 	Positions              []positionRef
 	TotalSegments          int
 	TotalConversationTurns *int
+	Native                 []schema.NativeMetadataRecord
+	UsagePresent           schema.TranscriptUsagePresence
 	// TotalTurns is the number of served rows.
 	TotalTurns int
 }
@@ -131,11 +134,19 @@ type cookRowsFunc func(turns []schema.TranscriptCookTurn, harness schema.Harness
 
 // transcriptIndex is the content source for one generation.
 type transcriptIndex struct {
-	Revision      contentGeneration
-	ContentHash   storage.ContentHash // empty while the generation's identity is pending
-	Harness       schema.Harness      // the served harness; the cooking rule's producer class
-	ModelProvider string
-	OmittedImages int
+	Revision         contentGeneration
+	ContentHash      storage.ContentHash // empty while the generation's identity is pending
+	Harness          schema.Harness      // the served harness; the cooking rule's producer class
+	ModelProvider    string
+	OmittedImages    int
+	Validation       schema.TranscriptReadValidation
+	ContractVersion  schema.PushContractVersion
+	Transport        schema.TranscriptReadTransport
+	ContentSessionID *string
+	NativePresence   schema.TranscriptNativePresence
+	Header           schema.TranscriptSessionHeader
+	History          []schema.TranscriptHistorySection
+	RetainedEvidence *schema.TranscriptRetainedState
 	// Bytes is the canonical plaintext, one copy per generation.
 	Bytes []byte
 	// Ranges holds one entry per partition, recorded by the structural pass.
@@ -160,6 +171,8 @@ type transcriptIndexInput struct {
 	ContentHash   storage.ContentHash
 	ModelProvider string
 	Bytes         []byte
+	Validation    schema.TranscriptReadValidation
+	Transport     schema.TranscriptReadTransport
 	// Cook is the cooking rule; nil selects the production rule.
 	Cook cookRowsFunc
 }
@@ -182,16 +195,74 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 		Harness:       canonicalHarness(layout.Harness),
 		ModelProvider: in.ModelProvider,
 		OmittedImages: layout.OmittedImages,
+		Validation:    in.Validation,
+		Transport:     in.Transport,
 		Bytes:         in.Bytes,
 		layout:        layout,
 		cook:          cook,
 		Partitions:    make(map[partitionKey]*partitionIndex),
+	}
+	var envelope struct {
+		ContractVersion schema.PushContractVersion `json:"contractVersion"`
+		SessionDetail   struct {
+			NativeMetadata  []json.RawMessage `json:"nativeMetadata"`
+			RetainedUnknown []json.RawMessage `json:"retainedUnknown"`
+			Diagnostics     json.RawMessage   `json:"diagnostics"`
+		} `json:"sessionDetail"`
+	}
+	if err := json.Unmarshal(in.Bytes, &envelope); err != nil {
+		return nil, fmt.Errorf("%w: envelope metadata could not be read", errUncookable)
+	}
+	index.ContractVersion = envelope.ContractVersion
+	index.Header, err = schema.NewTranscriptSessionHeader(index.SessionDetail())
+	if err != nil {
+		return nil, fmt.Errorf("%w: header metadata could not be projected", errUncookable)
+	}
+	index.ContentSessionID = index.Header.ID
+	index.NativePresence = schema.TranscriptNativeAbsent
+	if len(envelope.SessionDetail.NativeMetadata) != 0 {
+		index.NativePresence = schema.TranscriptNativePresent
+	}
+	retained := schema.TranscriptRetainedAbsent
+	if len(envelope.SessionDetail.RetainedUnknown) != 0 || len(envelope.SessionDetail.Diagnostics) != 0 && string(envelope.SessionDetail.Diagnostics) != "null" {
+		retained = schema.TranscriptRetainedDeferred
+	}
+	index.RetainedEvidence = &retained
+	for i, section := range layout.History {
+		if section.Native.End > section.Native.Start {
+			var records []json.RawMessage
+			if json.Unmarshal(in.Bytes[section.Native.Start:section.Native.End], &records) == nil && len(records) > 0 {
+				index.NativePresence = schema.TranscriptNativePresent
+			}
+		}
+		index.History = append(index.History, schema.TranscriptHistorySection{Index: i, State: section.State, TotalTurns: section.StoredTurns, UsagePresent: schema.TranscriptUsageUnknown})
 	}
 	index.Ranges = append(index.Ranges, partitionByteRange{Key: mainPartitionKey(), Start: layout.Main.Turns.Start, End: layout.Main.Turns.End})
 	for section, history := range layout.History {
 		index.Ranges = append(index.Ranges, partitionByteRange{Key: historyPartitionKey(section), Start: history.Turns.Start, End: history.Turns.End})
 	}
 	return index, nil
+}
+
+// Representation derives the viewer-scoped projection without storing it in
+// the generation cache, which is deliberately shared by different viewers.
+func (x *transcriptIndex) Representation(viewer schema.TranscriptViewerProjection, repositoryWithheld bool, native schema.TranscriptNativePresence) string {
+	harness := ""
+	if x.Header.Harness != nil {
+		harness = *x.Header.Harness
+	}
+	return schema.TranscriptRepresentation(schema.TranscriptRepresentationInputs{
+		RepresentationVersion: schema.RepresentationVersion,
+		CutVersion:            schema.CutVersion,
+		Revision:              x.Revision.String(),
+		Validation:            x.Validation,
+		Harness:               harness,
+		ModelProvider:         x.ModelProvider,
+		ContractVersion:       x.ContractVersion,
+		ViewerProjection:      viewer,
+		RepositoryWithheld:    repositoryWithheld,
+		NativePresence:        native,
+	})
 }
 
 // SessionDetail is the served session detail object, a view into the held
@@ -254,7 +325,7 @@ func (x *transcriptIndex) partitionLayout(key partitionKey) (partitionLayout, bo
 func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionIndex, error) {
 	if !layout.Present {
 		zero := 0
-		return &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}, Refs: []schema.PositionedSegmentRef{}, Positions: []positionRef{}, TotalConversationTurns: &zero}, nil
+		return &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}, Refs: []schema.PositionedSegmentRef{}, Positions: []positionRef{}, TotalConversationTurns: &zero, UsagePresent: schema.TranscriptUsageUnknown}, nil
 	}
 	array := x.Bytes[layout.Turns.Start:layout.Turns.End]
 	// The capture takes one session-detail-shaped object. Only the partition's
@@ -278,6 +349,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 
 	rows := make([]indexedTurn, 0, len(turns))
 	details := make([]schema.TurnDetail, 0, len(turns))
+	usage := schema.TranscriptUsageUnknown
 	cursor := layout.Turns.Start + 1 // after the array's opening bracket
 	for stored, turn := range turns {
 		served := turn.Raw()
@@ -302,6 +374,14 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 		}
 		detail := turn.Detail()
 		details = append(details, detail)
+		if detail.Usage != nil {
+			usage = schema.TranscriptUsagePresent
+		}
+		for _, tool := range detail.ToolCalls {
+			if tool.Usage != nil {
+				usage = schema.TranscriptUsagePresent
+			}
+		}
 		state, recorded := schema.DecodeTranscriptRecordedIndex(served)
 		rows = append(rows, indexedTurn{
 			Stored:             stored,
@@ -310,6 +390,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			Start:              start,
 			End:                end,
 			Role:               detail.Role,
+			Depth:              detail.Depth,
 			ConversationTurn:   schema.IsConversationTurn(detail.Role, detail.EntryType, detail.Depth),
 			ByteLength:         schema.TranscriptTurnByteLength(detail),
 			RecordedIndexState: state,
@@ -344,7 +425,13 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 	if next != len(rows) {
 		return nil, fmt.Errorf("%w: the contract cut omitted served rows", errUncookable)
 	}
-	return &partitionIndex{Rows: rows, Verdict: verdict, Refs: refs, Positions: positions, TotalTurns: len(rows), TotalSegments: len(refs), TotalConversationTurns: &conversationTotal}, nil
+	var native []schema.NativeMetadataRecord
+	if layout.Native.End > layout.Native.Start {
+		if err := json.Unmarshal(x.Bytes[layout.Native.Start:layout.Native.End], &native); err != nil {
+			return nil, fmt.Errorf("%w: native metadata could not be decoded", errUncookable)
+		}
+	}
+	return &partitionIndex{Rows: rows, Verdict: verdict, Refs: refs, Positions: positions, Native: native, UsagePresent: usage, TotalTurns: len(rows), TotalSegments: len(refs), TotalConversationTurns: &conversationTotal}, nil
 }
 
 // locateTurn finds where the next stored turn lies in the held bytes. The
@@ -389,8 +476,11 @@ type byteSpan struct{ Start, End int64 }
 // partitionLayout locates one partition's turn array. Present is false when
 // the document has no turn array for it (absent or null), an empty partition.
 type partitionLayout struct {
-	Turns   byteSpan
-	Present bool
+	Turns       byteSpan
+	Present     bool
+	Native      byteSpan
+	State       string
+	StoredTurns int
 }
 
 // contentLayout is what the structural pass learns about one generation.
@@ -455,7 +545,7 @@ func (s *layoutScanner) detail(layout *contentLayout) (byteSpan, error) {
 	seen := map[string]bool{}
 	return s.object(func(key string) error {
 		switch key {
-		case detailHarnessKey, "turns", "earlierHistory":
+		case detailHarnessKey, "turns", "earlierHistory", "nativeMetadata":
 			if seen[key] {
 				return fmt.Errorf("%s appears twice", key)
 			}
@@ -479,8 +569,15 @@ func (s *layoutScanner) detail(layout *contentLayout) (byteSpan, error) {
 			}
 		case "turns":
 			partition, err := s.turnArray()
+			partition.Native = layout.Main.Native
 			layout.Main = partition
 			return err
+		case "nativeMetadata":
+			value, err := s.skip()
+			if err != nil {
+				return err
+			}
+			layout.Main.Native = value.span
 		case "earlierHistory":
 			return s.history(layout)
 		}
@@ -503,6 +600,20 @@ func (s *layoutScanner) history(layout *contentLayout) error {
 		var partition partitionLayout
 		seen := false
 		if _, err := s.object(func(key string) error {
+			if key == "state" {
+				value, err := s.skip()
+				if err == nil {
+					_ = json.Unmarshal(value.bytes, &partition.State)
+				}
+				return err
+			}
+			if key == "nativeMetadata" {
+				value, err := s.skip()
+				if err == nil {
+					partition.Native = value.span
+				}
+				return err
+			}
 			if key != "turns" {
 				_, err := s.skip()
 				return err
@@ -512,7 +623,9 @@ func (s *layoutScanner) history(layout *contentLayout) error {
 			}
 			seen = true
 			var err error
+			prior := partition
 			partition, err = s.turnArray()
+			partition.State, partition.Native = prior.State, prior.Native
 			return err
 		}); err != nil {
 			return fmt.Errorf("earlierHistory[%d]: %w", len(layout.History), err)
@@ -563,7 +676,7 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 			}
 		}
 	}
-	return partitionLayout{Turns: value.span, Present: true}, nil
+	return partitionLayout{Turns: value.span, Present: true, StoredTurns: len(turns)}, nil
 }
 
 type skippedValue struct {
@@ -647,7 +760,7 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 	if err != nil {
 		return nil, err
 	}
-	canonical, err := canonicalContentBytes(ctx, read.Plaintext)
+	canonical, rewrite, err := canonicalContentBytesWithRewrite(ctx, read.Plaintext)
 	if err != nil {
 		return nil, err
 	}
@@ -657,11 +770,21 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 			hash = read.Identity.Hash()
 		}
 	}
+	validation := schema.TranscriptReadServedLegacy
+	if read.Strict {
+		validation = schema.TranscriptReadPublishedStrict
+	}
+	if rewrite {
+		validation = schema.TranscriptReadMigrated
+	}
+	id := schema.VillageUUID(uuidFromPg(read.Row.ID).String())
 	index, err := newTranscriptIndex(transcriptIndexInput{
 		Revision:      contentGeneration(read.Row.ContentRevision),
 		ContentHash:   hash,
 		ModelProvider: read.Row.ModelProvider,
 		Bytes:         canonical,
+		Validation:    validation,
+		Transport:     schema.TranscriptReadTransport{Kind: schema.TranscriptReadTransportVillageTranscript, TranscriptID: &id},
 	})
 	if err != nil {
 		return nil, err
@@ -676,29 +799,36 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 // as the whole-document read falls back, but never persisted: installing a
 // rewritten generation stays the whole-document read's decision.
 func canonicalContentBytes(ctx context.Context, raw []byte) ([]byte, error) {
+	result, _, err := canonicalContentBytesWithRewrite(ctx, raw)
+	return result, err
+}
+
+func canonicalContentBytesWithRewrite(ctx context.Context, raw []byte) ([]byte, bool, error) {
 	payload, rewrite, err := defaultContentMigrator.Migrate(ctx, raw)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := validateObservedModelValues(payload); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := validateThinkingLevelValues(payload); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if !rewrite {
-		return raw, nil
+		return raw, false, nil
 	}
 	encoded, encodeErr := encodeCanonicalTranscript(payload)
 	switch {
 	case encodeErr == nil:
-		return encoded, nil
+		return encoded, true, nil
 	case errors.Is(encodeErr, errCanonicalRewriteTooLarge):
-		return originalContentEnvelope(raw)
+		result, err := originalContentEnvelope(raw)
+		return result, true, err
 	default:
 		if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
-			return nil, errors.New("Stored retained transcript failed canonical validation during read normalization in handler.canonicalContentBytes; no content was indexed; republish valid canonical content and retry")
+			return nil, false, errors.New("Stored retained transcript failed canonical validation during read normalization in handler.canonicalContentBytes; no content was indexed; republish valid canonical content and retry")
 		}
-		return marshalTranscriptContentEnvelope(currentContractVersion, payload)
+		result, err := marshalTranscriptContentEnvelope(currentContractVersion, payload)
+		return result, true, err
 	}
 }
