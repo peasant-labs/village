@@ -361,7 +361,9 @@ func externalBudgetBench(b *testing.B, path string, content bool) {
 	if cold {
 		mode = "cold"
 	}
-	fmt.Printf("mode=%s passes=%d gomaxprocs=%d affinity=%s samples=%s\n", mode, len(samples), runtime.GOMAXPROCS(0), affinity, encoded)
+	// The Go benchmark driver can print its benchmark name without a newline
+	// before invoking the benchmark again. Keep every marker on its own line.
+	fmt.Printf("\nmode=%s passes=%d gomaxprocs=%d affinity=%s samples=%s\n", mode, len(samples), runtime.GOMAXPROCS(0), affinity, encoded)
 }
 
 func BenchmarkCookNumberCold(b *testing.B) { coldBudgetBench(b, false) }

@@ -14,7 +14,7 @@ spec.loader.exec_module(budget)
 class ParseTests(unittest.TestCase):
     def test_fixture(self):
         rows = json.loads((HERE / "testdata/cook-budget-parser.json").read_text())
-        required = {"cold-pass", "missing", "double-cold", "bad-count", "missing-metric", "wrong-mode", "wrong-affinity", "wrong-procs"}
+        required = {"cold-pass", "missing", "double-cold", "bad-count", "missing-metric", "wrong-mode", "wrong-affinity", "wrong-procs", "driver-prefix-line"}
         self.assertEqual({row["name"] for row in rows}, required)
         for row in rows:
             with self.subTest(row["name"]):
