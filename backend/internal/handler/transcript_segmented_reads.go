@@ -109,6 +109,33 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 		}
 		return nil, false
 	}
+	if opened.Reloaded {
+		fresh, lookupErr := h.queries.GetTranscriptByID(r.Context(), row.ID)
+		if errors.Is(lookupErr, pgx.ErrNoRows) || lookupErr == nil && !h.canViewTranscript(r.Context(), user, fresh) {
+			segmentedError(w, http.StatusNotFound, "Transcript not found")
+			return nil, false
+		}
+		if lookupErr != nil {
+			segmentedError(w, http.StatusInternalServerError, "Cannot read transcript access during the read; retry the request.")
+			return nil, false
+		}
+		current, currentErr := descriptorFromTranscript(fresh)
+		source, sourceErr := descriptorFromTranscript(opened.SourceRow)
+		if currentErr != nil || sourceErr != nil || !descriptorsEqual(current, source) {
+			segmentedError(w, http.StatusConflict, "The transcript changed during the read; reload before continuing.")
+			return nil, false
+		}
+		row = fresh
+		if revision != "" && revision != contentGeneration(row.ContentRevision).String() {
+			segmentedError(w, http.StatusConflict, "The transcript changed; reload before continuing.")
+			return nil, false
+		}
+		owner, err = h.resolvePublicOwner(r.Context(), user, row.OwnerID)
+		if err != nil {
+			segmentedError(w, http.StatusInternalServerError, "Cannot determine the transcript projection during the read; retry the request.")
+			return nil, false
+		}
+	}
 	if opened.Index.Revision != contentGeneration(row.ContentRevision) {
 		segmentedError(w, http.StatusConflict, "The transcript changed during the read; reload before continuing.")
 		return nil, false

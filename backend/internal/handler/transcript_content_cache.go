@@ -251,6 +251,11 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 		entry.lastRead = c.now()
 		opened := entry.opened
 		c.mu.Unlock()
+		if opened.Reloaded {
+			copy := *opened
+			copy.Reloaded = false
+			return &copy, nil
+		}
 		return opened, nil
 	}
 	if flight, ok := c.flights[key]; ok {
@@ -555,9 +560,10 @@ func (c *transcriptContentCache) has(key transcriptCacheKey) bool {
 // cache is consulted only for a viewer who already passed it. A read that finds
 // the row at another generation than a live entry drops that entry.
 //
-// authorize is asked about the fresh row only when the object moved and the
-// load reloads, and it is the starting reader's. A reader that joins another's
-// load receives the same result, or the same refusal, which fails closed.
+// The loader's reload authorization belongs only to its starting reader.
+// Every waiter must independently reauthorize when Reloaded is set. A cache
+// hit also requires that check when its source descriptor differs from the
+// caller's freshly authorized row.
 func (h *Handler) openCachedTranscript(ctx context.Context, row sqlc.Transcript, authorize func(sqlc.Transcript) bool) (*openedTranscript, error) {
 	load := func(ctx context.Context) (*openedTranscript, error) {
 		return h.openTranscriptContent(ctx, row, authorize)
@@ -572,7 +578,18 @@ func (h *Handler) openCachedTranscript(ctx context.Context, row sqlc.Transcript,
 	if row.BlobSizeBytes.Valid {
 		weight = row.BlobSizeBytes.Int64
 	}
-	return cache.Acquire(ctx, key, transcriptCacheLoad{Owner: uuid.UUID(row.OwnerID.Bytes), Weight: weight}, load)
+	opened, err := cache.Acquire(ctx, key, transcriptCacheLoad{Owner: uuid.UUID(row.OwnerID.Bytes), Weight: weight}, load)
+	if err != nil {
+		return nil, err
+	}
+	initial, initialErr := descriptorFromTranscript(row)
+	source, sourceErr := descriptorFromTranscript(opened.SourceRow)
+	if initialErr != nil || sourceErr != nil || !descriptorsEqual(initial, source) {
+		copy := *opened
+		copy.Reloaded = true
+		opened = &copy
+	}
+	return opened, nil
 }
 
 // StartContentCacheSweeper starts the cache's idle-lifetime ticker.

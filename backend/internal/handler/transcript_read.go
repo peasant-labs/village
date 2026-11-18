@@ -15,6 +15,7 @@ type encryptedReadResult struct {
 	Identity    storage.ContentIdentity
 	NotModified bool
 	Strict      bool
+	Reloaded    bool
 }
 
 func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Transcript, ifNoneMatch string, authorize func(sqlc.Transcript) bool) (encryptedReadResult, error) {
@@ -59,7 +60,9 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 	if descriptorsEqual(oldDescriptor, newDescriptor) {
 		return encryptedReadResult{}, fmt.Errorf("encrypted transcript read failed because the unchanged immutable generation could not be retrieved in handler.readEncryptedTranscript after the sole reload; no body was returned and absence is not assumed; restore storage access or reconcile the descriptor and retry: %w", err)
 	}
-	return read(fresh)
+	result, err = read(fresh)
+	result.Reloaded = true
+	return result, err
 }
 
 func reloadableObjectLookup(err error) bool {

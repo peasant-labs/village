@@ -162,8 +162,10 @@ type transcriptIndex struct {
 
 // openedTranscript pairs an index with a reader over its bytes.
 type openedTranscript struct {
-	Index *transcriptIndex
-	Bytes turnBytesReader
+	Index     *transcriptIndex
+	Bytes     turnBytesReader
+	Reloaded  bool
+	SourceRow sqlc.Transcript
 }
 
 // transcriptIndexInput is what the source needs about one generation.
@@ -810,7 +812,7 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 	if err != nil {
 		return nil, err
 	}
-	return &openedTranscript{Index: index, Bytes: index}, nil
+	return &openedTranscript{Index: index, Bytes: index, Reloaded: read.Reloaded, SourceRow: read.Row}, nil
 }
 
 // canonicalContentBytes is the whole-document read's normalization without its
