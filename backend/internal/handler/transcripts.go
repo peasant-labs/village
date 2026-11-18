@@ -437,6 +437,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var narrowedFrom string
 	var narrowedID pgtype.UUID
 	var audienceLeftPrivate bool
+	// republishedID is the transcript a republish may have replaced, set before
+	// its first write so every outcome, including an ambiguous commit, drops
+	// its cached content.
+	var republishedID pgtype.UUID
 	responseWritten := false
 	err = h.withPublishLocks(r.Context(), ownerPgID, string(req.Identity.SessionID), req.Git.Associations, func(conn *pgxpool.Conn) error {
 		lockedQueries := h.queries
@@ -465,6 +469,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		if isUpdate {
 			operation = "republish"
 			transcriptID = existingID
+			republishedID = existingID
 		} else {
 			transcriptID = toPgUUID(uuid.New())
 		}
@@ -899,6 +904,9 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
+	// The republish may have replaced the stored generation, so nothing cached
+	// for the transcript is trusted, whatever this handler answers.
+	h.purgeTranscriptContent(republishedID, purgePublish)
 	// A republish narrows the transcript before replacing its content. Whether
 	// the visibility it found was put back (the usual case) or the transcript
 	// was left private (an ambiguous commit, or a restore that itself failed),
@@ -1560,6 +1568,7 @@ func (h *Handler) rewriteCanonicalTranscriptLocked(ctx context.Context, conn *pg
 	if lost {
 		return nil, nil
 	}
+	h.purgeTranscriptContent(row.ID, purgeRewrite)
 	return &identity, nil
 }
 
@@ -1696,6 +1705,7 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	if patch.Visibility != nil && updated.Visibility != lockedVisibility {
 		// The change committed; going public enters the checked set.
 		h.nudgeIntegrity()
+		h.purgeTranscriptContent(pgID, purgeVisibility)
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
 		}
@@ -1868,6 +1878,9 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		deleteSucceeded = true
 		return nil
 	})
+	if rowDeleted {
+		h.purgeTranscriptContent(pgID, purgeDelete)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to serialize transcript deletion; restore PostgreSQL access and retry")
 		return
@@ -1923,6 +1936,7 @@ func (h *Handler) ShareTranscript(w http.ResponseWriter, r *http.Request) {
 	// The repost runs after the publish locks are released, because it may take
 	// them itself, and it never fails the share.
 	if widened {
+		h.purgeTranscriptContent(transcript.ID, purgeVisibility)
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), transcript.ID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a share widened a transcript failed: %v", refreshErr)
 		}
@@ -2097,6 +2111,8 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 			" because the withdrawal could not be recorded. Retry the unshare: repeating it is safe, because it withdraws only a submission that is still live.")
 		return
 	}
+
+	h.purgeTranscriptContent(pgID, purgeUnshare)
 
 	// A pull request's check says whether anyone besides the author can read
 	// what is attached, so the narrowing is what changes what the pull request

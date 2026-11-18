@@ -1,0 +1,40 @@
+# Cases for the content cache over the real encrypted store, real rows and the
+# mounted write paths. A unit test of the cache cannot observe the decryption
+# count, a stored row's revision, or whether a production write path reaches
+# the purge, so each case drives the production handlers against real
+# PostgreSQL and RustFS. `content` and `history_content` are published through
+# the production publish path; the test substitutes __SESSION_ID__ in
+# history_content with the session's own identifier.
+content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"content-cache-session","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":2,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"first prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"assistant","content":"an answer","timestamp":"2026-01-01T00:00:03Z","depth":0}]}}'
+history_content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"__SESSION_ID__","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":2,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"main prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"assistant","content":"main answer","timestamp":"2026-01-01T00:00:02Z","depth":0}],"earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"role":"user","content":"older prompt","timestamp":"2025-12-31T00:00:01Z","depth":0},{"index":1,"role":"assistant","content":"older answer","timestamp":"2025-12-31T00:00:02Z","depth":0}]}]}}'
+cases:
+  - name: cache-single-decrypt-for-main-then-history
+    scenario: main-then-history
+    why: The decryption count is a fact of the encrypted store; a history read after a main read must open the entry the main read built and cost no second authenticated read.
+  - name: cache-single-flight-two-viewers
+    scenario: two-viewers
+    why: Only the real store can show that two viewers who open one published generation at the same moment cause one object read and one decryption.
+  - name: cache-partition-index-survives-the-hit
+    scenario: partition-survives
+    why: The index a main read built lives in the retained entry, so the next read of that generation finds it already cooked, and a history section is indexed from the same bytes.
+  - name: cache-purge-on-publish
+    scenario: purge-publish
+    why: A republish replaces the stored generation through the production publish path; only that path shows it reaches the purge, and that the next read loads the new content.
+  - name: cache-purge-on-visibility
+    scenario: purge-visibility
+    why: An owner's visibility change goes through the mounted update path and its governance transaction; a unit test cannot show that path purges.
+  - name: cache-purge-on-rewrite
+    scenario: purge-rewrite
+    why: A migrate-on-read rewrite installs a new generation with the same revision and so the same key; without the purge the old bytes would be served under it.
+  - name: cache-purge-on-delete
+    scenario: purge-delete
+    why: Deleting a transcript through the mounted delete path, with its row-first cleanup, must drop the entry; the next load of that row finds it gone.
+  - name: cache-purge-on-account-delete
+    scenario: purge-account
+    why: The account cascade deletes every transcript of an owner without naming them, so only an owner purge on the mounted account delete can drop their entries.
+  - name: cache-purge-on-unshare
+    scenario: purge-unshare
+    why: Unsharing runs in the owner's transaction under the publish lock through a real collective; only the mounted path shows its purge is reached.
+  - name: cache-generation-move-observed-on-read
+    scenario: observe-generation
+    why: A write by another process cannot purge this process's cache; the read that sees the row at a newer revision must drop the older generation and load the new one.

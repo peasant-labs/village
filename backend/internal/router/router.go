@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -35,23 +36,30 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 }
 
 // NewWithDrain is New plus the background integrity check, started when it
-// is configured, and the work a shutdown waits for after the server stops:
-// the invitation emails still being sent after their responses, and an
-// integrity check still in flight.
+// is configured, the content cache's idle-lifetime ticker, and the work a
+// shutdown waits for after the server stops: the invitation emails still being
+// sent after their responses, an integrity check still in flight, and a cache
+// sweep still running.
 func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	routes, h := build(cfg, pool, blobs, titles)
 	h.StartIntegrityWorker()
+	h.StartContentCacheSweeper()
 	return routes, func(ctx context.Context) error {
-		// Both drains share the shutdown's one deadline.
-		var integrityErr error
-		done := make(chan struct{})
+		// The drains share the shutdown's one deadline.
+		var integrityErr, cacheErr error
+		var drains sync.WaitGroup
+		drains.Add(2)
 		go func() {
-			defer close(done)
+			defer drains.Done()
 			integrityErr = h.DrainIntegrity(ctx)
 		}()
+		go func() {
+			defer drains.Done()
+			cacheErr = h.DrainContentCache(ctx)
+		}()
 		noticesErr := h.DrainNotices(ctx)
-		<-done
-		return errors.Join(noticesErr, integrityErr)
+		drains.Wait()
+		return errors.Join(noticesErr, integrityErr, cacheErr)
 	}
 }
 

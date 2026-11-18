@@ -70,6 +70,11 @@ type Handler struct {
 	// integrity is the background integrity check, nil when it is off.
 	integrity *integrityService
 
+	// contentCache is the process-local transcript content cache the positioned
+	// reads open generations through. Nil means no caching and no purging, so a
+	// handler built without one behaves as it did before the cache existed.
+	contentCache *transcriptContentCache
+
 	// projectNames resolves the one display name every surface renders for a
 	// project. Its RemoteLabeler seam is filled by the contract module's
 	// RemoteLabel, so the rule that turns a raw git remote into a
@@ -163,6 +168,7 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		scanContent:           scanner.ScanForSecrets,
 		contributableRowLimit: defaultContributableRowLimit,
 		githubDispatcher:      noopGitHubDispatcher{},
+		contentCache:          newTranscriptContentCache(transcriptContentCacheConfig{}),
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),
