@@ -162,6 +162,7 @@ def main():
               "current_schema_pin": current, "go_version": run(["go", "version"]).strip(),
               "gomaxprocs": 4, "gogc": 100, "gomemlimit": env.get("GOMEMLIMIT", "unset"),
               "cores": cores, "siblings": sib, "governor": gov, "subjects": {}}
+    result["row0"] = {"governor_reference": dict(gov), "cores": list(cores), "siblings": list(sib)}
     before = cpu_ticks(sib)
     with tempfile.TemporaryDirectory(prefix="cook-budget-", dir="/tmp/opencode") as temp:
         workroot = ROOT
@@ -287,8 +288,10 @@ def main():
         result["sibling_utilization_percent"] = utilization(before, cpu_ticks(sib))
         result["governor_after"] = governor(cores)
     errors = []
-    if result["governor_after"] != gov or any(v > 1 for v in result["sibling_utilization_percent"].values()):
-        errors.append("pinning conditions changed or sibling utilization exceeded 1%")
+    if result["governor_after"] != result["row0"]["governor_reference"]:
+        errors.append("CPU governor differs from the row-0 reference")
+    if any(v > 1 for v in result["sibling_utilization_percent"].values()):
+        errors.append("sibling utilization exceeded 1%")
     if args.gate:
         for name, entry in result["subjects"].items():
             if any(x > LIMIT for x in entry["cold_p95_ns"] + entry["warm_p95_ns"]):
