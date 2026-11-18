@@ -38,6 +38,12 @@ func (h *Handler) LocateTranscriptEntry(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	release, err := s.reserve()
+	if err != nil {
+		segmentedError(w, http.StatusInternalServerError, "Cannot locate transcript entry; no result was served; retry later.")
+		return
+	}
+	defer release()
 	var captured bytes.Buffer
 	captured.WriteString(`{"turns":[`)
 	for i, row := range part.Rows {
