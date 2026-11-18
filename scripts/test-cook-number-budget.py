@@ -14,7 +14,7 @@ spec.loader.exec_module(budget)
 class ParseTests(unittest.TestCase):
     def test_fixture(self):
         rows = json.loads((HERE / "testdata/cook-budget-parser.json").read_text())
-        required = {"cold-pass", "missing", "double-cold", "bad-count", "missing-metric", "wrong-mode"}
+        required = {"cold-pass", "missing", "double-cold", "bad-count", "missing-metric", "wrong-mode", "wrong-affinity", "wrong-procs"}
         self.assertEqual({row["name"] for row in rows}, required)
         for row in rows:
             with self.subTest(row["name"]):
@@ -28,6 +28,13 @@ class ParseTests(unittest.TestCase):
     def test_percentile(self):
         self.assertEqual(budget.percentile(list(range(1, 41))), 38)
 
+    def test_barrier_skew_and_isolation(self):
+        result = budget.concurrent_result([{"start_unix_ns": 100}, {"start_unix_ns": 145}])
+        self.assertEqual(result["start_skew_ns"], 45)
+        status = budget.isolation_status({"16": 1.01})
+        self.assertEqual(status, "degraded")
+        self.assertTrue(budget.exit_failed(budget.isolation_errors(status, True), False))
+        self.assertFalse(budget.exit_failed(budget.isolation_errors(status, False), False))
 
 if __name__ == "__main__":
     unittest.main()

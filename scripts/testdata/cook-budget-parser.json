@@ -1,8 +1,66 @@
 [
-  {"name":"cold-pass","mode":"cold","count":1,"runs":1,"output":"mode=cold passes=1 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4}]\n","accept":true},
-  {"name":"missing","mode":"cold","count":1,"runs":1,"output":"","accept":false},
-  {"name":"double-cold","mode":"cold","count":1,"runs":1,"output":"mode=cold passes=1 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4}]\nmode=cold passes=1 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4}]\n","accept":false},
-  {"name":"bad-count","mode":"cold","count":1,"runs":1,"output":"mode=cold passes=2 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4}]\n","accept":false},
-  {"name":"missing-metric","mode":"cold","count":1,"runs":1,"output":"mode=cold passes=1 samples=[{\"wall_ns\":1}]\n","accept":false},
-  {"name":"wrong-mode","mode":"cold","count":1,"runs":1,"output":"mode=warm passes=1 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4}]\n","accept":false}
+  {
+    "name": "cold-pass",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=1 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": true
+  },
+  {
+    "name": "missing",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "",
+    "accept": false
+  },
+  {
+    "name": "double-cold",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=1 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\nmode=cold passes=1 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": false
+  },
+  {
+    "name": "bad-count",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=2 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": false
+  },
+  {
+    "name": "missing-metric",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=1 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1}]\n",
+    "accept": false
+  },
+  {
+    "name": "wrong-mode",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=warm passes=1 gomaxprocs=4 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": false
+  },
+  {
+    "name": "wrong-affinity",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=1 gomaxprocs=4 affinity=1-4 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": false
+  },
+  {
+    "name": "wrong-procs",
+    "mode": "cold",
+    "count": 1,
+    "runs": 1,
+    "output": "mode=cold passes=1 gomaxprocs=2 affinity=0-3 samples=[{\"wall_ns\":1,\"cpu_ns\":2,\"allocated_bytes\":3,\"max_rss_kib\":4,\"start_unix_ns\":10}]\n",
+    "accept": false
+  }
 ]

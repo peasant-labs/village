@@ -123,6 +123,19 @@ def utilization(before, after):
 def isolation_status(values):
     return "degraded" if any(value > 1 for value in values.values()) else "isolated"
 
+def isolation_errors(status, gate):
+    return ["sibling utilization exceeded 1%"] if status == "degraded" and gate else []
+
+def concurrent_result(samples):
+    if len(samples) != 2:
+        raise ValueError("concurrent run requires two samples")
+    return {"samples": samples, "start_skew_ns": abs(samples[0]["start_unix_ns"] - samples[1]["start_unix_ns"])}
+
+def exit_failed(errors, expect_fail):
+    if expect_fail:
+        return bool(any(not x.endswith("exceeds the 250 ms p95 budget") for x in errors) or not errors)
+    return bool(errors)
+
 
 def governor(cores):
     return {str(c): pathlib.Path(f"/sys/devices/system/cpu/cpu{c}/cpufreq/scaling_governor").read_text().strip()
@@ -238,7 +251,7 @@ def main():
                         if child.poll() is None:
                             child.kill()
                         child.communicate()
-            return {"samples": samples, "start_skew_ns": abs(samples[0]["start_unix_ns"] - samples[1]["start_unix_ns"])}
+            return concurrent_result(samples)
 
         for subject in SUBJECTS:
             if subject == SUBJECTS[2]:
@@ -294,8 +307,7 @@ def main():
     if result["governor_after"] != result["row0"]["governor_reference"]:
         errors.append("CPU governor differs from the row-0 reference")
     result["isolation"] = isolation_status(result["sibling_utilization_percent"])
-    if result["isolation"] == "degraded" and args.gate:
-        errors.append("sibling utilization exceeded 1%")
+    errors.extend(isolation_errors(result["isolation"], args.gate))
     if args.gate:
         for name, entry in result["subjects"].items():
             if any(x > LIMIT for x in entry["cold_p95_ns"] + entry["warm_p95_ns"]):
@@ -312,9 +324,7 @@ def main():
                     errors.append(f"{name} concurrent {field} ratio exceeds one")
     result["errors"] = errors
     print(json.dumps(result, indent=2))
-    if args.expect_fail:
-        return bool(any(not x.endswith("exceeds the 250 ms p95 budget") for x in errors) or not errors)
-    return bool(errors)
+    return exit_failed(errors, args.expect_fail)
 
 
 if __name__ == "__main__":
