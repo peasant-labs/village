@@ -370,8 +370,7 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 	cursor := layout.Turns.Start + 1 // after the array's opening bracket
 	for stored, turn := range turns {
 		served := turn.Raw()
-		raw := served.Raw()
-		start, end, next, err := x.locateTurn(cursor, raw, stored == len(turns)-1)
+		start, end, next, err := x.locateTurn(cursor, stored == len(turns)-1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: stored turn %d: %w", errUncookable, stored, err)
 		}
@@ -414,6 +413,9 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			RecordedIndex:      recorded,
 		})
 	}
+	if len(turns) != 0 && cursor != layout.Turns.End {
+		return nil, fmt.Errorf("%w: the cooking rule captured %d turns where the structural pass located more in handler.transcriptIndex.buildPartition", errUncookable, len(turns))
+	}
 	cuts := schema.CutTranscriptSegments(details, schema.TranscriptSegmentBudgetBytes)
 	refs := make([]schema.PositionedSegmentRef, 0, len(cuts))
 	positions := make([]positionRef, 0, len(cuts))
@@ -452,14 +454,16 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 }
 
 // locateTurn finds where the next stored turn lies in the held bytes. The
-// capture decoded the array element by element, so the turn's own bytes are
-// exactly the array element: this walk only skips the whitespace and commas
-// between elements and checks that the bytes are those the capture returned.
-func (x *transcriptIndex) locateTurn(cursor int64, raw []byte, last bool) (start, end, next int64, err error) {
+// capture was taken from these same array bytes and decoded them element by
+// element, so the next stored turn is the next array element: this walk skips
+// the whitespace and the comma before it and the object itself, without
+// copying the captured turn back out to compare it. The bytes passed the
+// structural pass's JSON syntax check, so only strings and nesting matter.
+func (x *transcriptIndex) locateTurn(cursor int64, last bool) (start, end, next int64, err error) {
 	cursor = skipJSONSpace(x.Bytes, cursor)
-	end = cursor + int64(len(raw))
-	if end > int64(len(x.Bytes)) || !bytes.Equal(x.Bytes[cursor:end], raw) {
-		return 0, 0, 0, errors.New("the captured turn is not where the structural pass expected it in handler.transcriptIndex.locateTurn; the document was not indexed; report this as a defect")
+	end, err = jsonObjectEnd(x.Bytes, cursor)
+	if err != nil {
+		return 0, 0, 0, err
 	}
 	next = skipJSONSpace(x.Bytes, end)
 	if next >= int64(len(x.Bytes)) {
@@ -473,6 +477,33 @@ func (x *transcriptIndex) locateTurn(cursor int64, raw []byte, last bool) (start
 		return 0, 0, 0, errors.New("the turn array has an unexpected separator in handler.transcriptIndex.locateTurn; the document was not indexed; report this as a defect")
 	}
 	return cursor, end, next + 1, nil
+}
+
+// jsonObjectEnd returns the offset just past the JSON object that starts at
+// at. b must hold valid JSON from at onward.
+func jsonObjectEnd(b []byte, at int64) (int64, error) {
+	if at >= int64(len(b)) || b[at] != '{' {
+		return 0, errors.New("a captured turn is not an object where the structural pass located it in handler.jsonObjectEnd; the document was not indexed; report this as a defect")
+	}
+	depth := 0
+	for i := at; i < int64(len(b)); i++ {
+		switch b[i] {
+		case '"':
+			for i++; i < int64(len(b)) && b[i] != '"'; i++ {
+				if b[i] == '\\' {
+					i++
+				}
+			}
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return i + 1, nil
+			}
+		}
+	}
+	return 0, errors.New("a captured turn does not end inside the held document in handler.jsonObjectEnd; the document was not indexed; report this as a defect")
 }
 
 func skipJSONSpace(b []byte, at int64) int64 {
