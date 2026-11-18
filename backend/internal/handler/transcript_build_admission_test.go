@@ -77,6 +77,27 @@ func TestBuildAdmission(t *testing.T) {
 				if h.contentCache.heavyWork != 2 {
 					t.Fatal("denied viewer changed slots")
 				}
+				h2, mux2, base2, _ := admissionHandler(t, true)
+				queries := h2.queries.(*mockQuerier)
+				getRow := queries.getTranscriptByID
+				var checks int
+				queries.getTranscriptByID = func(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+					row, err := getRow(ctx, id)
+					checks++
+					if checks > 1 {
+						row.Visibility = "private"
+					}
+					return row, err
+				}
+				r1, _ := h2.contentCache.AcquireBuild(context.Background())
+				r2, _ := h2.contentCache.AcquireBuild(context.Background())
+				defer r1()
+				defer r2()
+				w = httptest.NewRecorder()
+				mux2.ServeHTTP(w, httptest.NewRequest(http.MethodGet, base2+"/segments?v=2", nil))
+				if w.Code != 404 || checks < 2 {
+					t.Fatalf("revoked during admission: status=%d checks=%d", w.Code, checks)
+				}
 			case "build-admission-warm-read-and-waiter-take-no-slot":
 				entered, unblock := make(chan struct{}), make(chan struct{})
 				var calls atomic.Int32
@@ -111,6 +132,7 @@ func TestBuildAdmission(t *testing.T) {
 				}
 				cache := newTranscriptContentCache(transcriptContentCacheConfig{})
 				key := cacheTestKey(1)
+				key.Revision = x.Revision
 				loading, finish := make(chan struct{}), make(chan struct{})
 				loaded := make(chan error, 2)
 				loader := func(context.Context) (*openedTranscript, error) {
@@ -148,6 +170,19 @@ func TestBuildAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				other()
+				first, err := cache.AcquireBuild(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				second, err := cache.AcquireBuild(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := cache.Acquire(context.Background(), key, transcriptCacheLoad{Weight: 1}, loader); err != nil {
+					t.Fatalf("warm cache read refused: %v", err)
+				}
+				first()
+				second()
 			case "build-admission-releases-on-failure-and-cancel":
 				testAdmissionRelease(t, tc.Modes)
 			case "build-admission-refusal-reserves-nothing":
