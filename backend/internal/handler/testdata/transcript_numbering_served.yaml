@@ -1,5 +1,5 @@
 - name: number-history-section-restarts
-  partition: history
+  partition: earlier
   numbers: ["1", "1a", "2"]
 - name: number-main-and-history-independent
   partition: both

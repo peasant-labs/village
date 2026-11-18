@@ -101,7 +101,7 @@ func TestNumberingServedEncrypted(t *testing.T) {
 				}
 			}
 			query := ""
-			if tc.Partition == "history" || tc.Partition == "both" {
+			if tc.Partition == "earlier" || tc.Partition == "both" {
 				query = "&partition=history&section=0"
 			}
 			got := read(query)
