@@ -300,5 +300,27 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
+	ConfigureHealthRoutes(r, h)
 	return r, h
+}
+
+// ConfigureHealthRoutes derives health capabilities from the completed router.
+// Call during composition, before serving requests.
+func ConfigureHealthRoutes(routes chi.Routes, h *handler.Handler) {
+	directory, segment, window := false, false, false
+	_ = chi.Walk(routes, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method != http.MethodGet {
+			return nil
+		}
+		switch pattern {
+		case schemaRoute.VillageGetTranscriptSegments.Pattern():
+			directory = true
+		case schemaRoute.VillageGetTranscriptSegment.Pattern():
+			segment = true
+		case schemaRoute.VillageGetTranscriptWindow.Pattern():
+			window = true
+		}
+		return nil
+	})
+	h.SetSegmentedReadsMounted(directory && segment && window)
 }

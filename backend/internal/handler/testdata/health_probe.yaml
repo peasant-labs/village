@@ -70,7 +70,10 @@ cases:
     stage: n
   - name: health-trait-absent-when-route-unmounted
     stage: n1
+    traits: [publish-revision-n]
   - name: health-n1-serves-segmented-reads-v2
     stage: n1
+    traits: [publish-revision-n, segmented-reads-v2]
   - name: health-serves-sorted-and-unique
     stage: n1
+    traits: [publish-revision-n, segmented-reads-v2]

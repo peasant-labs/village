@@ -35,6 +35,7 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
+	segmentedReadsMounted bool
 	groupedScopes         groupedScopeService
 	cfg                   *config.Config
 	pool                  *pgxpool.Pool
