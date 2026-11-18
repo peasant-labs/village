@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -27,7 +29,33 @@ type segmentedRead struct {
 	native         schema.TranscriptNativePresence
 	representation string
 	reserve        transcriptBuildReserve
-	refuseBusy     func(http.ResponseWriter)
+	refuseBusy     func(http.ResponseWriter, error)
+}
+
+type transcriptRefusalLabel struct {
+	route string
+	kind  transcriptRefusalKind
+}
+
+var transcriptRefusals = struct {
+	sync.Mutex
+	counts map[transcriptRefusalLabel]uint64
+}{counts: make(map[transcriptRefusalLabel]uint64)}
+
+func recordTranscriptRefusal(r *http.Request, err error) {
+	var admission transcriptAdmissionError
+	if !errors.As(err, &admission) {
+		return
+	}
+	route := "unknown"
+	if routeContext := chi.RouteContext(r.Context()); routeContext != nil && routeContext.RoutePattern() != "" {
+		route = routeContext.RoutePattern()
+	}
+	label := transcriptRefusalLabel{route: route, kind: admission.kind}
+	transcriptRefusals.Lock()
+	transcriptRefusals.counts[label]++
+	transcriptRefusals.Unlock()
+	slog.Info("transcript read admission refused", "route", route, "kind", admission.kind)
 }
 
 func segmentedHeaders(w http.ResponseWriter) {
@@ -114,6 +142,7 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 	opened, err := h.openCachedTranscript(r.Context(), row, func(fresh sqlc.Transcript) bool { return h.canViewTranscript(r.Context(), user, fresh) })
 	if err != nil {
 		if errors.Is(err, errTranscriptReadBusy) {
+			recordTranscriptRefusal(r, err)
 			h.segmentedBusy(w, r, row)
 			return nil, false
 		}
@@ -172,7 +201,10 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 	}
 	return &segmentedRead{row: row, opened: opened, withheld: withheld, native: native, representation: representation, reserve: func() (func(), error) {
 		return h.contentCache.AcquireBuild(context.WithoutCancel(r.Context()))
-	}, refuseBusy: func(w http.ResponseWriter) { h.segmentedBusy(w, r, row) }}, true
+	}, refuseBusy: func(w http.ResponseWriter, err error) {
+		recordTranscriptRefusal(r, err)
+		h.segmentedBusy(w, r, row)
+	}}, true
 }
 
 func readGeneration(w http.ResponseWriter, r *http.Request) (int, bool) {
@@ -239,7 +271,7 @@ func segmentPartition(w http.ResponseWriter, s *segmentedRead, key partitionKey)
 		return nil, false
 	}
 	if errors.Is(err, errTranscriptReadBusy) {
-		s.refuseBusy(w)
+		s.refuseBusy(w, err)
 		return nil, false
 	}
 	if err != nil {

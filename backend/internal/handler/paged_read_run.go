@@ -492,7 +492,13 @@ func (h *Handler) RunPagedReadCheck(ctx context.Context, out io.Writer, opts Pag
 
 	routes := h.pagedReadRoutes()
 	clean, broken, skipped := 0, 0, 0
+	busyDeadline := false
 	for i, subject := range subjects {
+		if busyDeadline {
+			skipped++
+			report.line("skipped subject=%d reason=busy", i+1)
+			continue
+		}
 		viewer, err := h.audienceViewer(ctx, subject)
 		if err != nil {
 			skipped++
@@ -500,6 +506,12 @@ func (h *Handler) RunPagedReadCheck(ctx context.Context, out io.Writer, opts Pag
 			continue
 		}
 		obs, err := h.observePagedReads(ctx, routes, subject.ID, viewer)
+		if errors.Is(err, errPagedReadBusy) {
+			busyDeadline = true
+			skipped++
+			report.line("skipped subject=%d reason=busy", i+1)
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("subject %d could not be read in handler.RunPagedReadCheck after %d subjects; the run stopped and its report is partial; retry within the bounds: %w", i+1, i, err)
 		}

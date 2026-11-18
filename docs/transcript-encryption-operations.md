@@ -145,6 +145,11 @@ the authoritative-primary and no-in-flight proof succeeds.
 
 ## Transcript content cache
 
+Builds and locator scans in flight are limited to k = 2 per process, shared
+with cache loads. A warm `locate` can answer 503 with `Retry-After: 1` when
+both slots are busy. Refusal logs contain only the route template and refusal
+kind (`weight` or `count`), never transcript content or identifiers.
+
 Each Village process keeps a process-local cache of decrypted transcript
 content for the positioned reads (the segmented reads answer `501` until the
 release that serves them; the cache and its purges exist before that). It holds one entry per transcript, content

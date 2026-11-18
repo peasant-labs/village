@@ -42,7 +42,7 @@ func (h *Handler) LocateTranscriptEntry(w http.ResponseWriter, r *http.Request) 
 	release, err := s.reserve()
 	if err != nil {
 		if errors.Is(err, errTranscriptReadBusy) {
-			s.refuseBusy(w)
+			s.refuseBusy(w, err)
 			return
 		}
 		segmentedError(w, http.StatusInternalServerError, "Cannot locate transcript entry; no result was served; retry later.")

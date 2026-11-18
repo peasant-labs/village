@@ -61,6 +61,18 @@ const (
 // Retry-After header, and the same read succeeds once room frees.
 var errTranscriptReadBusy = errors.New("transcript content could not be admitted in handler.transcriptContentCache.Acquire because the process-local content cache has no room for another load and no partial entry was built; nothing was read for this request; retry the read shortly")
 
+type transcriptRefusalKind string
+
+const (
+	transcriptRefusalWeight transcriptRefusalKind = "weight"
+	transcriptRefusalCount  transcriptRefusalKind = "count"
+)
+
+type transcriptAdmissionError struct{ kind transcriptRefusalKind }
+
+func (e transcriptAdmissionError) Error() string { return errTranscriptReadBusy.Error() }
+func (e transcriptAdmissionError) Unwrap() error { return errTranscriptReadBusy }
+
 // transcriptCacheKey names one live generation. It holds the four facts that
 // distinguish entries that can be live at the same time: the transcript, its
 // content revision, its model provider and the harness whose cooking class
@@ -294,13 +306,13 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 func (c *transcriptContentCache) admitLocked(weight int64) error {
 	if weight > c.budget {
 		if c.oversized != nil {
-			return errTranscriptReadBusy
+			return transcriptAdmissionError{kind: transcriptRefusalWeight}
 		}
 	} else if c.retained+c.reserved+weight > c.budget {
-		return errTranscriptReadBusy
+		return transcriptAdmissionError{kind: transcriptRefusalWeight}
 	}
 	if c.heavyWork >= transcriptHeavyWorkLimit {
-		return errTranscriptReadBusy
+		return transcriptAdmissionError{kind: transcriptRefusalCount}
 	}
 	c.heavyWork++
 	return nil

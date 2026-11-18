@@ -172,7 +172,7 @@ var reportLineGrammar = regexp.MustCompile(`^(` +
 	`|census shape=[a-z0-9-]+ rows=\d+` +
 	`|census unexplained=\d+ unavailable=\d+` +
 	`|sample subject=\d+ shape=[a-z0-9-]+ transcript=[0-9a-f-]{36}` +
-	`|skipped subject=\d+ reason=no_viewer` +
+	`|skipped subject=\d+ reason=(no_viewer|busy)` +
 	`|result subject=\d+ outcome=(clean|broken)( (rows|ref_span|page|refusal|number)=\d+)+` +
 	`|finding subject=\d+ kind=(rows|ref_span|page|refusal|number) partition=(main|history:\d+) ordinal=-?\d+ position=-?\d+` +
 	`|summary subjects=\d+ clean=\d+ broken=\d+ skipped=\d+` +

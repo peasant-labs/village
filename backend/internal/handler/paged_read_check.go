@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -435,35 +436,60 @@ var pagedReadAPIPrefix = strings.SplitN(schemaRoute.VillageGetTranscriptSegments
 // transcript the publish cap admits.
 const pagedReadMaxSegments = 1 << 16
 
+var errPagedReadBusy = errors.New("paged read remained busy until the check deadline")
+
 // observePagedReads reads one transcript as viewer (nil is anonymous) through
 // the whole-document read and every paged read the reader would need: every
 // directory page and every segment of every partition.
 func (h *Handler) observePagedReads(ctx context.Context, routes http.Handler, id uuid.UUID, viewer *AuthUser) (pagedReadObservation, error) {
+	busy := false
 	get := func(path string, query url.Values) *capturedResponse {
 		target := pagedReadPath(id, path)
 		if len(query) > 0 {
 			target += "?" + query.Encode()
 		}
-		r, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-		if viewer != nil {
-			r = r.WithContext(context.WithValue(r.Context(), UserContextKey, viewer))
+		for {
+			r, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+			if viewer != nil {
+				r = r.WithContext(context.WithValue(r.Context(), UserContextKey, viewer))
+			}
+			w := &capturedResponse{}
+			routes.ServeHTTP(w, r)
+			if w.status == 0 {
+				w.status = http.StatusOK
+			}
+			if w.status != http.StatusServiceUnavailable {
+				return w
+			}
+			seconds, err := strconv.Atoi(w.Header().Get("Retry-After"))
+			if err != nil || seconds < 1 {
+				seconds = 1
+			}
+			timer := time.NewTimer(time.Duration(seconds) * time.Second)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				timer.Stop()
+				busy = true
+				return w
+			}
 		}
-		w := &capturedResponse{}
-		routes.ServeHTTP(w, r)
-		if w.status == 0 {
-			w.status = http.StatusOK
-		}
-		return w
 	}
 	var obs pagedReadObservation
 	obs.ContentStatus, obs.Content = h.observeContentWithoutWrites(ctx, id, viewer)
 	main, revision, history, err := h.observePartition(ctx, get, mainPartitionKey(), "")
+	if busy {
+		return obs, errPagedReadBusy
+	}
 	if err != nil {
 		return obs, err
 	}
 	obs.Partitions = append(obs.Partitions, main)
 	for section := 0; section < history; section++ {
 		part, _, _, err := h.observePartition(ctx, get, historyPartitionKey(section), revision)
+		if busy {
+			return obs, errPagedReadBusy
+		}
 		if err != nil {
 			return obs, err
 		}
