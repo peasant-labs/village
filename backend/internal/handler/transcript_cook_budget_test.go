@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,9 +27,61 @@ type cookBudgetFixture struct {
 		Turns int    `yaml:"turns"`
 	} `yaml:"sizes"`
 	Subjects []struct {
-		Name string `yaml:"name"`
-		Text string `yaml:"text"`
+		Name  string `yaml:"name"`
+		Text  string `yaml:"text"`
+		Dense bool   `yaml:"dense"`
 	} `yaml:"subjects"`
+}
+
+func TestDenseBudgetFixture(t *testing.T) {
+	fixture, err := decodeFixtureDocument[cookBudgetFixture](cookNumberBudgetFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, subject := range fixture.Subjects {
+		if subject.Name != "cook-number-dense-largest-storable" {
+			continue
+		}
+		if !subject.Dense {
+			t.Fatal("dense fixture does not select the dense generator")
+		}
+		data := cookBudgetDocument(21, subject.Text, true)
+		if len(data) < 21*1024 || len(data) > 21*3072 {
+			t.Fatalf("dense fixture has unexpected size %d", len(data))
+		}
+		if _, err := validateContentBoundary(data, "claude-code", contentStoredRead); err != nil {
+			t.Fatalf("dense fixture refused by stored-read boundary: %v", err)
+		}
+		if _, err := newTranscriptIndex(transcriptIndexInput{Bytes: data}); err != nil {
+			t.Fatalf("dense fixture refused by content source: %v", err)
+		}
+		return
+	}
+	t.Fatal("dense subject missing from budget fixture")
+}
+
+func cookBudgetDocument(turns int, text string, dense bool) []byte {
+	var document bytes.Buffer
+	fmt.Fprintf(&document, `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"budget","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":%d,"toolCallCount":0,"turns":[`, turns)
+	for i := 0; i < turns; i++ {
+		if i > 0 {
+			document.WriteByte(',')
+		}
+		content := text
+		if dense {
+			content = strings.Repeat(text, 60)
+		}
+		fmt.Fprintf(&document, `{"index":%d,"role":"user","content":"prompt %d%s","timestamp":"2026-01-01T00:00:00Z","depth":0`, i, i, content)
+		if dense {
+			fmt.Fprintf(&document, `,"toolCalls":[{"id":"t%d","name":"Read","arguments":"{\"path\":\"é\\中文\"}","result":"résultat \\ 中文","resultEntryRef":"ref-%d","usage":{"ownerId":"owner-%d","sourceEntryRef":"ref-%d","scope":"tool","completeness":"partial","tokens":{"input":5}}}]`, i, i, i, i)
+			if i%20 == 0 {
+				document.WriteString(`,"contentParts":[{"type":"image","image":{"omittedReason":"not_published"}}]`)
+			}
+		}
+		document.WriteByte('}')
+	}
+	document.WriteString(`]}}`)
+	return document.Bytes()
 }
 
 // BenchmarkCookNumber measures the contract cook itself, excluding JSON capture
@@ -94,16 +147,7 @@ func coldBudgetBench(b *testing.B, content bool) {
 	for _, subject := range fixture.Subjects {
 		for _, size := range fixture.Sizes {
 			b.Run(subject.Name+"/"+size.Name, func(b *testing.B) {
-				var document bytes.Buffer
-				fmt.Fprintf(&document, `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"budget","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":%d,"toolCallCount":0,"turns":[`, size.Turns)
-				for i := 0; i < size.Turns; i++ {
-					if i > 0 {
-						document.WriteByte(',')
-					}
-					fmt.Fprintf(&document, `{"index":%d,"role":"user","content":"prompt %d%s","timestamp":"2026-01-01T00:00:00Z","depth":0}`, i, i, subject.Text)
-				}
-				document.WriteString(`]}}`)
-				data := document.Bytes()
+				data := cookBudgetDocument(size.Turns, subject.Text, subject.Dense)
 				pass := func() {
 					if content {
 						prepared, err := contentResponseBody(context.Background(), data)

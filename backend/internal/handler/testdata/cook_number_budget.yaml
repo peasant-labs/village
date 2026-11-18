@@ -9,3 +9,6 @@ subjects:
   - {name: ascii, text: ''}
   - name: escaped-multibyte
     text: ' \" \\ \u00e9 \ud83d\ude00 中文'
+  - name: cook-number-dense-largest-storable
+    dense: true
+    text: ' \" \\ \u00e9 \ud83d\ude00 中文'
