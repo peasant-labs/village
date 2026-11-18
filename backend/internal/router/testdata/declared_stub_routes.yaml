@@ -7,24 +7,4 @@
 # statuses the production router answers without and with a session: they pin
 # the route's auth policy, so a stub cannot change from optional to required
 # auth unnoticed. Landing a real handler deletes its row.
-routes:
-  # The segmented reads carry the access rule of GET /transcripts/{id}/content:
-  # auth is optional, so an anonymous caller reaches the stub as well.
-  - name: the segment directory is declared and not served yet
-    method: GET
-    route: /api/v1/transcripts/{id}/segments
-    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/segments?page=1
-    anonymous: 501
-    signed_in: 501
-  - name: one segment is declared and not served yet
-    method: GET
-    route: /api/v1/transcripts/{id}/segments/{index}
-    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/segments/0
-    anonymous: 501
-    signed_in: 501
-  - name: the window around an anchor is declared and not served yet
-    method: GET
-    route: /api/v1/transcripts/{id}/window
-    path: /api/v1/transcripts/10000000-0000-4000-8000-000000000001/window?anchor=3&span=20
-    anonymous: 501
-    signed_in: 501
+routes: []

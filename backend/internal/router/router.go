@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/redact"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/handler"
 	"github.com/peasant-labs/village/backend/internal/middleware"
@@ -22,6 +24,7 @@ import (
 // authRateLimitRequests is the maximum number of requests per IP per authRateLimitWindow
 // for auth endpoints. This rate is intentionally strict to deter credential stuffing.
 const (
+	apiV1Prefix           = "/api/v1"
 	authRateLimitRequests = 5
 	authRateLimitWindow   = time.Minute
 
@@ -83,7 +86,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 
 	r.Get("/health", h.Health)
 
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route(apiV1Prefix, func(r chi.Router) {
 		// Village API OpenAPI spec, served from the contract module
 		// (schema.VillageAPISpecJSON) for client/tooling discovery; the publish path
 		// enforces the same module's PublishRequest schema.
@@ -139,13 +142,10 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		h.RegisterTranscriptBrowseRoutes(r)
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
-		// Segmented reads. The served contract declares these three routes; each
-		// answers 501 until its handler lands, so contract and server agree now.
-		// They carry the access rule of the content read above, so auth is
-		// optional. Pinned in testdata/declared_stub_routes.yaml.
-		r.With(h.AuthOptional).Get("/transcripts/{id}/segments", h.TranscriptSegmentedReadNotImplemented)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/segments/{index}", h.TranscriptSegmentedReadNotImplemented)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/window", h.TranscriptSegmentedReadNotImplemented)
+		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptSegments.Pattern(), apiV1Prefix), h.GetTranscriptSegments)
+		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptSegment.Pattern(), apiV1Prefix), h.GetTranscriptSegment)
+		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptWindow.Pattern(), apiV1Prefix), h.GetTranscriptWindow)
+		r.With(h.AuthOptional).Get(strings.TrimPrefix(schemaRoute.VillageGetTranscriptHeader.Pattern(), apiV1Prefix), h.GetTranscriptHeader)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)

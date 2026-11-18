@@ -135,8 +135,9 @@ type cookRowsFunc func(turns []schema.TranscriptCookTurn, harness schema.Harness
 // transcriptIndex is the content source for one generation.
 type transcriptIndex struct {
 	Revision         contentGeneration
-	ContentHash      storage.ContentHash // empty while the generation's identity is pending
-	Harness          schema.Harness      // the served harness; the cooking rule's producer class
+	ContentHash      storage.ContentHash // authenticated plaintext hash, whether or not the row has a durable identity
+	Durable          bool
+	Harness          schema.Harness // the served harness; the cooking rule's producer class
 	ModelProvider    string
 	OmittedImages    int
 	Validation       schema.TranscriptReadValidation
@@ -169,6 +170,7 @@ type openedTranscript struct {
 type transcriptIndexInput struct {
 	Revision      contentGeneration
 	ContentHash   storage.ContentHash
+	Durable       bool
 	ModelProvider string
 	Bytes         []byte
 	Validation    schema.TranscriptReadValidation
@@ -192,6 +194,7 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 	index := &transcriptIndex{
 		Revision:      in.Revision,
 		ContentHash:   in.ContentHash,
+		Durable:       in.Durable,
 		Harness:       canonicalHarness(layout.Harness),
 		ModelProvider: in.ModelProvider,
 		OmittedImages: layout.OmittedImages,
@@ -235,7 +238,7 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 				index.NativePresence = schema.TranscriptNativePresent
 			}
 		}
-		index.History = append(index.History, schema.TranscriptHistorySection{Index: i, State: section.State, TotalTurns: section.StoredTurns, UsagePresent: schema.TranscriptUsageUnknown})
+		index.History = append(index.History, schema.TranscriptHistorySection{Index: i, State: section.State, TotalTurns: section.StoredTurns, UsagePresent: section.UsagePresent})
 	}
 	index.Ranges = append(index.Ranges, partitionByteRange{Key: mainPartitionKey(), Start: layout.Main.Turns.Start, End: layout.Main.Turns.End})
 	for section, history := range layout.History {
@@ -476,11 +479,12 @@ type byteSpan struct{ Start, End int64 }
 // partitionLayout locates one partition's turn array. Present is false when
 // the document has no turn array for it (absent or null), an empty partition.
 type partitionLayout struct {
-	Turns       byteSpan
-	Present     bool
-	Native      byteSpan
-	State       string
-	StoredTurns int
+	Turns        byteSpan
+	Present      bool
+	Native       byteSpan
+	State        string
+	StoredTurns  int
+	UsagePresent schema.TranscriptUsagePresence
 }
 
 // contentLayout is what the structural pass learns about one generation.
@@ -597,7 +601,7 @@ func (s *layoutScanner) history(layout *contentLayout) error {
 		return errors.New("earlierHistory is not an array")
 	}
 	for s.dec.More() {
-		var partition partitionLayout
+		partition := partitionLayout{UsagePresent: schema.TranscriptUsageUnknown}
 		seen := false
 		if _, err := s.object(func(key string) error {
 			if key == "state" {
@@ -643,7 +647,7 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 	}
 	trimmed := bytes.TrimSpace(value.bytes)
 	if bytes.Equal(trimmed, []byte("null")) {
-		return partitionLayout{}, nil
+		return partitionLayout{UsagePresent: schema.TranscriptUsageUnknown}, nil
 	}
 	if len(trimmed) == 0 || trimmed[0] != '[' {
 		return partitionLayout{}, errors.New("turns is not an array")
@@ -654,12 +658,27 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 	if err := json.Unmarshal(trimmed, &turns); err != nil {
 		return partitionLayout{}, err
 	}
+	usage := schema.TranscriptUsageUnknown
 	for _, turn := range turns {
 		var row struct {
 			ContentParts []json.RawMessage `json:"contentParts"`
+			Usage        json.RawMessage   `json:"usage"`
+			ToolCalls    json.RawMessage   `json:"toolCalls"`
 		}
 		if err := json.Unmarshal(turn, &row); err != nil {
 			continue
+		}
+		if len(row.Usage) > 0 && string(row.Usage) != "null" {
+			usage = schema.TranscriptUsagePresent
+		}
+		var tools []struct {
+			Usage json.RawMessage `json:"usage"`
+		}
+		_ = json.Unmarshal(row.ToolCalls, &tools)
+		for _, tool := range tools {
+			if len(tool.Usage) > 0 && string(tool.Usage) != "null" {
+				usage = schema.TranscriptUsagePresent
+			}
 		}
 		for _, rawPart := range row.ContentParts {
 			var part struct {
@@ -676,7 +695,7 @@ func (s *layoutScanner) turnArray() (partitionLayout, error) {
 			}
 		}
 	}
-	return partitionLayout{Turns: value.span, Present: true, StoredTurns: len(turns)}, nil
+	return partitionLayout{Turns: value.span, Present: true, StoredTurns: len(turns), UsagePresent: usage}, nil
 }
 
 type skippedValue struct {
@@ -764,10 +783,11 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 	if err != nil {
 		return nil, err
 	}
-	var hash storage.ContentHash
+	hash := read.Identity.Hash()
+	var durable bool
 	if loaded, err := identityFromTranscript(read.Row); err == nil {
 		if _, known := loaded.Known(); known {
-			hash = read.Identity.Hash()
+			durable = true
 		}
 	}
 	validation := schema.TranscriptReadServedLegacy
@@ -781,6 +801,7 @@ func (h *Handler) openTranscriptContent(ctx context.Context, row sqlc.Transcript
 	index, err := newTranscriptIndex(transcriptIndexInput{
 		Revision:      contentGeneration(read.Row.ContentRevision),
 		ContentHash:   hash,
+		Durable:       durable,
 		ModelProvider: read.Row.ModelProvider,
 		Bytes:         canonical,
 		Validation:    validation,

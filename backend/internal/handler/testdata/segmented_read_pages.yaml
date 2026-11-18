@@ -1,0 +1,8 @@
+- {name: under-cap-whole, total: 9999, query: "", status: 200, start: 0, end: 9999, paged: false}
+- {name: at-cap-whole, total: 10000, query: "", status: 200, start: 0, end: 10000, paged: false}
+- {name: above-cap-first, total: 10001, query: "?page=1", status: 200, start: 0, end: 10000, paged: true}
+- {name: above-cap-last, total: 10001, query: "?page=2", status: 200, start: 10000, end: 10001, paged: true}
+- {name: beyond-last, total: 10001, query: "?page=3", status: 404}
+- {name: under-cap-second, total: 10000, query: "?page=2", status: 404}
+- {name: zero-page, total: 10001, query: "?page=0", status: 400}
+- {name: malformed-page, total: 10001, query: "?page=no", status: 400}
