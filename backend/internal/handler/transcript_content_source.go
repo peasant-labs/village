@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -215,11 +217,21 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 			Diagnostics     json.RawMessage   `json:"diagnostics"`
 		} `json:"sessionDetail"`
 	}
-	if err := json.Unmarshal(in.Bytes, &envelope); err != nil {
+	// The envelope metadata and the header are read from a view without the
+	// turn arrays: neither reads a turn, and the arrays are most of the bytes.
+	view, viewDetail := layout.metadataView(in.Bytes)
+	if err := json.Unmarshal(view, &envelope); err != nil {
 		return nil, fmt.Errorf("%w: envelope metadata could not be read", errUncookable)
 	}
 	index.ContractVersion = envelope.ContractVersion
-	index.Header, err = schema.NewTranscriptSessionHeader(index.SessionDetail())
+	// The header projection refuses a detail that is not valid UTF-8 anywhere,
+	// turns included; the view no longer holds the turns, so their bytes are
+	// checked here to keep that refusal. JSON syntax was checked by the
+	// structural pass.
+	if !utf8.Valid(index.SessionDetail()) {
+		return nil, fmt.Errorf("%w: header metadata could not be projected", errUncookable)
+	}
+	index.Header, err = schema.NewTranscriptSessionHeader(view[viewDetail.Start:viewDetail.End])
 	if err != nil {
 		return nil, fmt.Errorf("%w: header metadata could not be projected", errUncookable)
 	}
@@ -496,6 +508,39 @@ type contentLayout struct {
 	Main          partitionLayout
 	History       []partitionLayout
 	OmittedImages int
+}
+
+// metadataView returns a copy of document in which every turn array the
+// structural pass located holds null instead, and the session detail's span in
+// that copy. Only members named turns are replaced, so every other member, the
+// member names and their order are as stored; a reader that does not read turns
+// decodes the view exactly as it decodes the document.
+func (l contentLayout) metadataView(document []byte) ([]byte, byteSpan) {
+	spans := make([]byteSpan, 0, 1+len(l.History))
+	if l.Main.Present {
+		spans = append(spans, l.Main.Turns)
+	}
+	for _, section := range l.History {
+		if section.Present {
+			spans = append(spans, section.Turns)
+		}
+	}
+	// The main turns may follow earlierHistory in the stored member order.
+	sort.Slice(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
+	removed := int64(0)
+	for _, span := range spans {
+		removed += span.End - span.Start - int64(len("null"))
+	}
+	view := make([]byte, 0, int64(len(document))-removed)
+	cursor := int64(0)
+	for _, span := range spans {
+		view = append(view, document[cursor:span.Start]...)
+		view = append(view, "null"...)
+		cursor = span.End
+	}
+	view = append(view, document[cursor:]...)
+	// Every turn array lies inside the session detail.
+	return view, byteSpan{Start: l.Detail.Start, End: l.Detail.End - removed}
 }
 
 // layoutScanner walks a document with a token decoder so that offsets are
