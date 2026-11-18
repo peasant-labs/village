@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -290,10 +291,42 @@ func externalBudgetBench(b *testing.B, path string, content bool) {
 		}
 	}
 	type sample struct {
-		WallNS    int64  `json:"wall_ns"`
-		CPUNS     int64  `json:"cpu_ns"`
-		Allocated uint64 `json:"allocated_bytes"`
-		MaxRSSKiB int64  `json:"max_rss_kib"`
+		WallNS      int64  `json:"wall_ns"`
+		CPUNS       int64  `json:"cpu_ns"`
+		Allocated   uint64 `json:"allocated_bytes"`
+		MaxRSSKiB   int64  `json:"max_rss_kib"`
+		StartUnixNS int64  `json:"start_unix_ns"`
+	}
+	status, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		b.Fatal(err)
+	}
+	affinity := ""
+	for _, line := range strings.Split(string(status), "\n") {
+		if strings.HasPrefix(line, "Cpus_allowed_list:") {
+			affinity = strings.TrimSpace(strings.TrimPrefix(line, "Cpus_allowed_list:"))
+		}
+	}
+	if affinity == "" {
+		b.Fatal("cannot read process CPU affinity")
+	}
+	if dir := os.Getenv("COOK_BUDGET_BARRIER"); dir != "" {
+		id := os.Getenv("COOK_BUDGET_BARRIER_ID")
+		if id != "0" && id != "1" {
+			b.Fatal("invalid barrier participant")
+		}
+		if err := os.WriteFile(filepath.Join(dir, "ready-"+id), nil, 0o600); err != nil {
+			b.Fatal(err)
+		}
+		deadline := time.Now().Add(time.Minute)
+		for {
+			if _, err := os.Stat(filepath.Join(dir, "start")); err == nil {
+				break
+			} else if !os.IsNotExist(err) || time.Now().After(deadline) {
+				b.Fatalf("concurrent start barrier failed: %v", err)
+			}
+			time.Sleep(time.Millisecond)
+		}
 	}
 	samples := make([]sample, 0, b.N)
 	b.ResetTimer()
@@ -318,7 +351,7 @@ func externalBudgetBench(b *testing.B, path string, content bool) {
 		}
 		runtime.ReadMemStats(&m1)
 		cpu := func(r syscall.Rusage) int64 { return r.Utime.Nano() + r.Stime.Nano() }
-		samples = append(samples, sample{WallNS: elapsed.Nanoseconds(), CPUNS: cpu(after) - cpu(before), Allocated: m1.TotalAlloc - m0.TotalAlloc, MaxRSSKiB: after.Maxrss})
+		samples = append(samples, sample{WallNS: elapsed.Nanoseconds(), CPUNS: cpu(after) - cpu(before), Allocated: m1.TotalAlloc - m0.TotalAlloc, MaxRSSKiB: after.Maxrss, StartUnixNS: started.UnixNano()})
 	}
 	encoded, err := json.Marshal(samples)
 	if err != nil {
@@ -328,7 +361,7 @@ func externalBudgetBench(b *testing.B, path string, content bool) {
 	if cold {
 		mode = "cold"
 	}
-	fmt.Printf("mode=%s passes=%d samples=%s\n", mode, len(samples), encoded)
+	fmt.Printf("mode=%s passes=%d gomaxprocs=%d affinity=%s samples=%s\n", mode, len(samples), runtime.GOMAXPROCS(0), affinity, encoded)
 }
 
 func BenchmarkCookNumberCold(b *testing.B) { coldBudgetBench(b, false) }

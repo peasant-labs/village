@@ -11,9 +11,10 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MARKER = re.compile(r"^mode=(cold|warm) passes=(\d+) samples=(\[.*\])$", re.M)
+MARKER = re.compile(r"^mode=(cold|warm) passes=(\d+) gomaxprocs=(\d+) affinity=([0-9,-]+) samples=(\[.*\])$", re.M)
 SUBJECTS = ("ascii", "escaped-multibyte", "cook-number-dense-largest-storable")
 LIMIT = 250_000_000
 
@@ -30,14 +31,29 @@ def pin_at(rev):
     return match.group(1)
 
 
-def parse_samples(output, mode, count, runs=1):
+def cpu_list(value):
+    cpus = set()
+    for part in value.split(","):
+        bounds = part.split("-")
+        if len(bounds) == 1:
+            cpus.add(int(bounds[0]))
+        elif len(bounds) == 2 and int(bounds[0]) <= int(bounds[1]):
+            cpus.update(range(int(bounds[0]), int(bounds[1]) + 1))
+        else:
+            raise ValueError("invalid CPU affinity list")
+    return cpus
+
+
+def parse_samples(output, mode, count, runs=1, cores=(0, 1, 2, 3)):
     records = []
     markers = MARKER.findall(output)
     if len(markers) != sum(line.startswith("mode=") for line in output.splitlines()):
         raise ValueError("malformed benchmark marker")
-    for found_mode, found_count, payload in markers:
+    for found_mode, found_count, procs, affinity, payload in markers:
         if found_mode != mode:
             raise ValueError("unexpected benchmark mode")
+        if int(procs) != 4 or cpu_list(affinity) != set(cores):
+            raise ValueError("benchmark runtime GOMAXPROCS or CPU affinity differs from request")
         samples = json.loads(payload)
         if len(samples) != int(found_count):
             raise ValueError("benchmark sample count disagrees with marker")
@@ -46,7 +62,7 @@ def parse_samples(output, mode, count, runs=1):
             continue
         if len(samples) != count:
             raise ValueError("benchmark sample count differs from request")
-        if any(set(s) != {"wall_ns", "cpu_ns", "allocated_bytes", "max_rss_kib"} or
+        if any(set(s) != {"wall_ns", "cpu_ns", "allocated_bytes", "max_rss_kib", "start_unix_ns"} or
                any(not isinstance(v, int) or v < 0 for v in s.values()) for s in samples):
             raise ValueError("invalid benchmark sample")
         records.append(samples)
@@ -192,19 +208,33 @@ def main():
             cmd, e = command(path, content, cold, runs=1 if cold else 3)
             return parse_samples(run(cmd, cwd=workroot / "backend", env=e),
                                  "cold" if cold else "warm", 1 if cold else 200,
-                                 1 if cold else 3)
+                                 1 if cold else 3, cores)
 
         def concurrent(path, content):
             cmd, e = command(path, content, True)
-            children = [subprocess.Popen(cmd, cwd=workroot / "backend", env=e, text=True,
-                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(2)]
-            samples = []
-            for child in children:
-                out, err = child.communicate()
-                if child.returncode:
-                    raise ValueError("concurrent benchmark failed: " + err + out)
-                samples.extend(parse_samples(out, "cold", 1)[0])
-            return samples
+            with tempfile.TemporaryDirectory(prefix="barrier-", dir=temp) as barrier:
+                children = [subprocess.Popen(cmd, cwd=workroot / "backend",
+                            env=dict(e, COOK_BUDGET_BARRIER=barrier, COOK_BUDGET_BARRIER_ID=str(i)),
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for i in range(2)]
+                try:
+                    deadline = time.monotonic() + 60
+                    while not all((pathlib.Path(barrier) / f"ready-{i}").exists() for i in range(2)):
+                        if time.monotonic() >= deadline or any(c.poll() is not None for c in children):
+                            raise ValueError("concurrent benchmark did not reach the start barrier")
+                        time.sleep(.005)
+                    (pathlib.Path(barrier) / "start").touch()
+                    samples = []
+                    for child in children:
+                        out, err = child.communicate()
+                        if child.returncode:
+                            raise ValueError("concurrent benchmark failed: " + err + out)
+                        samples.extend(parse_samples(out, "cold", 1, cores=cores)[0])
+                finally:
+                    for child in children:
+                        if child.poll() is None:
+                            child.kill()
+                        child.communicate()
+            return {"samples": samples, "start_skew_ns": abs(samples[0]["start_unix_ns"] - samples[1]["start_unix_ns"])}
 
         for subject in SUBJECTS:
             if subject == SUBJECTS[2]:
@@ -271,7 +301,7 @@ def main():
                     errors.append(f"{name} single {field} ratio exceeds one")
             for field in ("cpu_ns", "max_rss_kib"):
                 aggregate = sum if field == "cpu_ns" else max
-                if aggregate(x[field] for x in c["concurrent_paged"]) > aggregate(x[field] for x in c["concurrent_content"]):
+                if aggregate(x[field] for x in c["concurrent_paged"]["samples"]) > aggregate(x[field] for x in c["concurrent_content"]["samples"]):
                     errors.append(f"{name} concurrent {field} ratio exceeds one")
     result["errors"] = errors
     print(json.dumps(result, indent=2))
