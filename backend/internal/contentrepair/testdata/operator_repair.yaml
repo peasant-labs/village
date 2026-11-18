@@ -1,0 +1,119 @@
+# Operational cases for operator content repair that the per-action fixtures do
+# not cover: who may run a repair, what the ledger proves, how an unresolved
+# attempt is found and reconciled, what a repair never writes, and how it
+# interacts with the publish lock and with deletion.
+#
+# Every case runs the production executors. The transaction, row lock,
+# advisory lock, statements, triggers and ledger are real PostgreSQL; the
+# transcript encryption, restore source authentication and restore write are the
+# production storage code over an in-memory object provider. The declare, clear
+# and replace cases script only the object lookup, the same fake the per-action
+# fixtures use.
+#
+# A case lists the actions it runs through (kebab spelling, as the operator
+# types it) when the behavior belongs to every action. A case with no list is
+# a single scenario that names its own action. expected_revision, first_runs,
+# outcomes, actors, authorization_refs and commit_* narrow what a scenario
+# iterates; their meaning is the scenario's, named in its Go test.
+required:
+  - operator-repair-refuses-reserved-actor
+  - operator-repair-refuses-unauthorized-run
+  - operator-repair-actor-matches-guc
+  - operator-repair-expect-revision-mismatch-refused
+  - operator-repair-refuses-replayed-terminal
+  - operator-repair-ambiguous-commit-resolved-by-ledger-read
+  - operator-repair-attempt-without-terminal-is-unresolved
+  - operator-repair-reconciliation-cites-attempt
+  - operator-repair-reconciliation-terminal-clears-alert
+  - operator-repair-reconciliation-attempt-does-not-clear
+  - operator-repair-reconciles-only-listed-attempt
+  - operator-repair-writes-no-lineage
+  - operator-repair-ledger-write-on-deleted-transcript-is-transcript-deleted
+  - operator-repair-writes-no-governance-event
+  - operator-repair-fails-closed-without-audit-destination
+  - operator-repair-log-omits-content-and-identity
+  - operator-repair-takes-publish-lock
+  - operator-repair-delete-waits-for-publish-lock
+  - operator-repair-restore-transcript-deleted-before-terminal
+  - operator-repair-account-cascade-during-restore
+cases:
+  # The reserved range is every UUID beginning 00000000-0000-0000-0000-. The
+  # parser refuses all of them; a nil actor that reaches an executor anyway is
+  # refused by the ledger, so nothing changes.
+  - name: operator-repair-refuses-reserved-actor
+    actions: &all_actions
+      - declare-unavailable
+      - clear-malformed-identity
+      - replace-third-value
+      - restore-attested-generation
+    actors:
+      - "00000000-0000-0000-0000-000000000000"
+      - "00000000-0000-0000-0000-000000000001"
+      - "00000000-0000-0000-0000-00000000ffff"
+  # A repair with no recorded authorization is refused by the parser; one that
+  # reaches an executor with a blank or over-long reference is refused by the
+  # ledger, so nothing changes.
+  - name: operator-repair-refuses-unauthorized-run
+    actions: *all_actions
+    authorization_refs:
+      - {value: ""}
+      - {value: "   "}
+      - {value: "x", repeat: 257}
+  - name: operator-repair-actor-matches-guc
+    actions: *all_actions
+  - name: operator-repair-expect-revision-mismatch-refused
+    actions: *all_actions
+    expected_revision: 2
+  # first_runs is how the first run with the repair ID ends. The second run
+  # reuses the ID and would have been valid.
+  - name: operator-repair-refuses-replayed-terminal
+    actions: *all_actions
+    first_runs: [applied, refused]
+  # commit_fails: the server rejects the commit, so the ledger shows nothing.
+  # commit_lands: the commit succeeds and its response is lost, so the ledger
+  # shows the terminal row the caller never heard about.
+  - name: operator-repair-ambiguous-commit-resolved-by-ledger-read
+    commit_fails:
+      - declare-unavailable
+      - restore-attested-generation
+    commit_lands:
+      - declare-unavailable
+  - name: operator-repair-attempt-without-terminal-is-unresolved
+  - name: operator-repair-reconciliation-cites-attempt
+  # outcomes is how the reconciling repair ends.
+  - name: operator-repair-reconciliation-terminal-clears-alert
+    outcomes: [applied, refused]
+  - name: operator-repair-reconciliation-attempt-does-not-clear
+  - name: operator-repair-reconciles-only-listed-attempt
+  - name: operator-repair-writes-no-lineage
+    actions: *all_actions
+    outcomes: [applied, refused]
+  - name: operator-repair-writes-no-governance-event
+    actions: *all_actions
+    outcomes: [applied, refused]
+  - name: operator-repair-fails-closed-without-audit-destination
+    actions: *all_actions
+  # outcome_fields is every field an Outcome carries. The operator command
+  # prints only those, so a field added to the outcome must be added here after
+  # review, and a hash, size, key or content field fails the case.
+  - name: operator-repair-log-omits-content-and-identity
+    actions: *all_actions
+    outcomes: [applied, refused]
+    outcome_fields:
+      - RepairID
+      - TranscriptID
+      - Action
+      - Phase
+      - FailureClass
+      - ContentRevision
+      - RecordedAt
+  - name: operator-repair-takes-publish-lock
+    actions: *all_actions
+  - name: operator-repair-delete-waits-for-publish-lock
+    actions: *all_actions
+  - name: operator-repair-restore-transcript-deleted-before-terminal
+  # The ledger insert is refused by the transcript foreign key (23503) on every
+  # action, because only a deletion can remove the row it references.
+  - name: operator-repair-ledger-write-on-deleted-transcript-is-transcript-deleted
+    actions: *all_actions
+  - name: operator-repair-account-cascade-during-restore

@@ -53,6 +53,9 @@ func (s *maintenanceBlobStore) Read(context.Context, uuid.UUID, storage.BlobDesc
 	}
 	return []byte("fixture"), s.readIdentity, s.readErr
 }
+func (*maintenanceBlobStore) ReadBounded(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity, int64) ([]byte, storage.ContentIdentity, error) {
+	return nil, storage.ContentIdentity{}, errors.New("bounded read is outside maintenance test")
+}
 func (s *maintenanceBlobStore) Rewrap(_ context.Context, _ uuid.UUID, d storage.BlobDescriptor) (storage.BlobDescriptor, error) {
 	if s.beforeRewrap != nil {
 		s.beforeRewrap()
@@ -65,7 +68,7 @@ func (s *maintenanceBlobStore) Rewrap(_ context.Context, _ uuid.UUID, d storage.
 func (*maintenanceBlobStore) Delete(context.Context, storage.BlobDescriptor) error { return nil }
 
 // errFakeStoresNoMetadata is what a test blob store returns from ReadMetadata.
-// It is deliberately not storage.ErrObjectNotFound, so a fake can never be
+// It is deliberately not a typed absence, so a fake can never be
 // mistaken for a row whose metadata object is missing.
 var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")
 

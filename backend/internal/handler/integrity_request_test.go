@@ -30,24 +30,32 @@ type integrityRequestRow struct {
 	DurationMs    int64  `yaml:"duration_ms"`
 }
 
+type integrityMetadataFixture string
+
+const (
+	integrityMetadataPresent integrityMetadataFixture = "present"
+	integrityMetadataAbsent  integrityMetadataFixture = "absent"
+	integrityMetadataNil     integrityMetadataFixture = "nil"
+)
+
 type integrityRequestWant struct {
-	Error         string   `yaml:"error"`
-	PublishedAtMs int64    `yaml:"published_at_ms"`
-	UpdatedAtMs   int64    `yaml:"updated_at_ms"`
-	RecordKeys    []string `yaml:"record_keys"`
-	Metadata      string   `yaml:"metadata"`
-	Harness       string   `yaml:"harness"`
-	SchemaVersion string   `yaml:"schema_version"`
-	Validates     bool     `yaml:"validates"`
+	Error         string                   `yaml:"error"`
+	PublishedAtMs int64                    `yaml:"published_at_ms"`
+	UpdatedAtMs   int64                    `yaml:"updated_at_ms"`
+	RecordKeys    []string                 `yaml:"record_keys"`
+	Metadata      integrityMetadataFixture `yaml:"metadata"`
+	Harness       string                   `yaml:"harness"`
+	SchemaVersion string                   `yaml:"schema_version"`
+	Validates     bool                     `yaml:"validates"`
 }
 
 type integrityRequestCase struct {
-	Name     string               `yaml:"name"`
-	Why      string               `yaml:"why"`
-	Row      integrityRequestRow  `yaml:"row"`
-	Payload  string               `yaml:"payload"`
-	Metadata string               `yaml:"metadata"`
-	Want     integrityRequestWant `yaml:"want"`
+	Name     string                   `yaml:"name"`
+	Why      string                   `yaml:"why"`
+	Row      integrityRequestRow      `yaml:"row"`
+	Payload  string                   `yaml:"payload"`
+	Metadata integrityMetadataFixture `yaml:"metadata"`
+	Want     integrityRequestWant     `yaml:"want"`
 }
 
 var requiredIntegrityRequestCases = []string{
@@ -130,9 +138,9 @@ func TestBuildScryRequest(t *testing.T) {
 			}
 			var metadata *schema.AuthoritativePublishRequest
 			switch c.Metadata {
-			case "present":
+			case integrityMetadataPresent:
 				metadata = integrityRequestMetadata(t)
-			case "absent":
+			case integrityMetadataAbsent:
 			default:
 				t.Fatalf("unknown metadata %q", c.Metadata)
 			}
@@ -170,11 +178,11 @@ func TestBuildScryRequest(t *testing.T) {
 				t.Fatalf("the session detail is not the migrated payload the content route serves (%s)", c.Why)
 			}
 			switch c.Want.Metadata {
-			case "present":
+			case integrityMetadataPresent:
 				if req.PublishMetadata == nil || !reflect.DeepEqual(*req.PublishMetadata, *metadata) {
 					t.Fatalf("publish metadata %+v, want the stored object unchanged (%s)", req.PublishMetadata, c.Why)
 				}
-			case "nil":
+			case integrityMetadataNil:
 				if req.PublishMetadata != nil {
 					t.Fatalf("publish metadata %+v, want nil (%s)", req.PublishMetadata, c.Why)
 				}
@@ -211,8 +219,8 @@ func TestBuildScryRequest(t *testing.T) {
 			if c.Want.RecordKeys != nil && !slices.Equal(keys, c.Want.RecordKeys) {
 				t.Fatalf("record keys %v, want %v", keys, c.Want.RecordKeys)
 			}
-			if _, present := wire["publishMetadata"]; present != (c.Want.Metadata == "present") {
-				t.Fatalf("publishMetadata on the wire = %v, want %v", present, c.Want.Metadata == "present")
+			if _, present := wire["publishMetadata"]; present != (c.Want.Metadata == integrityMetadataPresent) {
+				t.Fatalf("publishMetadata on the wire = %v, want %v", present, c.Want.Metadata == integrityMetadataPresent)
 			}
 			if c.Want.Validates {
 				if err := req.Validate(); err != nil {

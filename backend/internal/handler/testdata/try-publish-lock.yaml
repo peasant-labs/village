@@ -1,0 +1,15 @@
+# withTryPublishLock backs the optional rewrite on a read. It runs the rewrite
+# only when it can take one pooled connection and the transcript's lock without
+# waiting for the lock, and otherwise skips the rewrite and says so.
+- name: free-lock-runs-the-rewrite-on-one-connection
+  max_conns: 4
+  state: free
+  ran: true
+- name: held-lock-is-skipped-without-waiting
+  max_conns: 4
+  state: lock-held
+  ran: false
+- name: saturated-pool-is-skipped
+  max_conns: 1
+  state: pool-saturated
+  ran: false

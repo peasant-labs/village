@@ -1,0 +1,40 @@
+private_columns:
+  - content_revision
+  - segmented_identity_hash
+  - segmented_identity_size
+cases:
+  - name: migration-null-and-malformed-tolerated
+  - name: migration-constant-default-metadata-only
+  - name: revision-one-with-missing-identity
+    assignment: "content_revision = 1, content_hash = NULL, blob_size_bytes = NULL, segmented_identity_hash = NULL, segmented_identity_size = NULL"
+    accepted: true
+  - name: revision-one-with-malformed-hash
+    assignment: "content_revision = 1, content_hash = 'malformed', blob_size_bytes = NULL, segmented_identity_hash = NULL, segmented_identity_size = NULL"
+    accepted: true
+  - name: revision-one-with-negative-legacy-size
+    assignment: "content_revision = 1, content_hash = NULL, blob_size_bytes = -1, segmented_identity_hash = NULL, segmented_identity_size = NULL"
+    accepted: true
+  - name: revision-must-be-positive
+    assignment: "content_revision = 0"
+    accepted: false
+  - name: revision-advanced-needs-identity
+    assignment: "content_revision = 2, content_hash = NULL, segmented_identity_hash = NULL, segmented_identity_size = NULL"
+    accepted: false
+  - name: revision-advanced-valid-content-identity
+    assignment: "content_revision = 2, content_hash = repeat('a', 64), blob_size_bytes = 0, segmented_identity_hash = NULL, segmented_identity_size = NULL"
+    accepted: true
+  - name: revision-advanced-valid-segmented-identity
+    assignment: "content_revision = 2, content_hash = NULL, segmented_identity_hash = repeat('b', 64), segmented_identity_size = 0"
+    accepted: true
+  - name: segmented-identity-must-be-paired
+    assignment: "content_revision = 1, content_hash = NULL, segmented_identity_hash = repeat('a', 64), segmented_identity_size = NULL"
+    accepted: false
+  - name: segmented-identity-must-be-canonical
+    assignment: "content_revision = 1, content_hash = NULL, segmented_identity_hash = 'bad', segmented_identity_size = 1"
+    accepted: false
+  - name: segmented-size-must-be-nonnegative
+    assignment: "content_revision = 1, content_hash = NULL, segmented_identity_hash = repeat('a', 64), segmented_identity_size = -1"
+    accepted: false
+  - name: identity-slots-are-exclusive
+    assignment: "content_revision = 1, content_hash = repeat('b', 64), blob_size_bytes = 1, segmented_identity_hash = repeat('a', 64), segmented_identity_size = 1"
+    accepted: false

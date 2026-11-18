@@ -42,7 +42,7 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 		return encryptedReadResult{Plaintext: plaintext, Row: row, Identity: identity}, nil
 	}
 	result, err := read(initial)
-	if err == nil || !errors.Is(err, storage.ErrObjectNotFound) {
+	if err == nil || !reloadableObjectLookup(err) {
 		return result, err
 	}
 	fresh, reloadErr := h.queries.GetTranscriptByID(ctx, initial.ID)
@@ -55,9 +55,13 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 		return encryptedReadResult{}, errors.Join(oldErr, newErr)
 	}
 	if descriptorsEqual(oldDescriptor, newDescriptor) {
-		return encryptedReadResult{}, fmt.Errorf("encrypted transcript read failed because the unchanged immutable generation is absent in handler.readEncryptedTranscript after the sole reload; no body was returned and repeated retries are unsafe; reconcile object storage and the database descriptor: %w", err)
+		return encryptedReadResult{}, fmt.Errorf("encrypted transcript read failed because the unchanged immutable generation could not be retrieved in handler.readEncryptedTranscript after the sole reload; no body was returned and absence is not assumed; restore storage access or reconcile the descriptor and retry: %w", err)
 	}
 	return read(fresh)
+}
+
+func reloadableObjectLookup(err error) bool {
+	return errors.Is(err, storage.ErrObjectAbsentProvider) || errors.Is(err, storage.ErrObjectLookupUncertain)
 }
 
 func descriptorsEqual(a, b storage.BlobDescriptor) bool {

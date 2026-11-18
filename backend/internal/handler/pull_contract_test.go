@@ -32,6 +32,8 @@ type pullNegotiationCase struct {
 	Want   string   `yaml:"want"`
 }
 
+const pullNegotiationRefused = "refused"
+
 type pullPeopleCase struct {
 	Name          string   `yaml:"name"`
 	Header        []string `yaml:"header"`
@@ -224,7 +226,7 @@ func TestPullContractNegotiation(t *testing.T) {
 						t.Errorf("Vary = %v, want exactly %s on every pull response", vary, schema.PullContractHeader)
 					}
 
-					if c.Want == "refused" {
+					if c.Want == pullNegotiationRefused {
 						if w.Code != http.StatusNotAcceptable {
 							t.Fatalf("status %d, want 406: %s", w.Code, w.Body.String())
 						}

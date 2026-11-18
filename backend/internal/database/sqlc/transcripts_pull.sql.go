@@ -14,25 +14,34 @@ import (
 const compareAndSwapContentIdentity = `-- name: CompareAndSwapContentIdentity :execrows
 UPDATE transcripts
 SET content_hash = $1,
-    blob_size_bytes = $2
+    blob_size_bytes = $2,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL
 WHERE id = $3
   AND blob_key = $4
   AND wrapped_data_key = $5
   AND encryption_algorithm = $6
   AND key_version = $7
-  AND content_hash IS NULL
-  AND blob_size_bytes IS NOT DISTINCT FROM $8
+  AND content_hash IS NOT DISTINCT FROM $8::text
+  AND blob_size_bytes IS NOT DISTINCT FROM $9::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM $10::text
+  AND segmented_identity_size IS NOT DISTINCT FROM $11::bigint
+  AND content_revision = $12
 `
 
 type CompareAndSwapContentIdentityParams struct {
-	ContentHash                 pgtype.Text `db:"content_hash" json:"content_hash"`
-	PlaintextSize               pgtype.Int8 `db:"plaintext_size" json:"plaintext_size"`
-	ID                          pgtype.UUID `db:"id" json:"id"`
-	ExpectedBlobKey             string      `db:"expected_blob_key" json:"expected_blob_key"`
-	ExpectedWrappedDataKey      []byte      `db:"expected_wrapped_data_key" json:"expected_wrapped_data_key"`
-	ExpectedEncryptionAlgorithm string      `db:"expected_encryption_algorithm" json:"expected_encryption_algorithm"`
-	ExpectedKeyVersion          int32       `db:"expected_key_version" json:"expected_key_version"`
-	ExpectedPriorBlobSizeBytes  pgtype.Int8 `db:"expected_prior_blob_size_bytes" json:"expected_prior_blob_size_bytes"`
+	ContentHash                   pgtype.Text `db:"content_hash" json:"content_hash"`
+	PlaintextSize                 pgtype.Int8 `db:"plaintext_size" json:"plaintext_size"`
+	ID                            pgtype.UUID `db:"id" json:"id"`
+	ExpectedBlobKey               string      `db:"expected_blob_key" json:"expected_blob_key"`
+	ExpectedWrappedDataKey        []byte      `db:"expected_wrapped_data_key" json:"expected_wrapped_data_key"`
+	ExpectedEncryptionAlgorithm   string      `db:"expected_encryption_algorithm" json:"expected_encryption_algorithm"`
+	ExpectedKeyVersion            int32       `db:"expected_key_version" json:"expected_key_version"`
+	ExpectedPriorContentHash      pgtype.Text `db:"expected_prior_content_hash" json:"expected_prior_content_hash"`
+	ExpectedPriorBlobSizeBytes    pgtype.Int8 `db:"expected_prior_blob_size_bytes" json:"expected_prior_blob_size_bytes"`
+	ExpectedSegmentedIdentityHash pgtype.Text `db:"expected_segmented_identity_hash" json:"expected_segmented_identity_hash"`
+	ExpectedSegmentedIdentitySize pgtype.Int8 `db:"expected_segmented_identity_size" json:"expected_segmented_identity_size"`
+	ExpectedContentRevision       int64       `db:"content_revision" json:"-"`
 }
 
 func (q *Queries) CompareAndSwapContentIdentity(ctx context.Context, arg CompareAndSwapContentIdentityParams) (int64, error) {
@@ -44,7 +53,11 @@ func (q *Queries) CompareAndSwapContentIdentity(ctx context.Context, arg Compare
 		arg.ExpectedWrappedDataKey,
 		arg.ExpectedEncryptionAlgorithm,
 		arg.ExpectedKeyVersion,
+		arg.ExpectedPriorContentHash,
 		arg.ExpectedPriorBlobSizeBytes,
+		arg.ExpectedSegmentedIdentityHash,
+		arg.ExpectedSegmentedIdentitySize,
+		arg.ExpectedContentRevision,
 	)
 	if err != nil {
 		return 0, err
@@ -60,12 +73,20 @@ SET blob_key = $1,
     key_version = $4,
     content_hash = $5,
     blob_size_bytes = $6,
+    content_revision = $7,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL,
     updated_at = now()
-WHERE id = $7
-  AND blob_key = $8
-  AND wrapped_data_key = $9
-  AND encryption_algorithm = $10
-  AND key_version = $11
+WHERE id = $8
+  AND blob_key = $9
+  AND wrapped_data_key = $10
+  AND encryption_algorithm = $11
+  AND key_version = $12
+  AND content_revision = $13
+  AND content_hash IS NOT DISTINCT FROM $14::text
+  AND blob_size_bytes IS NOT DISTINCT FROM $15::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM $16::text
+  AND segmented_identity_size IS NOT DISTINCT FROM $17::bigint
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -82,21 +103,28 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state
 `
 
 type CompareAndSwapTranscriptBlobParams struct {
-	BlobKey                     string      `db:"blob_key" json:"blob_key"`
-	WrappedDataKey              []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
-	EncryptionAlgorithm         string      `db:"encryption_algorithm" json:"encryption_algorithm"`
-	KeyVersion                  int32       `db:"key_version" json:"key_version"`
-	ContentHash                 pgtype.Text `db:"content_hash" json:"content_hash"`
-	PlaintextSize               pgtype.Int8 `db:"plaintext_size" json:"plaintext_size"`
-	ID                          pgtype.UUID `db:"id" json:"id"`
-	ExpectedBlobKey             string      `db:"expected_blob_key" json:"expected_blob_key"`
-	ExpectedWrappedDataKey      []byte      `db:"expected_wrapped_data_key" json:"expected_wrapped_data_key"`
-	ExpectedEncryptionAlgorithm string      `db:"expected_encryption_algorithm" json:"expected_encryption_algorithm"`
-	ExpectedKeyVersion          int32       `db:"expected_key_version" json:"expected_key_version"`
+	BlobKey                       string      `db:"blob_key" json:"blob_key"`
+	WrappedDataKey                []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
+	EncryptionAlgorithm           string      `db:"encryption_algorithm" json:"encryption_algorithm"`
+	KeyVersion                    int32       `db:"key_version" json:"key_version"`
+	ContentHash                   pgtype.Text `db:"content_hash" json:"content_hash"`
+	PlaintextSize                 pgtype.Int8 `db:"plaintext_size" json:"plaintext_size"`
+	ContentRevision               int64       `db:"content_revision" json:"-"`
+	ID                            pgtype.UUID `db:"id" json:"id"`
+	ExpectedBlobKey               string      `db:"expected_blob_key" json:"expected_blob_key"`
+	ExpectedWrappedDataKey        []byte      `db:"expected_wrapped_data_key" json:"expected_wrapped_data_key"`
+	ExpectedEncryptionAlgorithm   string      `db:"expected_encryption_algorithm" json:"expected_encryption_algorithm"`
+	ExpectedKeyVersion            int32       `db:"expected_key_version" json:"expected_key_version"`
+	ExpectedContentRevision       int64       `db:"content_revision" json:"-"`
+	ExpectedContentHash           pgtype.Text `db:"expected_content_hash" json:"expected_content_hash"`
+	ExpectedBlobSizeBytes         pgtype.Int8 `db:"expected_blob_size_bytes" json:"expected_blob_size_bytes"`
+	ExpectedSegmentedIdentityHash pgtype.Text `db:"expected_segmented_identity_hash" json:"expected_segmented_identity_hash"`
+	ExpectedSegmentedIdentitySize pgtype.Int8 `db:"expected_segmented_identity_size" json:"expected_segmented_identity_size"`
 }
 
 func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareAndSwapTranscriptBlobParams) (Transcript, error) {
@@ -107,11 +135,17 @@ func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareA
 		arg.KeyVersion,
 		arg.ContentHash,
 		arg.PlaintextSize,
+		arg.ContentRevision,
 		arg.ID,
 		arg.ExpectedBlobKey,
 		arg.ExpectedWrappedDataKey,
 		arg.ExpectedEncryptionAlgorithm,
 		arg.ExpectedKeyVersion,
+		arg.ExpectedContentRevision,
+		arg.ExpectedContentHash,
+		arg.ExpectedBlobSizeBytes,
+		arg.ExpectedSegmentedIdentityHash,
+		arg.ExpectedSegmentedIdentitySize,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -194,6 +228,10 @@ func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareA
 		&i.PublishMetadataSize,
 		&i.ConversationTurnCount,
 		&i.DisplayedTurnCount,
+		&i.ContentRevision,
+		&i.SegmentedIdentityHash,
+		&i.SegmentedIdentitySize,
+		&i.ContentState,
 	)
 	return i, err
 }
@@ -584,7 +622,7 @@ func (q *Queries) ListPullableTranscriptsInCollective(ctx context.Context, arg L
 }
 
 const listTranscriptDescriptorsForRewrap = `-- name: ListTranscriptDescriptorsForRewrap :many
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm, key_version
 FROM transcripts
 WHERE key_version < $1
   AND (key_version > $2
@@ -602,6 +640,8 @@ type ListTranscriptDescriptorsForRewrapParams struct {
 
 type ListTranscriptDescriptorsForRewrapRow struct {
 	ID                  pgtype.UUID `db:"id" json:"id"`
+	OwnerID             pgtype.UUID `db:"owner_id" json:"owner_id"`
+	LocalID             string      `db:"local_id" json:"local_id"`
 	BlobKey             string      `db:"blob_key" json:"blob_key"`
 	WrappedDataKey      []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
 	EncryptionAlgorithm string      `db:"encryption_algorithm" json:"encryption_algorithm"`
@@ -624,6 +664,8 @@ func (q *Queries) ListTranscriptDescriptorsForRewrap(ctx context.Context, arg Li
 		var i ListTranscriptDescriptorsForRewrapRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
 			&i.BlobKey,
 			&i.WrappedDataKey,
 			&i.EncryptionAlgorithm,
@@ -640,19 +682,27 @@ func (q *Queries) ListTranscriptDescriptorsForRewrap(ctx context.Context, arg Li
 }
 
 const listTranscriptsMissingContentHash = `-- name: ListTranscriptsMissingContentHash :many
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version, blob_size_bytes
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm,
+       key_version, blob_size_bytes, content_hash, content_revision,
+       segmented_identity_hash, segmented_identity_size
 FROM transcripts
 WHERE content_hash IS NULL
 ORDER BY published_at ASC, id
 `
 
 type ListTranscriptsMissingContentHashRow struct {
-	ID                  pgtype.UUID `db:"id" json:"id"`
-	BlobKey             string      `db:"blob_key" json:"blob_key"`
-	WrappedDataKey      []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
-	EncryptionAlgorithm string      `db:"encryption_algorithm" json:"encryption_algorithm"`
-	KeyVersion          int32       `db:"key_version" json:"key_version"`
-	BlobSizeBytes       pgtype.Int8 `db:"blob_size_bytes" json:"blob_size_bytes"`
+	ID                    pgtype.UUID `db:"id" json:"id"`
+	OwnerID               pgtype.UUID `db:"owner_id" json:"owner_id"`
+	LocalID               string      `db:"local_id" json:"local_id"`
+	BlobKey               string      `db:"blob_key" json:"blob_key"`
+	WrappedDataKey        []byte      `db:"wrapped_data_key" json:"wrapped_data_key"`
+	EncryptionAlgorithm   string      `db:"encryption_algorithm" json:"encryption_algorithm"`
+	KeyVersion            int32       `db:"key_version" json:"key_version"`
+	BlobSizeBytes         pgtype.Int8 `db:"blob_size_bytes" json:"blob_size_bytes"`
+	ContentHash           pgtype.Text `db:"content_hash" json:"content_hash"`
+	ContentRevision       int64       `db:"content_revision" json:"-"`
+	SegmentedIdentityHash pgtype.Text `db:"segmented_identity_hash" json:"-"`
+	SegmentedIdentitySize pgtype.Int8 `db:"segmented_identity_size" json:"-"`
 }
 
 // Returns the complete immutable descriptor and nullable prior plaintext size
@@ -668,11 +718,17 @@ func (q *Queries) ListTranscriptsMissingContentHash(ctx context.Context) ([]List
 		var i ListTranscriptsMissingContentHashRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
 			&i.BlobKey,
 			&i.WrappedDataKey,
 			&i.EncryptionAlgorithm,
 			&i.KeyVersion,
 			&i.BlobSizeBytes,
+			&i.ContentHash,
+			&i.ContentRevision,
+			&i.SegmentedIdentityHash,
+			&i.SegmentedIdentitySize,
 		); err != nil {
 			return nil, err
 		}

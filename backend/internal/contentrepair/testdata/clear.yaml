@@ -1,0 +1,82 @@
+# Each case seeds one transcript with raw identity columns and scripts what the
+# single object read returns. The object store is a fake; the transaction, row
+# lock, writer fence, statement and ledger run against real PostgreSQL.
+#
+# hash is the raw content_hash text: "malformed" is non-canonical text, "valid"
+# is a canonical hash, "null" is NULL. size is the raw blob_size_bytes, or
+# omitted for NULL. cleared is whether the raw pair is NULL/NULL afterwards;
+# otherwise it must be exactly what was seeded. read is what the one object
+# read returns; expect_reads is how many times it is reached.
+cases:
+  - name: malformed-hash-null-size-is-cleared
+    hash: malformed
+    read: authenticates
+    expect_reads: 1
+    phase: applied
+    cleared: true
+  - name: malformed-hash-negative-size-is-cleared
+    hash: malformed
+    size: -5
+    read: authenticates
+    expect_reads: 1
+    phase: applied
+    cleared: true
+  - name: identity-free-row-is-not-matched
+    hash: "null"
+    read: authenticates
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    cleared: false
+  - name: valid-identity-is-refused
+    hash: valid
+    size: 7
+    read: authenticates
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    cleared: false
+  - name: canonical-hash-with-null-size-is-refused
+    hash: valid
+    read: authenticates
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    cleared: false
+  - name: wrong-expected-revision-is-refused
+    hash: malformed
+    expected_revision: 2
+    read: authenticates
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+    cleared: false
+  - name: absent-object-is-refused-as-uncertain
+    hash: malformed
+    read: absent-provider
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+    cleared: false
+  - name: unverified-lookup-is-refused-as-uncertain
+    hash: malformed
+    read: lookup-uncertain
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+    cleared: false
+  - name: key-failure-is-refused-as-uncertain
+    hash: malformed
+    read: key-failure
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+    cleared: false
+  - name: undecodable-descriptor-is-refused-as-uncertain
+    hash: malformed
+    descriptor: undecodable
+    read: authenticates
+    expect_reads: 0
+    phase: refused
+    failure_class: object_uncertain
+    cleared: false

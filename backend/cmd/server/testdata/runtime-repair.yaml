@@ -1,0 +1,17 @@
+base:
+  - "-repair-transcript-content"
+  - "-repair-id=11111111-1111-4111-8111-111111111111"
+  - "-repair-transcript=22222222-2222-4222-8222-222222222222"
+  - "-repair-actor=33333333-3333-4333-8333-333333333333"
+  - "-repair-authorization-ref=authorized"
+  - "-repair-reason=repair"
+  - "-repair-expect-revision=1"
+cases:
+  - {name: clear-selects-blob-authority, args: ["-repair-action=clear-malformed-identity"], success: true}
+  - {name: declare-selects-blob-authority, args: ["-repair-action=declare-unavailable"], success: true}
+  - {name: replace-selects-blob-authority, args: ["-repair-action=replace-third-value"], success: true}
+  - {name: restore-selects-blob-authority, args: ["-repair-action=restore-attested-generation", "-repair-source-key=transcripts/44444444-4444-4444-8444-444444444444.bin"], success: true}
+  - {name: restore-needs-source, args: ["-repair-action=restore-attested-generation"], error: "-repair-source-key"}
+  - {name: repair-disallows-other-mode, args: ["-repair-action=clear-malformed-identity", "-migrate-only"], error: "mutually exclusive"}
+  - {name: invalid-actor-refused, args: ["-repair-action=clear-malformed-identity", "-repair-actor=00000000-0000-0000-0000-000000000001"], error: "-repair-actor"}
+  - {name: standalone-repair-argument-refused, bare: true, args: ["-repair-id=11111111-1111-4111-8111-111111111111"], error: "-repair-transcript-content"}

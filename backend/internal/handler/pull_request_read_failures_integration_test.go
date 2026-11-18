@@ -146,7 +146,7 @@ func TestPullRequestReadsRefuseAFailedRead_RealPostgres(t *testing.T) {
 					t.Fatal(err)
 				}
 				blobs := newFakeBlobStore()
-				blobs.put(row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
+				putTranscriptContent(t, t.Context(), pool, blobs, row.ID, row.BlobKey, currentEnvelopeJSON(t, "claude-code"))
 				h.blobs = blobs
 			}
 			if c.Surface == "available" {

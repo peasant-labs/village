@@ -1,0 +1,74 @@
+# Each case seeds one transcript and scripts what the single object read
+# returns. The object store is a fake; the transaction, row lock, writer fence,
+# statement and ledger run against real PostgreSQL.
+#
+# stored is how the established identity S is seeded: "primary" is the primary
+# pair, "segmented" is the segmented pair (which excludes a primary hash),
+# "none" is no identity, and "malformed" is a non-canonical primary hash.
+# read is what the one object read returns: "third" authenticates to a value
+# different from S, "stored" authenticates to S. replaced is whether the row
+# holds the third value at revision + 1 afterwards; otherwise the seeded pair
+# and revision 1 must be untouched.
+cases:
+  - name: third-value-advances-revision-and-installs-it
+    stored: primary
+    read: third
+    expect_reads: 1
+    phase: applied
+    replaced: true
+  - name: third-value-replaces-a-segmented-identity
+    stored: segmented
+    read: third
+    expect_reads: 1
+    phase: applied
+    replaced: true
+  - name: object-authenticating-to-stored-identity-is-refused
+    stored: primary
+    read: stored
+    expect_reads: 1
+    phase: refused
+    failure_class: precondition_mismatch
+  - name: wrong-expected-revision-is-refused
+    stored: primary
+    expected_revision: 2
+    read: third
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+  - name: identity-free-row-is-refused
+    stored: none
+    read: third
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+  - name: malformed-identity-is-refused
+    stored: malformed
+    read: third
+    expect_reads: 0
+    phase: refused
+    failure_class: precondition_mismatch
+  - name: absent-object-is-refused-as-uncertain
+    stored: primary
+    read: absent-provider
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+  - name: unverified-lookup-is-refused-as-uncertain
+    stored: primary
+    read: lookup-uncertain
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+  - name: key-failure-is-refused-as-uncertain
+    stored: primary
+    read: key-failure
+    expect_reads: 1
+    phase: refused
+    failure_class: object_uncertain
+  - name: undecodable-descriptor-is-refused-as-uncertain
+    stored: primary
+    descriptor: undecodable
+    read: third
+    expect_reads: 0
+    phase: refused
+    failure_class: object_uncertain

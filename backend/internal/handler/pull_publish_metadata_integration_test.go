@@ -67,6 +67,7 @@ var requiredPullPublishMetadataCases = []string{
 	"owner_anonymous_to_caller_404",
 	"republished_between_row_and_object_read_retries",
 	"object_missing_500",
+	"consumer-publish-metadata-missing-500",
 	"not_found_bodies_identical",
 }
 

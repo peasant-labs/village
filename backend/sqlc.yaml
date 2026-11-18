@@ -17,3 +17,11 @@ sql:
         overrides:
           - column: users.github_org_sync_generation
             go_struct_tag: 'json:"-" db:"github_org_sync_generation"'
+          - column: transcripts.content_revision
+            go_struct_tag: 'json:"-" db:"content_revision"'
+          - column: transcripts.segmented_identity_hash
+            go_struct_tag: 'json:"-" db:"segmented_identity_hash"'
+          - column: transcripts.segmented_identity_size
+            go_struct_tag: 'json:"-" db:"segmented_identity_size"'
+          - column: transcripts.content_state
+            go_struct_tag: 'json:"-" db:"content_state"'

@@ -28,6 +28,14 @@ type residualCase struct {
 	Expected bool   `yaml:"expected"`
 }
 
+var requiredResidualCases = []string{
+	"no-such-key", "no-such-bucket-masked-404", "access-denied-masked-404",
+	"generic-http-404", "generic-http-403", "pending-null-pair",
+	"pending-size-zero-preserved", "pending-positive-size", "pending-negative-size-rejected",
+	"known-size-zero", "known-null-size-rejected", "zero-loaded-state-rejected",
+	"unknown-loaded-state-rejected",
+}
+
 func loadResidualCases(t *testing.T) []residualCase {
 	t.Helper()
 	dec := yaml.NewDecoder(bytes.NewReader(residualCasesYAML))
@@ -40,8 +48,17 @@ func loadResidualCases(t *testing.T) []residualCase {
 	if err := dec.Decode(&extra); err != io.EOF {
 		t.Fatalf("residual fixture trailing document: %v", err)
 	}
-	if len(cases) != 13 {
-		t.Fatalf("residual fixture rows=%d, want 13", len(cases))
+	seen := make(map[string]bool)
+	for _, c := range cases {
+		if c.Name == "" || seen[c.Name] {
+			t.Fatalf("residual fixture has a missing or repeated name %q", c.Name)
+		}
+		seen[c.Name] = true
+	}
+	for _, name := range requiredResidualCases {
+		if !seen[name] {
+			t.Fatalf("residual fixture omits %q", name)
+		}
 	}
 	return cases
 }
@@ -56,8 +73,9 @@ func TestResidualSecurityFixture(t *testing.T) {
 					cause = &smithy.GenericAPIError{Code: tc.Code, Message: "safe test message"}
 				}
 				err := &httptransport.ResponseError{Response: &httptransport.Response{Response: &http.Response{StatusCode: tc.Status}}, Err: cause}
-				if got := isS3NotFound(err); got != tc.Expected {
-					t.Fatalf("isS3NotFound=%v, want %v", got, tc.Expected)
+				classified := &objectLookupError{cause: err}
+				if !errors.Is(classified, ErrObjectLookupUncertain) || errors.Is(classified, ErrObjectAbsentProvider) {
+					t.Fatalf("unverified provider outcome was treated as definite absence: %v", classified)
 				}
 			case "identity":
 				var hash *string

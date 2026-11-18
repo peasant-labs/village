@@ -46,7 +46,7 @@ func (f *fakeBlobStore) put(key string, b []byte) {
 }
 
 func (f *fakeBlobStore) Write(_ context.Context, _ uuid.UUID, b []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
-	key := "transcripts/10000000-0000-4000-8000-000000000001.bin"
+	key := "transcripts/" + uuid.NewString() + ".bin"
 	f.mu.Lock()
 	f.blobs[key] = append([]byte(nil), b...)
 	f.lastBody = append([]byte(nil), b...)
@@ -63,13 +63,21 @@ func (f *fakeBlobStore) Write(_ context.Context, _ uuid.UUID, b []byte) (storage
 func (f *fakeBlobStore) Read(_ context.Context, _ uuid.UUID, descriptor storage.BlobDescriptor, loaded storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error) {
 	f.mu.Lock()
 	f.downloads++
-	b := append([]byte(nil), f.blobs[string(descriptor.ObjectKey())]...)
+	raw, exists := f.blobs[string(descriptor.ObjectKey())]
+	b := append([]byte(nil), raw...)
 	f.mu.Unlock()
-	if known, ok := loaded.Known(); ok {
-		return b, known, nil
+	if !exists {
+		return nil, storage.ContentIdentity{}, storage.ErrObjectLookupUncertain
 	}
 	identity, err := storage.NewContentIdentity(schema.ComputeTranscriptHash(b), int64(len(b)))
+	if known, ok := loaded.Known(); err == nil && ok && known != identity {
+		return nil, storage.ContentIdentity{}, storage.ErrObjectIntegrityUncertain
+	}
 	return b, identity, err
+}
+
+func (f *fakeBlobStore) ReadBounded(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity, limit int64) ([]byte, storage.ContentIdentity, error) {
+	return boundedFakeRead(ctx, id, d, loaded, limit, f.Read)
 }
 
 func (*fakeBlobStore) Rewrap(context.Context, uuid.UUID, storage.BlobDescriptor) (storage.BlobDescriptor, error) {
@@ -143,7 +151,24 @@ func TestGetContent_LegacyBlob_MigratesAndRewrites(t *testing.T) {
 	id := uuid.New()
 	s3 := newFakeBlobStore()
 	s3.put(key, legacyBarePayloadJSON("claude"))
-	h := newTestHandler(publicTranscriptQuerier(key), s3)
+	q := publicTranscriptQuerier(key)
+	var installed *sqlc.Transcript
+	getBeforeInstall := q.getTranscriptByID
+	q.getTranscriptByID = func(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+		if installed != nil {
+			return *installed, nil
+		}
+		return getBeforeInstall(ctx, id)
+	}
+	q.compareAndSwapTranscriptBlob = func(_ context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error) {
+		row := sqlc.Transcript{ID: arg.ID, Visibility: "public", BlobKey: arg.BlobKey,
+			WrappedDataKey: arg.WrappedDataKey, EncryptionAlgorithm: arg.EncryptionAlgorithm,
+			KeyVersion: arg.KeyVersion, ContentHash: arg.ContentHash, BlobSizeBytes: arg.PlaintextSize,
+			ContentRevision: arg.ContentRevision}
+		installed = &row
+		return row, nil
+	}
+	h := newTestHandler(q, s3)
 
 	// First read: migrates + rewrites.
 	w := getContent(t, h, id)

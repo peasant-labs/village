@@ -196,11 +196,15 @@ func (s *recordingTranscriptBlobStore) Read(_ context.Context, _ uuid.UUID, desc
 		return nil, storage.ContentIdentity{}, fmt.Errorf("recording transcript blob %q is missing", key)
 	}
 	content := append([]byte(nil), contents...)
-	if known, ok := loaded.Known(); ok {
-		return content, known, nil
-	}
 	identity, err := storage.NewContentIdentity(schema.ComputeTranscriptHash(content), int64(len(content)))
+	if known, ok := loaded.Known(); err == nil && ok && known != identity {
+		return nil, storage.ContentIdentity{}, storage.ErrObjectIntegrityUncertain
+	}
 	return content, identity, err
+}
+
+func (s *recordingTranscriptBlobStore) ReadBounded(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity, limit int64) ([]byte, storage.ContentIdentity, error) {
+	return boundedFakeRead(ctx, id, d, loaded, limit, s.Read)
 }
 
 func (*recordingTranscriptBlobStore) Rewrap(context.Context, uuid.UUID, storage.BlobDescriptor) (storage.BlobDescriptor, error) {

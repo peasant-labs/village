@@ -1,0 +1,23 @@
+defaults:
+  repair_id: "11111111-1111-4111-8111-111111111111"
+  transcript_id: "22222222-2222-4222-8222-222222222222"
+  actor_id: "33333333-3333-4333-8333-333333333333"
+  action: clear-malformed-identity
+  authorization_ref: " authorized "
+  reason: " repair "
+  expected_revision: 1
+cases:
+  - {name: clear-valid}
+  - {name: replacement-valid, action: replace-third-value}
+  - {name: declaration-valid, action: declare-unavailable}
+  - {name: restore-valid, action: restore-attested-generation, source_supplied: true, source_key: "transcripts/44444444-4444-4444-8444-444444444444.bin"}
+  - {name: restore-requires-source, action: restore-attested-generation, error_flag: "-repair-source-key"}
+  - {name: declaration-refuses-source, action: declare-unavailable, source_supplied: true, source_key: "transcripts/44444444-4444-4444-8444-444444444444.bin", error_flag: "-repair-source-key"}
+  - {name: source-must-be-opaque, action: restore-attested-generation, source_supplied: true, source_key: "https://example.invalid/path", error_flag: "-repair-source-key"}
+  - {name: reserved-actor-refused, actor_id: "00000000-0000-0000-0000-000000000001", error_flag: "-repair-actor"}
+  - {name: nil-transcript-refused, transcript_id: "00000000-0000-0000-0000-000000000000", error_flag: "-repair-transcript"}
+  - {name: raw-ledger-action-refused, action: clear_malformed_identity, error_flag: "-repair-action"}
+  - {name: unknown-action-refused, action: inspect, error_flag: "-repair-action"}
+  - {name: empty-reason-refused, reason: " ", error_flag: "-repair-reason"}
+  - {name: revision-zero-refused, expected_revision: 0, error_flag: "-repair-expect-revision"}
+  - {name: invalid-citation-refused, reconcile_supplied: true, reconciles: bad, error_flag: "-repair-reconciles"}

@@ -207,7 +207,13 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 							install := func(from, to sqlc.Transcript) {
 								t.Helper()
 								result := h.inEncryptedTx(ctx, owner, func(q Querier) error {
-									_, err := q.CompareAndSwapTranscriptBlob(ctx, sqlc.CompareAndSwapTranscriptBlobParams{ID: tid, BlobKey: to.BlobKey, WrappedDataKey: to.WrappedDataKey, EncryptionAlgorithm: to.EncryptionAlgorithm, KeyVersion: to.KeyVersion, ContentHash: to.ContentHash, PlaintextSize: to.BlobSizeBytes, ExpectedBlobKey: from.BlobKey, ExpectedWrappedDataKey: from.WrappedDataKey, ExpectedEncryptionAlgorithm: from.EncryptionAlgorithm, ExpectedKeyVersion: from.KeyVersion})
+									_, err := q.CompareAndSwapTranscriptBlob(ctx, sqlc.CompareAndSwapTranscriptBlobParams{
+										ID: tid, BlobKey: to.BlobKey, WrappedDataKey: to.WrappedDataKey, EncryptionAlgorithm: to.EncryptionAlgorithm, KeyVersion: to.KeyVersion, ContentHash: to.ContentHash, PlaintextSize: to.BlobSizeBytes,
+										ExpectedBlobKey: from.BlobKey, ExpectedWrappedDataKey: from.WrappedDataKey, ExpectedEncryptionAlgorithm: from.EncryptionAlgorithm, ExpectedKeyVersion: from.KeyVersion,
+										ContentRevision: to.ContentRevision, ExpectedContentRevision: from.ContentRevision,
+										ExpectedContentHash: from.ContentHash, ExpectedBlobSizeBytes: from.BlobSizeBytes,
+										ExpectedSegmentedIdentityHash: from.SegmentedIdentityHash, ExpectedSegmentedIdentitySize: from.SegmentedIdentitySize,
+									})
 									return err
 								})
 								if result.Err != nil {

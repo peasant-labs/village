@@ -891,8 +891,8 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			h.blobs = blobs
 			router := publicOwnerRouter(h)
 			w := newPublicOwnerWorld(t, ctx, pool, h, c)
-			blobs.put(w.contentKey, contentWithRepositoryJSON())
-			blobs.put(w.sharedContentKey, contentWithRepositoryJSON())
+			putTranscriptContent(t, ctx, pool, blobs, w.accepted, w.contentKey, contentWithRepositoryJSON())
+			putTranscriptContent(t, ctx, pool, blobs, w.shared, w.sharedContentKey, contentWithRepositoryJSON())
 			defer w.cleanup(t, ctx)
 			viewer := w.actor(c.Viewer)
 			check := func(where string, body []byte) { w.assertNoLeak(t, where, body, c) }

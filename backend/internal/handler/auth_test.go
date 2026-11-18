@@ -347,9 +347,19 @@ func (m *mockQuerier) CreateTranscript(ctx context.Context, arg sqlc.CreateTrans
 
 func (m *mockQuerier) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
 	if m.getTranscriptByID != nil {
-		return m.getTranscriptByID(ctx, id)
+		row, err := m.getTranscriptByID(ctx, id)
+		// PostgreSQL supplies this constant default even for historical rows;
+		// test rows created before the column existed model that same default.
+		if err == nil && row.ContentRevision == 0 {
+			row.ContentRevision = 1
+		}
+		return row, err
 	}
 	return sqlc.Transcript{}, nil
+}
+
+func (m *mockQuerier) GetTranscriptByIDForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+	return m.GetTranscriptByID(ctx, id)
 }
 func (m *mockQuerier) GetTranscriptGovernanceForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.GetTranscriptGovernanceForUpdateRow, error) {
 	if m.getTranscriptGovernanceForUpdate != nil {
@@ -538,7 +548,7 @@ func (m *mockQuerier) CountTranscriptAnnotations(ctx context.Context, transcript
 }
 
 func (m *mockQuerier) CompareAndSwapContentIdentity(context.Context, sqlc.CompareAndSwapContentIdentityParams) (int64, error) {
-	return 0, nil
+	return 1, nil
 }
 
 func (m *mockQuerier) CompareAndSwapTranscriptBlob(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error) {
@@ -1110,11 +1120,22 @@ func (m *mockQuerier) CompleteGitHubWebhookDelivery(ctx context.Context, arg sql
 // ----------------------------------------------------------------------------
 
 type mockTranscriptBlobStore struct {
+	mu           sync.Mutex
+	objects      map[storage.ObjectKey][]byte
 	uploadedKeys []string
 	uploadErr    error
 	deletedKeys  []string
 	deleteErr    error
 	metadata     fakeMetadataStore
+}
+
+func (m *mockTranscriptBlobStore) seedBody(key string, body []byte) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.objects == nil {
+		m.objects = make(map[storage.ObjectKey][]byte)
+	}
+	m.objects[storage.ObjectKey(key)] = append([]byte(nil), body...)
 }
 
 // fakeMetadataStore keeps publish metadata objects for a test blob store, so
@@ -1151,7 +1172,7 @@ func (f *fakeMetadataStore) read(m storage.MetadataObject) ([]byte, error) {
 	defer f.mu.Unlock()
 	stored, ok := f.objects[m.Key()]
 	if !ok {
-		return nil, storage.ErrObjectNotFound
+		return nil, storage.ErrObjectAbsentProvider
 	}
 	return append([]byte(nil), stored...), nil
 }
@@ -1167,7 +1188,13 @@ func (m *mockTranscriptBlobStore) Write(_ context.Context, _ uuid.UUID, content 
 		return storage.BlobDescriptor{}, storage.ContentIdentity{}, m.uploadErr
 	}
 	key := "transcripts/" + uuid.NewString() + ".bin"
+	m.mu.Lock()
 	m.uploadedKeys = append(m.uploadedKeys, key)
+	if m.objects == nil {
+		m.objects = make(map[storage.ObjectKey][]byte)
+	}
+	m.objects[storage.ObjectKey(key)] = append([]byte(nil), content...)
+	m.mu.Unlock()
 	descriptor, err := storage.NewBlobDescriptor(storage.ObjectKey(key), []byte("test-wrapped-key"), storage.EncryptionAES256GCMRandomNonceV1, 1)
 	if err != nil {
 		return storage.BlobDescriptor{}, storage.ContentIdentity{}, err
@@ -1176,19 +1203,56 @@ func (m *mockTranscriptBlobStore) Write(_ context.Context, _ uuid.UUID, content 
 	return descriptor, identity, err
 }
 
-func (*mockTranscriptBlobStore) Read(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error) {
-	return nil, storage.ContentIdentity{}, errors.New("mock transcript blob read not configured")
+func (m *mockTranscriptBlobStore) Read(_ context.Context, _ uuid.UUID, descriptor storage.BlobDescriptor, loaded storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error) {
+	m.mu.Lock()
+	body, ok := m.objects[descriptor.ObjectKey()]
+	body = append([]byte(nil), body...)
+	m.mu.Unlock()
+	if !ok {
+		return nil, storage.ContentIdentity{}, errors.New("mock transcript blob read not configured")
+	}
+	actual, err := storage.NewContentIdentity(schema.ComputeTranscriptHash(body), int64(len(body)))
+	if err != nil {
+		return nil, storage.ContentIdentity{}, err
+	}
+	if expected, known := loaded.Known(); known && expected != actual {
+		return nil, storage.ContentIdentity{}, storage.ErrObjectIntegrityUncertain
+	}
+	return body, actual, nil
 }
+func (m *mockTranscriptBlobStore) ReadBounded(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity, limit int64) ([]byte, storage.ContentIdentity, error) {
+	return boundedFakeRead(ctx, id, d, loaded, limit, m.Read)
+}
+
+func boundedFakeRead(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity, limit int64, read func(context.Context, uuid.UUID, storage.BlobDescriptor, storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error)) ([]byte, storage.ContentIdentity, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, storage.ContentIdentity{}, err
+	}
+	body, identity, err := read(ctx, id, d, loaded)
+	if err != nil {
+		return nil, storage.ContentIdentity{}, err
+	}
+	if limit < storage.CiphertextOverheadBytes || int64(len(body)) > limit-storage.CiphertextOverheadBytes {
+		return nil, storage.ContentIdentity{}, storage.ErrObjectLookupUncertain
+	}
+	return body, identity, nil
+}
+
 func (*mockTranscriptBlobStore) Rewrap(context.Context, uuid.UUID, storage.BlobDescriptor) (storage.BlobDescriptor, error) {
 	return storage.BlobDescriptor{}, errors.New("mock transcript blob rewrap not configured")
 }
 func (m *mockTranscriptBlobStore) Delete(_ context.Context, descriptor storage.BlobDescriptor) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.deletedKeys = append(m.deletedKeys, string(descriptor.ObjectKey()))
+	if m.deleteErr == nil {
+		delete(m.objects, descriptor.ObjectKey())
+	}
 	return m.deleteErr
 }
 
 // errFakeStoresNoMetadata is what a test blob store that keeps no metadata
-// returns from ReadMetadata. It is deliberately not storage.ErrObjectNotFound,
+// returns from ReadMetadata. It is deliberately not a typed absence,
 // so such a fake can never be mistaken for a row whose metadata object is
 // missing.
 var errFakeStoresNoMetadata = errors.New("test blob store stores no publish metadata")

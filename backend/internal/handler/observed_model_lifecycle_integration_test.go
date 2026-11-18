@@ -5,7 +5,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,7 +77,7 @@ func TestObservedModelRealPostgresRustFSLifecycle(t *testing.T) {
 			t.Errorf("delete current observed-model transcript object during integration cleanup: %v", deleteErr)
 			return
 		}
-		if _, _, getErr := objects.Get(ctx, descriptor.ObjectKey()); !errors.Is(getErr, storage.ErrObjectNotFound) {
+		if _, _, getErr := objects.Get(ctx, descriptor.ObjectKey()); !rustfsTestKeyAbsent(getErr) {
 			t.Errorf("current observed-model transcript object remains after integration cleanup: %v", getErr)
 		}
 	}()

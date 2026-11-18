@@ -217,7 +217,8 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 				t.Fatal(err)
 			}
 			// Setup only: the replaced generation's shape is not under test.
-			if _, err := h.rewriteCanonicalTranscript(ctx, row, canonical, ShapeUnknown); err != nil {
+			source := rewriteFixtureSourceIdentity(t, ctx, blobs, row)
+			if _, err := h.rewriteCanonicalTranscript(ctx, row, source, canonical, ShapeUnknown); err != nil {
 				t.Fatal(err)
 			}
 			pull := httptest.NewRecorder()

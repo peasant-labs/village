@@ -24,6 +24,8 @@ type transcriptListPageCase struct {
 	ErrorContains []string `yaml:"error_contains"`
 }
 
+const listPageFixtureRefused = "refused"
+
 //go:embed testdata/transcript_list_page_params.yaml
 var transcriptListPageCasesYAML []byte
 
@@ -58,7 +60,7 @@ func TestParseTranscriptListPage(t *testing.T) {
 				if !got.perPage.IsValid() {
 					t.Errorf("per_page %d is not a schema.AllPageSizes member", int(got.perPage))
 				}
-			case "refused":
+			case listPageFixtureRefused:
 				sawRefused++
 				if err == nil {
 					t.Fatalf("parseTranscriptListPage(%q) accepted, want a refusal", c.Query)

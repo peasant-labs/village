@@ -1,0 +1,5 @@
+- name: rewrite-pending-preimage-move-skips
+  source: legacy
+  before: hi
+  after: outside writer changed this
+  why: a pending legacy pre-image that moves after the read cannot be replaced by a rewrite of the earlier bytes

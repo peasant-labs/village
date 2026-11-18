@@ -317,7 +317,12 @@ boundary are documented in
   decision that deletes or retains a body generation (candidate, superseded,
   or delete target) applies to its metadata object too, so a republish that
   switches to legacy deletes the old metadata object with the old body.
-  A committed delete removes the body and metadata objects that
+  A single-transcript delete takes the session publish lock and re-reads its
+  row under a transaction row lock, then retains the advisory lock through
+  post-commit object cleanup. Account deletion does not take that advisory
+  lock, so the row re-read must also tolerate an account cascade winning.
+  Attachment refresh follows a committed delete even when object cleanup
+  fails, after the advisory lock is released. A committed delete removes the body and metadata objects that
   `DeleteTranscriptReturningDescriptor` returned, never the handler's earlier
   read, which a rewrite or republish can replace in between; returned columns
   that do not map delete nothing and answer 500 with reconciliation evidence.
@@ -332,8 +337,127 @@ boundary are documented in
 - **050 adds `transcripts.conversation_turn_count` and the generated
   `transcripts.displayed_turn_count`.** No index, trigger, backfill or GUC. See
   section 2, "Conversation turn count (migration 050)".
+- **051 prepares content revisions.** It adds a revision and a private
+  authenticated-identity slot without reading or changing object storage. The
+  default for pre-existing rows and new inserts is one. See section 2,
+  "Content revision identity (migration 051)" for the constraints and rollout
+  boundary.
+- **052 adds the operator content-repair ledger.** Its closed action, phase and
+  failure sets, paired identity checks, derived actor, immutable-update trigger
+  and direct-delete guard are described in section 2, "Operator content
+  repair". Restore attempts require a complete prior identity, and a partial
+  citation index covers terminal outcomes. The ledger cascades with its
+  transcript; it is neither a disclosure axis nor rewrite lineage, and it adds
+  no GUC.
+- **053 records content availability and a retracted link's last collective
+  audience.** `content_state` is `present` or `unavailable`, defaults to
+  `present`, and is not a governance axis. The deletion trigger captures the
+  approved shares of a `shared` transcript before its children cascade. The
+  retained audience has no transcript FK and no owner or content; it leaves with
+  its collective. Both migration down files refuse: see §5 and §6.
+  PostgreSQL 16 can add the constant non-null default without a table rewrite,
+  but `ALTER TABLE` takes an `ACCESS EXCLUSIVE` lock, and validation of the new
+  CHECK scans existing rows while that lock is held until migration commit.
+  Schedule this migration as a deploy step with sufficient lock and scan time;
+  the runner's transaction timeout applies. Drain older binaries before declaring
+  any content unavailable, since they do not check the new state.
+- **Republishing a recorded loss refuses before object access.** After an exact
+  accepted-fingerprint replay has been recognized, a republish of an
+  `unavailable` row returns 409 with operator guidance before reading its object,
+  narrowing visibility, or staging a candidate. The replacement transaction
+  rechecks the state under its row lock; if it moved after classification, it
+  refuses and follows the existing candidate cleanup and audience-restore path.
+  Declaring a loss and restoring its ciphertext remain operator-only operations.
 
 ## 2. Licensing data model
+
+### Content revision identity (migration 051)
+
+Segmented reads need a stable content-generation identity that does not change
+on metadata edits or encryption-key rotation. A part of a transcript cannot
+derive a trustworthy identity for the entire object; the existing nullable
+public `content_hash` also cannot represent an authenticated identity while
+preserving the legacy pending-hash state. Migration 051 therefore adds:
+
+- `content_revision BIGINT NOT NULL DEFAULT 1`, constrained to be positive;
+- nullable `segmented_identity_hash TEXT` and `segmented_identity_size BIGINT`,
+  constrained to be both null or both present, with a 64-character lowercase
+  hexadecimal hash and a nonnegative size when present;
+- an exclusive-slot check: a non-null `content_hash` and a segmented identity
+  cannot coexist. At revisions above one, either `content_hash` and
+  `blob_size_bytes` together must be valid, or the segmented pair must be valid.
+
+Revision one intentionally tolerates an absent or malformed pre-existing
+`content_hash` and an absent or invalid legacy size. The migration does not
+authenticate, repair, or invent identity for those rows. The writer is
+responsible for authenticating a legacy predecessor before comparing content,
+installing an identity only on the matching descriptor, and atomically
+recording content replacement and its revision. An uncertain predecessor must
+not be treated as proof of absence. A separate later migration will install
+the transition guard; migration 051 itself has no new trigger and these CHECKs
+do not enforce transition rules. Until the fleet is drained, an older binary
+can replace a pre-image without checking or advancing the revision. The
+compatible writer checks the stored identity, and an operator reconciles any
+divergence through the audited repair path. The later transition guard and its
+old-binary refusal and counting checks belong after the fleet-drain gate; they
+are not provided by migrations 051 or 052. Until the compatible writer is
+deployed and old instances have been drained, these fields must not be used to
+advertise a segmented generation to readers.
+
+The default is PostgreSQL's constant fast default, so adding the column does
+not rewrite the table. CHECK validation still scans existing rows under the
+migration lock; plan for that cost. The added fields are internal: sqlc tags
+exclude them from JSON, and public projections do not expose them. The migration
+is forward-only: its down migration refuses instead of losing evidence that
+could cause a revision to be reused. A database restore can rewind revision
+state; operators must flush caches and require clients to reload before serving
+the restored state.
+
+### Operator content repair (migration 052)
+
+`transcript_content_repairs` records authorized human repairs of stored content.
+It is separate from governance events, which describe license and visibility,
+and from content-rewrite lineage, which is consumed by integrity checking and
+must describe only Village-generated rewrites.
+
+The action set is `clear_malformed_identity`, `restore_attested_generation`,
+`replace_third_value`, and `declare_unavailable`. A clear removes a malformed identity without
+advancing the revision; a replacement attests the authenticated third value
+and advances once. An applied replacement requires a complete prior identity:
+an identity-free row has no attested value for a replacement to supersede.
+An applied declaration preserves the prior identity pair, including an absent
+pair, and keeps the revision. The ledger migration is forward-only: its down
+file refuses rather than erasing repair records.
+Each row-changing action commits its applied ledger row in the same transaction
+as its conditional transcript update. A failed audit insert therefore also rolls
+back the change.
+
+A restore changes no transcript column. It requires a preserved ciphertext
+copy under a separate opaque key in the same bucket, authenticated against the
+stored identity before the existing descriptor is overwritten. An attempted
+ledger row commits before the object write, and one terminal row follows.
+If a process dies between those rows, a new repair identifies the unresolved
+attempt and records reconciliation; it never updates the old row. Without the
+ledger, no repair proceeds. Every repair holds the transcript's source-session
+publish lock, taken before the row lock, so a publish or owner deletion waits for
+it. A repair ID is used once: a restore refuses an ID the ledger already holds
+before it attempts or writes anything. Operators must follow
+[`transcript-encryption-operations.md`](transcript-encryption-operations.md)
+and must not reconstruct the bytes from a hash.
+
+Ledger identities are whole hash-and-size pairs taken from the established
+stored slot: the public content identity when present and valid, otherwise the
+segmented identity, or NULL/NULL when no identity can be represented. Attempts
+and refusals record the prior pair and revision; only applied rows record an
+effect. The actor is derived from transaction-local `app.actor_id`, not from a
+statement-supplied value. Three triggers derive the actor, refuse updates, and
+refuse a direct delete of an existing repair row while permitting the parent
+transcript's cascade. An attempt requires a whole prior identity pair, as a
+restore cannot start without one. A partial index over terminal citations
+supports finding the terminal decision that resolves an earlier attempt. A
+no-match delete removes zero rows. The ledger contains no body, object key, key
+material or unattested identity; the companion log omits identity and operator
+details as well.
 
 ### Private organization snapshot issuance
 
@@ -832,6 +956,25 @@ the "most turns" sort orders by.
 - Audit-table INSERTs are unrestricted (append-only ≠ insert-blocked); the
   fail-closed actor rule applies to the `transcripts` triggers that produce
   the rows, not to direct historical appends (which only tests perform).
+- **Retraction audience (053):** `transcript_retraction_audiences` stores only
+  `(transcript_id, group_id)`, with no transcript FK, owner, timestamp or content.
+  The group FK cascades. The deletion trigger records exactly the approved
+  derived shares when the old visibility was `shared`. A public or private
+  transcript records no audience rows. Transcript and account deletion retain the
+  existing governance event and hard-delete the transcript; there is no
+  soft-delete. Deletions before 053 have no captured audience.
+
+  On a disposable PostgreSQL 16 database with 100,000 unrelated audit rows and
+  20,200 current shares across 101 transcripts and 200 collectives,
+  `TestMigration053RetractionPlans` ran `EXPLAIN (ANALYZE, BUFFERS)` without
+  planner overrides. The latest-event and latest-retracted lookups each used
+  `idx_gov_events_transcript` and visited one row (4 shared buffer hits, no
+  reads; 0.023 ms and 0.017 ms execution respectively). The audience insert
+  used `transcript_shares_pkey`, visited 200 matching rows (4 index buffer hits,
+  no reads) and inserted 200 rows in 4.463 ms. These are synthetic local
+  observations, not production latency guarantees; no extra index was needed.
+  The reproducible test asserts index selection and the bound, and logs the
+  full plans and buffer counts.
 
 ## 6. Triggers
 
@@ -843,6 +986,7 @@ The audit triggers (migration 026), the share-derivation triggers
 | `trg_audit_transcript_publish` | AFTER INSERT ON transcripts | `published` | **No WHEN clause** - every transcript INSERT requires an actor |
 | `trg_audit_transcript_governance` | AFTER UPDATE … WHEN (license/visibility `IS DISTINCT FROM`) | `license_changed` / `visibility_changed` / `governance_changed` | The WHEN clause IS the no-op suppression - a title-only or content_hash-only UPDATE never fires it and needs no actor |
 | `trg_audit_transcript_retract` | BEFORE DELETE ON transcripts | `retracted` (from `OLD.*`) | Fires per cascaded row too - the only mechanism covering `DeleteAccount`'s `ON DELETE CASCADE` (migration 010), which runs no per-transcript Go |
+| `trg_retraction_audience_immutable` | BEFORE UPDATE OR DELETE ON the audience table | - (RAISE) | Refuses direct mutation; permits a group cascade and the transaction-local audit-maintenance escape |
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
 | `trg_derive_transcript_share` | AFTER INSERT OR UPDATE ON transcript_share_attempts | the derived `transcript_shares` row | Upserts the row with the latest attempt's status for `pending`/`approved`/`rejected`, and DELETES it for `retracted`/`revoked`. **INSERT OR UPDATE, not INSERT**: decisions, withdrawals and removals are all UPDATEs of an existing attempt |
 | `trg_transcript_shares_fail_closed` | BEFORE INSERT OR UPDATE OR DELETE ON transcript_shares | - (RAISE) | Application SQL cannot write the derived row at all. Only the derivation may, and it proves that by holding `app.share_state_derivation`. A foreign-key cascade is allowed through, recognised by its parent row already being gone |
@@ -850,6 +994,11 @@ The audit triggers (migration 026), the share-derivation triggers
 | `trg_share_attempt_immutable` | BEFORE UPDATE ON transcript_share_attempts | - (RAISE) | Decided attempts (`approved`, `rejected`, `retracted`, `revoked`) are history. The one permitted change is the `decided_by` FK's `ON DELETE SET NULL`, which anonymises a deleted moderator's past decisions rather than blocking the deletion |
 
 - Every trigger function here is `SET search_path = pg_catalog, public`.
+- Migration 053 replaces `audit_transcript_retract()` without changing the
+  existing trigger: the event and `shared` audience capture commit or roll
+  back with the deletion. Capture uses the approved current-share projection,
+  before its transcript cascade. The audience trigger uses the existing
+  `app.audit_maintenance` escape and introduces no new GUC.
 - **`session_origin` is not a governance axis.** It is discovery metadata, so a
   `session_origin`-only UPDATE does not satisfy the governance trigger's WHEN
   clause and appends no audit row. This holds however the value was decided: a
@@ -1137,6 +1286,9 @@ authenticating. Both are custom Postgres parameters read via
 
 - **The transcript integrity tables (migration 049) add no GUC and no
   trigger.** The registry above is unchanged.
+- **Operator content repair (migration 052) adds no GUC.** Its attributed
+  transactions set `app.actor_id`; transcript updates also set
+  `app.transcript_writer_version`. They do not use `app.audit_maintenance`.
 - **System actor:** `00000000-0000-0000-0000-000000000000`
   (`database.SystemActorID`) - the reserved attribution for non-user mutations
   (seeds, backfills, runbooks). It references no `users` row on purpose and is

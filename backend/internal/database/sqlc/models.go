@@ -297,6 +297,10 @@ type Transcript struct {
 	PublishMetadataSize                 pgtype.Int8        `db:"publish_metadata_size" json:"publish_metadata_size"`
 	ConversationTurnCount               pgtype.Int8        `db:"conversation_turn_count" json:"conversation_turn_count"`
 	DisplayedTurnCount                  pgtype.Int8        `db:"displayed_turn_count" json:"displayed_turn_count"`
+	ContentRevision                     int64              `db:"content_revision" json:"-"`
+	SegmentedIdentityHash               pgtype.Text        `db:"segmented_identity_hash" json:"-"`
+	SegmentedIdentitySize               pgtype.Int8        `db:"segmented_identity_size" json:"-"`
+	ContentState                        string             `db:"content_state" json:"-"`
 }
 
 type TranscriptAssociation struct {
@@ -320,6 +324,26 @@ type TranscriptCommit struct {
 	AuthoredAt   pgtype.Timestamptz `db:"authored_at" json:"authored_at"`
 	CommittedAt  pgtype.Timestamptz `db:"committed_at" json:"committed_at"`
 	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type TranscriptContentRepair struct {
+	RepairID              pgtype.UUID        `db:"repair_id" json:"repair_id"`
+	Seq                   pgtype.Int8        `db:"seq" json:"seq"`
+	Phase                 string             `db:"phase" json:"phase"`
+	Action                string             `db:"action" json:"action"`
+	TranscriptID          pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	OperatorActor         pgtype.UUID        `db:"operator_actor" json:"operator_actor"`
+	AuthorizationRef      string             `db:"authorization_ref" json:"authorization_ref"`
+	Reason                string             `db:"reason" json:"reason"`
+	PriorRevision         int64              `db:"prior_revision" json:"prior_revision"`
+	PriorIdentityHash     pgtype.Text        `db:"prior_identity_hash" json:"prior_identity_hash"`
+	PriorIdentitySize     pgtype.Int8        `db:"prior_identity_size" json:"prior_identity_size"`
+	ResultingRevision     int64              `db:"resulting_revision" json:"resulting_revision"`
+	ResultingIdentityHash pgtype.Text        `db:"resulting_identity_hash" json:"resulting_identity_hash"`
+	ResultingIdentitySize pgtype.Int8        `db:"resulting_identity_size" json:"resulting_identity_size"`
+	FailureClass          pgtype.Text        `db:"failure_class" json:"failure_class"`
+	ReconcilesRepairID    pgtype.UUID        `db:"reconciles_repair_id" json:"reconciles_repair_id"`
+	RecordedAt            pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
 }
 
 type TranscriptContentRewrite struct {
@@ -369,6 +393,11 @@ type TranscriptIntegrityResult struct {
 	Verdict      string             `db:"verdict" json:"verdict"`
 	FlaggedTurns []int32            `db:"flagged_turns" json:"flagged_turns"`
 	CheckedAt    pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
+}
+
+type TranscriptRetractionAudience struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
 }
 
 // DERIVED current-state row, written only by trg_derive_transcript_share from transcript_share_attempts. Application code never writes it. Rebuild with rebuild_transcript_shares(); verify with check_transcript_shares_drift().

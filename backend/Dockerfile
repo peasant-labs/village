@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1
 FROM golang:1.26-alpine AS builder
+ARG RAILWAY_GIT_COMMIT_SHA
 RUN apk add --no-cache git
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /server ./cmd/server
+RUN CGO_ENABLED=0 go build \
+    -ldflags="-X github.com/peasant-labs/village/backend/internal/handler.buildRevision=$(printf %.12s "$RAILWAY_GIT_COMMIT_SHA")" \
+    -o /server ./cmd/server
 
 FROM alpine:3.19
 ARG RAILWAY_GIT_COMMIT_SHA

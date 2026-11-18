@@ -1,0 +1,196 @@
+hash_a: &a "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+hash_b: &b "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+catalog:
+  columns:
+    - {name: repair_id, type: uuid, nullable: false}
+    - {name: seq, type: bigint, nullable: false, identity: "a"}
+    - {name: phase, type: text, nullable: false}
+    - {name: action, type: text, nullable: false}
+    - {name: transcript_id, type: uuid, nullable: false}
+    - {name: operator_actor, type: uuid, nullable: false}
+    - {name: authorization_ref, type: text, nullable: false}
+    - {name: reason, type: text, nullable: false}
+    - {name: prior_revision, type: bigint, nullable: false}
+    - {name: prior_identity_hash, type: text, nullable: true}
+    - {name: prior_identity_size, type: bigint, nullable: true}
+    - {name: resulting_revision, type: bigint, nullable: false}
+    - {name: resulting_identity_hash, type: text, nullable: true}
+    - {name: resulting_identity_size, type: bigint, nullable: true}
+    - {name: failure_class, type: text, nullable: true}
+    - {name: reconciles_repair_id, type: uuid, nullable: true}
+    - {name: recorded_at, type: "timestamp with time zone", nullable: false, default: "now()"}
+  checks:
+    - transcript_content_repairs_phase_closed
+    - transcript_content_repairs_action_closed
+    - transcript_content_repairs_failure_closed
+    - transcript_content_repairs_action_identity
+    - transcript_content_repairs_attempted_is_restore
+    - transcript_content_repairs_attempt_has_identity
+    - transcript_content_repairs_hash_shape
+    - transcript_content_repairs_identity_paired
+    - transcript_content_repairs_size_nonnegative
+    - transcript_content_repairs_revisions_positive
+    - transcript_content_repairs_authorization_bounded
+    - transcript_content_repairs_reason_bounded
+    - transcript_content_repairs_reconciles_not_self
+    - transcript_content_repairs_actor_is_not_system
+  indexes:
+    - transcript_content_repairs_pkey
+    - transcript_content_repairs_one_terminal
+    - transcript_content_repairs_transcript_seq
+    - transcript_content_repairs_citations
+  triggers:
+    - trg_repair_audit_actor
+    - trg_repair_audit_immutable
+    - trg_repair_audit_delete_guard
+defaults:
+  phase: refused
+  action: replace_third_value
+  authorization_ref: approved
+  reason: repair
+  prior_revision: 7
+  prior_identity_hash: *a
+  prior_identity_size: 123
+  resulting_revision: 7
+  resulting_identity_hash: *a
+  resulting_identity_size: 123
+  failure_class: precondition_mismatch
+cases:
+  - name: repair-audit-registers-052
+    kind: registration
+  - name: repair-audit-table-shape
+    kind: catalog
+  - name: repair-audit-phase-closed
+    steps:
+      - {expect: accept}
+      - {expect: accept, fields: {phase: attempted, action: restore_attested_generation, failure_class: null}}
+      - {expect: accept, fields: {phase: applied, action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, message: "violates check constraint", fields: {phase: unknown}}
+  - name: repair-audit-action-closed
+    steps:
+      - {expect: accept, fields: {action: clear_malformed_identity}}
+      - {expect: accept, fields: {action: restore_attested_generation}}
+      - {expect: accept, fields: {action: replace_third_value}}
+      - {expect: accept, fields: {action: declare_unavailable}}
+      - {expect: true, sql: "SELECT (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='transcript_content_repairs_action_closed') = 'CHECK ((action = ANY (ARRAY[''clear_malformed_identity''::text, ''restore_attested_generation''::text, ''replace_third_value''::text, ''declare_unavailable''::text])))'"}
+      - {expect: reject, constraint: transcript_content_repairs_action_closed, fields: {action: rewrite}}
+  - name: repair-audit-failure-class-closed
+    steps:
+      - {expect: accept, fields: {failure_class: precondition_mismatch}}
+      - {expect: accept, fields: {failure_class: object_mismatch}}
+      - {expect: accept, fields: {failure_class: object_uncertain}}
+      - {expect: accept, fields: {failure_class: guard_refused}}
+      - {expect: accept, fields: {failure_class: writer_fence_refused}}
+      - {expect: accept, fields: {failure_class: object_write_failed}}
+      - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {failure_class: unknown}}
+      - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {phase: attempted, action: restore_attested_generation}}
+      - {expect: reject, constraint: transcript_content_repairs_failure_closed, fields: {phase: applied, action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null}}
+  - name: repair-audit-action-identity-rules
+    verify_after_commit: >-
+      SELECT EXISTS (
+        SELECT 1 FROM transcript_content_repairs
+        WHERE repair_id='33333333-3333-4333-8333-333333333333'
+          AND phase='applied' AND action='replace_third_value'
+          AND prior_revision=7 AND prior_identity_hash=repeat('a',64) AND prior_identity_size=123
+          AND resulting_revision=8 AND resulting_identity_hash=repeat('b',64) AND resulting_identity_size=123
+      ) AND NOT EXISTS (
+        SELECT 1 FROM transcript_content_repairs
+        WHERE transcript_id='{{transcript}}' AND phase='applied' AND action='replace_third_value'
+          AND prior_identity_hash IS NULL AND prior_identity_size IS NULL
+      )
+    steps:
+      - {expect: accept, fields: {phase: applied, action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: accept, fields: {phase: applied, action: restore_attested_generation, failure_class: null}}
+      - {expect: accept, fields: {repair_id: "33333333-3333-4333-8333-333333333333", phase: applied, action: replace_third_value, prior_revision: 7, prior_identity_hash: *a, prior_identity_size: 123, resulting_revision: 8, resulting_identity_hash: *b, resulting_identity_size: 123, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: replace_third_value, prior_revision: 7, prior_identity_hash: null, prior_identity_size: null, resulting_revision: 8, resulting_identity_hash: *b, resulting_identity_size: 123, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_hash: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: restore_attested_generation, resulting_identity_size: 124, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, resulting_revision: 7, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, resulting_revision: 8, failure_class: null}}
+  - name: repair-audit-hash-and-size-shape
+    steps:
+      - {expect: accept, fields: {prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null}}
+      - {expect: reject, constraint: transcript_content_repairs_identity_paired, fields: {prior_identity_size: null, resulting_identity_size: null}}
+      - {expect: reject, constraint: transcript_content_repairs_identity_paired, fields: {prior_identity_hash: null, resulting_identity_hash: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempt_has_identity, fields: {phase: attempted, action: restore_attested_generation, prior_identity_size: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_hash_shape, fields: {prior_identity_hash: bad, resulting_identity_hash: bad}}
+      - {expect: reject, constraint: transcript_content_repairs_size_nonnegative, fields: {prior_identity_size: -1, resulting_identity_size: -1}}
+  - name: repair-audit-revisions-positive
+    steps:
+      - {expect: reject, constraint: transcript_content_repairs_revisions_positive, fields: {prior_revision: 0, resulting_revision: 0}}
+  - name: repair-audit-reason-and-authorization-required
+    steps:
+      - {expect: reject, constraint: transcript_content_repairs_authorization_bounded, fields: {authorization_ref: ""}}
+      - {expect: reject, constraint: transcript_content_repairs_authorization_bounded, fields: {authorization_ref: "   "}}
+      - {expect: reject, constraint: transcript_content_repairs_authorization_bounded, fields: {authorization_ref: {repeat: a, count: 257}}}
+      - {expect: reject, constraint: transcript_content_repairs_reason_bounded, fields: {reason: ""}}
+      - {expect: reject, constraint: transcript_content_repairs_reason_bounded, fields: {reason: "   "}}
+      - {expect: reject, constraint: transcript_content_repairs_reason_bounded, fields: {reason: {repeat: r, count: 1001}}}
+  - name: repair-audit-terminal-once
+    steps:
+      - {expect: accept, fields: {repair_id: "11111111-1111-4111-8111-111111111111", phase: attempted, action: restore_attested_generation, failure_class: null}}
+      - {expect: accept, fields: {repair_id: "11111111-1111-4111-8111-111111111111", phase: applied, action: restore_attested_generation, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_pkey, fields: {repair_id: "11111111-1111-4111-8111-111111111111", phase: applied, action: restore_attested_generation, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_one_terminal, fields: {repair_id: "11111111-1111-4111-8111-111111111111", action: restore_attested_generation}}
+  - name: repair-audit-actor-derived-from-guc
+    steps:
+      - {expect: accept, check_actor: true}
+      - {expect: reject, message: "disagrees with app.actor_id", fields: {operator_actor: "11111111-1111-4111-8111-111111111111"}}
+  - name: repair-audit-actor-required
+    steps:
+      - {expect: reject, actor: missing, message: "requires app.actor_id"}
+  - name: repair-audit-refuses-system-actor
+    steps:
+      - {expect: reject, actor: system, constraint: transcript_content_repairs_actor_is_not_system}
+  - name: repair-audit-update-refused
+    steps:
+      - {expect: accept, fields: {repair_id: "11111111-1111-4111-8111-111111111111"}}
+      - {expect: reject, sql: "UPDATE transcript_content_repairs SET phase='applied' WHERE repair_id='11111111-1111-4111-8111-111111111111'", message: "append-only"}
+      - {expect: reject, sql: "UPDATE transcript_content_repairs SET reason='changed' WHERE repair_id='11111111-1111-4111-8111-111111111111'", message: "append-only"}
+      - {expect: reject, sql: "UPDATE transcript_content_repairs SET failure_class='guard_refused' WHERE repair_id='11111111-1111-4111-8111-111111111111'", message: "append-only"}
+  - name: repair-audit-cascades-with-transcript
+    steps:
+      - {expect: accept, fields: {repair_id: "11111111-1111-4111-8111-111111111111"}}
+      - {expect: accept, sql: "DELETE FROM transcripts WHERE id='{{transcript}}'", affected: 1}
+      - {expect: true, sql: "SELECT NOT EXISTS (SELECT 1 FROM transcript_content_repairs WHERE repair_id='11111111-1111-4111-8111-111111111111')"}
+  - name: repair-audit-reconciles-not-self
+    steps:
+      - {expect: reject, constraint: transcript_content_repairs_reconciles_not_self, fields: {repair_id: "11111111-1111-4111-8111-111111111111", reconciles_repair_id: "11111111-1111-4111-8111-111111111111"}}
+  - name: repair-audit-refuses-direct-delete
+    steps:
+      - {expect: accept, fields: {repair_id: "11111111-1111-4111-8111-111111111111"}}
+      - {expect: accept, sql: "DELETE FROM transcript_content_repairs WHERE repair_id='22222222-2222-4222-8222-222222222222'", affected: 0}
+      - {expect: reject, sql: "DELETE FROM transcript_content_repairs WHERE repair_id='11111111-1111-4111-8111-111111111111'", message: "transcript_content_repairs is append-only"}
+      - {expect: reject, actor: missing, sql: "DELETE FROM transcript_content_repairs WHERE repair_id='11111111-1111-4111-8111-111111111111'", message: "reconciles_repair_id"}
+      - {expect: true, sql: "SELECT EXISTS (SELECT 1 FROM transcript_content_repairs WHERE repair_id='11111111-1111-4111-8111-111111111111')"}
+  - name: repair-audit-refused-row-keeps-prior-identity
+    steps:
+      - {expect: accept}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {resulting_revision: 8, resulting_identity_hash: *b}}
+      - {expect: accept, fields: {action: clear_malformed_identity}}
+      - {expect: accept, fields: {action: clear_malformed_identity, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null}}
+      - {expect: accept, fields: {action: restore_attested_generation}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {action: restore_attested_generation, resulting_identity_hash: *b}}
+  - name: repair-audit-attempted-is-restore-only
+    steps:
+      - {expect: accept, fields: {phase: attempted, action: restore_attested_generation, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempt_has_identity, fields: {phase: attempted, action: restore_attested_generation, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempted_is_restore, fields: {phase: attempted, action: clear_malformed_identity, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_attempted_is_restore, fields: {phase: attempted, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: attempted, action: restore_attested_generation, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: attempted, action: restore_attested_generation, resulting_revision: 8, failure_class: null}}
+  - name: repair-audit-declare-unavailable-shape
+    steps:
+      - {expect: accept, fields: {phase: applied, action: declare_unavailable, failure_class: null}}
+      - {expect: accept, fields: {phase: applied, action: declare_unavailable, prior_identity_hash: null, prior_identity_size: null, resulting_identity_hash: null, resulting_identity_size: null, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_identity_hash: *b, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_identity_size: 124, failure_class: null}}
+      - {expect: reject, constraint: transcript_content_repairs_action_identity, fields: {phase: applied, action: declare_unavailable, resulting_revision: 8, failure_class: null}}
+  - name: repair-audit-down-refuses
+    kind: down_refusal
+    steps:
+      - {expect: accept, fields: {repair_id: "44444444-4444-4444-8444-444444444444"}}

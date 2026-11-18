@@ -104,7 +104,9 @@ func TestSchemaToCommitRecords_NilWhenNoCommits(t *testing.T) {
 
 func publishWithCommits(t *testing.T, mq *mockQuerier, commits []schema.CommitInfo) *httptest.ResponseRecorder {
 	t.Helper()
-	h := newTestHandler(mq, &mockTranscriptBlobStore{})
+	blobs := &mockTranscriptBlobStore{}
+	blobs.seedBody("transcripts/20000000-0000-4000-8000-000000000002.bin", []byte(`[{"role":"user","content":"hi"}]`))
+	h := newTestHandler(mq, blobs)
 
 	metadata := schema.PublishRequest{
 		Identity: schema.SessionIdentity{

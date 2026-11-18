@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/smithy-go"
-	httptransport "github.com/aws/smithy-go/transport/http"
 )
 
 type S3ObjectStore struct {
@@ -80,26 +79,43 @@ func (s *S3ObjectStore) Put(ctx context.Context, key ObjectKey, body []byte, con
 func (s *S3ObjectStore) Get(ctx context.Context, key ObjectKey) ([]byte, string, error) {
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(string(key))})
 	if err != nil {
-		if isS3NotFound(err) {
-			return nil, "", fmt.Errorf("object read failed because the immutable generation does not exist in storage.S3ObjectStore.Get during ciphertext retrieval; the caller may reload an authorized changed descriptor once; reconcile the opaque object key if it is unchanged: %w", ErrObjectNotFound)
-		}
-		return nil, "", fmt.Errorf("object read failed because the S3-compatible provider rejected or could not complete the request in storage.S3ObjectStore.Get during ciphertext retrieval; no plaintext can be returned; verify provider access and connectivity without retrying as absence: %w", err)
+		// Provider absence has not been verified at the deployed boundary.
+		// A 404 or NoSuchKey therefore remains uncertain, like every other
+		// provider failure; neither may authorize a revision baseline.
+		return nil, "", &objectLookupError{cause: err}
 	}
 	defer out.Body.Close()
 	body, err := io.ReadAll(out.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("object read failed because the ciphertext response body could not be fully read in storage.S3ObjectStore.Get during retrieval; no plaintext can be returned; restore connectivity and retry: %w", err)
+		return nil, "", &objectLookupError{cause: err}
 	}
 	return body, aws.ToString(out.ContentType), nil
 }
 
-func isS3NotFound(err error) bool {
-	var api smithy.APIError
-	if errors.As(err, &api) {
-		return api.ErrorCode() == "NoSuchKey"
+// GetBounded reads no more than one byte beyond the provider-reported object
+// size and never accepts a response whose size is unknown or exceeds maxBytes.
+// A short or inconsistent response is uncertain, not evidence of absence.
+func (s *S3ObjectStore) GetBounded(ctx context.Context, key ObjectKey, maxBytes int64) ([]byte, string, error) {
+	if maxBytes < 0 || maxBytes == math.MaxInt64 {
+		return nil, "", &objectLookupError{cause: errors.New("invalid bounded read limit")}
 	}
-	var response *httptransport.ResponseError
-	return errors.As(err, &response) && response.HTTPStatusCode() == 404
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(string(key))})
+	if err != nil {
+		return nil, "", &objectLookupError{cause: err}
+	}
+	defer out.Body.Close()
+	if out.ContentLength == nil || *out.ContentLength < 0 || *out.ContentLength > maxBytes {
+		return nil, "", &objectLookupError{cause: errors.New("object size is unavailable or exceeds the bounded read limit")}
+	}
+	size := *out.ContentLength
+	body, err := io.ReadAll(io.LimitReader(out.Body, size+1))
+	if err != nil {
+		return nil, "", &objectLookupError{cause: err}
+	}
+	if int64(len(body)) != size {
+		return nil, "", &objectLookupError{cause: errors.New("object response length does not match its declared size")}
+	}
+	return body, aws.ToString(out.ContentType), nil
 }
 
 func (s *S3ObjectStore) Delete(ctx context.Context, key ObjectKey) error {

@@ -1,0 +1,111 @@
+# Mounted publisher, real PostgreSQL and encrypted S3-compatible storage.
+# The scenarios inject faults only at dependency boundaries and verify the
+# actual receipt, committed row, audience, object cleanup and lock ordering.
+- name: publish-lock-held-before-predecessor-read
+  scenario: lock-order
+  why: the advisory lock is held during both bounded predecessor reads
+  expect: &changed {status: 200, revision: 2, reads: 2, writes: 1, visibility: public}
+- name: publish-lock-serializes-concurrent-publish
+  scenario: concurrent-publish
+  why: a second publisher waits and classifies the first publisher's result
+- name: publish-lock-serializes-concurrent-rewrite
+  scenario: rewrite-skips
+  why: optional read repair skips while publication holds the session lock
+- name: publish-lock-released-after-cleanup
+  scenario: cleanup-blocks
+  why: another publisher cannot enter until superseded-object cleanup ends
+- name: publish-lock-unproven-unlock-evicts-connection
+  scenario: unlock-eviction
+  why: an unprovable unlock cannot return the physical session to the pool
+- name: republish-uncertain-before-side-effects
+  scenario: uncertain-before
+  why: an uncertain predecessor refuses before narrowing or candidate upload
+  expect: &uncertain_before {status: 503, revision: 1, reads: 1, writes: 0, visibility: public}
+- name: republish-uncertain-copy-omits-identity
+  scenario: uncertain-before
+  why: a retryable refusal never discloses the transcript identity or content
+  expect: *uncertain_before
+- name: publish-concurrent-writer-cannot-move-preimage
+  scenario: competing-writers
+  why: cooperating pre-image writers cannot pass a held publish lock
+- name: publish-concurrent-delete-is-definite-not-uncertain
+  scenario: account-delete
+  why: an account cascade that removes the row produces a definite refusal
+- name: republish-post-classification-upload-failure-restores-audience
+  scenario: upload-failure
+  why: a rejected candidate upload restores the audience already narrowed
+  expect: &upload_failed {status: 500, revision: 1, reads: 1, writes: 1, visibility: public}
+- name: republish-post-classification-refusal-deletes-candidate
+  scenario: update-refusal
+  why: a known transaction rollback deletes both candidate objects
+  expect: &rollback {status: 500, revision: 1, reads: 2, writes: 1, visibility: public}
+- name: republish-post-classification-uncertain-answers-503
+  scenario: uncertain-after
+  why: a failed locked re-authentication restores the audience and cleans up
+  expect: &uncertain_after {status: 503, revision: 1, reads: 2, writes: 1, visibility: public}
+- name: republish-refusal-audience-restore-unproven-reported
+  scenario: restore-failure
+  why: a refused compensation is reported and does not claim an audience restore
+  expect: {status: 500, revision: 1, reads: 1, writes: 1, visibility: private}
+- name: publish-revision-compares-stored-identity
+  scenario: object-is-candidate
+  why: an object already equal to the candidate cannot keep a different stored revision
+  expect: *changed
+- name: publish-revision-stored-identity-identical-keeps
+  scenario: identical
+  why: the replacement equal to the established stored identity keeps its revision
+  expect: {status: 200, revision: 1, reads: 2, writes: 1, visibility: public}
+- name: publish-revision-stored-identity-changed-advances
+  scenario: changed
+  why: a replacement different from the stored identity advances exactly once
+  expect: *changed
+- name: republish-object-third-value-refused
+  scenario: third-before
+  why: an unattested third value is refused before any side effect
+  expect: &third_before {status: 500, revision: 1, reads: 1, writes: 0, visibility: public}
+- name: republish-object-third-value-candidate-stored-refused
+  scenario: third-before-identical
+  why: even a candidate equal to the stored identity cannot overwrite a third value
+  expect: *third_before
+- name: republish-object-third-value-after-classification-refused
+  scenario: third-after
+  why: a third value first observed under the row lock rolls back and cleans the candidate
+  expect: *rollback
+- name: republish-object-third-value-copy-omits-identity
+  scenario: third-before
+  why: the divergence refusal discloses neither content nor identifying values
+  expect: *third_before
+- name: republish-object-third-value-never-installs-identity
+  scenario: third-after
+  why: neither the row nor revision ever attests a third-value predecessor
+  expect: *rollback
+- name: republish-preimage-moved-once-reauthenticates
+  scenario: lock-order
+  why: lock set then row lock then exactly one bounded read precede the replacement
+  expect: *changed
+- name: republish-preimage-moved-twice-refused
+  scenario: descriptor-moved-twice
+  why: two out-of-band row movements produce one refusal and no retry loop
+  expect: &moved {status: 409, revision: 1, reads: 1, writes: 1, visibility: public}
+- name: republish-preimage-identity-wins
+  scenario: object-is-candidate-after
+  why: the locked stored identity wins even when the object now equals the candidate
+  expect: *changed
+- name: republish-external-object-move-uncertain-answers-503
+  scenario: corrupt-after
+  why: an undecryptable out-of-band object move is uncertain and retryable
+  expect: *uncertain_after
+- name: republish-external-descriptor-move-refused
+  scenario: descriptor-moved
+  why: a moved descriptor is refused rather than reclassified
+  expect: *moved
+- name: republish-unavailable-refused-409
+  scenario: recorded-loss
+  why: a recorded loss refuses before a predecessor read, audience change or candidate upload
+  expect: {status: 409, revision: 1, reads: 0, writes: 0, visibility: public}
+  recheck: {status: 409, revision: 1, reads: 1, writes: 1, visibility: public}
+- name: republish-usable-identity-absent-refused
+  stage: n1
+  scenario: known-absent
+  why: a provider-verified absence on an established identity cannot become a baseline
+  expect: {status: 409, revision: 1, reads: 1, writes: 0, visibility: public}

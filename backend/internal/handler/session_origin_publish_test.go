@@ -297,7 +297,9 @@ func TestRepublishTranscript_ReclassifiesChangedContent(t *testing.T) {
 			return sqlc.Transcript{ID: existingID}, nil
 		},
 	}
-	h := newTestHandler(mq, &mockTranscriptBlobStore{})
+	blobs := &mockTranscriptBlobStore{}
+	blobs.seedBody("transcripts/20000000-0000-4000-8000-000000000002.bin", []byte(agentCase.uploadBytes()))
+	h := newTestHandler(mq, blobs)
 
 	body, boundary := multipartBody(t, map[string]string{"metadata": publishOriginMetadata("550e8400-e29b-41d4-a716-446655440000")}, userCase.uploadBytes())
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", body)

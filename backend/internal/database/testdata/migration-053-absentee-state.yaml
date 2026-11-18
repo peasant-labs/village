@@ -1,0 +1,22 @@
+states: [present, unavailable]
+invalid_states: ["", retracted, unknown]
+share_states: [approved, pending, rejected]
+audience_columns: [transcript_id, group_id]
+performance:
+  audit_rows: 100000
+  transcripts: 101
+  groups: 200
+  max_matching_rows: 200
+cases:
+  - name: absentee-registers-053
+  - name: absentee-down-refuses
+  - name: content-state-defaults-present
+  - name: content-state-closed-set
+  - name: content-state-change-writes-no-governance-event
+  - name: retraction-audit-event-unchanged
+  - name: retraction-audience-captured-on-owner-delete
+  - name: retraction-audience-captured-on-account-cascade
+  - name: retraction-audience-approved-shares-only
+  - name: retraction-audience-only-for-shared-visibility
+  - name: retraction-audience-cascades-with-collective
+  - name: retraction-audience-append-only

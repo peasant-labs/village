@@ -120,7 +120,8 @@ func TestLegacyDispatchEncryptedPublicationAndReads(t *testing.T) {
 					t.Fatal(err)
 				}
 				// Setup only: the replaced generation's shape is not under test.
-				if _, err := h.rewriteCanonicalTranscript(ctx, row, raw, ShapeUnknown); err != nil {
+				source := rewriteFixtureSourceIdentity(t, ctx, blobs, row)
+				if _, err := h.rewriteCanonicalTranscript(ctx, row, source, raw, ShapeUnknown); err != nil {
 					t.Fatal(err)
 				}
 			}

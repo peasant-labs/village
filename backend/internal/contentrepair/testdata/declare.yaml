@@ -1,0 +1,41 @@
+# Each case seeds one present transcript with an established identity and
+# scripts what the object lookup returns. The object store is a fake; the
+# transaction, row lock, statement and ledger run against real PostgreSQL.
+cases:
+  - name: lookup-uncertain-is-declared-unavailable
+    read: lookup-uncertain
+    phase: applied
+    state_after: unavailable
+  # A provider timeout is uncertainty, never proof of absence, and the declare
+  # accepts it the same way: the operator's recorded authorization is the
+  # evidence that the object is lost. The caller's own context is still alive,
+  # so this is a provider fault and not a cancelled run.
+  - name: provider-timeout-is-declared-unavailable-on-the-operators-authorization
+    read: provider-timeout
+    phase: applied
+    state_after: unavailable
+  # The stored descriptor cannot be built, so the scripted lookup would report
+  # the object absent if it were ever reached. The declare must refuse instead:
+  # a descriptor that cannot be decoded is not evidence of absence.
+  - name: undecodable-descriptor-is-refused-as-uncertain
+    read: absent-provider
+    descriptor: undecodable
+    phase: refused
+    failure_class: object_uncertain
+    state_after: present
+  - name: object-authenticating-to-stored-identity-is-refused
+    read: stored-identity
+    phase: refused
+    failure_class: precondition_mismatch
+    state_after: present
+  # The object authenticates, but to a third value that is neither the stored
+  # identity nor absent: the content is not lost. The declare refuses with
+  # object_mismatch, writes one refused row, leaves the row present at the same
+  # revision, and the operator's next step is replace-third-value, which
+  # installs exactly the value the object authenticates to.
+  - name: object-authenticating-to-a-third-value-is-refused-as-mismatch
+    read: third-value
+    phase: refused
+    failure_class: object_mismatch
+    state_after: present
+    then: replace-third-value

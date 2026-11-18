@@ -1,0 +1,69 @@
+cases:
+  - name: republish-identical-keeps
+    slot: content
+    revision: 4
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_revision: 4
+  - name: republish-changed-advances
+    slot: content
+    revision: 4
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    new_size: 5
+    want_revision: 5
+  - name: republish-exposed-identical-keeps
+    slot: segmented
+    revision: 2
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_revision: 2
+  - name: republish-exposed-different-advances
+    slot: segmented
+    revision: 2
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    new_size: 6
+    want_revision: 3
+  - name: republish-pending-requires-authentication
+    slot: pending
+    revision: 1
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_pending: true
+  - name: republish-malformed-requires-authentication
+    slot: malformed
+    revision: 1
+    old_hash: malformed
+    old_size: 5
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_pending: true
+  - name: republish-divergent-r-greater-than-one-refused
+    slot: pending
+    revision: 2
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_error: divergent
+  - name: overflow-refused
+    slot: content
+    revision: 9223372036854775807
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    new_size: 5
+    want_error: overflow
+  - name: max-revision-identical-kept
+    slot: content
+    revision: 9223372036854775807
+    old_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    old_size: 5
+    new_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    new_size: 5
+    want_revision: 9223372036854775807
