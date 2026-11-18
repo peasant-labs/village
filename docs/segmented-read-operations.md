@@ -9,11 +9,10 @@ The census reads database shape facts without reading object bodies. The
 bounded sample is intended to record its selected subjects before reading
 content and to retain no content in its report.
 
-**Do not run the content-reading check in production yet.** The current
-whole-document route can perform migrate-on-read writes, so using that route
-does not establish a read-only production check. Verify a read-only production
-path and the sample's byte and time bounds before authorizing activation.
-Do not treat a skipped subject or an incomplete report as a clean parity gate.
+The check computes the whole-document response without invoking read repair.
+Run it only within the recorded authorization and the sample's byte and time
+bounds. Do not treat a skipped subject or an incomplete report as a clean
+parity gate.
 
 ## Synthetic ingress and telemetry verification
 
