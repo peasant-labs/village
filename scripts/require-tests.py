@@ -11,15 +11,18 @@ def main():
     if not isinstance(required, list) or not required or len(required) != len(set(required)):
         raise ValueError("unknown or invalid required-test group")
     passed = set()
+    started = set()
     errors = []
     for line in sys.stdin:
         event = json.loads(line)
         action, name = event.get("Action"), event.get("Test", "")
         if action in ("skip", "fail"):
             errors.append(f"{action}: {name or event.get('Package', 'unknown package')}")
+        if action == "run" and name:
+            started.add(name)
         if action == "pass" and name:
             passed.add(name)
-    missing = set(required) - passed
+    missing = set(required) - (passed & started)
     errors.extend(f"required test did not pass: {name}" for name in sorted(missing))
     if not passed:
         errors.append("zero tests passed")

@@ -1,2 +1,3 @@
+{"Action":"run","Test":"TestCookNumberIOBudget"}
 {"Action":"pass","Test":"TestCookNumberIOBudget"}
 {"Action":"fail","Package":"example"}
