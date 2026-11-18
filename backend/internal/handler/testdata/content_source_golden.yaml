@@ -110,3 +110,30 @@
   flagged: [0, 300, 599]
   document: >-
     {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"550e8400-e29b-41d4-a716-446655440004","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[__GENERATED__]}}
+
+- name: golden-escape-u00e9
+  why: Preserve the stored Unicode escape alongside escaped quotes, backslashes and CJK.
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-u","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"\u00e9 \"quoted\" \\ 中文","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
+- name: golden-surrogate-pair-escape
+  why: A supplementary character is represented by a surrogate pair in stored JSON.
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-pair","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"\ud83d\ude00","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
+- name: golden-lone-surrogate-escape
+  why: The decoder's handling of a lone surrogate stays stable.
+  stored_legacy: true
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-lone","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"\ud800","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
+- name: golden-nul-escape
+  why: An escaped NUL must not corrupt JSON offsets or served output.
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-nul","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"before\u0000after","depth":0,"timestamp":"2026-01-01T00:00:00Z"}]}}
+- name: golden-tool-argument-result-escapes
+  why: Nested escaped quotes and backslashes occur in both tool arguments and results.
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-tool","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":2,"toolCallCount":1,"turns":[{"index":0,"role":"user","content":"prompt","depth":0,"timestamp":"2026-01-01T00:00:00Z"},{"index":1,"role":"assistant","content":"answer","depth":0,"timestamp":"2026-01-01T00:00:01Z","toolCalls":[{"id":"x","name":"Read","arguments":"{\"path\":\"a\\\\b\"}","result":"\"résultat\" \\ 中文"}]}]}}
+- name: golden-cut-boundary-escaped-vs-decoded
+  why: Generated escaped and multi-byte turns cross the segment budget using stored byte lengths.
+  generate: 600
+  document: >-
+    {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"escape-cut","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[__GENERATED__]}}

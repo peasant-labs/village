@@ -58,6 +58,12 @@ var requiredServedGoldenDocuments = []string{
 	"golden-pi-keeps-every-row",
 	"golden-indented-empty-main",
 	"golden-multi-segment",
+	"golden-escape-u00e9",
+	"golden-surrogate-pair-escape",
+	"golden-lone-surrogate-escape",
+	"golden-nul-escape",
+	"golden-tool-argument-result-escapes",
+	"golden-cut-boundary-escaped-vs-decoded",
 }
 
 // servedGoldenAnswer is one recorded response. The body is held by digest and
@@ -116,6 +122,9 @@ var servedGoldenViewers = []servedGoldenViewer{{Name: "withheld"}, {Name: "profi
 // with only the database and the encrypted store faked. It guards the content
 // source's indexing: any change to what a read serves must be deliberate.
 func TestServedBytesGolden(t *testing.T) {
+	if os.Getenv(servedGoldenUpdateEnv) != "" && os.Getenv("CI") != "" {
+		t.Fatal("refusing to regenerate served-byte golden under CI; unset the update switch")
+	}
 	documents, err := decodeFixtureRows[servedGoldenDocument](contentSourceGoldenYAML)
 	if err != nil {
 		t.Fatal(err)
@@ -184,6 +193,14 @@ func TestServedBytesGolden(t *testing.T) {
 	// Every document must reach the content source, or the golden guards a
 	// refusal instead of served rows.
 	for _, d := range documents {
+		// The current contract refuses a lone surrogate while cooking turns;
+		// retain its recorded refusal rather than presenting it as served data.
+		if d.Name == "golden-lone-surrogate-escape" {
+			if want[d.Name]["profile directory positioned main"].Status != http.StatusInternalServerError {
+				t.Errorf("%s: expected the recorded cook refusal", d.Name)
+			}
+			continue
+		}
 		if want[d.Name]["profile header"].Status != http.StatusOK || want[d.Name]["profile directory positioned main"].Status != http.StatusOK {
 			t.Errorf("%s: the golden records no served header and directory; the corpus document no longer reaches the content source", d.Name)
 		}

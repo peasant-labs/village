@@ -821,6 +821,1098 @@
       "sha256": "caf40ebf6c23e1e56b8ff644d9ba6a75ebeafcef35ddb18b01efae4a853db93a"
     }
   },
+  "golden-cut-boundary-escaped-vs-decoded": {
+    "profile directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1030,
+      "sha256": "89f49ce013779ca769e157a3e5cd132d15ce26d2d9c7275d2fe64c786b112317"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1030,
+      "sha256": "89f49ce013779ca769e157a3e5cd132d15ce26d2d9c7275d2fe64c786b112317"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"14bce3790496de5e4cc8ce1cd9ecd6847c612e57f714f009c8f08d1b053eca00\"",
+      "cacheControl": "no-store",
+      "length": 519,
+      "sha256": "6af62df52ef26be6434edbc0dbeb3d44c80b5ce27e5a7a1d452d4f50ccd01e3a"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"14bce3790496de5e4cc8ce1cd9ecd6847c612e57f714f009c8f08d1b053eca00\"",
+      "cacheControl": "private, no-cache",
+      "length": 519,
+      "sha256": "6af62df52ef26be6434edbc0dbeb3d44c80b5ce27e5a7a1d452d4f50ccd01e3a"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1091560,
+      "sha256": "e59b64e42b4ab20c3fa0cc6e6e8900d592518293369298e4a87795c871ec05ba"
+    },
+    "profile segment v2 main 1": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1094556,
+      "sha256": "9b0f7c94951e618325fd33f106d5fc2a226304a8fdf8caab744a67acb5fe08eb"
+    },
+    "profile segment v2 main 2": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 808683,
+      "sha256": "f4112c206fb3a04f9e4f29c2f07a4c4be07eba94e61fbcf9cebd9225924e8f94"
+    },
+    "profile segment v2 main 3": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 711,
+      "sha256": "059fefbee4a58b36bbe67a9c5798f8260aa4d4f841c2870cbd66ceef6127d0bc"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 711,
+      "sha256": "4bd12c3f6fe9f0d655c99174ffa248e1f376a1df4982b4a450dfaf789a316084"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 700,
+      "sha256": "5114d0ad9258921f2705cbf9885fb1123e35fd778cdf1e8a11a2f07d9bd7decc"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 720,
+      "sha256": "9cf8fce372a2d2fa8856863de8c9e4587dd66344026ee45928f35d87e496036e"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 720,
+      "sha256": "01678648b9279d138a022a7ad22a5ad828b600cb321cc32a9e78f48d425a4542"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 721,
+      "sha256": "af65e3c76ba65d5f082de74e4d8eb35060bf75f7e4112cca861c24aec314667d"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 711,
+      "sha256": "7d19e12947abe26d8c62aaf3566c1100843f12a5f891f16b50cb095bbe1b10af"
+    },
+    "profile window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 670,
+      "sha256": "0f1dd3a53b3aa51e5e097120ca352f4252faf7dacf83a2bfdeebdaf7695073fb"
+    },
+    "withheld directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 951,
+      "sha256": "a03a6361a0b45237ea5b07e6a1aa2d335943d8d47d33da2a1459c70dcab69501"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 951,
+      "sha256": "a03a6361a0b45237ea5b07e6a1aa2d335943d8d47d33da2a1459c70dcab69501"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"a6d04f4c809bffaab9145332fc2a30f98f2cb6df69b0fd8b33ab75c6eaef4b0a\"",
+      "cacheControl": "no-store",
+      "length": 410,
+      "sha256": "e9939985a375d6706ac29eca4f96b5d70ba3e5166f53babef4691ba4515a0c1d"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"a6d04f4c809bffaab9145332fc2a30f98f2cb6df69b0fd8b33ab75c6eaef4b0a\"",
+      "cacheControl": "private, no-cache",
+      "length": 410,
+      "sha256": "e9939985a375d6706ac29eca4f96b5d70ba3e5166f53babef4691ba4515a0c1d"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1091481,
+      "sha256": "71749b3550cd07f544e53a0e839edb56f3b744affb79528d3ad4f53b73c450bf"
+    },
+    "withheld segment v2 main 1": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1094477,
+      "sha256": "d633d63dabcb4c5344f9d5a2f866c255939a82b2ed46b2a2695f85e5ae34611f"
+    },
+    "withheld segment v2 main 2": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 808604,
+      "sha256": "8a0752e8ecb25fa930c25fdd6025a4b485ef946bfa02ac6e2250b174a87d3490"
+    },
+    "withheld segment v2 main 3": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 632,
+      "sha256": "7aa1bf2ce1d0c924b1f5fe2fc6d02d80219a7dc2c24d1d7b6a4741fd22d632a5"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 632,
+      "sha256": "7ac79dbcb13a3a6ba9c6c1f54b371b1cc6774594a34742e8e0e5bb18f8c4faae"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 621,
+      "sha256": "555c1605376c4b265953044606fbe20396383d57cd6f654ff0d254b4549ac38b"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 641,
+      "sha256": "6cd59a81ffe13a6a3f6f4eaa770ce2200d32e1585c52c7142d38d05032809b46"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 641,
+      "sha256": "f390bd55f5e6bb3f9df8a25753ecd89ef65cdef825db5544c1093e15054573cd"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 642,
+      "sha256": "cd3ee8f9f3c7f9a712b179d19e4e86721c1dde282557769077476544e7ae00b3"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 632,
+      "sha256": "0f519d4d73ae05cd2a45d08e26066f1537e60cd6806ff5a13ebc5318d79eed6a"
+    },
+    "withheld window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 591,
+      "sha256": "7984b1f26813a60976eb13cb283a7c1c6a773571ce897c4a1bb177d4d4057690"
+    }
+  },
+  "golden-escape-u00e9": {
+    "profile directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 702,
+      "sha256": "8feba541a43fb99f0badeaf2fd2f9705312d2cc9c082315ea57e2da482c76fac"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 702,
+      "sha256": "8feba541a43fb99f0badeaf2fd2f9705312d2cc9c082315ea57e2da482c76fac"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "no-store",
+      "length": 516,
+      "sha256": "8c7bf2cf1ef02e91d3dbf05047e957e2b7e47de496d49fc7a28a56e3f722cd1d"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "private, no-cache",
+      "length": 516,
+      "sha256": "8c7bf2cf1ef02e91d3dbf05047e957e2b7e47de496d49fc7a28a56e3f722cd1d"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 789,
+      "sha256": "20cd73c3e564c61d9b4ef935c0389efb013d8f6ce72633b4aa3a97423240b42e"
+    },
+    "profile segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 706,
+      "sha256": "f7e8439a8e941f79b55669165414c6380b2bdff9379169206fc4250f0d37bde4"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 684,
+      "sha256": "60b2df728d9fd34c0f8b9d65bdc7791c44d372ca00094f56ad17d5dcd1da4545"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "ef7030ccf2443b177b859049bca8b5ff3f0ef40d0e9684a420781c37d99519d7"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 686,
+      "sha256": "b3204368c7d9f1b91e56ce62ba5f57708dcc98ee9b65df351c2226c65aa9772e"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 686,
+      "sha256": "190d88b6b4d7a98ba38c24af5a4ccbcdb244b93f86e95c79f66945416ba82aff"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 686,
+      "sha256": "0d8eff21e4e668bdd1b9fab9c078f8119df4d8498631da9a730c57cdaa20fb28"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 684,
+      "sha256": "74a15b8be5d239bb3b2527ef28247f89a238ac7abdbc185b36f65dea6dcc2218"
+    },
+    "profile window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 665,
+      "sha256": "216c413bd53a392ce7ace259ea6e6cd2983efc912ee8f01d75a73ce561bcc35f"
+    },
+    "withheld directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 623,
+      "sha256": "c4383557c494def7e74ffe3a7283b073a71fb09a8386c9e7ee97bb1ac92f9206"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 623,
+      "sha256": "c4383557c494def7e74ffe3a7283b073a71fb09a8386c9e7ee97bb1ac92f9206"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "no-store",
+      "length": 407,
+      "sha256": "92dee8b4d954204a2bffe70963e1b8f3fc83619c3ffbf7af7f5207196249507e"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "private, no-cache",
+      "length": 407,
+      "sha256": "92dee8b4d954204a2bffe70963e1b8f3fc83619c3ffbf7af7f5207196249507e"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 710,
+      "sha256": "e88d3bec549733a76baa3e8f42ddb6c69a932f04f00762da82fb017644570cf4"
+    },
+    "withheld segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 627,
+      "sha256": "d9e7ed3617eb470e582cd46d91e48b951d0dda5b4964c799845a78aefdbc0a44"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 605,
+      "sha256": "00bf993e8cf4d3a0528f545da5fcb974ed9a367fc988715856435dbf1c377cea"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "db87a1dd78eacb522a25b545e44f6bd3c9a702823cec6ac6ec90f8549273ec69"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 607,
+      "sha256": "3955ce5bf8c6345685bccf4e74559d9e95ff7d320a263e8259313bf873405f8a"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 607,
+      "sha256": "9be973578e9ce3bd6698682ee605745e30b5fcdd87dc3afd8278b53432fe4260"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 607,
+      "sha256": "6f84ab6fc6340491642f485f563fec3467cc128a2dc7e660069933154117f24d"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 605,
+      "sha256": "3f16f6f2c4359be91478ee4e0729c9a1a793fed96400838515ff99b8a20ae768"
+    },
+    "withheld window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 586,
+      "sha256": "0aadebec423875e3ad946fead5360c5827b20d540af9636787495343a9d794eb"
+    }
+  },
   "golden-indented-empty-main": {
     "profile directory positioned main": {
       "status": 200,
@@ -2567,6 +3659,528 @@
       "sha256": "890514873610720371e7e68177d2e4d960aa1d884bb4b647e076f22b88dcc72b"
     }
   },
+  "golden-lone-surrogate-escape": {
+    "profile directory positioned main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"2ff8eff61e5dae5fd925881f753f185193ec88b9a31a646c40403530010a730b\"",
+      "cacheControl": "no-store",
+      "length": 519,
+      "sha256": "f1dd1466ca0fdb29c3d446a60190a5617c3a5e8d9599f0414c8d292ad7412ff6"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"2ff8eff61e5dae5fd925881f753f185193ec88b9a31a646c40403530010a730b\"",
+      "cacheControl": "private, no-cache",
+      "length": 519,
+      "sha256": "f1dd1466ca0fdb29c3d446a60190a5617c3a5e8d9599f0414c8d292ad7412ff6"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window default v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window default v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld directory positioned main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"f7dede3377e699c8cc3b68fec1224aed6e8f236883533c0e986043145dff3955\"",
+      "cacheControl": "no-store",
+      "length": 410,
+      "sha256": "0fc528c6882e2ced27e4e61a472551d58bdc156b538844345992966e9202bd40"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"f7dede3377e699c8cc3b68fec1224aed6e8f236883533c0e986043145dff3955\"",
+      "cacheControl": "private, no-cache",
+      "length": 410,
+      "sha256": "0fc528c6882e2ced27e4e61a472551d58bdc156b538844345992966e9202bd40"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window default v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window default v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 126,
+      "sha256": "c6be361d9ac6c8c3112b30db27b099f398cdd6ccc08bd726ea599e3a2f8919e4"
+    }
+  },
   "golden-multi-segment": {
     "profile directory positioned main": {
       "status": 200,
@@ -3197,6 +4811,540 @@
       "sha256": "ece65e5db599907fcd1585ab7e193b7df4efc189fb78524dcc38ecc6d4fd766b"
     }
   },
+  "golden-nul-escape": {
+    "profile directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 704,
+      "sha256": "f0d46d94721b07400e58912e6550c69874e2ea015ad4431b5b4fc52e0ca3dd2a"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 704,
+      "sha256": "f0d46d94721b07400e58912e6550c69874e2ea015ad4431b5b4fc52e0ca3dd2a"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "no-store",
+      "length": 518,
+      "sha256": "4587d07598462319f58d4922917498fae313c300d632c704207e273eeaf636e0"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "private, no-cache",
+      "length": 518,
+      "sha256": "4587d07598462319f58d4922917498fae313c300d632c704207e273eeaf636e0"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 781,
+      "sha256": "6fe5481e30f7433000015497cbb4ffd14af2869cc452f30f65912a78376f1461"
+    },
+    "profile segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 708,
+      "sha256": "b73fddc0b8ca71d207b8666d7c505cbd074428148ac26a3121988ba420662c3d"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 686,
+      "sha256": "e4977484b6380955e18cbb62d99aef3ee55f5da7f0a0653e789df141cf27445c"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 691,
+      "sha256": "b5e6d708749c3ccf5bed3b27d0898d69e162c35e6283c41f6a6f8c6d5c414b6f"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 688,
+      "sha256": "e14e8e4adae6badf7dfceec4bda02547c4f9177435b4c62409e22db14e3ac273"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 688,
+      "sha256": "e97353bc0241426aa3dfaf8aa5f974215442d2c716a9084033aac20d1751df7d"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 688,
+      "sha256": "d52d5c4b2a073c19ae3d78841fc9c11cf832303398eeb8e3475e860661395a40"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 686,
+      "sha256": "41b5fa25cb84869a4e1fa5624fa83900b7f3ec59d589105a3fa69d34c9a7b883"
+    },
+    "profile window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 667,
+      "sha256": "5f15556a3f8865307709e3ae270d579052d3addcb1919558c112d48ca9410d42"
+    },
+    "withheld directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 625,
+      "sha256": "617962f754c777765a941305e054f34894951c7c18b6fea8991b7fdf30516ef9"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 625,
+      "sha256": "617962f754c777765a941305e054f34894951c7c18b6fea8991b7fdf30516ef9"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "no-store",
+      "length": 409,
+      "sha256": "697ff622b42991ebeb8f2e080cdc65f50143e193f50fd1b205e8a6a372d76f02"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "private, no-cache",
+      "length": 409,
+      "sha256": "697ff622b42991ebeb8f2e080cdc65f50143e193f50fd1b205e8a6a372d76f02"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 702,
+      "sha256": "8fc909f83df5e76a22eadf35b3f5cd118acf5d3efb101f1f42cd3fc0f0d2f90a"
+    },
+    "withheld segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 629,
+      "sha256": "0c597a494c02135766d49d1c46752c8d8985644443821b312e4fbfaccc24bdfb"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 607,
+      "sha256": "04d5393af920d5c3a5ce62def07a01c59409fed22efe2a7a714c099007cd1b7f"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 612,
+      "sha256": "b64766e5ba773016403b3464858459d58f65b3794cb3676cc1c3ba8bbe06379b"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 609,
+      "sha256": "2959344a264889a20c73e097e4986048e996268802b2fdc8af15f2935313b03a"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 609,
+      "sha256": "11a7318bb320508741ff3ff48b8ee082322f763368564229f769d83541adee71"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 609,
+      "sha256": "4330704bf35f04fc6dc92680379cab3d89976b8abefa074383ea9b6102ebb9d8"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 607,
+      "sha256": "20d85e562bda8f01419bffe80cad69274ad76459c68fec6f4e388bb41f3b4cd7"
+    },
+    "withheld window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 588,
+      "sha256": "6fd041cacdb228fb79b831ed13694c34fffc81f7fb31bd1a4b9915f29b58c6c7"
+    }
+  },
   "golden-pi-keeps-every-row": {
     "profile directory positioned main": {
       "status": 200,
@@ -3729,6 +5877,1074 @@
       "cacheControl": "private, no-store",
       "length": 576,
       "sha256": "f9fc2935732cfd675f2405b4832c1f672133d027a3ae5a830de5ebeecff08c5e"
+    }
+  },
+  "golden-surrogate-pair-escape": {
+    "profile directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 704,
+      "sha256": "15cfa67a9722fd198a098bfcfbb8613d779ccc17eb41e9f02d0b566eae5040bf"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 704,
+      "sha256": "15cfa67a9722fd198a098bfcfbb8613d779ccc17eb41e9f02d0b566eae5040bf"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "no-store",
+      "length": 519,
+      "sha256": "e83e28a483104554499cc0c9dd2527a6155867916fa61d1c3efd2c234a4b5b39"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "private, no-cache",
+      "length": 519,
+      "sha256": "e83e28a483104554499cc0c9dd2527a6155867916fa61d1c3efd2c234a4b5b39"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 776,
+      "sha256": "446e9146794a3921fdec4cfd48ea408649b7e74a6e3d771d08e6c3d81889c21b"
+    },
+    "profile segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 709,
+      "sha256": "0f4607aa8d18c07f0dfc0dbb04d25dd77848b3bf861e9e78a2c02448a7043a12"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 687,
+      "sha256": "8de33cc314490e7c7f088d0d11d0a61bc51ce318f8b960fe68fc5fe9f17e29dd"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 692,
+      "sha256": "599fdbf6987086c4e31d6150c0cfc0002ebc2644947cdb7d06e1f7d60fd1c80f"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "b58ad8c1e04554e308434cba68dc4aa3abb00456c34da36c7f86820a8c7a9b1f"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "94fa7e499e9a76e39f621cff1383d61d7b94fc4a9aab3406be548b57ffa01bd8"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "50dd6a930178033d90bf1238de8d75c83d003eb3ed8a4392324087ae6ca6e786"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 687,
+      "sha256": "90f7966f04f75ef3105ec8f83dec3ccb02e3c8d867c00849ca833eed67a2d775"
+    },
+    "profile window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 668,
+      "sha256": "c37d6fa213264e38bec325c718546b20afba1981280880efaff3653b5a108b9c"
+    },
+    "withheld directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 625,
+      "sha256": "d87f2dcfe5e4b12436ef698f2f30ce7e9f5c33a63ea8411aa1a456f5ed7a2ea9"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 625,
+      "sha256": "d87f2dcfe5e4b12436ef698f2f30ce7e9f5c33a63ea8411aa1a456f5ed7a2ea9"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "no-store",
+      "length": 410,
+      "sha256": "9be8c58a775b01ade150844c89dfbeaa57c8a80a7ce2b6a53ca2fa618d3c0ef1"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "private, no-cache",
+      "length": 410,
+      "sha256": "9be8c58a775b01ade150844c89dfbeaa57c8a80a7ce2b6a53ca2fa618d3c0ef1"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 697,
+      "sha256": "8ca0ab963b49939d88c9478c849fe5af1491c782995758b4d3c9546da9544926"
+    },
+    "withheld segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 630,
+      "sha256": "0c9d3726944194fa3635bafb9af7e5b1fa767fab21181064cbae187e2ba99c0b"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 608,
+      "sha256": "a85721a59185c2856dc3bac9c5f2177b53d2116843fe834903d4480e4bf189c6"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 613,
+      "sha256": "e400134d25e463992359a004bc64ca791578685d2cf25adcd3cc0991b87e6e70"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "33560a26d35f40cd774f50b7f1438c7d8b20717d932d290a7d2e2fc89a4c5667"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "ea50be369092b0efe7835d4fa629d54cf54cc7d25674125636df9d9ea69158a6"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "ded39d2d1068743ecb4dd58ab5946dd3533cf4e0182d7c3c78e882b938f8707c"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 608,
+      "sha256": "0e1a9235501695872677e2755cdcb2e51eae22fdff0a0d0a10405057f098e06e"
+    },
+    "withheld window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 589,
+      "sha256": "55c8eb01791e648957ca7305a8704c70d839f0a2314fafa726714cf90eac2440"
+    }
+  },
+  "golden-tool-argument-result-escapes": {
+    "profile directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 705,
+      "sha256": "223c88f5b254cdb5267d2bee4814b74aea5d753d764df46a127b6b98fa38e7b3"
+    },
+    "profile directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "profile directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 705,
+      "sha256": "223c88f5b254cdb5267d2bee4814b74aea5d753d764df46a127b6b98fa38e7b3"
+    },
+    "profile header": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "no-store",
+      "length": 519,
+      "sha256": "00e76a63a87f3284069c1e423de237f716544de29749884e564a55fd83961be9"
+    },
+    "profile header revision": {
+      "status": 200,
+      "etag": "\"986b582ada09972416f85d6cf67e818973669f453dd4aa5d6849da3713fad04b\"",
+      "cacheControl": "private, no-cache",
+      "length": 519,
+      "sha256": "00e76a63a87f3284069c1e423de237f716544de29749884e564a55fd83961be9"
+    },
+    "profile segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "profile segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 1068,
+      "sha256": "5d01c57a0010cf62df283f0329347b2013229901aaaa0cc03cbcaabc05ca69e3"
+    },
+    "profile segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "profile window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 709,
+      "sha256": "45260a89585d1d58c922e50cf15e9aedee614cf7c69cf8ae23d150f2cdb49eef"
+    },
+    "profile window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 709,
+      "sha256": "bd44214db15766f31d26fe886fd6ccc5f2048b8ce62bb5948a18df9e4ded4aa9"
+    },
+    "profile window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 692,
+      "sha256": "9dea54f72e391b1db2bd05883d47c73499d5464b2a58711c42d0758eb6e66f1b"
+    },
+    "profile window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "ea4a93ec5bdc1bce05359f312689b73ea7890cb80770a9dc06f014bb99e09e43"
+    },
+    "profile window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "3cb4e65c051743f76c690f793a9e9dec221bb46453c2988174696b8950052411"
+    },
+    "profile window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 689,
+      "sha256": "e331d31cf72c1baab42041d39369a8c50a3f5772512e4f69207a5ed78e82f03b"
+    },
+    "profile window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "profile window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 687,
+      "sha256": "19f9e137e185f6a8b86413f22d2663eb641b968114ac927b2f40ddd67259ef6a"
+    },
+    "profile window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "profile window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "profile window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 668,
+      "sha256": "9b1a0e358826b39cf66e0b490e16c2b3e17cdd120718ea67cf27df7f266eadad"
+    },
+    "withheld directory positioned main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 626,
+      "sha256": "54107c4db91387494b0fcc8e5c8bbde53b681d5ef5d913b4dd25e2c031b6a51f"
+    },
+    "withheld directory v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 133,
+      "sha256": "2419dc2d7096c45f88edec7cb37ccc845381151916543cdbd60efa1cb69d9c97"
+    },
+    "withheld directory v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld directory v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 626,
+      "sha256": "54107c4db91387494b0fcc8e5c8bbde53b681d5ef5d913b4dd25e2c031b6a51f"
+    },
+    "withheld header": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "no-store",
+      "length": 410,
+      "sha256": "44250f42db7258537791bc3f10567a42611591c219b0d43fd067c902b1213775"
+    },
+    "withheld header revision": {
+      "status": 200,
+      "etag": "\"132610c5c182dd7e61e75565e4a2f2e0a2b1b2d2b6b858bf1a22a56c6e7f18bc\"",
+      "cacheControl": "private, no-cache",
+      "length": 410,
+      "sha256": "44250f42db7258537791bc3f10567a42611591c219b0d43fd067c902b1213775"
+    },
+    "withheld segment v0 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v1 main 0": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "37072465a07571189c6a03827885a59b562c740f560b75e7a149fd0b72369434"
+    },
+    "withheld segment v2 history-0 0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld segment v2 main 0": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 989,
+      "sha256": "f1c388c747237356e79a752b80cc7005aceb5222ed63bdeb765306ed9fca4ca8"
+    },
+    "withheld segment v2 main 1": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 41,
+      "sha256": "7889cb56626909dad57d7667fe8be477e93d42e11656a7037e0589a51ad7a0b6"
+    },
+    "withheld window anchor 0 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 0 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 0 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 630,
+      "sha256": "1dd3756b0aed12fa620104c8e54eb916763b4564f0d289fde078747accdfe816"
+    },
+    "withheld window anchor 1 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 1 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 1 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 630,
+      "sha256": "689ce8abfe9a180d814548df395204a9d35af9bf0de4ec4b485d9b27bb1013fb"
+    },
+    "withheld window anchor 100000 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 100000 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 100000 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 613,
+      "sha256": "c646b33239692cf2442c65bcc15cc55a285f0357420f95292a66657d87cb924d"
+    },
+    "withheld window anchor 299 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 299 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 299 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "ee2b91e6a5494e2a828fb3bf658c162cc7eb8b23c5b47859a39f15aa14ab2b67"
+    },
+    "withheld window anchor 300 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 300 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 300 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "6dee66b2279eaf483793ac00c8e0ec5dc4ee13409739315b7a19910bad1567d7"
+    },
+    "withheld window anchor 599 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 599 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 599 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 610,
+      "sha256": "c59136e28344dba35b745e1f9ee26783837338d00e066d99eb92af6ff922dfc5"
+    },
+    "withheld window anchor 7 v0 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v1 main": {
+      "status": 500,
+      "cacheControl": "no-store",
+      "length": 87,
+      "sha256": "449a5b52475b73143e61d73c439ec22939706a10cc2e8ebf736e9fdd074c63e2"
+    },
+    "withheld window anchor 7 v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window anchor 7 v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 608,
+      "sha256": "e3bf20443a2ebc31e924b981b924db515bd99779374d7a7d3761bb5ff6b827a3"
+    },
+    "withheld window default v0 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v1 main": {
+      "status": 400,
+      "cacheControl": "no-store",
+      "length": 88,
+      "sha256": "d511a3ae02ec9dd82fdc7f881090ec1c994eadff86374f10e7348ef6bc0943d3"
+    },
+    "withheld window default v2 history-0": {
+      "status": 404,
+      "cacheControl": "no-store",
+      "length": 43,
+      "sha256": "5af5e51be8011758efb6b47adfb2e9d5c3f54d3600eb7563b4ff5fe89e031d38"
+    },
+    "withheld window default v2 main": {
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "length": 589,
+      "sha256": "df34c79501cd2d9584f62aac9fc759cf4253252403d591c0b95613420d2e6836"
     }
   }
 }
