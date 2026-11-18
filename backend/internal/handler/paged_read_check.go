@@ -428,7 +428,7 @@ func (h *Handler) pagedReadRoutes() http.Handler {
 }
 
 // pagedReadAPIPrefix is the prefix the router mounts every API route under.
-const pagedReadAPIPrefix = "/api/v1"
+var pagedReadAPIPrefix = strings.SplitN(schemaRoute.VillageGetTranscriptSegments.Pattern(), "/transcripts/", 2)[0]
 
 // pagedReadMaxSegments bounds the segment reads of one observed partition, so
 // a corrupt directory cannot drive an unbounded loop. It is far above any

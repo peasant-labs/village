@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/peasant-labs/schema/route"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,7 +50,7 @@ func TestRequestLoggerRecordsRouteTemplates(t *testing.T) {
 	decoder := yaml.NewDecoder(bytes.NewReader(requestLogYAML))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatalf("decode testdata/request_log.yaml: %v", err)
+		t.Fatalf("decode request log fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range fixture.Cases {
@@ -60,7 +61,7 @@ func TestRequestLoggerRecordsRouteTemplates(t *testing.T) {
 	}
 	for _, name := range requiredRequestLogCases {
 		if !seen[name] {
-			t.Fatalf("required case %q is missing from testdata/request_log.yaml", name)
+			t.Fatalf("required case %q is missing from request log fixture", name)
 		}
 		delete(seen, name)
 	}
@@ -74,17 +75,18 @@ func TestRequestLoggerRecordsRouteTemplates(t *testing.T) {
 	root.Use(RequestLogger(logger))
 	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
 	api := chi.NewRouter()
+	apiPrefix := strings.SplitN(route.VillageGetTranscriptSegments.Pattern(), "/transcripts/", 2)[0]
 	for _, pattern := range fixture.Routes {
 		switch {
-		case !strings.HasPrefix(pattern, "/api/v1"):
+		case !strings.HasPrefix(pattern, apiPrefix):
 			root.Get(pattern, ok)
 		case strings.HasSuffix(pattern, "/locate"):
-			api.Post(strings.TrimPrefix(pattern, "/api/v1"), ok)
+			api.Post(strings.TrimPrefix(pattern, apiPrefix), ok)
 		default:
-			api.Get(strings.TrimPrefix(pattern, "/api/v1"), ok)
+			api.Get(strings.TrimPrefix(pattern, apiPrefix), ok)
 		}
 	}
-	root.Mount("/api/v1", api)
+	root.Mount(apiPrefix, api)
 
 	for _, c := range fixture.Cases {
 		t.Run(c.Name, func(t *testing.T) {

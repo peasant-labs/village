@@ -26,22 +26,30 @@ type pagedReadParityFixture struct {
 		Perturbation string `yaml:"perturbation"`
 		Kind         string `yaml:"kind"`
 	} `yaml:"detections"`
-	Corpus      []string          `yaml:"corpus"`
-	StateReads  map[string]string `yaml:"state_reads"`
-	Unreachable map[string]string `yaml:"unreachable"`
-	Content     string            `yaml:"content"`
+	Corpus      []string                   `yaml:"corpus"`
+	StateReads  map[string]parityStateRead `yaml:"state_reads"`
+	Unreachable map[string]string          `yaml:"unreachable"`
+	Content     string                     `yaml:"content"`
 }
+
+type parityStateRead string
+
+const (
+	parityStateServed      parityStateRead = "served"
+	parityStateRefused     parityStateRead = "refused"
+	parityStateUnreachable parityStateRead = "unreachable"
+)
 
 func loadPagedReadParityFixture(t *testing.T) pagedReadParityFixture {
 	t.Helper()
 	fixture, err := decodeFixtureDocument[pagedReadParityFixture](pagedReadParityYAML)
 	if err != nil {
-		t.Fatalf("testdata/paged_read_parity.yaml: %v", err)
+		t.Fatalf("decode paged read parity fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, name := range append(append([]string(nil), fixture.Names...), fixture.Corpus...) {
 		if name == "" || seen[name] {
-			t.Fatalf("testdata/paged_read_parity.yaml repeats or blanks the name %q", name)
+			t.Fatalf("paged read parity fixture repeats or blanks the name %q", name)
 		}
 		seen[name] = true
 	}
@@ -83,7 +91,7 @@ func TestPagedReadParityCorpusCoversClosedShapeSet(t *testing.T) {
 		var states []string
 		for _, state := range allTranscriptRowStates() {
 			states = append(states, state.String())
-			if outcome := fixture.StateReads[state.String()]; outcome != "served" && outcome != "refused" && outcome != "unreachable" {
+			if outcome := fixture.StateReads[state.String()]; outcome != parityStateServed && outcome != parityStateRefused && outcome != parityStateUnreachable {
 				t.Fatalf("state_reads gives row state %s the outcome %q; give served or refused", state, outcome)
 			}
 		}
@@ -95,7 +103,7 @@ func TestPagedReadParityCorpusCoversClosedShapeSet(t *testing.T) {
 		}
 		for state := range fixture.StateReads {
 			_, unreachable := fixture.Unreachable[state]
-			if unreachable != (fixture.StateReads[state] == "unreachable") {
+			if unreachable != (fixture.StateReads[state] == parityStateUnreachable) {
 				t.Fatalf("unreachable state membership differs for %s", state)
 			}
 		}
@@ -219,15 +227,19 @@ func TestPagedReadPrivacyNoContentLogged(t *testing.T) {
 	})
 }
 
+type fixtureHashClass string
+
+const fixtureHashMalformed fixtureHashClass = "malformed"
+
 type rowStateCase struct {
 	Name  string `yaml:"name"`
 	Facts struct {
-		Hash          string `yaml:"hash"`
-		Size          string `yaml:"size"`
-		SegmentedHash bool   `yaml:"segmented_hash"`
-		SegmentedSize bool   `yaml:"segmented_size"`
-		Revision      int64  `yaml:"revision"`
-		Metadata      bool   `yaml:"metadata"`
+		Hash          fixtureHashClass `yaml:"hash"`
+		Size          string           `yaml:"size"`
+		SegmentedHash bool             `yaml:"segmented_hash"`
+		SegmentedSize bool             `yaml:"segmented_size"`
+		Revision      int64            `yaml:"revision"`
+		Metadata      bool             `yaml:"metadata"`
 	} `yaml:"facts"`
 	State string `yaml:"state"`
 }
@@ -237,7 +249,7 @@ type rowStateCase struct {
 func TestClassifyTranscriptRowState(t *testing.T) {
 	cases, err := decodeFixtureRows[rowStateCase](transcriptRowStatesYAML)
 	if err != nil {
-		t.Fatalf("testdata/transcript_row_states.yaml: %v", err)
+		t.Fatalf("decode transcript row states fixture: %v", err)
 	}
 	reached := map[string]bool{}
 	seen := map[string]bool{}
@@ -250,7 +262,7 @@ func TestClassifyTranscriptRowState(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			sizes := map[string]identitySizeClass{"null": identitySizeNull, "negative": identitySizeNegative, "usable": identitySizeUsable}
 			size, ok := sizes[c.Facts.Size]
-			if !ok || (c.Facts.Hash != "null" && c.Facts.Hash != "canonical" && c.Facts.Hash != "malformed") {
+			if !ok || (c.Facts.Hash != "null" && c.Facts.Hash != "canonical" && c.Facts.Hash != fixtureHashMalformed) {
 				t.Fatalf("case facts use an unknown hash or size word")
 			}
 			facts := rowIdentityFacts{HashNull: c.Facts.Hash == "null", HashCanonical: c.Facts.Hash == "canonical", Size: size,
@@ -286,7 +298,7 @@ type audienceKindCase struct {
 func TestAudienceKindsOfRow(t *testing.T) {
 	cases, err := decodeFixtureRows[audienceKindCase](transcriptAudienceKindsYAML)
 	if err != nil {
-		t.Fatalf("testdata/transcript_audience_kinds.yaml: %v", err)
+		t.Fatalf("decode transcript audience kinds fixture: %v", err)
 	}
 	reached := map[string]bool{}
 	for _, c := range cases {
