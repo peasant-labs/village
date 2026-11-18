@@ -1,0 +1,4 @@
+- name: number-absent-never-fabricated
+  scenario: dropped
+- name: number-refusal-uncookable-no-partial-body
+  scenario: refused
