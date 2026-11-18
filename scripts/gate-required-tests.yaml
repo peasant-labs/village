@@ -1,0 +1,21 @@
+{
+  "io": ["TestCookNumberIOBudget"],
+  "parity": [
+    "TestServedBytesGolden", "TestContentSourceRefusals", "TestNumberingSchemaReplay",
+    "TestContentSourceRefusals/refusal-invalid-utf8",
+    "TestContentSourceRefusals/refusal-duplicate-member",
+    "TestContentSourceRefusals/refusal-turns-not-array",
+    "TestContentSourceRefusals/refusal-role-type",
+    "TestContentSourceRefusals/refusal-depth-type",
+    "TestContentSourceRefusals/refusal-nesting-too-deep",
+    "TestContentSourceRefusals/refusal-envelope-in-turn-array",
+    "TestContentSourceRefusals/legacy-lone-surrogate-refused",
+    "TestBuildAdmission",
+    "TestBuildAdmission/build-admission-refuses-503-retry-after",
+    "TestBuildAdmission/build-admission-denied-viewer-404-before-admission",
+    "TestBuildAdmission/build-admission-warm-read-and-waiter-take-no-slot",
+    "TestBuildAdmission/build-admission-releases-on-failure-and-cancel",
+    "TestBuildAdmission/build-admission-refusal-reserves-nothing"
+  ],
+  "schema": ["TestTranscriptCaptureDifferential"]
+}
