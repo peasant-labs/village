@@ -23,6 +23,8 @@ import (
 //go:embed testdata/transcript_numbering_replay.yaml
 var numberingReplayYAML []byte
 
+const schemaNumberingFixturePath = "testdata/transcript_numbering.yaml"
+
 type numberingReplayManifest struct {
 	Name              string   `yaml:"name"`
 	ControlTurns      string   `yaml:"control_turns"`
@@ -53,23 +55,23 @@ func TestNumberingSchemaReplay(t *testing.T) {
 	if manifest.Name != "number-fixture-replay-village" {
 		t.Fatalf("missing required replay case: %q", manifest.Name)
 	}
-	classes := map[string]string{}
+	classes := map[string]bool{}
 	for _, group := range []struct {
-		name string
-		rows []string
-	}{{"replayed", manifest.Replayed}, {"boundary", manifest.RefusedAtBoundary}} {
+		refused bool
+		rows    []string
+	}{{false, manifest.Replayed}, {true, manifest.RefusedAtBoundary}} {
 		for _, name := range group.rows {
-			if name == "" || classes[name] != "" {
+			if _, found := classes[name]; name == "" || found {
 				t.Fatalf("empty or duplicate corpus case %q", name)
 			}
-			classes[name] = group.name
+			classes[name] = group.refused
 		}
 	}
 	moduleDir, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/peasant-labs/schema").Output()
 	if err != nil {
 		t.Fatalf("locate pinned Schema module: %v", err)
 	}
-	raw, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(moduleDir)), "testdata", "transcript_numbering.yaml"))
+	raw, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(moduleDir)), schemaNumberingFixturePath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +89,8 @@ func TestNumberingSchemaReplay(t *testing.T) {
 	seen := map[string]bool{}
 	for _, group := range corpus.Versions {
 		for _, tc := range group.Cases {
-			if tc.Name == "" || seen[tc.Name] || classes[tc.Name] == "" {
+			_, classified := classes[tc.Name]
+			if tc.Name == "" || seen[tc.Name] || !classified {
 				t.Fatalf("Schema case %q is duplicated or missing from replay manifest", tc.Name)
 			}
 			seen[tc.Name] = true
@@ -152,7 +155,7 @@ func TestNumberingSchemaReplay(t *testing.T) {
 				body := fmt.Sprintf(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":%q,"harness":%q,"startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":0,"toolCallCount":0,"turns":%s}}`, w.localID, tc.Input.Harness, tc.Input.Turns)
 				installHistoricalNumberingContent(t, w, []byte(body), tc.Input.Harness)
 				directory := read("/segments?v=2")
-				if classes[tc.Name] == "boundary" {
+				if classes[tc.Name] {
 					if _, err := validateContentBoundary([]byte(body), tc.Input.Harness, contentStoredRead); err == nil {
 						t.Fatal("manifest says boundary refusal but stored-read boundary accepted the case")
 					}
