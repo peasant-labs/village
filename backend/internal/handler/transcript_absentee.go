@@ -7,10 +7,21 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 const retractedTranscriptCopy = "This transcript was retracted by its publisher. Its content has been deleted and cannot be shown."
+const unavailableTranscriptCopy = "This transcript's stored content has been lost and cannot be loaded. Village operators recorded the loss; there is no copy to restore."
+
+func refuseUnavailableTranscript(w http.ResponseWriter, row sqlc.Transcript) bool {
+	if row.ContentState != contentstate.Unavailable.String() {
+		return false
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	writeError(w, http.StatusGone, unavailableTranscriptCopy)
+	return true
+}
 
 func writeRetractedTranscript(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "private, no-store")

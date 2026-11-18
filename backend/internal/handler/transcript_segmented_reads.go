@@ -103,6 +103,9 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 		segmentedError(w, http.StatusNotFound, "Transcript not found")
 		return nil, false
 	}
+	if refuseUnavailableTranscript(w, row) {
+		return nil, false
+	}
 	values := r.URL.Query()
 	revision := values.Get("revision")
 	if raw, present := values["revision"]; present {

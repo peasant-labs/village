@@ -1285,6 +1285,10 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if refuseUnavailableTranscript(w, transcript) {
+		return
+	}
+
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
 		return h.canViewTranscript(r.Context(), user, fresh)
 	})
