@@ -27,6 +27,7 @@ type segmentedRead struct {
 	native         schema.TranscriptNativePresence
 	representation string
 	reserve        transcriptBuildReserve
+	refuseBusy     func(http.ResponseWriter)
 }
 
 func segmentedHeaders(w http.ResponseWriter) {
@@ -37,6 +38,20 @@ func segmentedHeaders(w http.ResponseWriter) {
 func segmentedError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Cache-Control", "no-store")
 	writeError(w, status, message)
+}
+
+func (h *Handler) segmentedBusy(w http.ResponseWriter, r *http.Request, row sqlc.Transcript) {
+	fresh, err := h.queries.GetTranscriptByID(r.Context(), row.ID)
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && !h.canViewTranscript(r.Context(), GetUser(r.Context()), fresh) {
+		segmentedError(w, http.StatusNotFound, "Transcript not found")
+		return
+	}
+	if err != nil {
+		segmentedError(w, http.StatusInternalServerError, "Cannot read transcript access during the read; retry the request.")
+		return
+	}
+	w.Header().Set("Retry-After", "1")
+	segmentedError(w, http.StatusServiceUnavailable, "The transcript read is temporarily busy; retry shortly.")
 }
 
 func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*segmentedRead, bool) {
@@ -98,17 +113,16 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 	}
 	opened, err := h.openCachedTranscript(r.Context(), row, func(fresh sqlc.Transcript) bool { return h.canViewTranscript(r.Context(), user, fresh) })
 	if err != nil {
+		if errors.Is(err, errTranscriptReadBusy) {
+			h.segmentedBusy(w, r, row)
+			return nil, false
+		}
 		fresh, lookupErr := h.queries.GetTranscriptByID(r.Context(), row.ID)
 		if errors.Is(lookupErr, pgx.ErrNoRows) || lookupErr == nil && !h.canViewTranscript(r.Context(), user, fresh) {
 			segmentedError(w, http.StatusNotFound, "Transcript not found")
 			return nil, false
 		}
-		if errors.Is(err, errTranscriptReadBusy) {
-			w.Header().Set("Retry-After", "1")
-			segmentedError(w, http.StatusServiceUnavailable, "The transcript read is temporarily busy; retry shortly.")
-		} else {
-			segmentedError(w, http.StatusInternalServerError, "Cannot open transcript content during the read; no content was served; retry or ask the owner to republish.")
-		}
+		segmentedError(w, http.StatusInternalServerError, "Cannot open transcript content during the read; no content was served; retry or ask the owner to republish.")
 		return nil, false
 	}
 	if opened.Reloaded {
@@ -158,7 +172,7 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 	}
 	return &segmentedRead{row: row, opened: opened, withheld: withheld, native: native, representation: representation, reserve: func() (func(), error) {
 		return h.contentCache.AcquireBuild(context.WithoutCancel(r.Context()))
-	}}, true
+	}, refuseBusy: func(w http.ResponseWriter) { h.segmentedBusy(w, r, row) }}, true
 }
 
 func readGeneration(w http.ResponseWriter, r *http.Request) (int, bool) {
@@ -222,6 +236,10 @@ func segmentPartition(w http.ResponseWriter, s *segmentedRead, key partitionKey)
 	part, err := s.opened.Index.Partition(key, s.reserve)
 	if errors.Is(err, errPartitionAbsent) {
 		segmentedError(w, http.StatusNotFound, "Transcript partition not found")
+		return nil, false
+	}
+	if errors.Is(err, errTranscriptReadBusy) {
+		s.refuseBusy(w)
 		return nil, false
 	}
 	if err != nil {
