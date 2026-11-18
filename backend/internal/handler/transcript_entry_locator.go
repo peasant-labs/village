@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 
@@ -52,7 +53,7 @@ func (h *Handler) LocateTranscriptEntry(w http.ResponseWriter, r *http.Request) 
 	var captured bytes.Buffer
 	captured.WriteString(`{"turns":[`)
 	for i, row := range part.Rows {
-		raw, err := s.opened.Bytes.ReadTurnBytes(r.Context(), row.Start, row.End)
+		raw, err := s.opened.Bytes.ReadTurnBytes(context.WithoutCancel(r.Context()), row.Start, row.End)
 		if err != nil {
 			segmentedError(w, http.StatusInternalServerError, "Cannot locate transcript entry; no result was served; retry later.")
 			return

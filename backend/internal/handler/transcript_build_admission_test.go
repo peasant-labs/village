@@ -205,16 +205,20 @@ func testAdmissionRelease(t *testing.T, modes []string) {
 				}
 				return schema.CookTranscriptRows(turns, h)
 			})
-			done := make(chan bool, 1)
+			type outcome struct {
+				panicked bool
+				err      error
+			}
+			done := make(chan outcome, 1)
 			go func() {
-				panicked := false
+				result := outcome{}
 				defer func() {
 					if recover() != nil {
-						panicked = true
+						result.panicked = true
 					}
-					done <- panicked
+					done <- result
 				}()
-				_, _ = x.Partition(mainPartitionKey(), func() (func(), error) { return c.AcquireBuild(context.WithoutCancel(ctx)) })
+				_, result.err = x.Partition(mainPartitionKey(), func() (func(), error) { return c.AcquireBuild(context.WithoutCancel(ctx)) })
 			}()
 			<-entered
 			cancel()
@@ -227,9 +231,9 @@ func testAdmissionRelease(t *testing.T, modes []string) {
 			}
 			a()
 			close(unblock)
-			panicked := <-done
-			if panicked != (mode == "panic") {
-				t.Fatalf("panic=%v", panicked)
+			result := <-done
+			if result.panicked != (mode == "panic") || (result.err != nil) != (mode == "error") {
+				t.Fatalf("outcome: %+v", result)
 			}
 			c.mu.Lock()
 			n := c.heavyWork
