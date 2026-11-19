@@ -45,6 +45,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: repositoryRoot,
   },
+  // A transcript page's address names the transcript, and a deep link names
+  // a turn or a carried entry. No request the page makes, and no link a
+  // reader follows from it, sends that address on as a referrer.
+  async headers() {
+    return [
+      {
+        source: "/transcripts/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+    ];
+  },
   images: {
     // The optimizer is allowed to fetch GitHub avatars, but every avatar in the
     // app renders through next/image with `unoptimized`, and that is deliberate.
