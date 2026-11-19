@@ -27,9 +27,10 @@ export interface SelectedRecord {
   project_hash: string;
   family_project_hash: string;
   visibility: VillageTranscriptVisibility;
-  /** The title, when the record was selected from a loaded row. A snapshot
-   *  record carries no title. */
-  title?: string | null;
+  /** The session's title, null when it has none. A loaded row and a snapshot
+   *  record both carry it, so the consent step can name every session in the
+   *  selection, including ones the page never loaded. */
+  title: string | null;
 }
 
 export type FrozenSelection = ReadonlyMap<string, SelectedRecord>;
@@ -163,7 +164,6 @@ export interface SnapshotMerge {
 export function mergeSnapshot(
   selection: FrozenSelection,
   snapshot: VillageContributionSnapshotResponse,
-  titles: ReadonlyMap<string, string | null> = new Map(),
 ): SnapshotMerge {
   const next = new Map(selection);
   const inSnapshot = new Set<string>();
@@ -183,7 +183,7 @@ export function mergeSnapshot(
       project_hash: record.project_hash,
       family_project_hash: snapshot.project_hash,
       visibility: record.visibility,
-      ...(titles.has(record.id) ? { title: titles.get(record.id) } : {}),
+      title: record.title,
     });
     added += 1;
   }

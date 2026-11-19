@@ -3,7 +3,9 @@
 # A row is { id, project, root, family, locked? }: "project" is the
 # transcript's own project, "family" the project of its root, and "root" the
 # root's id (a row whose id is its root is the root). A selected record is
-# { id, project, family }. Ids are "t<n>" and projects "p<X>" tokens.
+# { id, project, family, title? }. Ids are "t<n>" and projects "p<X>" tokens.
+# A title left out defaults to "session <n>"; an expected record's title is
+# checked only when stated.
 
 live_status:
   - { status: pending, live: true }
@@ -126,6 +128,39 @@ snapshot_merge:
       all_selected: true
       records:
         - { id: t3, project: pB, family: pA }
+  - name: a-snapshot-record-keeps-its-title-so-consent-can-name-it
+    selected: []
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private, title: fix the importer }
+        - { id: t3, project: pB, visibility: private, title: null }
+    expect:
+      selected: [t1, t3]
+      selectable: [t1, t3]
+      added: 2
+      locked: 0
+      omitted: []
+      all_selected: true
+      records:
+        - { id: t1, project: pA, family: pA, title: fix the importer }
+        - { id: t3, project: pB, family: pA, title: null }
+  - name: a-record-already-selected-keeps-the-title-it-was-selected-with
+    selected:
+      - { id: t1, project: pA, family: pA, title: loaded title }
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private, title: snapshot title }
+    expect:
+      selected: [t1]
+      selectable: [t1]
+      added: 0
+      locked: 0
+      omitted: []
+      all_selected: true
+      records:
+        - { id: t1, project: pA, family: pA, title: loaded title }
   - name: a-previously-selected-record-the-snapshot-omits-is-kept-and-reported
     selected:
       - { id: t5, project: pA, family: pA }

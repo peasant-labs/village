@@ -39,11 +39,18 @@ interface SelectedToken {
   id: string;
   project: string;
   family: string;
+  title?: string | null;
 }
 
 interface SnapshotToken {
   project: string;
-  records: { id: string; project: string; visibility: VillageTranscriptVisibility; status?: VillageShareStatus }[];
+  records: {
+    id: string;
+    project: string;
+    visibility: VillageTranscriptVisibility;
+    status?: VillageShareStatus;
+    title?: string | null;
+  }[];
 }
 
 interface Fixtures {
@@ -104,11 +111,22 @@ function rowOf(token: RowToken): LoadedRow {
   };
 }
 
+/** A token's title, defaulting the way a loaded row's does. */
+function titleOf(token: { id: string; title?: string | null }): string | null {
+  return token.title === undefined ? `session ${token.id.replace(/^t/, "")}` : token.title;
+}
+
 function selectionOf(tokens: SelectedToken[]): FrozenSelection {
   const selection = new Map<string, SelectedRecord>();
   for (const token of tokens) {
     const id = transcriptIdOf(token.id);
-    selection.set(id, { id, project_hash: projectHashOf(token.project), family_project_hash: projectHashOf(token.family), visibility: "private" });
+    selection.set(id, {
+      id,
+      project_hash: projectHashOf(token.project),
+      family_project_hash: projectHashOf(token.family),
+      visibility: "private",
+      title: titleOf(token),
+    });
   }
   return selection;
 }
@@ -122,6 +140,7 @@ function snapshotOf(token: SnapshotToken): VillageContributionSnapshotResponse {
       id: transcriptIdOf(record.id),
       project_hash: projectHashOf(record.project),
       visibility: record.visibility,
+      title: titleOf(record),
       ...(record.status ? { latest_status: record.status } : {}),
     })),
   });
@@ -173,6 +192,7 @@ describe("snapshot merge", () => {
       const got = merge.selection.get(transcriptIdOf(record.id));
       expect(got?.project_hash).toBe(projectHashOf(record.project));
       expect(got?.family_project_hash).toBe(projectHashOf(record.family));
+      if (record.title !== undefined) expect(got?.title).toBe(record.title);
     }
     // The merge never mutates the selection it was given.
     expect(selectedIds(before)).toEqual(ids(testCase.selected.map((s) => s.id)));

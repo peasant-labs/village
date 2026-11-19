@@ -71,13 +71,18 @@ decode:
       project_hash: $pA
       count: 2
       records:
-        - { id: $t1, project_hash: $pA, visibility: private }
-        - { id: $t2, project_hash: $pB, visibility: shared, parent_transcript_id: $t1, latest_status: approved }
+        - { id: $t1, title: fix the importer, project_hash: $pA, visibility: private }
+        - { id: $t2, title: null, project_hash: $pB, visibility: shared, parent_transcript_id: $t1, latest_status: approved }
     expect: ok
+  - name: a-snapshot-record-without-a-title-is-outside-the-contract
+    read: snapshot
+    project: pA
+    body: { group_id: $group, project_hash: $pA, count: 1, records: [{ id: $t1, project_hash: $pA, visibility: private }] }
+    expect: { deployment: outside the contract }
   - name: a-snapshot-count-that-differs-from-its-records-is-a-mismatch
     read: snapshot
     project: pA
-    body: { group_id: $group, project_hash: $pA, count: 3, records: [{ id: $t1, project_hash: $pA, visibility: private }] }
+    body: { group_id: $group, project_hash: $pA, count: 3, records: [{ id: $t1, title: null, project_hash: $pA, visibility: private }] }
     expect: { deployment: a count that differs from its records }
   - name: a-flat-body-to-the-snapshot-is-a-mismatch
     read: snapshot
