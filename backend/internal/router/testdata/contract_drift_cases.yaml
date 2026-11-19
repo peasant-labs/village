@@ -100,17 +100,20 @@
   manifest: []
   findings: []
 
-- name: declared route that is not mounted is not a finding
+- name: declared route that is not mounted is a finding
   why: >
-    Routes the contract declares ahead of their handlers are a separate
-    concern with its own fixture; this gate only asks whether what is served
-    is described.
+    The router takes each declared route's pattern from its schema route
+    member, so a mount that names the wrong member is still a declared route
+    and passes the mounted-side check; the route it was meant to serve is
+    silently dropped. A route the contract declares ahead of its handler is
+    mounted as a 501 stub, so it is mounted too.
   mounted: []
   declared:
     - method: GET
       path: /api/v1/pulls/{owner}/{name}/{number}
   manifest: []
-  findings: []
+  findings:
+    - "GET /api/v1/pulls/{owner}/{name}/{number} is declared by the served contract but the server does not mount it; mount it from its schema route member, or as a 501 stub listed in the declared-stub-routes manifest until its handler lands"
 
 - name: attachment route mounted without a declaration is a finding
   why: >
@@ -119,6 +122,8 @@
     router spelled one differently, the gate must say so rather than let the
     stub pass unnoticed.
   mounted:
+    - method: GET
+      path: /api/v1/pulls/{owner}/{name}/{number}
     - method: POST
       path: /api/v1/pulls/{owner}/{name}/{number}/confirm
   declared:
