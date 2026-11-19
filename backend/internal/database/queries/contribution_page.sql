@@ -212,7 +212,17 @@ SELECT f.root_id, f.depth,
        COALESCE(ff.matched, false)::boolean AS matched
 FROM family f
 JOIN page_roots pr ON pr.id = f.root_id
-JOIN transcripts t ON t.id = f.id
+-- The page holds at most root_limit families, so each member row is read by
+-- its primary key. OFFSET 0 keeps the lookup a subquery: the planner cannot
+-- overestimate the family and hash every transcript of the library instead.
+CROSS JOIN LATERAL (
+    SELECT t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
+           t.parent_session_id, t.session_origin, t.model_provider, t.published_at,
+           t.session_start, t.session_end
+    FROM transcripts t
+    WHERE t.id = f.id
+    OFFSET 0
+) t
 LEFT JOIN LATERAL (SELECT s.status FROM transcript_share_attempts s WHERE s.transcript_id = t.id AND s.group_id = @group_id ORDER BY s.event_num DESC LIMIT 1) ls ON true
 LEFT JOIN filter_member ff ON ff.id = f.id
 ORDER BY pr.sort_time DESC, pr.id ASC, f.depth ASC,
