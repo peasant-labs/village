@@ -1,6 +1,11 @@
-import type { PositionedHostResponse, PositionedReadTransport } from "@peasant-labs/fairtrade/ui";
-import { zTranscriptSegmentPartition, zTranscriptEntryLocateRequest } from "@peasant-labs/schema";
+import type { PositionedHostResponse, PositionedReadTransport, PositionedTarget } from "@peasant-labs/fairtrade/ui";
+import {
+  TranscriptReadTransportKind,
+  zTranscriptSegmentPartition,
+  zTranscriptEntryLocateRequest,
+} from "@peasant-labs/schema";
 import { API_URL_BASE, getAuthHeaders } from "../api";
+import { readCarriedRelationshipAnchor } from "../relationshipAnchor";
 
 function retryAfter(value: string | null, now: () => number): number | undefined {
   if (value === null) return undefined;
@@ -79,5 +84,26 @@ export function villagePositionedTransport(
       const { query } = params(raw);
       return request("/segments/locate", signal, query, zTranscriptEntryLocateRequest.parse(raw));
     },
+  };
+}
+
+/**
+ * What a positioned read opens at, from the page's mount query: the read
+ * identity every response must carry, a `?turn=N` deep link's recorded index,
+ * and a carried branch point the locator resolves. The carried point is used
+ * only while it still names this transcript's current revision.
+ */
+export function positionedReadTarget(
+  transcriptId: string,
+  search: string,
+  currentContentHash: string | null | undefined,
+): PositionedTarget {
+  const raw = new URLSearchParams(search).get("turn");
+  const turn = raw != null && /^\d+$/.test(raw) ? Number(raw) : undefined;
+  const anchor = readCarriedRelationshipAnchor(search, currentContentHash);
+  return {
+    transport: { kind: TranscriptReadTransportKind.VillageTranscript, transcriptId },
+    ...(turn !== undefined && Number.isSafeInteger(turn) ? { turn } : {}),
+    ...(anchor ? { entry: { reference: anchor.sourceEntryRef, kind: anchor.kind } } : {}),
   };
 }

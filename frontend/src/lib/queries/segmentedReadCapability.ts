@@ -2,6 +2,7 @@ import {
   parseSegmentedReadVersionAdvertisement,
   SegmentedReadAPIVersion,
 } from "@peasant-labs/schema";
+import { useQuery } from "@tanstack/react-query";
 import { API_URL_BASE } from "../api";
 
 /** The choice is made before either reader is mounted. */
@@ -27,4 +28,19 @@ export async function segmentedReadCapability(signal?: AbortSignal): Promise<Tra
   } catch {
     return TranscriptReadMode.Content;
   }
+}
+
+/**
+ * The page's mode choice, asked once per browser session. The answer is held
+ * for the session: a reader is chosen before it mounts and never switched.
+ */
+export function useSegmentedReadCapability(enabled = true) {
+  return useQuery({
+    queryKey: ["segmented-read-capability"],
+    queryFn: ({ signal }) => segmentedReadCapability(signal),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    enabled,
+  });
 }

@@ -1,0 +1,55 @@
+# The transcript page over the positioned reader: the mounted route with the
+# REST API mocked and every positioned body built by the one shared builder
+# (scripts/journey/lib/positioned-bodies.mjs), so each passes Schema's parsers.
+#
+# The required case names are listed in transcriptPositionedHost.test.tsx;
+# removing a case here fails that manifest.
+
+transcript:
+  transcriptId: 0b9a3e7c-5d41-4c1f-9a7e-2f6b8c1d4e50
+  title: reading the positioned transcript
+  rowsPerSegment: 2
+  firstRecordedIndex: 10
+  turns:
+    - {role: user, content: Open the reader at the deep link., sourceEntryRef: entry-open}
+    - {role: assistant, content: The window names its own run.}
+    - {role: user, content: Check the second segment.}
+    - {role: assistant, content: The second segment holds the middle rows., sourceEntryRef: entry-middle}
+    - {role: user, content: Now read the last segment.}
+    - {role: assistant, content: The last segment closes the transcript.}
+
+# A positioned read that fails after the page mounts shows the reader's own
+# failure state and never reads the whole document instead. Every positioned
+# route answers the row's way; `retry` is the failure state's own action, or
+# absent when the kind offers none.
+noFallback:
+  - {name: v2-failure-409-stale, status: 409, kind: stale, retry: reload transcript}
+  - {name: v2-failure-503-busy, status: 503, retryAfter: '30', kind: busy, retry: try now}
+  - {name: v2-failure-410-unavailable, status: 410, kind: unavailable}
+  - {name: v2-failure-404-denied, status: 404, kind: denied}
+  - {name: v2-failure-network, network: true, kind: network, retry: try again}
+  - {name: v2-failure-malformed, malformed: true, kind: malformed, retry: try again}
+
+landing:
+  - name: turn-param-lands-requested-position
+    why: a served recorded index is asked for as the window anchor and lands exactly, with no status line
+    search: '?turn=14'
+    expectWindowAnchor: '14'
+    expectSegments: ['2', '0']
+    expectText: Now read the last segment.
+  - name: turn-param-snapped-status-copy
+    why: a recorded index the transcript does not serve opens the window's anchor turn and says so
+    search: '?turn=99'
+    expectWindowAnchor: '99'
+    expectSegments: ['0']
+    expectSnapped: "turn 99 is not in this transcript's served view, so the viewer opened turn 10."
+
+# Downloads read the whole stored copy once per action, while two of the
+# three segments are loaded. The files are compared byte for byte.
+downloads:
+  search: '?turn=14'
+  loadedSegments: ['2', '0']
+  rows:
+    - {name: download-json-bytes-partial-load, label: download json, file: positioned-download/expected.json, type: application/json}
+    - {name: download-jsonl-bytes-partial-load, label: download jsonl, file: positioned-download/expected.jsonl, type: application/x-ndjson}
+    - {name: download-markdown-bytes-partial-load, label: download markdown, file: positioned-download/expected.md, type: text/markdown}

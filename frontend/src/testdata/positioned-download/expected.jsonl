@@ -1,0 +1,6 @@
+{"content":"Open the reader at the deep link.","depth":0,"entryType":"text","index":10,"role":"user","sourceEntryRef":"entry-open","timestamp":"2026-11-12T09:00:00.000Z"}
+{"content":"The window names its own run.","depth":0,"entryType":"text","index":11,"role":"assistant","timestamp":"2026-11-12T09:00:47.000Z"}
+{"content":"Check the second segment.","depth":0,"entryType":"text","index":12,"role":"user","timestamp":"2026-11-12T09:01:34.000Z"}
+{"content":"The second segment holds the middle rows.","depth":0,"entryType":"text","index":13,"role":"assistant","sourceEntryRef":"entry-middle","timestamp":"2026-11-12T09:02:21.000Z"}
+{"content":"Now read the last segment.","depth":0,"entryType":"text","index":14,"role":"user","timestamp":"2026-11-12T09:03:08.000Z"}
+{"content":"The last segment closes the transcript.","depth":0,"entryType":"text","index":15,"role":"assistant","timestamp":"2026-11-12T09:03:55.000Z"}
