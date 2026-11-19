@@ -45,6 +45,7 @@ type snapshotSeed struct {
 	Project       string   `yaml:"project"`
 	ProjectName   string   `yaml:"project_name"`
 	Title         string   `yaml:"title"`
+	Untitled      bool     `yaml:"untitled"`
 	Visibility    string   `yaml:"visibility"`
 	Parent        string   `yaml:"parent"`
 	OrphanParent  bool     `yaml:"orphan_parent"`
@@ -138,7 +139,8 @@ type snapshotHarness struct {
 	status     map[string][]string // key -> attempts in the collective under test
 	projects   map[string]string   // key -> project key
 	visibility map[string]string
-	parents    map[string]string // key -> parent key ("" for a root)
+	parents    map[string]string  // key -> parent key ("" for a root)
+	titles     map[string]*string // key -> seeded title, nil when untitled
 }
 
 func newSnapshotHarness(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name string, cfg *config.Config) *snapshotHarness {
@@ -154,6 +156,7 @@ func newSnapshotHarness(t *testing.T, ctx context.Context, pool *pgxpool.Pool, n
 		projects:   map[string]string{},
 		visibility: map[string]string{},
 		parents:    map[string]string{},
+		titles:     map[string]*string{},
 	}
 	s.h = New(cfg, pool, nil)
 	s.router = chi.NewRouter()
@@ -240,9 +243,9 @@ func (s *snapshotHarness) insert(row snapshotSeed) {
 	if provider == "" {
 		provider = "claude-code"
 	}
-	title := row.Title
-	if title == "" {
-		title = "t-" + row.Key
+	title := pgtype.Text{String: row.Title, Valid: !row.Untitled}
+	if title.Valid && title.String == "" {
+		title.String = "t-" + row.Key
 	}
 	owner := w.member
 	if row.Owner == "other" {
@@ -289,6 +292,11 @@ func (s *snapshotHarness) insert(row snapshotSeed) {
 	w.localIDs[row.Key] = localID
 	s.projects[row.Key] = row.Project
 	s.visibility[row.Key] = visibility
+	if title.Valid {
+		s.titles[row.Key] = &title.String
+	} else {
+		s.titles[row.Key] = nil
+	}
 	if row.Owner != "other" {
 		s.parents[row.Key] = row.Parent
 	}
@@ -326,6 +334,7 @@ func (s *snapshotHarness) attempts(key string, group pgtype.UUID, statuses []str
 
 type snapshotWireRecord struct {
 	ID                 string  `json:"id"`
+	Title              *string `json:"title"`
 	Visibility         string  `json:"visibility"`
 	LatestStatus       *string `json:"latest_status"`
 	ProjectHash        string  `json:"project_hash"`
@@ -395,6 +404,12 @@ func (s *snapshotHarness) assertRecords(label string, wire snapshotWire) {
 		if want := s.w.projectHash(s.projects[key]); record.ProjectHash != want {
 			s.t.Errorf("%s: %q reports project %s, want its OWN project %s", label, key, record.ProjectHash, want)
 		}
+		switch want := s.titles[key]; {
+		case want == nil && record.Title != nil:
+			s.t.Errorf("%s: %q has no title but reports %q", label, key, *record.Title)
+		case want != nil && (record.Title == nil || *record.Title != *want):
+			s.t.Errorf("%s: %q reports title %v, want %q", label, key, record.Title, *want)
+		}
 		if record.Visibility != s.visibility[key] {
 			s.t.Errorf("%s: %q reports visibility %q, want %q", label, key, record.Visibility, s.visibility[key])
 		}
@@ -416,6 +431,26 @@ func (s *snapshotHarness) assertRecords(label string, wire snapshotWire) {
 
 // rawKeys returns the key set of every record object, to prove a record carries
 // nothing beyond the compact fields.
+// recordsWithout counts the records that do not carry key at all. A decoded
+// nil cannot tell a null from an absent key, and a field the contract requires
+// must be stated even when it is null.
+func recordsWithout(t *testing.T, body []byte, key string) int {
+	t.Helper()
+	var raw struct {
+		Records []map[string]json.RawMessage `json:"records"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	missing := 0
+	for _, record := range raw.Records {
+		if _, ok := record[key]; !ok {
+			missing++
+		}
+	}
+	return missing
+}
+
 func rawRecordKeys(t *testing.T, body []byte) map[string]bool {
 	t.Helper()
 	var raw struct {
@@ -478,9 +513,12 @@ func TestContributionSnapshotFixtures(t *testing.T) {
 					t.Errorf("%s: records must be an array, never null; body: %s", request.Name, rec.Body.String())
 				}
 				s.assertRecords(request.Name, wire)
+				if n := recordsWithout(t, rec.Body.Bytes(), "title"); n > 0 {
+					t.Errorf("%s: %d records leave out title; an untitled session states it as null", request.Name, n)
+				}
 				for key := range rawRecordKeys(t, rec.Body.Bytes()) {
 					switch key {
-					case "id", "visibility", "latest_status", "project_hash", "parent_transcript_id":
+					case "id", "title", "visibility", "latest_status", "project_hash", "parent_transcript_id":
 					default:
 						t.Errorf("%s: a record carries %q, which is not a compact field", request.Name, key)
 					}
