@@ -1,0 +1,32 @@
+cases:
+  - name: transport-header
+    operation: header
+    request: {}
+    path: /header
+    query: {v: '2'}
+  - name: transport-directory
+    operation: directory
+    request: {partition: {kind: main}, page: 2, revision: '7', representation: rep}
+    path: /segments
+    query: {v: '2', partition: main, page: '2', revision: '7', representation: rep}
+  - name: transport-segment
+    operation: segment
+    request: {partition: {kind: history, sectionIndex: 1}, index: 3, revision: '7', representation: rep}
+    path: /segments/3
+    query: {v: '2', partition: history, section: '1', revision: '7', representation: rep}
+  - name: transport-window
+    operation: window
+    request: {partition: {kind: main}, turn: 42, revision: '7', representation: rep}
+    path: /window
+    query: {v: '2', partition: main, anchor: '42', revision: '7', representation: rep}
+  - name: transport-locate
+    operation: locate
+    request: {reference: entry, contentHash: hash, revision: '7', representation: rep}
+    path: /segments/locate
+    query: {v: '2', revision: '7', representation: rep}
+    post: true
+retry:
+  - {name: retry-after-seconds, header: '12', expected: 12}
+  - {name: retry-after-date, header: 'Thu, 01 Jan 1970 00:00:05 GMT', expected: 5}
+  - {name: retry-after-absent}
+  - {name: retry-after-garbage, header: nonsense}
