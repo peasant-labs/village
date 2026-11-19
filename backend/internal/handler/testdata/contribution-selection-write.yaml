@@ -19,7 +19,9 @@
 #                keys, where a key starting with "ghost" is an id no transcript
 #                has; raw_body with the tokens {id:<key>}, {upper:<key>} (the id
 #                in capitals) and {project:<key>}; oversize, which repeats the
-#                first selected id until the body is over 1 MiB.
+#                first selected id until the body is over 1 MiB; pad_to and
+#                pad_approvals_to, which repeat the first selected (or
+#                approved) id until that list holds that many entries.
 #   race         the test holds the publish lock of transcript hold, starts the
 #                request, waits until PostgreSQL shows it blocked on that lock,
 #                performs action, and releases the lock. Actions:
@@ -450,6 +452,44 @@
     status: 400
     error_contains: ["/transcript_ids: minimum 1 items required"]
     attempts: {a: 0}
+
+- name: a_selection_at_the_bound_is_accepted
+  why: >-
+    One request may list up to 1000 ids. A list of exactly 1000 passes the
+    contract; its repeats fold, so the one session is offered once.
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a], pad_to: 1000}
+  expect:
+    status: 200
+    shared: {a: approved}
+    already_shared: []
+    attempts: {a: 1}
+
+- name: a_selection_past_the_bound_violates_the_contract
+  why: >-
+    A list of 1001 ids is past the per-request bound. It is refused before any
+    session is read or offered; a larger selection is sent as several requests.
+  transcripts:
+    - {key: a, project: p}
+  request: {project: p, select: [a], pad_to: 1001}
+  expect:
+    status: 400
+    error_contains: ["/transcript_ids: maximum 1000 items required"]
+    attempts: {a: 0}
+
+- name: approvals_past_the_bound_violate_the_contract
+  why: >-
+    private_approvals has the same bound, so 1001 approvals are refused before
+    anything is read, and the private session stays private.
+  transcripts:
+    - {key: a, project: p, visibility: private}
+  request: {project: p, select: [a], approve: [a], pad_approvals_to: 1001}
+  expect:
+    status: 400
+    error_contains: ["/private_approvals: maximum 1000 items required"]
+    attempts: {a: 0}
+    visibility: {a: private}
 
 - name: a_non_canonical_id_violates_the_contract
   why: >-

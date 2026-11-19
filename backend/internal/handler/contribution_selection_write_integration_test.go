@@ -61,6 +61,11 @@ type selectionWriteRequest struct {
 	Approve    []string `yaml:"approve"`
 	RawBody    string   `yaml:"raw_body"`
 	Oversize   bool     `yaml:"oversize"`
+	// PadTo and PadApprovalsTo repeat the first selected (or approved) id
+	// until the list holds that many entries, to reach the contract's
+	// per-request bound without naming a thousand sessions.
+	PadTo          int `yaml:"pad_to"`
+	PadApprovalsTo int `yaml:"pad_approvals_to"`
 }
 
 type selectionWriteRace struct {
@@ -149,6 +154,9 @@ var requiredSelectionWriteCases = []string{
 	"policy_change_while_waiting_refuses_everything",
 	"membership_removed_while_waiting_refuses_everything",
 	"a_competing_writer_is_serialized_by_the_row_lock",
+	"a_selection_at_the_bound_is_accepted",
+	"a_selection_past_the_bound_violates_the_contract",
+	"approvals_past_the_bound_violate_the_contract",
 }
 
 var (
@@ -226,8 +234,13 @@ func validateSelectionWriteCase(c selectionWriteCase) error {
 	if r.RawBody == "" && (r.Project == "" || len(r.Select) == 0) {
 		return fmt.Errorf("a request without raw_body needs a project and a selection")
 	}
-	if r.RawBody != "" && (r.Project != "" || len(r.Select) > 0 || len(r.Approve) > 0 || r.Oversize) {
-		return fmt.Errorf("raw_body replaces project, select, approve and oversize")
+	if r.RawBody != "" && (r.Project != "" || len(r.Select) > 0 || len(r.Approve) > 0 || r.Oversize ||
+		r.PadTo != 0 || r.PadApprovalsTo != 0) {
+		return fmt.Errorf("raw_body replaces project, select, approve, oversize and padding")
+	}
+	if r.PadTo < 0 || r.PadApprovalsTo < 0 || (r.PadTo != 0 && r.PadTo < len(r.Select)) ||
+		(r.PadApprovalsTo != 0 && (len(r.Approve) == 0 || r.PadApprovalsTo < len(r.Approve))) {
+		return fmt.Errorf("pad_to and pad_approvals_to name a length at least the listed ids, and pad_approvals_to needs an approval")
 	}
 	if r.Prefix != "" && r.Prefix != "/collectives" && r.Prefix != "/groups" {
 		return fmt.Errorf("prefix %q is not a collective prefix", r.Prefix)
@@ -454,9 +467,15 @@ func (w *selectionWriteWorld) body(t *testing.T) []byte {
 			ids = append(ids, ids[0])
 		}
 	}
+	for len(ids) < r.PadTo {
+		ids = append(ids, ids[0])
+	}
 	approvals := make([]string, 0, len(r.Approve))
 	for _, key := range r.Approve {
 		approvals = append(approvals, w.idText(t, key))
+	}
+	for len(approvals) < r.PadApprovalsTo {
+		approvals = append(approvals, approvals[0])
 	}
 	body, err := json.Marshal(map[string]any{
 		"project_hash":      w.projectHash(r.Project),

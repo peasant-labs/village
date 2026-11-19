@@ -17,6 +17,11 @@ package handler
 // answer: every refusal carries a closed machine-readable code and lists every
 // offending transcript, and a session that is already live is reported under
 // already_shared instead of failing the request.
+//
+// One request lists at most schema.VillageContributionSelectionMaxTranscripts
+// ids in transcript_ids and in private_approvals. The bound is the contract's
+// maxItems, enforced by readContractBody against the served document, so the
+// handler restates nothing; a larger selection is sent as several requests.
 
 import (
 	"context"
