@@ -1,0 +1,26 @@
+# The selection write's response check. Tokens as in contribution-reads.yaml:
+# "$t<n>" is a transcript id and "$p<X>" a project hash. The request is
+# always for project pA. expect is "ok" or { server: <message part> }, the
+# message of the 502 ApiError the run then reports as a server failure.
+decode:
+  - name: a-contract-answer-for-the-requested-project-decodes
+    body:
+      project_hash: $pA
+      shared: [{ transcript_id: $t1, status: pending }]
+      already_shared: [$t2]
+    expect: ok
+  - name: an-answer-for-another-project-is-a-server-failure
+    body: { project_hash: $pB, shared: [], already_shared: [] }
+    expect: { server: a different project }
+  - name: an-answer-without-already-shared-is-a-server-failure
+    body: { project_hash: $pA, shared: [] }
+    expect: { server: did not match the contract }
+  - name: an-unknown-status-is-a-server-failure
+    body:
+      project_hash: $pA
+      shared: [{ transcript_id: $t1, status: rejected }]
+      already_shared: []
+    expect: { server: did not match the contract }
+  - name: a-legacy-project-answer-body-is-a-server-failure
+    body: { group_id: $pA, shared: 3 }
+    expect: { server: did not match the contract }
