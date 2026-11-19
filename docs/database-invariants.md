@@ -1147,7 +1147,16 @@ The audit triggers (migration 026), the share-derivation triggers
   `(owner_id, parent_session_id)` is indexed only by migration 051; each descent
   step looks up the children of the page's working set through that index, one
   reached row at a time, rather than scanning the owner's transcripts at each
-  level. A session
+  level. Migration 052 indexes `(owner_id, COALESCE(session_end, session_start,
+  published_at, 'epoch') DESC, id)`, the root order itself, so an unfiltered page
+  and a cursor page read their roots in order from the index and stop at the
+  root limit instead of sorting every transcript of the owner. That key and the
+  query's sort expression must stay identical character for character: a key
+  that differs only in the COALESCE leaves the index usable for the owner range
+  but not for the order, and the plan silently returns to a full sort. The
+  migration's integration test plans the generated page query and fails when
+  the roots are not cut straight off the index. Each member row of the page is
+  then read by its primary key. A session
   that is its own parent, and every member of a longer loop of parents, is a
   root and is listed exactly once; the descent never steps onto a loop member.
   Each member's `latest_status` is the latest attempt per `(transcript,
@@ -1157,8 +1166,9 @@ The audit triggers (migration 026), the share-derivation triggers
   carries no authority and is bound to the viewer, collective and filters; it
   holds the last root's (last activity, id) at cursor version 2, and a cursor of
   version 1 (the earlier order by `session_start`) is a 400 that says to start
-  from the first page. The view adds no migration, no index and no table, and
-  touches `transcript_shares` nowhere.
+  from the first page. Its only schema additions are the two indexes above
+  (migrations 051 and 052); it adds no table and no column, and touches
+  `transcript_shares` nowhere.
 - **The project picker, the paged view and the snapshot view share ONE
   contribution-family rule.** For the same viewer, collective, `q` and
   `provider`, the picker's `matching_count` for a project equals the snapshot's

@@ -57,6 +57,14 @@ func TestMigration051ContributionFamilyIndexLifecycle(t *testing.T) {
 		if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil {
 			t.Fatalf("disable sequential scans for the explain: %v", err)
 		}
+		// On the empty scratch table every index that leads with owner_id
+		// costs the same for this lookup, so the planner may break the tie
+		// toward the last-activity index. Drop that index inside this
+		// rolled-back transaction so the plan answers only whether the
+		// edge index serves the lookup.
+		if _, err := tx.Exec(ctx, "DROP INDEX IF EXISTS idx_transcripts_owner_last_activity"); err != nil {
+			t.Fatalf("hide the last-activity index for the explain: %v", err)
+		}
 		rows, err := tx.Query(ctx, `
 			EXPLAIN SELECT id FROM transcripts
 			WHERE owner_id = $1 AND parent_session_id = $2

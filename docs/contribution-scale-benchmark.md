@@ -340,6 +340,51 @@ over two.
   decision on R1 left open. No index helps the picker enough to pass the rule alone
   at 1,000,000. Migration 051 adds that index.
 
+### Follow-up: the last-activity root index (migration 052)
+
+The paged view later changed its root order from session start to last
+activity, `COALESCE(session_end, session_start, published_at, 'epoch')`. R1 was
+measured on the earlier key, so its numbers above do not describe the new order.
+The open R1 decision was taken again on the new key, with the production
+statement instead of the harness's approximation, and the owner adopted the
+index for scale. Migration 052 adds it:
+`(owner_id, COALESCE(session_end, session_start, published_at, 'epoch') DESC, id)`.
+
+Method. The generated `ListContributionPage` statement was prepared verbatim
+and run with `EXPLAIN (ANALYZE, BUFFERS)` three times per case on the two
+harness datasets (vacuumed and analyzed, H1 present), without and with the
+candidate index. The table gives the median execution time in milliseconds. The
+deep page resumes from a cursor at root 3,000 (12,148) or root 99,500
+(1,000,000). Search sends `q=auth`. Timings on this machine vary by tens of
+percent between runs; the shared-buffer counts moved in the same direction.
+
+| Case | 12,148 without | 12,148 with | 1,000,000 without | 1,000,000 with |
+|---|---|---|---|---|
+| First page | 27 | 21 | about 3,500 | 26 |
+| Deep page | 24 | 23 | 2,500 | 678 |
+| Search | 135 | 137 | 13,000 to 21,000 | 13,000 to 21,000 |
+| First page, generic plan | not run | not run | 3,985 | 20 |
+| Deep page, generic plan | not run | not run | 3,529 | 387 |
+
+The same runs also measured a query change made before the index: the page's
+member rows had been joined back to `transcripts` with a hash join over the
+whole library at 1,000,000 (first page 6 to 14 s). They are now read by primary
+key, which gave the "without" column above.
+
+- At 12,148 the index improves the first page by about 22 percent and leaves
+  the deep page unchanged, under the 30 percent rule.
+- At 1,000,000 it turns the first page from a full sort of the owner's
+  transcripts into an index range cut at the root limit (more than 99 percent
+  faster), and the deep page by about 73 percent.
+- Search is unchanged. Its cost is the family-wide filter expansion over the
+  whole library, not the root order, and no index addresses it here.
+- Build cost: a plain `CREATE INDEX` of this shape took 0.75 s at 1,000,000
+  rows on this machine. The migration builds it inside the migration
+  transaction, which blocks writers to `transcripts` for that time.
+- Write cost was not re-measured. The key is one more btree entry per
+  transcript insert and per update of the three timestamp columns, the same
+  shape as R1, whose write regression stayed within budget.
+
 ### Not measured
 
 - Writes at 1,000,000. No write matrix was run at that size, so write cost at scale

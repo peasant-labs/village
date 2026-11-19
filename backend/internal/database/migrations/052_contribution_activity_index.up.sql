@@ -1,0 +1,21 @@
+-- Serves the paged contribution view's root order. The page lists an owner's
+-- root sessions by last activity, newest first, with the transcript id as the
+-- tie-break, and stops after one page of roots. This index holds the owner's
+-- transcripts in exactly that order, so the page reads the first roots from it
+-- and stops, instead of reading and sorting every transcript of the owner. A
+-- keyset cursor resumes from the same position.
+--
+-- The key expression must stay character-for-character the expression the
+-- page query orders by (contribution_page.sql, all_roots.sort_time); a
+-- different expression is a different key and the planner will not use this
+-- index. An integration test plans the generated page query against it.
+--
+-- A plain CREATE INDEX, not CONCURRENTLY: each migration runs inside one
+-- transaction (runMigration in migrate.go), and CONCURRENTLY cannot run inside a
+-- transaction block. The build therefore holds a SHARE lock on transcripts for
+-- its whole duration: inserts, updates and deletes on transcripts wait for it,
+-- while reads do not. An index of the same shape built in 0.75 s at 1,000,000
+-- rows on the benchmark host, and the build grows with the table, so measure it
+-- on a copy of production data before a large deployment.
+CREATE INDEX idx_transcripts_owner_last_activity
+    ON transcripts (owner_id, (COALESCE(session_end, session_start, published_at, 'epoch'::timestamptz)) DESC, id);
