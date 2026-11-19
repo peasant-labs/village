@@ -7,12 +7,64 @@ import {
 import { API_URL_BASE, getAuthHeaders } from "../api";
 import { readCarriedRelationshipAnchor } from "../relationshipAnchor";
 
-function retryAfter(value: string | null, now: () => number): number | undefined {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const SHORT_DAY = "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)";
+const LONG_DAY = "(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)";
+const MONTH = `(${MONTHS.join("|")})`;
+const TIME = "(\\d{2}):(\\d{2}):(\\d{2})";
+// The three HTTP-date forms (RFC 9110 section 5.6.7): IMF-fixdate, and the
+// obsolete RFC 850 and asctime forms a recipient must still accept. All are GMT.
+const IMF_FIXDATE = new RegExp(`^${SHORT_DAY}, (\\d{2}) ${MONTH} (\\d{4}) ${TIME} GMT$`);
+const RFC850_DATE = new RegExp(`^${LONG_DAY}, (\\d{2})-${MONTH}-(\\d{2}) ${TIME} GMT$`);
+const ASCTIME_DATE = new RegExp(`^${SHORT_DAY} ${MONTH} ( \\d|\\d{2}) ${TIME} (\\d{4})$`);
+
+/** Milliseconds since the epoch for a valid HTTP-date, or undefined. */
+function httpDate(value: string, now: number): number | undefined {
+  let day: string, month: string, year: number, hour: string, minute: string, second: string;
+  let match = IMF_FIXDATE.exec(value);
+  if (match) {
+    [, day, month, , hour, minute, second] = match;
+    year = Number(match[3]);
+  } else if ((match = RFC850_DATE.exec(value))) {
+    [, day, month, , hour, minute, second] = match;
+    // A two-digit year more than 50 years ahead is the most recent past year
+    // with the same last two digits.
+    const current = new Date(now).getUTCFullYear();
+    year = Math.floor(current / 100) * 100 + Number(match[3]);
+    if (year > current + 50) year -= 100;
+  } else if ((match = ASCTIME_DATE.exec(value))) {
+    [, month, day, hour, minute, second] = match;
+    year = Number(match[6]);
+  } else {
+    return undefined;
+  }
+  const monthIndex = MONTHS.indexOf(month);
+  const time = Date.UTC(year, monthIndex, Number(day), Number(hour), Number(minute), Number(second));
+  const date = new Date(time);
+  // Date.UTC rolls an impossible date (31 Feb, 25:00) into the next one; refuse it.
+  if (date.getUTCDate() !== Number(day) || date.getUTCMonth() !== monthIndex || date.getUTCHours() !== Number(hour)
+    || date.getUTCMinutes() !== Number(minute) || date.getUTCSeconds() !== Number(second)) {
+    return undefined;
+  }
+  return time;
+}
+
+/**
+ * A `Retry-After` value in seconds: delta-seconds, or an HTTP-date measured
+ * against the injected clock (a date already past is no wait). Anything else,
+ * including a signed or fractional number, is undefined, which the reader
+ * treats as its own default wait.
+ */
+export function retryAfterSeconds(value: string | null, now: () => number): number | undefined {
   if (value === null) return undefined;
   const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Number(trimmed);
-  const date = Date.parse(trimmed);
-  return Number.isFinite(date) ? Math.max(0, (date - now()) / 1000) : undefined;
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    return Number.isSafeInteger(seconds) ? seconds : undefined;
+  }
+  const at = now();
+  const date = httpDate(trimmed, at);
+  return date === undefined ? undefined : Math.max(0, Math.ceil((date - at) / 1000));
 }
 
 type RequestFields = {
@@ -40,7 +92,7 @@ export function villagePositionedTransport(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const value: unknown = await response.json().catch(() => undefined);
-    const seconds = retryAfter(response.headers.get("Retry-After"), now);
+    const seconds = retryAfterSeconds(response.headers.get("Retry-After"), now);
     return { status: response.status, body: value, ...(seconds === undefined ? {} : { retryAfterSeconds: seconds }) };
   }
 

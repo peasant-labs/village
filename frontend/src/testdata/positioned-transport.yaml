@@ -1,32 +1,65 @@
-cases:
-  - name: transport-header
+# Village's positioned-read transport: the HTTP request each reader call
+# makes, and how a Retry-After header becomes seconds. The required row
+# names are listed in positionedTransport.test.ts.
+
+# transport-sends-v2-and-echo: every route carries v=2 and passes through the
+# revision and representation the reader gives it, adding nothing. Directory
+# reads carry none: the directory route takes only the partition and page.
+sendsV2AndEcho:
+  - name: header
     operation: header
     request: {}
     path: /header
     query: {v: '2'}
-  - name: transport-directory
+  - name: directory-page-one
     operation: directory
-    request: {partition: {kind: main}, page: 2, revision: '7', representation: rep}
+    request: {partition: {kind: main}, page: 1}
     path: /segments
-    query: {v: '2', partition: main, page: '2', revision: '7', representation: rep}
-  - name: transport-segment
+    query: {v: '2', partition: main, page: '1'}
+  - name: directory-later-page-adds-no-echo
+    operation: directory
+    request: {partition: {kind: history, sectionIndex: 0}, page: 2}
+    path: /segments
+    query: {v: '2', partition: history, section: '0', page: '2'}
+  - name: segment
     operation: segment
     request: {partition: {kind: history, sectionIndex: 1}, index: 3, revision: '7', representation: rep}
     path: /segments/3
     query: {v: '2', partition: history, section: '1', revision: '7', representation: rep}
-  - name: transport-window
+  - name: window
     operation: window
     request: {partition: {kind: main}, turn: 42, revision: '7', representation: rep}
     path: /window
     query: {v: '2', partition: main, anchor: '42', revision: '7', representation: rep}
-  - name: transport-locate
+  - name: window-default-open
+    operation: window
+    request: {partition: {kind: main}}
+    path: /window
+    query: {v: '2', partition: main}
+  - name: locate
     operation: locate
     request: {reference: entry, contentHash: hash, revision: '7', representation: rep}
     path: /segments/locate
     query: {v: '2', revision: '7', representation: rep}
     post: true
-retry:
-  - {name: retry-after-seconds, header: '12', expected: 12}
-  - {name: retry-after-date, header: 'Thu, 01 Jan 1970 00:00:05 GMT', expected: 5}
-  - {name: retry-after-absent}
-  - {name: retry-after-garbage, header: nonsense}
+
+# transport-retry-after-parse: delta-seconds, or an HTTP-date against the
+# injected clock (`now` in milliseconds, default 0). Absent or unusable is
+# undefined, which the reader treats as its own default wait.
+retryAfterParse:
+  - {name: seconds, header: '12', expected: 12}
+  - {name: seconds-zero, header: '0', expected: 0}
+  - {name: seconds-surrounding-space, header: ' 12 ', expected: 12}
+  - {name: http-date, header: 'Thu, 01 Jan 1970 00:00:05 GMT', expected: 5}
+  - {name: http-date-rounds-up, header: 'Thu, 01 Jan 1970 00:00:05 GMT', now: 500, expected: 5}
+  - {name: http-date-past-is-zero, header: 'Thu, 01 Jan 1970 00:00:05 GMT', now: 60000, expected: 0}
+  - {name: http-date-rfc850, header: 'Sunday, 06-Nov-94 08:49:37 GMT', now: 784111770000, expected: 7}
+  - {name: http-date-asctime-is-gmt, header: 'Sun Nov  6 08:49:37 1994', now: 784111770000, expected: 7}
+  - {name: http-date-impossible-day, header: 'Thu, 32 Jan 2026 00:00:00 GMT'}
+  - {name: http-date-rollover-day, header: 'Sat, 31 Feb 2026 00:00:00 GMT'}
+  - {name: http-date-not-gmt, header: 'Thu, 01 Jan 1970 00:00:05 PST'}
+  - {name: negative-number-not-a-date, header: '-5'}
+  - {name: fractional-number-not-a-date, header: '12.5'}
+  - {name: seconds-beyond-safe-integer, header: '99999999999999999999'}
+  - {name: absent}
+  - {name: garbage, header: nonsense}
