@@ -166,12 +166,13 @@ export function SessionDetailV2(props: SessionDetailV2Props) {
  * point goes through the locator.
  */
 function PositionedSessionDetailV2(props: SessionDetailV2Props) {
-  const { transcriptId, transcriptTitle, transcriptContentHash } = props;
+  const { transcriptId, transcriptTitle, transcriptContentHash, variant } = props;
   const transport = useMemo(() => villagePositionedTransport(transcriptId), [transcriptId]);
+  // A preview column sits on another page, whose query is not a deep link.
   const [target] = useState(() =>
     positionedReadTarget(
       transcriptId,
-      typeof window === 'undefined' ? '' : window.location.search,
+      variant === 'preview' || typeof window === 'undefined' ? '' : window.location.search,
       transcriptContentHash,
     ),
   );

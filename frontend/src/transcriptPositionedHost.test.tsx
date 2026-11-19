@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { Suspense } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { buildPositionedBodies } from "../scripts/journey/lib/positioned-bodies.mjs";
@@ -10,6 +12,7 @@ import {
   type MountedRouteHandler,
 } from "@/test/mountedProductionRoute";
 import { readTranscriptForDownload } from "@/lib/transcriptExport";
+import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 
 // The transcript page over the positioned reader. The real route mounts
 // (TranscriptDetailPage -> SessionDetailV2 -> fairtrade's reader and viewer);
@@ -302,4 +305,28 @@ describe("downloads", () => {
     expect(await pending).toBe(false);
     expect(saved).toEqual([]);
   });
+});
+
+it("preview-read-only-no-downloads", async () => {
+  // The contribute and review pages' preview column reads the same way, with
+  // no header actions and so no downloads, and never the page's own query.
+  const bodies = buildPositionedBodies(spec);
+  const fetchMock = installRESTFixture(id, metadata(), bodies.content, "positioned preview", undefined, positionedRoutes(bodies));
+  window.history.replaceState({}, "", "/collectives/c-1/review?turn=14");
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  await act(async () => {
+    render(
+      <QueryClientProvider client={client}>
+        <Suspense fallback={null}>
+          <TranscriptPreview transcriptId={id} />
+        </Suspense>
+      </QueryClientProvider>,
+    );
+  });
+  await waitFor(() => expect(screen.getByTestId("transcript-mode-positioned")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getAllByText("Open the reader at the deep link.").length).toBeGreaterThan(0));
+  expect(screen.queryByTestId("transcript-header-actions")).toBeNull();
+  expect(screen.queryByRole("button", { name: "more" })).toBeNull();
+  expect(urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"))).toEqual([null]);
+  expect(contentReads(fetchMock)).toEqual([]);
 });
