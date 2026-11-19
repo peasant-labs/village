@@ -10,6 +10,9 @@ import (
 // APIPrefix is the prefix the router mounts the Village API group under. It is
 // read from a route the Village API document declares, so the group prefix and
 // the declared patterns cannot disagree; every declared pattern starts with it.
+//
+// This depends on the VillageGetTranscriptSegments pattern containing
+// "/transcripts/"; TestMountPatternRoundTripsEveryVillageRoute fails if it stops.
 var APIPrefix = strings.SplitN(schemaRoute.VillageGetTranscriptSegments.Pattern(), "/transcripts/", 2)[0]
 
 // MountPattern returns a contract route's pattern relative to APIPrefix, the

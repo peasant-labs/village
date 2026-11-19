@@ -84,6 +84,12 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 
 	r.Get("/health", h.Health)
 
+	// Routes mounted through handler.MountPattern are declared by the schema
+	// contract and take their pattern from its route member. A route mounted
+	// from a literal has no contract declaration yet; each one is listed, with
+	// its reason, in testdata/undocumented_routes.yaml. Move a literal to a
+	// schema member once the contract declares it; do not add a local route
+	// registry, which would be a second definition of the contract's routes.
 	r.Route(handler.APIPrefix, func(r chi.Router) {
 		// Village API OpenAPI spec, served from the contract module
 		// (schema.VillageAPISpecJSON) for client/tooling discovery; the publish path
