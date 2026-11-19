@@ -18,10 +18,15 @@ export class ApiError extends Error {
   /** The refusal's per-record details, unvalidated: a caller that acts on
    *  them parses them against the contract first. */
   readonly details?: unknown;
-  constructor(status: number, message: string, body?: { code?: unknown; details?: unknown }) {
+  /** Whether the body carried the server's own `error` message. A route the
+   *  server does not mount answers with the router's plain-text default, so a
+   *  404 without one is a missing route, not a missing resource. */
+  readonly fromServer: boolean;
+  constructor(status: number, message: string, body?: { error?: unknown; code?: unknown; details?: unknown }) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.fromServer = typeof body?.error === "string" && body.error !== "";
     if (typeof body?.code === "string") this.code = body.code;
     if (body?.details !== undefined) this.details = body.details;
   }

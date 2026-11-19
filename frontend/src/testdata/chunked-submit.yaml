@@ -1,0 +1,457 @@
+# The contribute page's chunked submit.
+#
+# A selected record is { id, project, visibility?, title? }; visibility
+# defaults to "public". A `range` entry { range: [from, to], project,
+# visibility? } selects t<from> through t<to>. Ids are "t<n>" and projects
+# "p<X>" tokens.
+#
+# A run scripts the server, one call per request, in order. Each call states
+# the request it expects ({ project, ids, approvals }) and one answer:
+#   answer:  { shared: { t1: pending }, already: [t2] }      a 200
+#   refuse:  { status, error?, code?, details? }              an ApiError; no
+#            `error` means the body was the router's plain-text default
+#   network: "<message>"                                      a thrown Error
+#   abort:   true                                             the person cancels
+# A detail is { code, id?, current? }. `approve_private` answers each re-ask
+# in order, and `expect_asked` lists the ids of each re-ask.
+#
+# `expect` lists every bucket. `remaining` is the selection after the run.
+
+plan:
+  - name: one-project-under-the-size-is-one-chunk
+    size: 3
+    selection:
+      - { id: t2, project: pA }
+      - { id: t1, project: pA }
+    expect: [[pA, [t1, t2]]]
+  - name: projects-in-hash-order-ids-sorted-and-split-at-the-size
+    size: 2
+    selection:
+      - { id: t5, project: pB }
+      - { id: t3, project: pA }
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+      - { id: t4, project: pB }
+    expect: [[pA, [t1, t2]], [pA, [t3]], [pB, [t4, t5]]]
+  - name: a-helper-is-submitted-under-its-own-project-not-its-family
+    size: 250
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pB, family: pA }
+    expect: [[pA, [t1]], [pB, [t2]]]
+
+plan_sizes:
+  - name: the-default-chunk-is-250-sessions
+    selection:
+      - { range: [1, 501], project: pA }
+    expect_sizes: [250, 250, 1]
+
+private_records:
+  - name: every-private-record-in-submission-order
+    selection:
+      - { id: t3, project: pB, visibility: private, title: "a snapshot record" }
+      - { id: t1, project: pA, visibility: public }
+      - { id: t2, project: pA, visibility: private }
+      - { id: t4, project: pA, visibility: unlisted }
+    expect: [t2, t3]
+
+runs:
+  - name: every-chunk-accepted
+    size: 2
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+      - { id: t3, project: pA, visibility: private }
+    approved: [t3]
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        answer: { shared: { t1: pending, t2: pending } }
+      - expect: { project: pA, ids: [t3], approvals: [t3] }
+        answer: { shared: { t3: approved } }
+    expect:
+      contributed: { t1: pending, t2: pending, t3: approved }
+      already: []
+      failed: {}
+      unattempted: []
+      remaining: []
+
+  - name: already-shared-is-reported-and-leaves-the-selection
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        answer: { shared: { t1: pending }, already: [t2] }
+    expect:
+      contributed: { t1: pending }
+      already: [t2]
+      failed: {}
+      unattempted: []
+      remaining: []
+
+  - name: an-unapproved-private-record-is-declined-and-never-sent
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA, visibility: private }
+    approved: []
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        answer: { shared: { t1: pending } }
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: { t2: declined_private }
+      unattempted: []
+      remaining: []
+
+  - name: missing-and-moved-are-dropped-and-the-rest-resent
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+      - { id: t3, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1, t2, t3], approvals: [] }
+        refuse:
+          status: 409
+          error: "some selected sessions changed"
+          code: moved
+          details:
+            - { code: moved, id: t1, current: pC }
+            - { code: missing, id: t2 }
+      - expect: { project: pA, ids: [t3], approvals: [] }
+        answer: { shared: { t3: pending } }
+    expect:
+      contributed: { t3: pending }
+      already: []
+      failed: { t1: { reason: moved, current: pC }, t2: missing }
+      unattempted: []
+      remaining: []
+
+  - name: a-session-that-became-private-is-re-asked-once-and-approved
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    approve_private: [approve]
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        refuse:
+          status: 409
+          error: "private sessions need approval"
+          code: private_unapproved
+          details: [{ code: private_unapproved, id: t2 }]
+      - expect: { project: pA, ids: [t1, t2], approvals: [t2] }
+        answer: { shared: { t1: pending, t2: pending } }
+    expect_asked: [[t2]]
+    expect:
+      contributed: { t1: pending, t2: pending }
+      already: []
+      failed: {}
+      unattempted: []
+      remaining: []
+
+  - name: a-declined-re-ask-drops-only-that-session
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    approve_private: [decline]
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        refuse:
+          status: 409
+          error: "private sessions need approval"
+          code: private_unapproved
+          details: [{ code: private_unapproved, id: t2 }]
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        answer: { shared: { t1: pending } }
+    expect_asked: [[t2]]
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: { t2: declined_private }
+      unattempted: []
+      remaining: []
+
+  - name: an-approved-private-session-refused-again-fails-without-a-second-ask
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    approve_private: [approve]
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        refuse:
+          status: 409
+          error: "private sessions need approval"
+          code: private_unapproved
+          details: [{ code: private_unapproved, id: t2 }]
+      - expect: { project: pA, ids: [t1, t2], approvals: [t2] }
+        refuse:
+          status: 409
+          error: "private sessions need approval"
+          code: private_unapproved
+          details: [{ code: private_unapproved, id: t2 }]
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        answer: { shared: { t1: pending } }
+    expect_asked: [[t2]]
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: { t2: private_unapproved }
+      unattempted: []
+      remaining: []
+
+  - name: a-conflict-is-retried-once
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 409
+          error: "another contribution held this session"
+          code: conflict
+          details: [{ code: conflict, id: t1 }]
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        answer: { shared: { t1: pending } }
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: {}
+      unattempted: []
+      remaining: []
+
+  - name: a-conflict-twice-fails-the-chunk-and-the-run-continues
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 409
+          error: "another contribution held this session"
+          code: conflict
+          details: [{ code: conflict, id: t1 }]
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 409
+          error: "another contribution held this session"
+          code: conflict
+          details: [{ code: conflict, id: t1 }]
+      - expect: { project: pA, ids: [t2], approvals: [] }
+        answer: { shared: { t2: pending } }
+    expect:
+      contributed: { t2: pending }
+      already: []
+      failed: { t1: conflict }
+      unattempted: []
+      remaining: [t1]
+
+  - name: a-stale-selection-stops-the-run
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+      - { id: t3, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        answer: { shared: { t1: pending } }
+      - expect: { project: pA, ids: [t2], approvals: [] }
+        refuse:
+          status: 409
+          error: "a selected session was contributed since the page read it"
+          code: stale_selection
+          details: [{ code: stale_selection, id: t2 }]
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: {}
+      unattempted: [t2, t3]
+      stopped: stale_selection
+      remaining: [t2, t3]
+
+  - name: a-policy-refusal-stops-the-run
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pB }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 403
+          error: "this collective accepts contributions from verified members only"
+          code: policy
+          details: [{ code: policy }]
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1, t2]
+      stopped: policy
+      remaining: [t1, t2]
+
+  - name: a-membership-refusal-stops-the-run
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 403
+          error: "you are not a contributing member of this collective"
+          code: membership
+          details: [{ code: membership }]
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1]
+      stopped: membership
+      remaining: [t1]
+
+  - name: a-route-the-server-does-not-mount-stops-the-run-as-a-deployment
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 404 }
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1]
+      stopped: deployment
+      remaining: [t1]
+
+  - name: a-declared-stub-stops-the-run-as-a-deployment
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 501, error: "not implemented" }
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1]
+      stopped: deployment
+      remaining: [t1]
+
+  - name: a-deleted-collective-stops-the-run
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 404, error: "this collective no longer exists" }
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1]
+      stopped: collective_gone
+      remaining: [t1]
+
+  - name: an-expired-session-stops-the-run
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 401, error: "sign in again" }
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1]
+      stopped: signed_out
+      remaining: [t1]
+
+  - name: a-server-error-fails-the-chunk-and-the-run-continues
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 500, error: "the collective could not be read" }
+      - expect: { project: pA, ids: [t2], approvals: [] }
+        answer: { shared: { t2: pending } }
+    expect:
+      contributed: { t2: pending }
+      already: []
+      failed: { t1: server }
+      unattempted: []
+      remaining: [t1]
+
+  - name: a-network-failure-fails-the-chunk-and-the-run-continues
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        network: "connection reset"
+      - expect: { project: pA, ids: [t2], approvals: [] }
+        answer: { shared: { t2: pending } }
+    expect:
+      contributed: { t2: pending }
+      already: []
+      failed: { t1: network }
+      unattempted: []
+      remaining: [t1]
+
+  - name: a-409-without-usable-details-fails-the-chunk
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse: { status: 409, error: "refused" }
+    expect:
+      contributed: {}
+      already: []
+      failed: { t1: rejected }
+      unattempted: []
+      remaining: [t1]
+
+  - name: a-409-naming-no-session-of-the-chunk-fails-it-rather-than-resend
+    selection:
+      - { id: t1, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        refuse:
+          status: 409
+          error: "refused"
+          code: missing
+          details: [{ code: missing, id: t9 }]
+    expect:
+      contributed: {}
+      already: []
+      failed: { t1: rejected }
+      unattempted: []
+      remaining: [t1]
+
+  - name: a-session-the-answer-does-not-name-is-unconfirmed
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1, t2], approvals: [] }
+        answer: { shared: { t1: pending } }
+    expect:
+      contributed: { t1: pending }
+      already: []
+      failed: { t2: unconfirmed }
+      unattempted: []
+      remaining: [t2]
+
+  - name: cancelling-stops-the-run
+    size: 1
+    selection:
+      - { id: t1, project: pA }
+      - { id: t2, project: pA }
+    calls:
+      - expect: { project: pA, ids: [t1], approvals: [] }
+        abort: true
+    expect:
+      contributed: {}
+      already: []
+      failed: {}
+      unattempted: [t1, t2]
+      stopped: cancelled
+      remaining: [t1, t2]
