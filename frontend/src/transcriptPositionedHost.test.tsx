@@ -330,3 +330,11 @@ it("preview-read-only-no-downloads", async () => {
   expect(urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"))).toEqual([null]);
   expect(contentReads(fetchMock)).toEqual([]);
 });
+
+it("mock-invalid-body-refuses-start", () => {
+  // The shared builder refuses a body Schema's parser refuses, so no mock
+  // built on it can start.
+  expect(() => buildPositionedBodies(spec, {
+    mutateBody: (name, body) => (name === "segment 1" ? { ...body, rows: [] } : body),
+  })).toThrow(/positioned mock refused to start: its segment 1 body/);
+});

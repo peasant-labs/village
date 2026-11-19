@@ -21,6 +21,7 @@ requiredFileNames:
   - lifecycle-disposable.mjs
   - long-transcript-demo.mjs
   - long-transcript-demo.test.mjs
+  - positioned-bodies.mjs
   - pull-request-fixtures.mjs
   - transcript-fixtures.mjs
 requiredVendoredNames:

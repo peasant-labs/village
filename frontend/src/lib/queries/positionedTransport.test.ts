@@ -29,7 +29,7 @@ it("retains the named transport rows", () => {
 describe("transport-sends-v2-and-echo", () => {
   for (const item of fixture.sendsV2AndEcho) {
     it(item.name, async () => {
-      const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}", { status: 200 }));
+      const fetchMock = vi.fn(async (...request: [RequestInfo | URL, RequestInit?]) => (void request, new Response("{}", { status: 200 })));
       vi.stubGlobal("fetch", fetchMock);
       const signal = new AbortController().signal;
       const method = villagePositionedTransport("a/b")[item.operation]!;
