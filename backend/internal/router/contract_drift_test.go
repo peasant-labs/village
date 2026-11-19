@@ -181,7 +181,10 @@ func declaredContractRoutes(t *testing.T) []route {
 
 // TestContractDriftGate_MountedRoutesAreDeclaredOrListed is the CI gate: every
 // route the server mounts under /api/v1 is either declared by the served
-// contract or listed, with a reason, in the undocumented-routes manifest. The
+// contract or listed, with a reason, in the undocumented-routes manifest, and
+// every route the contract declares is mounted. Mounts take their pattern from
+// schema route members, so a mount naming the wrong member is still declared;
+// only the declared-but-not-mounted check catches the route it dropped. The
 // manifest can only shrink: a row for a route the contract now declares, or
 // for a route no longer mounted, is itself a failure.
 func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
@@ -190,15 +193,6 @@ func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
 	manifest := loadUndocumentedRoutes(t)
 	for _, finding := range contractDriftFindings(mounted, declared, manifest) {
 		t.Error(finding)
-	}
-	mountedSet := map[string]bool{}
-	for _, r := range mounted {
-		mountedSet[routeKey(r.Method, r.Path)] = true
-	}
-	for _, r := range declared {
-		if !mountedSet[routeKey(r.Method, r.Path)] {
-			t.Logf("declared but not mounted (informational): %s %s", r.Method, r.Path)
-		}
 	}
 }
 
@@ -256,7 +250,7 @@ var requiredContractDriftCases = []string{
 	"mounted route the contract declares passes",
 	"manifest row still mounted and still undeclared passes",
 	"path parameter names do not matter",
-	"declared route that is not mounted is not a finding",
+	"declared route that is not mounted is a finding",
 	"attachment route mounted without a declaration is a finding",
 }
 
@@ -351,6 +345,11 @@ func contractDriftFindings(mounted, declared, manifest []route) []string {
 		key := routeKey(r.Method, r.Path)
 		if !declaredSet[key] && !manifestSet[key] {
 			findings = append(findings, fmt.Sprintf("%s %s is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason", r.Method, r.Path))
+		}
+	}
+	for _, r := range declared {
+		if !mountedSet[routeKey(r.Method, r.Path)] {
+			findings = append(findings, fmt.Sprintf("%s %s is declared by the served contract but the server does not mount it; mount it from its schema route member, or as a 501 stub listed in the declared-stub-routes manifest until its handler lands", r.Method, r.Path))
 		}
 	}
 	sort.Strings(findings)

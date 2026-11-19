@@ -58,7 +58,8 @@ See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
 ## Static guard
 
-`make check-unstring` runs `unstring` v0.0.4 over the frontend and backend. It
+`make check-unstring` runs `unstring`, at the version pinned in the `Makefile`,
+over the frontend and backend. It
 needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
 A cold cache downloads the pinned module through the Go module proxy.
 `.unstring-baseline.yaml` is generated and can only shrink; run
@@ -100,10 +101,12 @@ behavior. Update that document in the same commit whenever an invariant changes.
 The public `github.com/peasant-labs/schema` module is the source of truth for
 wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
-The current backend module pin is Schema 0.57.1; its Village API version is
-0.42.0. The mounted-byte release-asset test guards this pairing. The frontend
-package pin is `@peasant-labs/schema` 0.54.0, rendered through
-`@peasant-labs/fairtrade` 0.0.71.
+The backend pins the module in `backend/go.mod`; the mounted-byte release-asset
+test guards that pin's Village API version. The frontend pins
+`@peasant-labs/schema` and `@peasant-labs/fairtrade` in `frontend/package.json`.
+The backend pin may lag the npm pin: a re-pin that only changes TypeScript types
+leaves the Go routes and the Village API version unchanged, so the backend moves
+on the next tag that changes something it serves or validates.
 
 Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an

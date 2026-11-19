@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -423,13 +422,10 @@ func (h *Handler) pagedReadRoutes() http.Handler {
 		{schemaRoute.VillageGetTranscriptSegment, h.GetTranscriptSegment},
 		{schemaRoute.VillageGetTranscriptWindow, h.GetTranscriptWindow},
 	} {
-		mux.Get(strings.TrimPrefix(mount.route.Pattern(), pagedReadAPIPrefix), mount.handler)
+		mux.Get(MountPattern(mount.route), mount.handler)
 	}
 	return mux
 }
-
-// pagedReadAPIPrefix is the prefix the router mounts every API route under.
-var pagedReadAPIPrefix = strings.SplitN(schemaRoute.VillageGetTranscriptSegments.Pattern(), "/transcripts/", 2)[0]
 
 // pagedReadMaxSegments bounds the segment reads of one observed partition, so
 // a corrupt directory cannot drive an unbounded loop. It is far above any
