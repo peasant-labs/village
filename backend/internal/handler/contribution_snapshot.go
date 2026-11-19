@@ -22,6 +22,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/peasant-labs/schema"
+
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -31,12 +33,17 @@ import (
 // project, one record per session. Which families those are is defined once, in
 // contribution_family.go.
 //
-// There is no record cap and no byte cap: the answer is the whole set, however
-// large. What bounds the cost is time and concurrency, and a request refused by
-// either says so with a code the client can act on:
+// There is no record cap: the answer is the whole set or nothing. The encoded
+// body is limited to the contract's schema.VillageContributionSnapshotMaxBytes
+// (8 MiB), and time and concurrency bound the cost. A request refused by any of
+// the three says so with a code the client can act on:
 //
-//	503 snapshot_timeout  the read outlived its time bound
-//	503 snapshot_busy     too many snapshots are being built right now
+//	413 snapshot_too_large  the whole set would encode past the byte limit
+//	503 snapshot_timeout    the read outlived its time bound
+//	503 snapshot_busy       too many snapshots are being built right now
+//
+// A snapshot over the byte limit is refused whole, never truncated: the client
+// narrows the search with q or provider and reads it again.
 //
 // One snapshot is one read-only REPEATABLE READ transaction, so the records,
 // their statuses and their parents all describe a single moment even while
@@ -85,6 +92,17 @@ type contributionSnapshotControl struct {
 
 	// queueWait overrides contributionSnapshotQueueWait when positive.
 	queueWait time.Duration
+
+	// maxBytes overrides schema.VillageContributionSnapshotMaxBytes when
+	// positive, so a test can reach the limit without seeding 8 MiB.
+	maxBytes int
+}
+
+func (c *contributionSnapshotControl) byteLimit() int {
+	if c.maxBytes > 0 {
+		return c.maxBytes
+	}
+	return schema.VillageContributionSnapshotMaxBytes
 }
 
 func (c *contributionSnapshotControl) wait() time.Duration {
@@ -228,6 +246,51 @@ func writeSnapshotBusy(w http.ResponseWriter) {
 		"Village is already building as many contribution snapshots as it allows (or you already have one running), so "+
 			"this one was not started. Nothing was changed. Wait a moment, then retry.",
 		contributionSnapshotBusyCode)
+}
+
+func writeSnapshotTooLarge(w http.ResponseWriter, sessions, limit int) {
+	writeErrorCode(w, http.StatusRequestEntityTooLarge, fmt.Sprintf(
+		"this snapshot holds %d sessions, which encode to more than the %s limit of one snapshot, so no snapshot was "+
+			"returned and nothing partial was sent. Nothing was changed. Narrow the search with q or provider, then "+
+			"read the snapshot again.", sessions, formatByteLimit(limit)),
+		string(schema.VillageContributionErrorSnapshotTooLarge))
+}
+
+// formatByteLimit names a byte limit the way the contract states it: in MiB
+// when it is a whole number of them, otherwise in bytes.
+func formatByteLimit(n int) string {
+	if n >= 1<<20 && n%(1<<20) == 0 {
+		return fmt.Sprintf("%d MiB", n>>20)
+	}
+	return fmt.Sprintf("%d-byte", n)
+}
+
+// errSnapshotTooLarge stops a sizing pass as soon as the encoding passes the
+// limit.
+var errSnapshotTooLarge = errors.New("the contribution snapshot encodes past its byte limit")
+
+// limitCounter is an io.Writer that only counts, and fails once the count
+// passes max. Sizing a snapshot through the same encoder that sends it keeps the
+// limit exact, and an oversized set costs at most max bytes of encoding.
+type limitCounter struct {
+	n, max int
+}
+
+func (c *limitCounter) Write(p []byte) (int, error) {
+	c.n += len(p)
+	if c.n > c.max {
+		return 0, errSnapshotTooLarge
+	}
+	return len(p), nil
+}
+
+// fits reports whether the encoded snapshot is at most max bytes.
+func (s *contributionSnapshotSet) fits(groupID, projectHash string, max int) (bool, error) {
+	err := s.writeJSON(&limitCounter{max: max}, groupID, projectHash)
+	if errors.Is(err, errSnapshotTooLarge) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func writeSnapshotTimeout(w http.ResponseWriter, limit time.Duration) {
@@ -408,8 +471,8 @@ type snapshotParams struct {
 
 // parseSnapshotParams reads the parameters a snapshot uses: project_hash, q and
 // provider (view is the dispatcher's). Every other parameter is ignored, among
-// them limit and cursor: a snapshot has no page, cursor or size limit, it is
-// always the whole project.
+// them limit and cursor: a snapshot has no page, cursor or record limit, it is
+// always the whole project (or a 413 when that would pass the byte limit).
 func parseSnapshotParams(query url.Values) (snapshotParams, string) {
 	if refusal := refuseRepeatedParameters(query, "project_hash"); refusal != "" {
 		return snapshotParams{}, refusal
@@ -485,6 +548,21 @@ func (h *Handler) listContributionSnapshot(w http.ResponseWriter, r *http.Reques
 	release()
 	if err != nil {
 		h.refuseContributionSnapshot(w, r, limit, err)
+		return
+	}
+
+	// The whole set or nothing: size it before the status line, so an oversized
+	// snapshot is refused with nothing partial sent.
+	limitBytes := control.byteLimit()
+	ok, err = set.fits(groupID.String(), params.projectHash, limitBytes)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"Village could not encode this contribution snapshot, so nothing was returned. Nothing was changed. Retry; "+
+				"if it keeps happening, report it to the operator.")
+		return
+	}
+	if !ok {
+		writeSnapshotTooLarge(w, set.Len(), limitBytes)
 		return
 	}
 

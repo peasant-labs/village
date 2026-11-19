@@ -62,7 +62,8 @@ settings, and the same workloads.
 - **Snapshot.** The uncapped snapshot. One read-only REPEATABLE READ transaction
   reads every record of one project's families, or of the whole library, and
   returns compact records: id, visibility, latest contribution status, project
-  hash, and parent link. There is no cap.
+  hash, and parent link. The benchmark reads the whole set with no record cap;
+  the served view refuses a body past 8 MiB with a 413 `snapshot_too_large`.
 - **Write workloads.** First-time private-to-shared contribution (through the
   generated share-attempt and governance queries, in chunks), republish of one
   transcript, visibility update, and a concurrent publish, republish, and

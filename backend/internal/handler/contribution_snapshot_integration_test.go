@@ -27,6 +27,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v5"
 
+	"github.com/peasant-labs/schema"
+
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -715,10 +717,10 @@ func TestContributionSnapshotIsOneConsistentRead(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// No cap
+// No record cap; the byte limit
 // ---------------------------------------------------------------------------
 
-func TestContributionSnapshotHasNoRecordOrByteCap(t *testing.T) {
+func TestContributionSnapshotHasNoRecordCapAndRefusesPastTheByteLimit(t *testing.T) {
 	if testing.Short() {
 		t.Skip("seeds sixty thousand sessions")
 	}
@@ -728,7 +730,7 @@ func TestContributionSnapshotHasNoRecordOrByteCap(t *testing.T) {
 	s := newSnapshotHarness(t, ctx, pool, "snap-nocap", nil)
 	defer s.cleanup()
 
-	// Past both of the retired bounds: 50,000 records and 8 MiB of body.
+	// Past the retired 50,000-record bound and past the 8 MiB byte limit.
 	const sessions = 60000
 	execAsSystem(t, ctx, pool, `
 		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key,
@@ -742,16 +744,16 @@ func TestContributionSnapshotHasNoRecordOrByteCap(t *testing.T) {
 	// A bulk load is followed by a statistics refresh in production too
 	// (autovacuum); without it the planner sees an empty table.
 	execAsSystem(t, ctx, pool, `ANALYZE transcripts`)
+	query := s.snapshotQuery("big", nil)
 
+	// With the limit raised, the whole set comes back: there is no record cap.
+	s.h.contributionSnapshot.maxBytes = 64 << 20
 	start := time.Now()
-	rec := s.get("/collectives", s.snapshotQuery("big", nil))
+	rec := s.get("/collectives", query)
 	t.Logf("served %d bytes in %s", rec.Body.Len(), time.Since(start))
 	wire := decodeSnapshot(t, rec)
 	if wire.Count != sessions || len(wire.Records) != sessions {
 		t.Fatalf("count %d, records %d, want %d each", wire.Count, len(wire.Records), sessions)
-	}
-	if rec.Body.Len() <= 8<<20 {
-		t.Fatalf("the body is %d bytes; the fixture must exceed 8 MiB to prove there is no byte cap", rec.Body.Len())
 	}
 	seen := make(map[string]bool, sessions)
 	for _, record := range wire.Records {
@@ -759,6 +761,33 @@ func TestContributionSnapshotHasNoRecordOrByteCap(t *testing.T) {
 			t.Fatalf("duplicate record %s", record.ID)
 		}
 		seen[record.ID] = true
+	}
+	size := rec.Body.Len()
+	if size <= schema.VillageContributionSnapshotMaxBytes {
+		t.Fatalf("the body is %d bytes; the fixture must exceed the %d-byte limit to prove the limit refuses it",
+			size, schema.VillageContributionSnapshotMaxBytes)
+	}
+
+	// The limit is inclusive and exact: a body of exactly the limit is served.
+	s.h.contributionSnapshot.maxBytes = size
+	if rec := s.get("/collectives", query); rec.Code != http.StatusOK || rec.Body.Len() != size {
+		t.Fatalf("at a limit of exactly %d bytes: status %d, %d bytes, want 200 with the whole body", size, rec.Code, rec.Body.Len())
+	}
+
+	// One byte over is refused whole.
+	s.h.contributionSnapshot.maxBytes = size - 1
+	body := decodeRefusalStatus(t, s.get("/collectives", query), http.StatusRequestEntityTooLarge,
+		string(schema.VillageContributionErrorSnapshotTooLarge))
+	if !strings.Contains(body.Error, "q or provider") {
+		t.Errorf("the refusal must say how to narrow the search: %q", body.Error)
+	}
+
+	// The contract's own limit refuses this snapshot too.
+	s.h.contributionSnapshot.maxBytes = 0
+	body = decodeRefusalStatus(t, s.get("/collectives", query), http.StatusRequestEntityTooLarge,
+		string(schema.VillageContributionErrorSnapshotTooLarge))
+	if !strings.Contains(body.Error, "8 MiB") {
+		t.Errorf("the refusal must name the 8 MiB limit: %q", body.Error)
 	}
 }
 
@@ -768,8 +797,13 @@ func TestContributionSnapshotHasNoRecordOrByteCap(t *testing.T) {
 
 func decodeRefusal(t *testing.T, rec *httptest.ResponseRecorder, wantCode string) errorBody {
 	t.Helper()
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body %s", rec.Code, rec.Body.String())
+	return decodeRefusalStatus(t, rec, http.StatusServiceUnavailable, wantCode)
+}
+
+func decodeRefusalStatus(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode string) errorBody {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("status = %d, want %d; body %s", rec.Code, wantStatus, rec.Body.String())
 	}
 	var body errorBody
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {

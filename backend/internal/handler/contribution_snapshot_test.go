@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/peasant-labs/schema"
 )
 
 func TestContributionSnapshotCapacityDefault(t *testing.T) {
@@ -286,6 +288,43 @@ func TestContributionSnapshotSetEmptyAndEscaping(t *testing.T) {
 	}
 	if r := decoded.Records[0]; r.Visibility != "sh\\ared" || r.LatestStatus != "ap\"proved\n" || r.ProjectHash != `p"q` {
 		t.Errorf("round trip = %+v", r)
+	}
+}
+
+// The size check encodes through the same writer that sends the body, so the
+// limit is exact: a limit of the body's own length fits and one byte less does
+// not.
+func TestContributionSnapshotSetFitsIsExactAtTheLimit(t *testing.T) {
+	var set contributionSnapshotSet
+	project := strings.Repeat("e", 64)
+	root := snapshotID(0x40)
+	set.addRecord(root, [16]byte{}, false, []byte(project), []byte("shared"), []byte("approved"))
+	set.addRecord(snapshotID(0x41), root, true, []byte(project), []byte("private"), nil)
+	group := uuid.NewString()
+
+	var out bytes.Buffer
+	if err := set.writeJSON(&out, group, project); err != nil {
+		t.Fatal(err)
+	}
+	size := out.Len()
+	for _, limit := range []int{size, size + 1} {
+		if ok, err := set.fits(group, project, limit); err != nil || !ok {
+			t.Errorf("a %d-byte body against a %d-byte limit: fits = %v, err = %v, want it to fit", size, limit, ok, err)
+		}
+	}
+	for _, limit := range []int{size - 1, 1} {
+		if ok, err := set.fits(group, project, limit); err != nil || ok {
+			t.Errorf("a %d-byte body against a %d-byte limit: fits = %v, err = %v, want a refusal", size, limit, ok, err)
+		}
+	}
+}
+
+func TestFormatByteLimitNamesTheContractLimit(t *testing.T) {
+	if got := formatByteLimit(schema.VillageContributionSnapshotMaxBytes); got != "8 MiB" {
+		t.Errorf("formatByteLimit(contract limit) = %q, want %q", got, "8 MiB")
+	}
+	if got := formatByteLimit(1000); got != "1000-byte" {
+		t.Errorf("formatByteLimit(1000) = %q, want %q", got, "1000-byte")
 	}
 }
 
