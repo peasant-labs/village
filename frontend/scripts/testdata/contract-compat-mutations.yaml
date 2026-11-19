@@ -12,7 +12,7 @@ mutations:
     testFile: src/finalContractCompatibility.test.tsx
     testName: null-turns
   - name: observed-model-pass-through
-    file: ../src/components/session-detail/v2/SessionDetailV2.tsx
+    file: ../src/lib/transcriptExport.ts
     original: 'detail as Parameters<typeof adaptTranscript>[0],'
     replacement: |-
       {
