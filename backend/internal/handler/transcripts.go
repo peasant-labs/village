@@ -30,6 +30,7 @@ import (
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 )
 
 const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
@@ -184,7 +185,7 @@ const (
 // test that mounts it drives the same route, middleware and handler a
 // publishing client reaches.
 func (h *Handler) RegisterPublishRoutes(r chi.Router) {
-	r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
+	r.With(h.AuthRequired).Post(MountPattern(schemaRoute.VillagePublishTranscript), h.PublishTranscript)
 	r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
 }
 

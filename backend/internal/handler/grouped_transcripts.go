@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
 )
@@ -23,8 +24,8 @@ func (h *Handler) RegisterTranscriptBrowseRoutes(r chi.Router) {
 			panic(err)
 		}
 	}
-	r.With(h.AuthOptional).Get("/transcripts", h.ListTranscripts)
-	r.With(h.AuthOptional).Get("/transcript-groups/{groupId}/members", h.ListHelperMembers)
+	r.With(h.AuthOptional).Get(MountPattern(schemaRoute.VillageListTranscripts), h.ListTranscripts)
+	r.With(h.AuthOptional).Get(MountPattern(schemaRoute.VillageListTranscriptGroupMembers), h.ListHelperMembers)
 }
 
 func (h *Handler) listGroupedTranscripts(w http.ResponseWriter, r *http.Request) {
