@@ -57,3 +57,4 @@
 !baseline/**
 !mock-rest-integrity.mjs
 !integrity-shoot.mjs
+!mock-rest-positioned.mjs
