@@ -6,4 +6,5 @@ export const SessionDetailV2TestId = {
   ModePositioned: closed("transcript-mode-positioned", "a transcript read through the positioned reader"),
   ModeContent: closed("transcript-mode-content", "a transcript read as the whole document"),
   SnappedTurn: closed("transcript-snapped-turn", "the line a deep link to an unserved turn shows"),
+  GraphLoading: closed("transcript-graph-loading", "the positioned page's graph while it reads the whole stored copy"),
 } as const;

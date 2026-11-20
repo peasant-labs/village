@@ -57,3 +57,15 @@ downloads:
     - {name: download-json-bytes-partial-load, label: download json, file: positioned-download/expected.json, type: application/json}
     - {name: download-jsonl-bytes-partial-load, label: download jsonl, file: positioned-download/expected.jsonl, type: application/x-ndjson}
     - {name: download-markdown-bytes-partial-load, label: download markdown, file: positioned-download/expected.md, type: text/markdown}
+
+# The trajectory graph on the positioned page: the list never reads the whole
+# document; opening the graph reads it once, as a reader action, and a refused
+# read shows the graph's failure state while the list stays positioned.
+# `views` are the view toggles clicked in order, by their names in
+# `viewButtons`; `contentStatus` is the /content answer.
+viewButtons: {list: list, graph: graph}
+graphFailureTitle: the trajectory graph could not load
+graph:
+  - {name: graph-open-reads-content-once, views: [graph, list, graph], contentStatus: 200, expectContentReads: 1, expect: graph}
+  - {name: list-mode-never-reads-content, views: [], contentStatus: 200, expectContentReads: 0, expect: list}
+  - {name: graph-content-failure-keeps-list, views: [graph], contentStatus: 403, expectContentReads: 1, expect: failure}

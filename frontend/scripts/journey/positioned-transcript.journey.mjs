@@ -92,6 +92,14 @@ test.describe('positioned transcript reader', () => {
       'segments/0 partition=main',
     ]))
     expect(contentReads(log)).toEqual([])
+    // Opening the graph is a reader action that reads the whole stored copy, exactly once.
+    await page.getByRole('button', { name: POSITIONED.viewButtons.graph, exact: true }).click()
+    await expect(page.locator('.react-flow')).toBeVisible()
+    await expect.poll(() => contentReads(log).length).toBe(1)
+    await page.getByRole('button', { name: POSITIONED.viewButtons.list, exact: true }).click()
+    await page.getByRole('button', { name: POSITIONED.viewButtons.graph, exact: true }).click()
+    await expect(page.locator('.react-flow')).toBeVisible()
+    expect(contentReads(log)).toHaveLength(1)
   })
 
   test('journey-v2-failure-no-content-request', async ({ page }) => {

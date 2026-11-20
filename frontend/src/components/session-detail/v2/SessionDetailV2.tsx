@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
 // The demo's drop-in composite + its one wire to view adapter. This viewer
 // mounts fairtrade's own graph engine and helpers directly; the demo and both
 // apps all render the SAME composite.
@@ -12,7 +11,6 @@ import {
   UnverifiedPullRequests,
   ToastProvider,
   useToast,
-  annotateTranscript,
   PositionedLanding,
   usePositionedTranscript,
   type PositionedTranscript,
@@ -20,6 +18,9 @@ import {
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
 import { SessionDetailV2TestId } from './readModeTestIds';
+import { WholeDocumentGraph } from './WholeDocumentGraph';
+import { TranscriptViewMode } from './transcriptViewMode';
+import RequestFailureState from '@/components/RequestFailureState';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -31,7 +32,6 @@ import {
   relationshipHref,
   resolveRelationshipAnchorTurn,
 } from '@/lib/relationshipAnchor';
-import { detectPhases } from '@/lib/insights';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -51,7 +51,10 @@ import { useTranscriptPullRequests } from '@/lib/queries/pulls';
 import {
   cookWholeTranscript,
   readTranscriptForDownload,
+  readWholeTranscript,
   saveTranscriptFile,
+  WholeTranscriptPurpose,
+  type WholeTranscript,
   transcriptFile,
   type TranscriptExportFormat,
 } from '@/lib/transcriptExport';
@@ -187,6 +190,34 @@ function PositionedSessionDetailV2(props: SessionDetailV2Props) {
   return <SessionDetailV2Content {...props} positioned={positioned} />;
 }
 
+/** Where the positioned page's one whole-document read for the graph stands. Closed. */
+const GraphReadStatus = { Idle: 'idle', Ready: 'ready', Failed: 'failed' } as const;
+type GraphRead =
+  | { status: typeof GraphReadStatus.Idle }
+  | { status: typeof GraphReadStatus.Ready; revision: string | undefined; whole: WholeTranscript }
+  | { status: typeof GraphReadStatus.Failed; revision: string | undefined; message: string };
+
+/** The positioned page's graph: the read in flight, its failure with a retry, or the graph. The
+ *  list beside it stays positioned whatever happens here. */
+function PositionedGraph({ read, onRetry }: { read: GraphRead; onRetry: () => void }) {
+  if (read.status === GraphReadStatus.Ready) return <WholeDocumentGraph detail={read.whole.detail} viewModel={read.whole.viewModel} />;
+  if (read.status === GraphReadStatus.Failed) {
+    return (
+      <RequestFailureState
+        title="the trajectory graph could not load"
+        message={read.message}
+        retryLabel="retry the graph"
+        onRetry={onRetry}
+      />
+    );
+  }
+  return (
+    <p className="px-6 py-6 text-[length:var(--fs-body)] text-ink-3" role="status" data-testid={SessionDetailV2TestId.GraphLoading.wire}>
+      loading the trajectory graph
+    </p>
+  );
+}
+
 /** The status line for a `?turn=N` the transcript does not serve. */
 export function snappedTurnLine(requestedTurn: number, openedTurn: number): string {
   return `turn ${requestedTurn} is not in this transcript's served view, so the viewer opened turn ${openedTurn}.`;
@@ -271,14 +302,6 @@ function SessionDetailV2Content({
   // The preview column shows none.
   const pullRequestsQuery = useTranscriptPullRequests(transcriptId, !isPreview);
 
-  // Host-derived inputs for the GRAPH engine (the composite derives its own).
-  const turns = useMemo(() => detail?.turns ?? [], [detail]);
-  const phases = useMemo(() => detectPhases(turns), [turns]);
-  const annotations = useMemo(
-    () => annotateTranscript(turns),
-    [turns],
-  );
-
   // The ONE wire→view projection (fairtrade's adapter). Village has no
   // personal-medians stream; the scorecard rides when the payload carries one.
   const vm = useMemo(
@@ -286,12 +309,6 @@ function SessionDetailV2Content({
       ? cookWholeTranscript(detail, { storedTitle: transcriptTitle, relationshipNavigation, published: publishedContent })
       : null),
     [detail, transcriptTitle, relationshipNavigation, publishedContent],
-  );
-
-  // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
-  const toolVMsByTurn = useMemo(
-    () => new Map((vm?.turns ?? []).map((turn) => [turn.index, turn.toolCalls])),
-    [vm],
   );
 
   // Resolve the carried anchor against the COOKED target turns (the adapter's
@@ -412,6 +429,40 @@ function SessionDetailV2Content({
       downloadEpoch.current = { id: epoch.id + 1, abort: new AbortController() };
     };
   }, [transcriptId, positionedRevision]);
+  // The positioned page draws the trajectory graph from the whole stored copy,
+  // read once when the reader opens the graph: a reader action like a
+  // download, never an answer to a positioned failure. The list never reads
+  // it. The read carries the download's epoch, so a revision change or an
+  // unmount aborts it and discards its answer.
+  const [viewMode, setViewMode] = useState<TranscriptViewMode>(TranscriptViewMode.List);
+  const [graphRead, setGraphRead] = useState<GraphRead>({ status: GraphReadStatus.Idle });
+  const graphCurrent: GraphRead =
+    graphRead.status !== GraphReadStatus.Idle && graphRead.revision === positionedRevision ? graphRead : { status: GraphReadStatus.Idle };
+  const graphWanted = positioned !== undefined && viewMode === TranscriptViewMode.Graph;
+  // The revision a read is in flight for; a second render never starts a second read.
+  const graphRequested = useRef<{ revision: string | undefined } | null>(null);
+  useEffect(() => {
+    if (!graphWanted || graphCurrent.status !== GraphReadStatus.Idle) return;
+    const revision = positionedRevision;
+    if (graphRequested.current && graphRequested.current.revision === revision) return;
+    graphRequested.current = { revision };
+    const { id, abort } = downloadEpoch.current;
+    const epoch = { signal: abort.signal, isCurrent: () => downloadEpoch.current.id === id };
+    readWholeTranscript({ transcriptId, storedTitle: transcriptTitle, knownHarness, relationshipNavigation }, epoch, WholeTranscriptPurpose.Graph).then(
+      (whole) => {
+        if (whole && epoch.isCurrent()) setGraphRead({ status: GraphReadStatus.Ready, revision, whole });
+      },
+      (reason: unknown) => {
+        if (!epoch.isCurrent()) return;
+        setGraphRead({
+          status: GraphReadStatus.Failed,
+          revision,
+          message: reason instanceof Error ? reason.message : 'the trajectory graph could not be read. try again.',
+        });
+      },
+    );
+  }, [graphWanted, graphCurrent.status, positionedRevision, transcriptId, transcriptTitle, knownHarness, relationshipNavigation]);
+
   function handleExport(format: TranscriptExportFormat) {
     if (positioned) {
       const { id, abort } = downloadEpoch.current;
@@ -695,23 +746,27 @@ function SessionDetailV2Content({
           // renders in preview and shows the composite's built-in "no graph
           // engine" empty state; hiding the toggle itself is a fairtrade
           // follow-up.
-          // A positioned read holds only some segments, so it has no whole
-          // trajectory to draw.
+          // A positioned page holds only some segments, so its graph draws
+          // the whole stored copy it reads when the graph opens.
           graphSlot={
-            isPreview || positioned || !detail
+            isPreview
               ? undefined
-              : () => (
-                  <TrajectoryGraph
-                    turns={turns}
-                    toolVMsByTurn={toolVMsByTurn}
-                    filteredTurns={turns}
-                    phases={phases}
-                    annotations={annotations}
-                    searchMatches={[]}
-                    provider={detail?.harness}
+              : positioned
+              ? () => (
+                  <PositionedGraph
+                    read={graphCurrent}
+                    onRetry={() => {
+                      graphRequested.current = null;
+                      setGraphRead({ status: GraphReadStatus.Idle });
+                    }}
                   />
                 )
+              : detail && vm
+              ? () => <WholeDocumentGraph detail={detail} viewModel={vm} />
+              : undefined
           }
+          viewMode={positioned ? viewMode : undefined}
+          onViewModeChange={positioned ? setViewMode : undefined}
           // Village's typed label model — saved chips + the single-panel
           // popover both host-owned (the composite's good/neutral/bad model
           // stays the demo's).

@@ -178,27 +178,41 @@ export interface DownloadEpoch {
   isCurrent(): boolean;
 }
 
-export interface TranscriptDownloadRequest {
+/** What a whole-document read needs to parse and cook the stored copy. */
+export interface WholeTranscriptRequest {
   transcriptId: string;
-  format: TranscriptExportFormat;
-  /** The transcript's own village link, written into the markdown header. */
-  url: string;
   storedTitle: string | null | undefined;
   knownHarness?: string;
   relationshipNavigation?: SessionRelationshipNavigation[];
 }
 
+export interface TranscriptDownloadRequest extends WholeTranscriptRequest {
+  format: TranscriptExportFormat;
+  /** The transcript's own village link, written into the markdown header. */
+  url: string;
+}
+
+/** The whole stored copy, parsed the way the whole-document page parses it, and cooked. */
+export interface WholeTranscript {
+  detail: SessionDetailPayload;
+  viewModel: TranscriptViewModel;
+}
+
+/** What a reader action reads the whole stored copy for; it names the action in a refusal. Closed. */
+export const WholeTranscriptPurpose = Object.freeze({ Download: "download", Graph: "graph" } as const);
+export type WholeTranscriptPurpose = (typeof WholeTranscriptPurpose)[keyof typeof WholeTranscriptPurpose];
+
 /**
- * A download from a page that holds only part of the transcript: one
- * authorized read of the whole stored copy, parsed the way the whole-document
- * page parses it, then saved while the epoch is current. Resolves `true` when
- * a file was handed to the browser and `false` when the epoch ended first.
- * A refused or unreadable read rejects with a message the page can show.
+ * One authorized read of the whole stored copy, for a page that holds only
+ * part of the transcript: a download, or the trajectory graph. Resolves
+ * `null` when the epoch ended first, so nothing stale is used. A refused or
+ * unreadable read rejects with a message the page can show.
  */
-export async function readTranscriptForDownload(
-  request: TranscriptDownloadRequest,
+export async function readWholeTranscript(
+  request: WholeTranscriptRequest,
   epoch: DownloadEpoch,
-): Promise<boolean> {
+  purpose: WholeTranscriptPurpose = WholeTranscriptPurpose.Download,
+): Promise<WholeTranscript | null> {
   let response: Response;
   try {
     response = await fetch(`${API_URL_BASE}/transcripts/${encodeURIComponent(request.transcriptId)}/content`, {
@@ -207,27 +221,27 @@ export async function readTranscriptForDownload(
       signal: epoch.signal,
     });
   } catch (error) {
-    if (epoch.signal.aborted) return false;
+    if (epoch.signal.aborted) return null;
     throw error;
   }
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      `the transcript download could not be read (status ${response.status}). try the download again; if it keeps failing, reload the page.`,
+      `the transcript ${purpose} could not be read (status ${response.status}). try again; if it keeps failing, reload the page.`,
     );
   }
   let text: string;
   try {
     text = await response.text();
   } catch (error) {
-    if (epoch.signal.aborted) return false;
+    if (epoch.signal.aborted) return null;
     throw error;
   }
-  if (epoch.signal.aborted || !epoch.isCurrent()) return false;
+  if (epoch.signal.aborted || !epoch.isCurrent()) return null;
   const read = parseTranscriptRead(text, request.knownHarness);
   if (!isSessionDetailPayload(read.content)) {
     throw new Error(
-      "the transcript download is in a format this page cannot write. publish the transcript again from peasant, then retry the download.",
+      `the transcript ${purpose} needs the stored copy in a format this page cannot read. publish the transcript again from peasant, then try again.`,
     );
   }
   const detail = read.content;
@@ -236,9 +250,23 @@ export async function readTranscriptForDownload(
     relationshipNavigation: request.relationshipNavigation,
     published: read.published,
   });
-  if (epoch.signal.aborted || !epoch.isCurrent()) return false;
+  if (epoch.signal.aborted || !epoch.isCurrent()) return null;
+  return { detail, viewModel };
+}
+
+/**
+ * A download from a page that holds only part of the transcript: one read of
+ * the whole stored copy, saved while the epoch is current. Resolves `true`
+ * when a file was handed to the browser and `false` when the epoch ended first.
+ */
+export async function readTranscriptForDownload(
+  request: TranscriptDownloadRequest,
+  epoch: DownloadEpoch,
+): Promise<boolean> {
+  const whole = await readWholeTranscript(request, epoch);
+  if (!whole) return false;
   saveTranscriptFile(
-    transcriptFile(request.format, { viewModel, detail, url: request.url, transcriptId: request.transcriptId }),
+    transcriptFile(request.format, { viewModel: whole.viewModel, detail: whole.detail, url: request.url, transcriptId: request.transcriptId }),
   );
   return true;
 }

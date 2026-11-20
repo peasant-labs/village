@@ -16,6 +16,7 @@ import { readTranscriptForDownload } from "@/lib/transcriptExport";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
 import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
+import { TranscriptViewMode } from "@/components/session-detail/v2/transcriptViewMode";
 
 // The transcript page over the positioned reader. The real route mounts
 // (TranscriptDetailPage -> SessionDetailV2 -> fairtrade's reader and viewer);
@@ -32,12 +33,21 @@ type LandingCase = {
   expectText?: string; expectSnapped?: string;
 };
 type DownloadRow = { name: string; label: string; file: string; type: string };
+/** What a graph case ends on: the drawn graph, the list alone, or the graph's failure state. */
+const GraphOutcome = Object.freeze({ Graph: "graph", List: "list", Failure: "failure" } as const);
+type GraphCase = {
+  name: string; views: TranscriptViewMode[]; contentStatus: number; expectContentReads: number;
+  expect: (typeof GraphOutcome)[keyof typeof GraphOutcome];
+};
 type Fixture = {
   transcript: Spec;
   retryActions: string[];
   noFallback: NoFallbackCase[];
   landing: LandingCase[];
   downloads: { search: string; loadedSegments: string[]; rows: DownloadRow[] };
+  viewButtons: Record<TranscriptViewMode, string>;
+  graphFailureTitle: string;
+  graph: GraphCase[];
 };
 
 // unstring-allow: data-path-literal — named once at module scope and read only through this constant
@@ -52,10 +62,11 @@ const requiredFixtureNames = [
   "v2-failure-network", "v2-failure-malformed",
   "turn-param-lands-requested-position", "turn-param-snapped-status-copy",
   "download-json-bytes-partial-load", "download-jsonl-bytes-partial-load", "download-markdown-bytes-partial-load",
+  "graph-open-reads-content-once", "list-mode-never-reads-content", "graph-content-failure-keeps-list",
 ];
 
 it("retains every named positioned-host case", () => {
-  const names = [...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows].map(({ name }) => name);
+  const names = [...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph].map(({ name }) => name);
   expect(names.sort()).toEqual([...requiredFixtureNames].sort());
 });
 
@@ -75,7 +86,7 @@ type Failure = { status?: number; retryAfter?: string; network?: boolean; malfor
     way. `segmentFailure` fails only segment reads, after the rest answer. */
 function positionedRoutes(
   bodies: Bodies,
-  options: { failure?: Failure; segmentFailure?: Failure; annotations?: unknown[] } = {},
+  options: { failure?: Failure; segmentFailure?: Failure; annotations?: unknown[]; contentStatus?: number } = {},
 ): MountedRouteHandler {
   const fail = (failure: Failure) => {
     if (failure.network) throw new TypeError("Failed to fetch");
@@ -85,6 +96,9 @@ function positionedRoutes(
   return (raw, init) => {
     const url = new URL(raw);
     if (url.pathname.endsWith("/schema/version")) return json(ADVERTISED);
+    if (options.contentStatus !== undefined && options.contentStatus !== 200 && url.pathname.endsWith(`/transcripts/${id}/content`)) {
+      return json({ error: "refused" }, { status: options.contentStatus });
+    }
     if (options.annotations && url.pathname.endsWith(`/transcripts/${id}/annotations`)) {
       return json({ annotations: options.annotations });
     }
@@ -345,4 +359,38 @@ it("mock-invalid-body-refuses-start", () => {
   expect(() => buildPositionedBodies(spec, {
     mutateBody: (name, body) => (name === "segment 1" ? { ...body, rows: [] } : body),
   })).toThrow(/positioned mock refused to start: its segment 1 body/);
+});
+
+describe("graph", () => {
+  // The graph engine measures nodes with ResizeObserver, which jsdom lacks.
+  const resizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+
+  for (const row of fixture.graph) {
+    it(row.name, async () => {
+      const fetchMock = await mountPositioned(buildPositionedBodies(spec), "", { contentStatus: row.contentStatus });
+      vi.stubGlobal("ResizeObserver", resizeObserver);
+      await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
+      for (const view of row.views) {
+        fireEvent.click(screen.getByRole("button", { name: fixture.viewButtons[view] }));
+        if (view === TranscriptViewMode.Graph && row.expect === GraphOutcome.Graph) {
+          await waitFor(() => expect(document.querySelector(".react-flow")).not.toBeNull());
+        }
+      }
+      if (row.expect === GraphOutcome.Failure) {
+        await waitFor(() => expect(screen.getByText(fixture.graphFailureTitle)).toBeInTheDocument());
+        // The list beside it stays positioned and keeps its rows.
+        fireEvent.click(screen.getByRole("button", { name: fixture.viewButtons.list }));
+        await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
+        expect(screen.getByTestId(SessionDetailV2TestId.ModePositioned.wire)).toBeInTheDocument();
+      }
+      if (row.expect === GraphOutcome.List) {
+        await waitFor(() => expect(segmentReads(fetchMock).length).toBeGreaterThan(0));
+        expect(document.querySelector(".react-flow")).toBeNull();
+      }
+      await waitFor(() => expect(contentReads(fetchMock)).toHaveLength(row.expectContentReads));
+      // Nothing more is read after the reads settle.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(contentReads(fetchMock)).toHaveLength(row.expectContentReads);
+    });
+  }
 });

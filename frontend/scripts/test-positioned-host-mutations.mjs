@@ -40,6 +40,8 @@ const requiredNames = [
   "revision-echo-dropped",
   "representation-echo-dropped",
   "http-date-read-as-seconds",
+  "graph-reads-content-on-mount",
+  "list-reads-content",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {

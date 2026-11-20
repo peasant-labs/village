@@ -960,7 +960,6 @@ rules:
     frontend/scripts/visual/profile-collectives-shoot.mjs: 2
     frontend/scripts/visual/project-page-shoot.mjs: 1
     frontend/scripts/visual/village-shoot.mjs: 1
-    frontend/src/components/session-detail/v2/SessionDetailV2.mountedGraph.test.tsx: 1
     frontend/src/mountedChildSessionGrouping.test.tsx: 1
     frontend/src/projectPage.test.tsx: 3
   ts-enum:

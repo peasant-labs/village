@@ -9,6 +9,7 @@ import {
   type MountedRouteTranscriptMetadata,
 } from "@/test/mountedProductionRoute";
 import { loadMountedGraphFixtures, type MountedGraphCase } from "@/test/mountedGraphFixtures";
+import { TranscriptViewMode } from "./transcriptViewMode";
 
 // Mounts the REAL production route (TranscriptDetailPage -> SessionDetailV2 ->
 // fairtrade's TranscriptViewer -> TrajectoryGraph) with REST mocked and NO
@@ -108,7 +109,7 @@ describe("mounted production transcript route: real fairtrade trajectory graph",
       // Switch to the graph view exactly as a viewer does: the segmented
       // list/graph toggle rendered by fairtrade's TranscriptViewer.
       const graphToggle = [...document.querySelectorAll("button.bs-seg-opt")].find(
-        (b) => b.textContent?.trim() === "graph",
+        (b) => b.textContent?.trim() === TranscriptViewMode.Graph,
       );
       if (!graphToggle) {
         throw new Error(
