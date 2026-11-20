@@ -6,7 +6,7 @@
  * collectMedia against the real filesystem, the check the posting script gets by
  * default.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -126,5 +126,30 @@ describe('collectMedia', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('workflow npm install safety', () => {
+  it('keeps installs job-private', () => {
+    const config = YAML.parse(readFileSync(join(here, 'testdata/private-install.yaml'), 'utf8'))
+    const checks = new Map(config.checks.map((row) => [row.name, row]))
+    expect([...checks.keys()].sort()).toEqual(['no_global_npm', 'private_ast_grep'])
+    expect(config.checks).toHaveLength(checks.size)
+    expect([...checks.keys()].sort()).toEqual([...config.required_names].sort())
+    const directory = join(here, '../../../.github/workflows')
+    const files = readdirSync(directory).filter((name) => /\.ya?ml$/.test(name))
+    expect(files.length).toBeGreaterThan(0)
+    const forbidden = new RegExp(checks.get('no_global_npm').pattern.replace(/^\(\?m\)/, ''), 'm')
+    for (const file of files) {
+      const doc = YAML.parse(readFileSync(join(directory, file), 'utf8'))
+      for (const [job, value] of Object.entries(doc.jobs ?? {})) {
+        for (const step of value.steps ?? []) expect(step.run ?? '', `${file} ${job} ${step.name}`).not.toMatch(forbidden)
+      }
+    }
+    const row = checks.get('private_ast_grep')
+    const doc = YAML.parse(readFileSync(join(directory, row.workflow), 'utf8'))
+    const steps = doc.jobs[row.job].steps.filter((step) => step.name === row.step)
+    expect(steps).toHaveLength(1)
+    expect(steps[0].run).toBe(row.run)
   })
 })
