@@ -26,6 +26,7 @@ import (
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -34,6 +35,13 @@ import (
 
 //go:embed testdata/privacy_markers.yaml
 var privacyMarkersYAML []byte
+
+// privacyMarkersFixture names the embedded fixture in failure messages.
+const privacyMarkersFixture = "testdata/privacy_markers.yaml"
+
+// privacyContentFixture is the contract's own valid content document, which the
+// handler tests share; the synthetic transcript is built from it.
+const privacyContentFixture = "../handler/testdata/contract/current/valid/content.json"
 
 // requiredPrivacyRequestNames is the fixture's name manifest.
 var requiredPrivacyRequestNames = []string{
@@ -87,22 +95,22 @@ func loadPrivacyFixture(t *testing.T) privacyFixture {
 	d := yaml.NewDecoder(bytes.NewReader(privacyMarkersYAML))
 	d.KnownFields(true)
 	if err := d.Decode(&fixture); err != nil {
-		t.Fatalf("decode testdata/privacy_markers.yaml: %v", err)
+		t.Fatalf("decode %s: %v", privacyMarkersFixture, err)
 	}
 	names := map[string]bool{}
 	for _, r := range fixture.Requests {
 		if names[r.Name] {
-			t.Fatalf("testdata/privacy_markers.yaml names %q twice; give each request one name", r.Name)
+			t.Fatalf("%s names %q twice; give each request one name", privacyMarkersFixture, r.Name)
 		}
 		names[r.Name] = true
 	}
 	for _, name := range requiredPrivacyRequestNames {
 		if !names[name] {
-			t.Fatalf("testdata/privacy_markers.yaml lost required request %q; restore it", name)
+			t.Fatalf("%s lost required request %q; restore it", privacyMarkersFixture, name)
 		}
 	}
 	if len(names) != len(requiredPrivacyRequestNames) {
-		t.Fatalf("testdata/privacy_markers.yaml has %d requests, the manifest names %d; add a new request's name to requiredPrivacyRequestNames", len(names), len(requiredPrivacyRequestNames))
+		t.Fatalf("%s has %d requests, the manifest names %d; add a new request's name to requiredPrivacyRequestNames", privacyMarkersFixture, len(names), len(requiredPrivacyRequestNames))
 	}
 	return fixture
 }
@@ -219,7 +227,7 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 		// The owner deletes it through the production route, which removes the
 		// stored object too; the system delete below then finds nothing left.
 		if published != uuid.Nil && routes != nil {
-			req := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+published.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, transcriptPath(schemaRoute.VillageGetTranscriptMetadata, published), nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 			rec := httptest.NewRecorder()
 			routes.ServeHTTP(rec, req)
@@ -264,7 +272,7 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 
 	// The served revision, representation and content hash come from the
 	// owner's header read; the reads that must succeed echo them.
-	headerRead := send(http.MethodGet, "/api/v1/transcripts/"+published.String()+"/header?v=2", "", privacyViewerOwner)
+	headerRead := send(http.MethodGet, transcriptPath(schemaRoute.VillageGetTranscriptHeader, published)+"?v=2", "", privacyViewerOwner)
 	if headerRead.Code != http.StatusOK {
 		t.Fatalf("the owner's header read = %d %s, want 200; the published transcript is not served by positioned reads", headerRead.Code, headerRead.Body.String())
 	}
@@ -302,7 +310,7 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 
 	output := captured.String()
 	// The capture must have seen the request log, or its silence proves nothing.
-	if lines := strings.Count(output, "/api/v1/transcripts/{id}"); lines < len(fixture.Requests) {
+	if lines := strings.Count(output, schemaRoute.VillageGetTranscriptMetadata.Pattern()); lines < len(fixture.Requests) {
 		t.Fatalf("the captured output holds %d request-log lines for transcript routes, want at least %d; the capture is not seeing the server's log:\n%s", lines, len(fixture.Requests), output)
 	}
 	markers := map[string]string{
@@ -345,24 +353,24 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 // production publish route and returns its id.
 func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, plants privacyPlants) uuid.UUID {
 	t.Helper()
-	contentBytes, err := os.ReadFile("../handler/testdata/contract/current/valid/content.json")
+	contentBytes, err := os.ReadFile(privacyContentFixture)
 	if err != nil {
-		t.Fatalf("read the contract content fixture: %v", err)
+		t.Fatalf("read the contract content fixture %s: %v", privacyContentFixture, err)
 	}
-	var content map[string]any
-	if err := json.Unmarshal(contentBytes, &content); err != nil {
-		t.Fatalf("decode the contract content fixture: %v", err)
+	// Plant the session id, the first turn's text and its entry reference by
+	// replacing exact source text, so every other byte stays the contract's.
+	plantings := [][2]string{
+		{`"550e8400-e29b-41d4-a716-446655440000"`, strconv.Quote(plants.SessionID)},
+		{`"content": "fix the bug",`, `"content": ` + strconv.Quote(plants.Content) + `, "sourceEntryRef": ` + strconv.Quote(plants.Entry) + `,`},
 	}
-	detail := content["sessionDetail"].(map[string]any)
-	detail["id"] = plants.SessionID
-	turns := detail["turns"].([]any)
-	first := turns[0].(map[string]any)
-	first["content"] = plants.Content
-	first["sourceEntryRef"] = plants.Entry
-	transcript, err := json.Marshal(content)
-	if err != nil {
-		t.Fatalf("encode the synthetic transcript: %v", err)
+	text := string(contentBytes)
+	for _, planting := range plantings {
+		if strings.Count(text, planting[0]) != 1 {
+			t.Fatalf("%s no longer holds %s exactly once; update the planting to the fixture's current text", privacyContentFixture, planting[0])
+		}
+		text = strings.Replace(text, planting[0], planting[1], 1)
 	}
+	transcript := []byte(text)
 	metadata := schema.PublishRequest{
 		Identity:    schema.SessionIdentity{SessionID: schema.SessionID(plants.SessionID), SchemaVersion: 2},
 		Model:       schema.ModelInfo{Harness: schema.HarnessClaudeCode, Model: "claude-opus-4-5"},
@@ -391,7 +399,7 @@ func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, p
 	if err := form.Close(); err != nil {
 		t.Fatalf("close the publish form: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", &body)
+	req := httptest.NewRequest(http.MethodPost, schemaRoute.VillagePublishTranscript.Pattern(), &body)
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -453,4 +461,9 @@ func deletePrivacyWorld(t *testing.T, pool *pgxpool.Pool, transcript, owner uuid
 	if err := tx.Commit(ctx); err != nil {
 		t.Errorf("commit the audit purge: %v", err)
 	}
+}
+
+// transcriptPath fills a transcript route's {id} with one transcript.
+func transcriptPath(route schemaRoute.Route, id uuid.UUID) string {
+	return strings.Replace(route.Pattern(), "{id}", id.String(), 1)
 }
