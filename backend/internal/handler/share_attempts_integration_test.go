@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/peasant-labs/schema"
 	"slices"
 	"strings"
 	"sync"
@@ -119,7 +121,7 @@ func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
 		if c.Why == "" {
 			t.Fatalf("case %q states no reason it exists; a case nobody can justify cannot be maintained", c.Name)
 		}
-		if c.Acceptance != "open" && c.Acceptance != "curated" {
+		if schema.VillageGroupAcceptanceMode(c.Acceptance) != schema.VillageGroupAcceptanceOpen && schema.VillageGroupAcceptanceMode(c.Acceptance) != schema.VillageGroupAcceptanceCurated {
 			t.Fatalf("case %q uses acceptance %q; the fixture drives open and curated collectives", c.Name, c.Acceptance)
 		}
 		if len(c.Steps) == 0 {

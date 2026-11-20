@@ -861,8 +861,8 @@ func (h *Handler) joinGroupLocked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch group.AcceptanceMode {
-	case "open":
+	switch schema.VillageGroupAcceptanceMode(group.AcceptanceMode) {
+	case schema.VillageGroupAcceptanceOpen:
 		// anyone may join
 	case "verified_only":
 		// If the collective is linked to a specific GitHub org, require
