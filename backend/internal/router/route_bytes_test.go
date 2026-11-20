@@ -4,9 +4,11 @@ import (
 	_ "embed"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 )
 
@@ -14,17 +16,20 @@ import (
 var routeBytesYAML []byte
 
 type routeByteCase struct {
-	Name              string            `yaml:"name"`
-	Method            string            `yaml:"method"`
-	Path              string            `yaml:"path"`
-	Headers           map[string]string `yaml:"headers"`
-	Status            int               `yaml:"status"`
-	Want              map[string]string `yaml:"want_headers"`
-	Body              string            `yaml:"body"`
-	Repeat            int               `yaml:"repeat"`
-	Database          bool              `yaml:"database"`
-	RequestBody       string            `yaml:"request_body"`
-	OnlyOutcomeReason string            `yaml:"only_outcome_reason"`
+	Name                 string            `yaml:"name"`
+	Method               string            `yaml:"method"`
+	Path                 string            `yaml:"path"`
+	Headers              map[string]string `yaml:"headers"`
+	Status               int               `yaml:"status"`
+	Want                 map[string]string `yaml:"want_headers"`
+	Body                 string            `yaml:"body"`
+	Repeat               int               `yaml:"repeat"`
+	Database             bool              `yaml:"database"`
+	RequestBody          string            `yaml:"request_body"`
+	OnlyOutcomeReason    string            `yaml:"only_outcome_reason"`
+	BodyFromPinnedSchema bool              `yaml:"body_from_pinned_schema"`
+	Configured           bool              `yaml:"configured"`
+	OAuthState           bool              `yaml:"oauth_state"`
 }
 
 var requiredRouteByteCases = []string{
@@ -38,6 +43,30 @@ var requiredRouteByteCases = []string{
 	"github-login-sixth-request",
 	"create-api-key", "list-api-keys", "peasant-revoke-api-key",
 	"batch-publish-signed-in", "organization-search-null-avatar", "organization-search-avatar",
+	"openapi-document",
+	"gitlab-entry-unconfigured-json",
+	"gitlab-entry-unconfigured-html",
+	"gitlab-callback-unconfigured-json",
+	"gitlab-callback-unconfigured-html",
+	"huggingface-entry-unconfigured-json",
+	"huggingface-entry-unconfigured-html",
+	"huggingface-callback-unconfigured-json",
+	"huggingface-callback-unconfigured-html",
+	"codeberg-entry-unconfigured-json",
+	"codeberg-entry-unconfigured-html",
+	"codeberg-callback-unconfigured-json",
+	"codeberg-callback-unconfigured-html",
+	"sourcehut-entry-unconfigured-json",
+	"sourcehut-entry-unconfigured-html",
+	"sourcehut-callback-unconfigured-json",
+	"sourcehut-callback-unconfigured-html",
+
+	"github-entry", "gitlab-entry", "huggingface-entry", "codeberg-entry", "sourcehut-entry",
+	"github-callback-state-json", "gitlab-callback-state-json", "huggingface-callback-state-json",
+	"codeberg-callback-state-json", "sourcehut-callback-state-json",
+	"github-callback-state-html", "gitlab-callback-state-html", "huggingface-callback-state-html",
+	"codeberg-callback-state-html", "sourcehut-callback-state-html",
+	"list-attestations-invalid-id", "list-annotations-invalid-id", "list-commits-invalid-id",
 }
 
 func routeByteCases(t *testing.T) []routeByteCase {
@@ -73,7 +102,16 @@ func TestRouteBytes(t *testing.T) {
 			continue
 		}
 		t.Run(c.Name, func(t *testing.T) {
-			routes := New(&config.Config{JWTSecret: "route-bytes-test-only-secret", FrontendURL: "https://example.test"}, nil, nil, nil)
+			cfg := &config.Config{JWTSecret: "route-bytes-test-only-secret", FrontendURL: "https://example.test"}
+			if c.Configured {
+				cfg.BaseURL = "https://api.example.test"
+				cfg.GitHubClientID, cfg.GitHubClientSecret = "client", "secret"
+				cfg.GitLabClientID, cfg.GitLabClientSecret = "client", "secret"
+				cfg.HuggingFaceClientID, cfg.HuggingFaceClientSecret = "client", "secret"
+				cfg.CodebergClientID, cfg.CodebergClientSecret = "client", "secret"
+				cfg.SourceHutClientID, cfg.SourceHutClientSecret = "client", "secret"
+			}
+			routes := New(cfg, nil, nil, nil)
 			req := httptest.NewRequest(c.Method, c.Path, nil)
 			for name, value := range c.Headers {
 				req.Header.Set(name, value)
@@ -83,10 +121,24 @@ func TestRouteBytes(t *testing.T) {
 				w = httptest.NewRecorder()
 				routes.ServeHTTP(w, req.Clone(req.Context()))
 			}
-			if w.Code != c.Status || w.Body.String() != c.Body {
-				t.Fatalf("got status %d body %q, want status %d body %q", w.Code, w.Body.String(), c.Status, c.Body)
+			body := c.Body
+			if c.BodyFromPinnedSchema {
+				body = string(schema.VillageAPISpecJSON())
+			}
+			state := ""
+			if c.OAuthState {
+				match := regexp.MustCompile(`^oauth_state=([0-9a-f]{32});`).FindStringSubmatch(w.Header().Get("Set-Cookie"))
+				if len(match) != 2 {
+					t.Fatalf("invalid state cookie %q", w.Header().Get("Set-Cookie"))
+				}
+				state = match[1]
+				body = strings.ReplaceAll(body, "{{state}}", state)
+			}
+			if w.Code != c.Status || w.Body.String() != body {
+				t.Fatalf("got status %d body %q, want status %d body %q", w.Code, w.Body.String(), c.Status, body)
 			}
 			for name, value := range c.Want {
+				value = strings.ReplaceAll(value, "{{state}}", state)
 				if got := strings.Join(w.Header().Values(name), ", "); got != value {
 					t.Errorf("header %s = %q, want %q", name, got, value)
 				}
