@@ -20,11 +20,15 @@ import (
 // recorded the installation.
 type promptCommandDispatcher struct{ h *Handler }
 
+// githubWebhookAction is the action field of a GitHub webhook payload, limited
+// to the actions Village acts on.
 type githubWebhookAction string
 
 const (
-	githubActionOpened  githubWebhookAction = "opened"
-	githubActionCreated githubWebhookAction = "created"
+	githubActionOpened      githubWebhookAction = "opened"
+	githubActionReopened    githubWebhookAction = "reopened"
+	githubActionSynchronize githubWebhookAction = "synchronize"
+	githubActionCreated     githubWebhookAction = "created"
 )
 
 func (promptCommandDispatcher) Installation(context.Context, github.Event) error { return nil }
@@ -39,7 +43,7 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 		return fmt.Errorf("the pull_request payload could not be decoded: %w", err)
 	}
 	switch githubWebhookAction(payload.Action) {
-	case githubActionOpened, "reopened", "synchronize":
+	case githubActionOpened, githubActionReopened, githubActionSynchronize:
 	default:
 		return nil
 	}

@@ -540,14 +540,15 @@ func (h *Handler) autoAttachOpenedPullRequest(ctx context.Context, link sqlc.Col
 	})
 }
 
-// syncAttachmentForPullRequest handles a pull_request event: a push to a pull
-// request that already attached refreshes it for the new head. Opening a pull
-// request that no click and no author setting has touched records nothing and
-// posts nothing.
+// githubPullState is GitHub's pull request state as the webhook payload carries it.
 type githubPullState string
 
 const githubPullOpen githubPullState = "open"
 
+// syncAttachmentForPullRequest handles a pull_request event: a push to a pull
+// request that already attached refreshes it for the new head. Opening a pull
+// request that no click and no author setting has touched records nothing and
+// posts nothing.
 func (h *Handler) syncAttachmentForPullRequest(ctx context.Context, pull attachmentPull) error {
 	if pull.state != "" && githubPullState(pull.state) != githubPullOpen {
 		// A closed or merged pull request has nothing to keep current.

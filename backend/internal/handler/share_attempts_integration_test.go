@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-
-	"github.com/peasant-labs/schema"
 	"slices"
 	"strings"
 	"sync"
@@ -34,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -121,7 +120,7 @@ func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
 		if c.Why == "" {
 			t.Fatalf("case %q states no reason it exists; a case nobody can justify cannot be maintained", c.Name)
 		}
-		if schema.VillageGroupAcceptanceMode(c.Acceptance) != schema.VillageGroupAcceptanceOpen && schema.VillageGroupAcceptanceMode(c.Acceptance) != schema.VillageGroupAcceptanceCurated {
+		if !slices.Contains([]schema.VillageGroupAcceptanceMode{schema.VillageGroupAcceptanceOpen, schema.VillageGroupAcceptanceCurated}, schema.VillageGroupAcceptanceMode(c.Acceptance)) {
 			t.Fatalf("case %q uses acceptance %q; the fixture drives open and curated collectives", c.Name, c.Acceptance)
 		}
 		if len(c.Steps) == 0 {

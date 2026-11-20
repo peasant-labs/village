@@ -864,7 +864,7 @@ func (h *Handler) joinGroupLocked(w http.ResponseWriter, r *http.Request) {
 	switch schema.VillageGroupAcceptanceMode(group.AcceptanceMode) {
 	case schema.VillageGroupAcceptanceOpen:
 		// anyone may join
-	case "verified_only":
+	case schema.VillageGroupAcceptanceVerifiedOnly:
 		// If the collective is linked to a specific GitHub org, require
 		// MEMBERSHIP of that org. Otherwise require any org on record.
 		// Publishing the affiliation is not required (see org_membership.go).

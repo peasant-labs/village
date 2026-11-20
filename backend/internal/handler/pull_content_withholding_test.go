@@ -31,14 +31,18 @@ var requiredPullContentCases = []string{
 
 type pullContentFixtureKind string
 
-const pullContentUnreadable pullContentFixtureKind = "unreadable"
+const (
+	pullContentEnvelopeWithRepository pullContentFixtureKind = "envelope_with_repository"
+	pullContentRawJSONLWithRepository pullContentFixtureKind = "raw_jsonl_with_repository"
+	pullContentUnreadable             pullContentFixtureKind = "unreadable"
+)
 
 func storedPullContent(t *testing.T, kind string) []byte {
 	t.Helper()
 	switch pullContentFixtureKind(kind) {
-	case "envelope_with_repository":
+	case pullContentEnvelopeWithRepository:
 		return contentWithRepositoryJSON()
-	case "raw_jsonl_with_repository":
+	case pullContentRawJSONLWithRepository:
 		return []byte(`[{"role":"user","content":"hi","cwd":"/home/withheld-person/withheld-project-name","gitBranch":"withheld-branch"},` +
 			`{"role":"assistant","content":"yo","cwd":"/home/withheld-person/withheld-project-name","gitBranch":"withheld-branch"}]`)
 	case pullContentUnreadable:
