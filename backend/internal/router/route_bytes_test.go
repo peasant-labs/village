@@ -1,12 +1,21 @@
 package router
 
 import (
+	"context"
 	_ "embed"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+
+	"golang.org/x/oauth2"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
@@ -30,6 +39,90 @@ type routeByteCase struct {
 	BodyFromPinnedSchema bool              `yaml:"body_from_pinned_schema"`
 	Configured           bool              `yaml:"configured"`
 	OAuthState           bool              `yaml:"oauth_state"`
+	// Cookies are sent with the request; their values are templates.
+	Cookies map[string]string `yaml:"cookies"`
+	// Providers routes the request's outbound OAuth traffic to
+	// fakeProviders instead of the real sign-in providers.
+	Providers bool `yaml:"providers"`
+	// As names the session the request carries: empty for the main account,
+	// "anonymous" for none, or another seeded account.
+	As string `yaml:"as"`
+	// Capture names the values read back after the request, from the
+	// response or the database, before the body is compared.
+	Capture []string `yaml:"capture"`
+	// SharedRows marks a global list that other tests may add rows to: the
+	// body must be a JSON array, framed exactly as the encoder writes it,
+	// holding one element whose bytes equal the golden.
+	SharedRows bool `yaml:"shared_rows"`
+}
+
+// fakeProviders answers the outbound requests the OAuth callbacks and the
+// GitHub App client make, so no test reaches a real provider. A token request
+// without a code is refused, as the providers refuse it.
+type fakeProviders struct {
+	githubUser    func() (int64, string)
+	gitlabUser    func() (int64, string)
+	installations func(id int64) (string, int64, bool)
+}
+
+func (f fakeProviders) RoundTrip(r *http.Request) (*http.Response, error) {
+	answer := func(status int, body string) (*http.Response, error) {
+		return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}},
+			Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	}
+	switch r.URL.Host + r.URL.Path {
+	case "github.com/login/oauth/access_token", "gitlab.com/oauth/token":
+		body, _ := io.ReadAll(r.Body)
+		form, _ := url.ParseQuery(string(body))
+		if form.Get("code") == "" {
+			return answer(http.StatusBadRequest, `{"error":"invalid_grant"}`)
+		}
+		return answer(http.StatusOK, `{"access_token":"disposable","token_type":"bearer"}`)
+	case "api.github.com/user":
+		id, login := f.githubUser()
+		return answer(http.StatusOK, fmt.Sprintf(`{"id":%d,"login":%q}`, id, login))
+	case "api.github.com/user/orgs":
+		return answer(http.StatusOK, `[]`)
+	case "gitlab.com/api/v4/user":
+		id, login := f.gitlabUser()
+		return answer(http.StatusOK, fmt.Sprintf(`{"id":%d,"username":%q,"name":"Golden Lab","avatar_url":"https://example.test/lab.png"}`, id, login))
+	}
+	if id, ok := strings.CutPrefix(r.URL.Path, "/app/installations/"); ok && r.URL.Host == "api.github.com" && f.installations != nil {
+		n, _ := strconv.ParseInt(id, 10, 64)
+		if login, account, found := f.installations(n); found {
+			return answer(http.StatusOK, fmt.Sprintf(`{"id":%d,"account":{"login":%q,"id":%d,"type":"User"}}`, n, login, account))
+		}
+		return answer(http.StatusNotFound, `{"message":"Not Found"}`)
+	}
+	return nil, fmt.Errorf("no fake provider answers %s %s", r.Method, r.URL)
+}
+
+// assertRouteBody compares a response body with its golden. A shared-rows
+// golden is one element of a JSON array other tests may add rows to.
+func assertRouteBody(t *testing.T, c routeByteCase, got, want string) {
+	t.Helper()
+	if !c.SharedRows {
+		if got != want {
+			t.Fatalf("body = %q, want %q", got, want)
+		}
+		return
+	}
+	var rows []json.RawMessage
+	if err := json.Unmarshal([]byte(got), &rows); err != nil {
+		t.Fatalf("body %q is not a JSON array: %v", got, err)
+	}
+	parts := make([]string, 0, len(rows))
+	found := false
+	for _, row := range rows {
+		parts = append(parts, string(row))
+		found = found || string(row)+"\n" == want
+	}
+	if framed := "[" + strings.Join(parts, ",") + "]\n"; framed != got {
+		t.Fatalf("body %q is not framed as the encoder writes an array (%q)", got, framed)
+	}
+	if !found {
+		t.Fatalf("body %q holds no element equal to %q", got, want)
+	}
 }
 
 var requiredRouteByteCases = []string{
@@ -72,6 +165,26 @@ var requiredRouteByteCases = []string{
 	"organization-visibility-updated", "organization-visibility-invalid-json",
 	"delete-missing-attestation", "delete-attestation-invalid-id",
 	"public-profile-missing", "public-organizations-missing",
+
+	"gitlab-callback-missing-code-json", "gitlab-callback-missing-code-html",
+	"github-callback-web", "github-callback-cli", "gitlab-callback-web",
+	"github-callback-missing-code-json", "github-callback-missing-code-html",
+	"github-install", "github-install-missing-group-json", "github-install-missing-group-html",
+	"github-install-not-owner", "github-install-callback-bound", "github-install-callback-unbound",
+	"github-install-callback-invalid-id-json", "github-install-callback-invalid-id-html",
+	"github-install-callback-unreadable",
+	"update-discoverability", "update-discoverability-missing",
+	"set-username", "set-username-taken", "set-username-invalid",
+	"list-tags", "popular-tags", "public-profile", "public-organizations",
+	"project-page", "project-page-no-visible-transcripts", "project-page-missing", "project-page-invalid-hash",
+	"set-project-name", "set-project-name-unowned", "set-project-name-empty",
+	"clear-project-name", "clear-project-name-absent",
+	"list-attestations-empty", "create-attestation", "create-attestation-duplicate",
+	"create-attestation-not-member", "create-attestation-invalid-type", "list-attestations",
+	"list-annotations-empty", "create-annotation", "create-annotation-missing-entry", "list-annotations",
+	"list-commits", "list-commits-hidden",
+	"delete-transcript-without-blob-store", "delete-transcript", "delete-transcript-missing",
+	"delete-account",
 }
 
 func routeByteCases(t *testing.T) []routeByteCase {
@@ -120,6 +233,12 @@ func TestRouteBytes(t *testing.T) {
 			req := httptest.NewRequest(c.Method, c.Path, nil)
 			for name, value := range c.Headers {
 				req.Header.Set(name, value)
+			}
+			for name, value := range c.Cookies {
+				req.AddCookie(&http.Cookie{Name: name, Value: value})
+			}
+			if c.Providers {
+				req = req.WithContext(context.WithValue(req.Context(), oauth2.HTTPClient, &http.Client{Transport: fakeProviders{}}))
 			}
 			var w *httptest.ResponseRecorder
 			for i := 0; i <= c.Repeat; i++ {
