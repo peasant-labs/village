@@ -83,7 +83,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" > changed.txt
-          if grep -Eq '^(backend/|go\.work$|Makefile$|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/|\.unstring\.yaml$|\.unstring-baseline\.yaml$|\.github/workflows/backend-tests\.yml$)' changed.txt; then
+          if grep -Eq '^(backend/|go\.work$|Makefile$|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/|\.unstring\.yaml$|\.unstring-baseline\.yaml$|\.github/workflows/)' changed.txt; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else
             echo "run=false" >> "${GITHUB_OUTPUT}"
