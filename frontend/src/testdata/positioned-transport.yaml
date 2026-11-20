@@ -44,8 +44,9 @@ sendsV2AndEcho:
     post: true
 
 # transport-retry-after-parse: delta-seconds, or an HTTP-date against the
-# injected clock (`now` in milliseconds, default 0). Absent or unusable is
-# undefined, which the reader treats as its own default wait.
+# injected clock (`now` in milliseconds, default 0), at most 60 seconds.
+# Absent or unusable is undefined, which the reader treats as its own default
+# wait.
 retryAfterParse:
   - {name: seconds, header: '12', expected: 12}
   - {name: seconds-zero, header: '0', expected: 0}
@@ -60,6 +61,9 @@ retryAfterParse:
   - {name: http-date-not-gmt, header: 'Thu, 01 Jan 1970 00:00:05 PST'}
   - {name: negative-number-not-a-date, header: '-5'}
   - {name: fractional-number-not-a-date, header: '12.5'}
-  - {name: seconds-beyond-safe-integer, header: '99999999999999999999'}
+  - {name: seconds-at-maximum, header: '60', expected: 60}
+  - {name: seconds-clamped-to-maximum, header: '3600', expected: 60}
+  - {name: seconds-beyond-safe-integer, header: '99999999999999999999', expected: 60}
+  - {name: http-date-clamped-to-maximum, header: 'Thu, 01 Jan 1970 01:00:00 GMT', expected: 60}
   - {name: absent}
   - {name: garbage, header: nonsense}

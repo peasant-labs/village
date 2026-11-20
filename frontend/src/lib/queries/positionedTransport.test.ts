@@ -23,7 +23,8 @@ const required = {
   retryAfterParse: ["seconds", "seconds-zero", "seconds-surrounding-space", "http-date", "http-date-rounds-up",
     "http-date-past-is-zero", "http-date-rfc850", "http-date-asctime-is-gmt", "http-date-impossible-day",
     "http-date-rollover-day", "http-date-not-gmt", "negative-number-not-a-date", "fractional-number-not-a-date",
-    "seconds-beyond-safe-integer", "absent", "garbage"],
+    "seconds-at-maximum", "seconds-clamped-to-maximum", "seconds-beyond-safe-integer", "http-date-clamped-to-maximum",
+    "absent", "garbage"],
 };
 afterEach(() => vi.unstubAllGlobals());
 

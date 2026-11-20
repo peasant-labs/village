@@ -50,21 +50,25 @@ function httpDate(value: string, now: number): number | undefined {
 }
 
 /**
- * A `Retry-After` value in seconds: delta-seconds, or an HTTP-date measured
- * against the injected clock (a date already past is no wait). Anything else,
- * including a signed or fractional number, is undefined, which the reader
- * treats as its own default wait.
+ * The longest wait a `Retry-After` can set before the reader asks again. A
+ * busy server's answer is a hint; a reader left waiting minutes or years on
+ * one header would read as a broken page, and the busy state offers `try now`.
+ */
+export const RETRY_AFTER_MAX_SECONDS = 60;
+
+/**
+ * A `Retry-After` value in seconds, at most RETRY_AFTER_MAX_SECONDS:
+ * delta-seconds, or an HTTP-date measured against the injected clock (a date
+ * already past is no wait). Anything else, including a signed or fractional
+ * number, is undefined, which the reader treats as its own default wait.
  */
 export function retryAfterSeconds(value: string | null, now: () => number): number | undefined {
   if (value === null) return undefined;
   const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) {
-    const seconds = Number(trimmed);
-    return Number.isSafeInteger(seconds) ? seconds : undefined;
-  }
+  if (/^\d+$/.test(trimmed)) return Math.min(Number(trimmed), RETRY_AFTER_MAX_SECONDS);
   const at = now();
   const date = httpDate(trimmed, at);
-  return date === undefined ? undefined : Math.max(0, Math.ceil((date - at) / 1000));
+  return date === undefined ? undefined : Math.min(Math.max(0, Math.ceil((date - at) / 1000)), RETRY_AFTER_MAX_SECONDS);
 }
 
 type RequestFields = {
