@@ -123,7 +123,8 @@ export async function handlePositionedRequest(req, res, world) {
   const suffix = match[2] ?? ''
   if (req.method === 'POST' && suffix === '/segments/locate') {
     const found = bodies.locate(JSON.parse((await readBody(req)) || '{}').reference)
-    found ? answer(res, 200, found) : answer(res, 404, { error: 'no entry matches the reference' })
+    if (found) answer(res, 200, found)
+    else answer(res, 404, { error: 'no entry matches the reference' })
     return true
   }
   if (req.method !== 'GET') return false
@@ -138,18 +139,21 @@ export async function handlePositionedRequest(req, res, world) {
     case '/header': answer(res, 200, bodies.header); return true
     case '/segments': {
       const body = bodies.directoryFor(partition, Number(url.searchParams.get('page') ?? '1'))
-      body ? answer(res, 200, body) : missing()
+      if (body) answer(res, 200, body)
+      else missing()
       return true
     }
     case '/window': {
       const anchor = url.searchParams.get('anchor')
       const body = bodies.windowFor(partition, anchor === null ? undefined : Number(anchor))
-      body ? answer(res, 200, body) : missing()
+      if (body) answer(res, 200, body)
+      else missing()
       return true
     }
     default: {
       const body = bodies.segmentFor(partition, Number(suffix.slice('/segments/'.length)))
-      body ? answer(res, 200, body) : missing()
+      if (body) answer(res, 200, body)
+      else missing()
       return true
     }
   }

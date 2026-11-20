@@ -18,7 +18,7 @@ main:
   ownerId: 0f1e2d3c-4b5a-4968-8776-655443322110
   rowsPerSegment: 4
   segments: 10
-  numberAbsent: [5]
+  numberAbsent: [2]
   session: {project: positioned-reader, gitBranch: feature/positioned-reads}
   prompts:
     - Open the reader at the deep link and check which segments it asks for.
