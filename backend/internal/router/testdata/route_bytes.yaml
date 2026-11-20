@@ -115,6 +115,50 @@
   name: clear-project-name-anonymous
   method: DELETE
   path: /api/v1/users/me/projects/example/display-name
+- <<: *anonymous
+  name: github-install-anonymous
+  method: GET
+  path: /api/v1/integrations/github/install
+- <<: *anonymous
+  name: github-install-callback-anonymous
+  method: GET
+  path: /api/v1/integrations/github/callback
+- name: github-install-unconfigured
+  database: true
+  method: GET
+  path: /api/v1/integrations/github/install
+  headers: {Accept: application/json}
+  status: 501
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"GitHub App installation is not configured on this server"}
+- name: github-install-callback-unconfigured
+  database: true
+  method: GET
+  path: /api/v1/integrations/github/callback
+  headers: {Accept: application/json}
+  status: 501
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"GitHub App installation is not configured on this server"}
+- name: organization-visibility-updated
+  database: true
+  method: PATCH
+  path: /api/v1/auth/orgs/{{org_null}}/visibility
+  request_body: '{"visible":true}'
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"status":"updated","visible":true}
+- name: organization-visibility-invalid-json
+  database: true
+  method: PATCH
+  path: /api/v1/auth/orgs/{{org_null}}/visibility
+  request_body: '{'
+  status: 400
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"Invalid request body"}
 - name: create-api-key
   database: true
   method: POST

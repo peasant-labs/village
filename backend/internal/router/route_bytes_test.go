@@ -67,6 +67,9 @@ var requiredRouteByteCases = []string{
 	"github-callback-state-html", "gitlab-callback-state-html", "huggingface-callback-state-html",
 	"codeberg-callback-state-html", "sourcehut-callback-state-html",
 	"list-attestations-invalid-id", "list-annotations-invalid-id", "list-commits-invalid-id",
+	"github-install-anonymous", "github-install-callback-anonymous",
+	"github-install-unconfigured", "github-install-callback-unconfigured",
+	"organization-visibility-updated", "organization-visibility-invalid-json",
 }
 
 func routeByteCases(t *testing.T) []routeByteCase {
