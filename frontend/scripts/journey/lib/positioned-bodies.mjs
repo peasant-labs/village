@@ -79,6 +79,9 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
       timestamp: new Date(START + index * 47_000).toISOString(),
       ...(turn.sourceEntryRef ? { sourceEntryRef: turn.sourceEntryRef } : {}),
     }));
+    // The display numbers are this mock's own rule (position + 1), not the server's numbering,
+    // which the backend proves against the real handler. Production code never derives a number:
+    // it shows the label each row is served with.
     const rows = turns.map((turn, position) => ({
       position,
       recordedIndex: turn.index,
