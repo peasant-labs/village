@@ -159,6 +159,38 @@
   want_headers: {Content-Type: application/json}
   body: |
     {"error":"Invalid request body"}
+- name: delete-missing-attestation
+  database: true
+  method: DELETE
+  path: /api/v1/transcripts/unused/attestations/00000000-0000-0000-0000-000000000002
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"status":"deleted"}
+- name: delete-attestation-invalid-id
+  database: true
+  method: DELETE
+  path: /api/v1/transcripts/unused/attestations/invalid
+  status: 400
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"Invalid attestation ID"}
+- name: public-profile-missing
+  database: true
+  method: GET
+  path: /api/v1/users/{{org_null}}
+  status: 404
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"User not found"}
+- name: public-organizations-missing
+  database: true
+  method: GET
+  path: /api/v1/users/{{org_null}}/orgs
+  status: 404
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"User not found"}
 - name: create-api-key
   database: true
   method: POST

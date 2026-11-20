@@ -70,6 +70,8 @@ var requiredRouteByteCases = []string{
 	"github-install-anonymous", "github-install-callback-anonymous",
 	"github-install-unconfigured", "github-install-callback-unconfigured",
 	"organization-visibility-updated", "organization-visibility-invalid-json",
+	"delete-missing-attestation", "delete-attestation-invalid-id",
+	"public-profile-missing", "public-organizations-missing",
 }
 
 func routeByteCases(t *testing.T) []routeByteCase {
