@@ -12,12 +12,20 @@ import { setScenario } from './lib/scenario.mjs'
 import { POSITIONED } from './lib/positioned-transcript-fixtures.mjs'
 import { JOURNEY_COLLECTIVES } from './lib/collective-fixtures.mjs'
 import { OWNED_TRANSCRIPT } from './lib/transcript-fixtures.mjs'
+import { TranscriptSegmentPartitionKind } from '@peasant-labs/schema'
+import { SessionDetailV2TestId } from '../../src/components/session-detail/v2/readModeTestIds.ts'
+import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from '../../src/components/transcript/transcriptHeaderActionsNames.ts'
 
 // The header's actions sit in the header row at a desktop width.
 const DESKTOP = { width: 1440, height: 900 }
 const MAIN = POSITIONED.main
 const PREVIEW = POSITIONED.preview
 const page_ = (search = '') => `/transcripts/${MAIN.transcriptId}${search}`
+const MOCK_PORT = String(process.env.JOURNEY_MOCK_PORT || 8799)
+const POSITIONED_TESTID = SessionDetailV2TestId.ModePositioned.wire
+const HEADER_ACTIONS = TranscriptHeaderActionsTestId.Root.wire
+const MORE = { name: TranscriptHeaderActionsLabel.More.wire, exact: true }
+const DOWNLOAD_JSON = { name: TranscriptHeaderActionsLabel.DownloadJSON.wire, exact: true }
 const POSITIONED_PATH = /\/api\/v1\/transcripts\/([^/]+)\/(header|window|segments(?:\/locate|\/\d+)?)$/
 
 /** Every API request the page makes, in order, as URL objects. */
@@ -25,7 +33,7 @@ function recordRequests(page) {
   const log = []
   page.on('request', (request) => {
     const url = new URL(request.url())
-    if (url.pathname.startsWith('/api/v1/')) log.push({ url, referer: request.headers().referer ?? null })
+    if (url.port === MOCK_PORT) log.push({ url, referer: request.headers().referer ?? null })
   })
   return log
 }
@@ -69,7 +77,7 @@ test.describe('positioned transcript reader', () => {
   test('journey-deeplink-request-set', async ({ page }) => {
     const log = recordRequests(page)
     await page.goto(page_(`?turn=${MAIN.farTurn}`))
-    await expect(page.getByTestId('transcript-mode-positioned')).toBeVisible()
+    await expect(page.getByTestId(POSITIONED_TESTID)).toBeVisible()
     await expect(stream(page).getByText(rowText(MAIN.farTurn))).toBeVisible()
     await expect(stream(page).getByText(rowText(0))).toBeVisible()
     // The request log is exactly the open's reads: the header, the first directory page, the
@@ -91,13 +99,13 @@ test.describe('positioned transcript reader', () => {
     await failRead(page, (url) => /\/segments\/\d+$/.test(url.pathname), { status: 500, json: { error: 'failed' } }, { once: false })
     await page.goto(page_())
     await expect(page.locator('[data-read-failure="failed"]')).toBeVisible()
-    await page.getByRole('button', { name: 'try again' }).click()
+    await page.getByRole('button', { name: POSITIONED.failureActions.retry }).click()
     await expect(page.locator('[data-read-failure="failed"]')).toBeVisible()
     // Nothing reads the whole document until the reader asks for a download.
     expect(contentReads(log)).toEqual([])
     const download = page.waitForEvent('download')
-    await page.getByTestId('transcript-header-actions').getByRole('button', { name: 'more', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'download json', exact: true }).click()
+    await page.getByTestId(HEADER_ACTIONS).getByRole('button', MORE).click()
+    await page.getByRole('menuitem', DOWNLOAD_JSON).click()
     await download
     expect(contentReads(log)).toHaveLength(1)
   })
@@ -119,18 +127,18 @@ test.describe('positioned transcript reader', () => {
     await page.goto(page_())
     const toggle = page.locator('.txn-earlier-toggle')
     await expect(toggle).toContainText(`${MAIN.history[0].turns.length} recorded turns`)
-    expect(positionedReads(log).filter(({ url }) => url.searchParams.get('partition') === 'history')).toEqual([])
+    expect(positionedReads(log).filter(({ url }) => url.searchParams.get('partition') === TranscriptSegmentPartitionKind.History)).toEqual([])
     await toggle.click()
     const section = page.locator('.txn-earlier')
     await expect(section.getByText(MAIN.history[0].turns[0].content)).toBeVisible()
     // The section numbers its own rows from its own first turn.
     await expect(section.locator('.txn-turn').first()).toContainText('turn 1')
-    expect(positionedReads(log).some(({ url }) => url.searchParams.get('partition') === 'history' && url.searchParams.get('section') === '0')).toBe(true)
+    expect(positionedReads(log).some(({ url }) => url.searchParams.get('partition') === TranscriptSegmentPartitionKind.History && url.searchParams.get('section') === '0')).toBe(true)
   })
 
   test('journey-turn-requested-row-filtered', async ({ page }) => {
     await page.goto(page_(`?turn=${MAIN.unservedTurn}`))
-    await expect(page.getByTestId('transcript-snapped-turn')).toHaveText(
+    await expect(page.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveText(
       `turn ${MAIN.unservedTurn} is not in this transcript's served view, so the viewer opened turn 0.`,
     )
     await expect(stream(page).locator('.txn-turn', { hasText: rowText(0) })).toHaveClass(/txn-active/)
@@ -143,8 +151,8 @@ test.describe('positioned transcript reader', () => {
     await expect(page.locator('[data-read-failure="stale"]')).toBeVisible()
     expect(contentReads(log)).toEqual([])
     const download = page.waitForEvent('download')
-    await page.getByTestId('transcript-header-actions').getByRole('button', { name: 'more', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'download json', exact: true }).click()
+    await page.getByTestId(HEADER_ACTIONS).getByRole('button', MORE).click()
+    await page.getByRole('menuitem', DOWNLOAD_JSON).click()
     const file = JSON.parse(readFileSync(await (await download).path(), 'utf8'))
     // The whole stored copy, though the page holds none of it.
     expect(file.turns).toHaveLength(MAIN.rowsPerSegment * MAIN.segments)
@@ -156,10 +164,10 @@ test.describe('positioned transcript reader', () => {
     await page.goto(`/collectives/${JOURNEY_COLLECTIVES.owner.id}/review`)
     await page.getByRole('button', { name: PREVIEW.title, exact: true }).click()
     const preview = page.locator('.on-contribute-preview')
-    await expect(preview.getByTestId('transcript-mode-positioned')).toBeVisible()
+    await expect(preview.getByTestId(POSITIONED_TESTID)).toBeVisible()
     await expect(preview.locator('.txn-stream').getByText(`${PREVIEW.prompts[0]} [step 1]`)).toBeVisible()
-    await expect(preview.getByTestId('transcript-header-actions')).toHaveCount(0)
-    await expect(preview.getByRole('button', { name: 'more', exact: true })).toHaveCount(0)
+    await expect(preview.getByTestId(HEADER_ACTIONS)).toHaveCount(0)
+    await expect(preview.getByRole('button', MORE)).toHaveCount(0)
     expect(positionedReads(log, PREVIEW.transcriptId).length).toBeGreaterThan(0)
     expect(contentReads(log)).toEqual([])
   })
@@ -210,7 +218,7 @@ test.describe('positioned transcript reader', () => {
 test('journey-capability-absent-content-page', async ({ page }) => {
   const log = recordRequests(page)
   await page.goto(`/transcripts/${OWNED_TRANSCRIPT.id}`)
-  await expect(page.getByTestId('transcript-mode-content')).toBeVisible()
+  await expect(page.getByTestId(SessionDetailV2TestId.ModeContent.wire)).toBeVisible()
   await expect(page.locator('.txn-stream')).toBeVisible()
   expect(log.filter(({ url }) => POSITIONED_PATH.test(url.pathname))).toEqual([])
   expect(contentReads(log).length).toBeGreaterThan(0)

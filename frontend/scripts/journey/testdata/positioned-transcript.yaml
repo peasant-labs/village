@@ -11,6 +11,9 @@
 
 advertisement: {segmentedReadVersion: '0.2.0', minSegmentedReadVersion: '0.1.0'}
 
+# The actions Fairtrade's positioned failure states offer, as a reader meets them.
+failureActions: {retry: try again}
+
 main:
   transcriptId: 5e9d1c3a-7b2f-4d8e-9a61-0c4b7e2f1d93
   title: read a long session through the positioned reader

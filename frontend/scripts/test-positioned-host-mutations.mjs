@@ -18,6 +18,8 @@ import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
 
 const WHERE = "test-positioned-host-mutations.mjs";
+/** The test outcomes the vitest and Playwright JSON reports name, as far as this runner reads them. */
+const ReportStatus = Object.freeze({ Failed: "failed", TimedOut: "timedOut" });
 const fixtureURL = new URL("./testdata/positioned-host-mutations.yaml", import.meta.url);
 const frontend = new URL("..", import.meta.url);
 const withJourneys = process.env.POSITIONED_MUTATIONS_JOURNEYS === "1";
@@ -68,7 +70,7 @@ function runKiller(killer) {
     });
     const result = JSON.parse(readFileSync(report, "utf8"));
     return result.testResults.flatMap((file) => file.assertionResults)
-      .filter((test) => test.status === "failed")
+      .filter((test) => test.status === ReportStatus.Failed)
       .map((test) => [...test.ancestorTitles, test.title].join(" "));
   }
   if (killer.kind === "journey") {
@@ -79,7 +81,7 @@ function runKiller(killer) {
     const failed = [];
     const walk = (suite, path) => {
       for (const spec of suite.specs ?? []) {
-        if (spec.tests.some((test) => test.results.some((r) => r.status === "failed" || r.status === "timedOut"))) failed.push([...path, spec.title].join(" "));
+        if (spec.tests.some((test) => test.results.some((r) => r.status === ReportStatus.Failed || r.status === ReportStatus.TimedOut))) failed.push([...path, spec.title].join(" "));
       }
       for (const child of suite.suites ?? []) walk(child, [...path, child.title]);
     };

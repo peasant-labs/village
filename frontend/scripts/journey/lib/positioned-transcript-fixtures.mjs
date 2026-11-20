@@ -4,12 +4,16 @@
    parsers refuse stops the mock before it listens. */
 import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'
-import { zVillageTranscriptMetadataResponse } from '@peasant-labs/schema'
+import { TranscriptSegmentPartitionKind, zVillageTranscriptMetadataResponse } from '@peasant-labs/schema'
 import { makeTranscriptFixture } from '../../../src/test/transcriptRowFixture.ts'
 import { anonymousOwner, profileOwner } from '../../../src/test/publicOwnerFixture.ts'
 import { buildPositionedBodies } from './positioned-bodies.mjs'
 
-export const POSITIONED = parse(readFileSync(new URL('../testdata/positioned-transcript.yaml', import.meta.url), 'utf8'), { strict: true })
+const FIXTURE = new URL('../testdata/positioned-transcript.yaml', import.meta.url)
+export const POSITIONED = parse(readFileSync(FIXTURE, 'utf8'), { strict: true })
+
+/** The HTTP methods the positioned mocks answer. Closed. */
+export const HttpMethod = Object.freeze({ Get: 'GET', Post: 'POST' })
 
 /** The world a positioned request is answered in. Closed. */
 export const PositionedWorld = Object.freeze({
@@ -90,8 +94,8 @@ const readBody = async (req) => {
 
 /** The partition a positioned read names in its query. */
 function partitionOf(url) {
-  const kind = url.searchParams.get('partition') ?? 'main'
-  return kind === 'history' ? { kind, sectionIndex: Number(url.searchParams.get('section')) } : { kind }
+  const kind = url.searchParams.get('partition') ?? TranscriptSegmentPartitionKind.Main
+  return kind === TranscriptSegmentPartitionKind.History ? { kind, sectionIndex: Number(url.searchParams.get('section')) } : { kind }
 }
 
 const ROUTE = /^\/transcripts\/([^/]+)(\/(?:content|annotations|pulls|collectives|header|window|segments(?:\/locate|\/\d+)?))?$/
@@ -106,7 +110,7 @@ const ROUTE = /^\/transcripts\/([^/]+)(\/(?:content|annotations|pulls|collective
 export async function handlePositionedRequest(req, res, world) {
   const url = new URL(req.url, 'http://fixture')
   const path = url.pathname.replace(/^\/api\/v1/, '')
-  if (req.method === 'GET' && path === '/schema/version') {
+  if (req.method === HttpMethod.Get && path === '/schema/version') {
     answer(res, 200, POSITIONED.advertisement)
     return true
   }
@@ -121,13 +125,13 @@ export async function handlePositionedRequest(req, res, world) {
   }
   const { bodies, metadata } = entry
   const suffix = match[2] ?? ''
-  if (req.method === 'POST' && suffix === '/segments/locate') {
+  if (req.method === HttpMethod.Post && suffix === '/segments/locate') {
     const found = bodies.locate(JSON.parse((await readBody(req)) || '{}').reference)
     if (found) answer(res, 200, found)
     else answer(res, 404, { error: 'no entry matches the reference' })
     return true
   }
-  if (req.method !== 'GET') return false
+  if (req.method !== HttpMethod.Get) return false
   const partition = partitionOf(url)
   const missing = () => answer(res, 404, { error: 'no such positioned read' })
   switch (suffix) {

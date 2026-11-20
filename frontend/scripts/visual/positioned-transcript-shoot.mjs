@@ -29,7 +29,9 @@ import { mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
-import { POSITIONED } from '../journey/lib/positioned-transcript-fixtures.mjs'
+import { HttpMethod, POSITIONED } from '../journey/lib/positioned-transcript-fixtures.mjs'
+import { SessionDetailV2TestId } from '../../src/components/session-detail/v2/readModeTestIds.ts'
+import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from '../../src/components/transcript/transcriptHeaderActionsNames.ts'
 
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 const WHERE = 'positioned-transcript-shoot.mjs'
@@ -40,7 +42,16 @@ const THEME = process.argv[2] || 'dark'
 const OUT = process.argv[3] || `/tmp/opencode/v417-captures/${THEME}`
 // The build the standalone server serves: its server bundle and the static assets copied beside it.
 const NEXT_DIR = resolve(process.env.NEXT_DIST_DIR || '.next/standalone/frontend/.next')
-const MARKER = 'transcript-mode-positioned'
+const MARKER = SessionDetailV2TestId.ModePositioned.wire
+// unstring-allow: testid-selector-string — Puppeteer has no test-id query; this one helper builds the selector from typed members
+const byTestId = (id) => `[data-testid="${id}"]`
+const HEADER_ACTIONS = byTestId(TranscriptHeaderActionsTestId.Root.wire)
+/** A main-partition row's text, as the fixture module generates it. */
+const rowText = (position) => {
+  const step = Math.floor(position / 2)
+  const pool = position % 2 === 0 ? MAIN.prompts : MAIN.replies
+  return `${pool[step % pool.length]} [step ${step + 1}]`
+}
 const MAIN = POSITIONED.main
 const PREVIEW = POSITIONED.preview
 const FAR_SEGMENT = Math.floor(MAIN.farTurn / MAIN.rowsPerSegment)
@@ -88,12 +99,13 @@ async function openPage(override) {
     page.on('request', (request) => {
       if (request.isInterceptResolutionHandled()) return
       // A CORS preflight goes through, so the injected status reaches the reader as an answer.
-      const answer = request.method() === 'GET' ? override(new URL(request.url())) : null
+      const answer = request.method() === HttpMethod.Get ? override(new URL(request.url())) : null
       if (!answer) return request.continue()
       return request.respond({
         status: answer.status,
         contentType: 'application/json',
         headers: { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'Retry-After', ...(answer.headers ?? {}) },
+        // unstring-allow: json-body-object — an injected failure body the reader discards unread
         body: JSON.stringify({ error: 'injected' }),
       })
     })
@@ -123,7 +135,7 @@ try {
     const response = await page.goto(transcript(`?turn=${MAIN.farTurn}`), { waitUntil: 'domcontentloaded' })
     const policy = response.headers()['referrer-policy']
     if (policy !== 'no-referrer') fail(`the transcript page answered Referrer-Policy ${JSON.stringify(policy)}; no-referrer is expected. The served build predates the policy, or next.config headers changed.`, 2)
-    await waitFor(page, `[data-testid="${MARKER}"]`)
+    await waitFor(page, byTestId(MARKER))
     await waitFor(page, '.txn-segboundary-between')
     await centre(page, '.txn-segboundary-between')
     await shot(page, 'positioned-far-target')
@@ -136,7 +148,7 @@ try {
     await waitFor(page, '.txn-earlier-toggle')
     await waitFor(page, '.txn-turn')
     await shot(page, 'positioned-history-closed')
-    const unnumbered = await page.waitForFunction(() => [...document.querySelectorAll('.txn-turn')].find((el) => el.textContent.includes('number not served')), { timeout: 10000 })
+    const unnumbered = await page.waitForFunction((text) => [...document.querySelectorAll('.txn-turn')].find((el) => el.textContent.includes(text)), { timeout: 10000 }, rowText(MAIN.numberAbsent[0]))
     await unnumbered.evaluate((el) => el.scrollIntoView({ block: 'center' }))
     await shot(page, 'positioned-no-number')
     await page.$eval('.txn-earlier-toggle', (el) => el.scrollIntoView({ block: 'start' }))
@@ -161,7 +173,7 @@ try {
   {
     const page = await openPage()
     await page.goto(transcript(`?turn=${MAIN.unservedTurn}`), { waitUntil: 'domcontentloaded' })
-    await waitFor(page, '[data-testid="transcript-snapped-turn"]')
+    await waitFor(page, byTestId(SessionDetailV2TestId.SnappedTurn.wire))
     await shot(page, 'positioned-snapped-turn')
     await page.close()
   }
@@ -170,7 +182,7 @@ try {
     const page = await openPage((url) => (/\/segments\/\d+$/.test(url.pathname) ? { status: 500 } : null))
     await page.goto(transcript(), { waitUntil: 'domcontentloaded' })
     await waitFor(page, '[data-read-failure="failed"]')
-    await page.click('[data-testid="transcript-header-actions"] button[aria-label="more"]')
+    await page.click(`${HEADER_ACTIONS} button[aria-label="${TranscriptHeaderActionsLabel.More.wire}"]`)
     await waitFor(page, '[role="menu"]')
     await shot(page, 'positioned-failure-downloads')
     await page.close()
@@ -181,9 +193,9 @@ try {
     await page.goto(`${ORIGIN}/collectives/${GROUP}/${route}`, { waitUntil: 'domcontentloaded' })
     const button = await page.waitForFunction((title) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === title), { timeout: 20000 }, PREVIEW.title)
     await button.click()
-    await waitFor(page, `.on-contribute-preview [data-testid="${MARKER}"]`)
+    await waitFor(page, `.on-contribute-preview ${byTestId(MARKER)}`)
     await waitFor(page, '.on-contribute-preview .txn-turn')
-    if (await page.$('.on-contribute-preview [data-testid="transcript-header-actions"]')) fail(`the ${route} preview offers header actions; a preview is read-only.`)
+    if (await page.$(`.on-contribute-preview ${HEADER_ACTIONS}`)) fail(`the ${route} preview offers header actions; a preview is read-only.`)
     await shot(page, name)
     await page.close()
   }

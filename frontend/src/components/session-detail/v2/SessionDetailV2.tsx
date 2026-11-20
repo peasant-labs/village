@@ -19,7 +19,7 @@ import {
   type TurnLabel,
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
-import { closed } from '@peasant-labs/fairtrade/closed-value';
+import { SessionDetailV2TestId } from './readModeTestIds';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -140,12 +140,7 @@ interface SessionDetailV2Props {
 /** The two ways the view is mounted: the standalone route, or a preview column. */
 const SessionDetailVariant = { Full: "full", Preview: "preview" } as const satisfies Record<string, NonNullable<SessionDetailV2Props["variant"]>>;
 
-/** The test ids this view renders for its read. */
-export const SessionDetailV2TestId = {
-  ModePositioned: closed("transcript-mode-positioned", "a transcript read through the positioned reader"),
-  ModeContent: closed("transcript-mode-content", "a transcript read as the whole document"),
-  SnappedTurn: closed("transcript-snapped-turn", "the line a deep link to an unserved turn shows"),
-} as const;
+export { SessionDetailV2TestId };
 
 type ContentProps = SessionDetailV2Props & { positioned?: PositionedTranscript };
 

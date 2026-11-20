@@ -11,6 +11,7 @@ import {
   isConversationTurn,
   isPositionedDirectoryPositionsValid,
   TranscriptReadTransportKind,
+  TranscriptSegmentPartitionKind,
   zPositionedDirectory,
   zPositionedSegment,
   zPositionedWindow,
@@ -51,7 +52,7 @@ function mustParse(parser, body, name) {
 
 /** The partition key a request names: `main`, or `history:<section>`. */
 export function partitionKey(partition) {
-  return partition?.kind === "history" ? `history:${partition.sectionIndex}` : "main";
+  return partition?.kind === TranscriptSegmentPartitionKind.History ? `${TranscriptSegmentPartitionKind.History}:${partition.sectionIndex}` : TranscriptSegmentPartitionKind.Main;
 }
 
 /**
@@ -82,7 +83,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
       position,
       recordedIndex: turn.index,
       recordedIndexState: "present",
-      ...(partition.kind === "main" && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
+      ...(partition.kind === TranscriptSegmentPartitionKind.Main && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
       turn,
     }));
     const chunks = [];
@@ -121,13 +122,13 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
       hasNewer: index < chunks.length - 1,
       partition,
       context,
-    }, name === "main" ? `segment ${index}` : `${name} segment ${index}`));
+    }, name === TranscriptSegmentPartitionKind.Main ? `segment ${index}` : `${name} segment ${index}`));
     return { partition, turns, rows, chunks, refs, context, segments };
   }
 
-  const main = partitionOf(spec.turns, { kind: "main" }, spec.firstRecordedIndex ?? 0, "main");
+  const main = partitionOf(spec.turns, { kind: TranscriptSegmentPartitionKind.Main }, spec.firstRecordedIndex ?? 0, TranscriptSegmentPartitionKind.Main);
   const history = (spec.history ?? []).map((section, sectionIndex) => ({
-    ...partitionOf(section.turns, { kind: "history", sectionIndex }, 0, `history ${sectionIndex}`),
+    ...partitionOf(section.turns, { kind: TranscriptSegmentPartitionKind.History, sectionIndex }, 0, `history ${sectionIndex}`),
     state: section.state,
   }));
 
@@ -155,16 +156,16 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
 
   /** Every directory page of one partition, each checked against the parser and the position rule. */
   function directoryPages(part, name) {
-    const perPage = part.partition.kind === "main" && spec.directoryPerPage ? spec.directoryPerPage : part.refs.length;
+    const perPage = part.partition.kind === TranscriptSegmentPartitionKind.Main && spec.directoryPerPage ? spec.directoryPerPage : part.refs.length;
     const pages = Math.max(1, Math.ceil(part.refs.length / perPage));
     return Array.from({ length: pages }, (_, page) => {
-      const label = part.partition.kind === "main" ? `directory page ${page + 1}` : `${name} directory page ${page + 1}`;
+      const label = part.partition.kind === TranscriptSegmentPartitionKind.Main ? `directory page ${page + 1}` : `${name} directory page ${page + 1}`;
       const body = check(zPositionedDirectory, {
         context: part.context,
         partition: part.partition,
         segments: part.refs.slice(page * perPage, (page + 1) * perPage),
-        usagePresent: part.partition.kind === "main" ? "empty" : "unknown",
-        ...(part.partition.kind === "main" && history.length > 0
+        usagePresent: part.partition.kind === TranscriptSegmentPartitionKind.Main ? "empty" : "unknown",
+        ...(part.partition.kind === TranscriptSegmentPartitionKind.Main && history.length > 0
           ? {
               history: history.map((section, index) => ({
                 index,
@@ -211,7 +212,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
 
   const partitions = new Map([[partitionKey(main.partition), main], ...history.map((part) => [partitionKey(part.partition), part])]);
   const directories = new Map([...partitions].map(([key, part]) => [key, directoryPages(part, key)]));
-  const defaultWindows = new Map([...partitions].map(([key, part]) => [key, windowBody(part, undefined, key === "main" ? "window default" : `${key} window default`)]));
+  const defaultWindows = new Map([...partitions].map(([key, part]) => [key, windowBody(part, undefined, key === TranscriptSegmentPartitionKind.Main ? "window default" : `${key} window default`)]));
 
   /** The locator's answer for a carried entry reference, or undefined when no main row carries it. */
   const locate = (reference) => {
@@ -239,11 +240,11 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     transcriptId: spec.transcriptId,
     context: main.context,
     header,
-    pages: directories.get("main").length,
+    pages: directories.get(TranscriptSegmentPartitionKind.Main).length,
     /** The main partition's directory page (1-based). */
-    directory: (page = 1) => directories.get("main")[page - 1],
+    directory: (page = 1) => directories.get(TranscriptSegmentPartitionKind.Main)[page - 1],
     /** The main partition's window: the default open, or anchored at a recorded index. */
-    window: (turn) => (turn === undefined ? defaultWindows.get("main") : windowBody(main, turn, `window ${turn}`)),
+    window: (turn) => (turn === undefined ? defaultWindows.get(TranscriptSegmentPartitionKind.Main) : windowBody(main, turn, `window ${turn}`)),
     /** The main partition's segment. */
     segment: (index) => main.segments[index],
     /** Any partition's directory page, window and segment, by the request's partition; undefined when absent. */

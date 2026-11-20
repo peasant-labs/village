@@ -17,7 +17,7 @@
 import { createServer, request as httpRequest } from 'node:http'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { handlePositionedRequest, POSITIONED, PositionedWorld } from '../journey/lib/positioned-transcript-fixtures.mjs'
+import { handlePositionedRequest, HttpMethod, POSITIONED, PositionedWorld } from '../journey/lib/positioned-transcript-fixtures.mjs'
 
 const WHERE = 'mock-rest-positioned.mjs'
 const PORT = Number(process.env.MOCK_REST_PORT || 8795)
@@ -73,7 +73,7 @@ async function waitForUpstream(timeoutMs = 15000) {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
     const up = await new Promise((resolve) => {
-      const probe = httpRequest({ hostname: '127.0.0.1', port: UPSTREAM_PORT, path: '/api/v1/auth/me', method: 'GET' }, (r) => { r.resume(); resolve(true) })
+      const probe = httpRequest({ hostname: '127.0.0.1', port: UPSTREAM_PORT, path: '/', method: HttpMethod.Get }, (r) => { r.resume(); resolve(true) })
       probe.on('error', () => resolve(false))
       probe.end()
     })
@@ -91,7 +91,7 @@ if (!(await waitForUpstream())) {
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://fixture').pathname.replace(/^\/api\/v1/, '')
   if (req.method === 'OPTIONS') return send(res, 204, {})
-  if (path === '/__mock/positioned' && req.method === 'POST') {
+  if (path === '/__mock/positioned' && req.method === HttpMethod.Post) {
     let text = ''
     for await (const chunk of req) text += chunk
     const next = JSON.parse(text || '{}').world
@@ -102,7 +102,7 @@ const server = createServer(async (req, res) => {
   if (await handlePositionedRequest(req, res, world)) return
   try {
     const answer = await fetchUpstream(req)
-    const rewrite = req.method === 'GET' && answer.status === 200 ? leadWithPreview[path] : undefined
+    const rewrite = req.method === HttpMethod.Get && answer.status === 200 ? leadWithPreview[path] : undefined
     if (rewrite) return send(res, 200, rewrite(JSON.parse(answer.body.toString('utf8'))))
     res.writeHead(answer.status, answer.headers)
     res.end(answer.body)
