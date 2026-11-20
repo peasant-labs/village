@@ -41,12 +41,23 @@ landing:
     expectWindowAnchor: '14'
     expectSegments: ['2', '0']
     expectText: Now read the last segment.
+  # The opened row's recorded index is 10 and the server labels it 1, so a line
+  # that printed the recorded index, or a number the host derived from it
+  # (11), would not match the row the reader sees.
   - name: turn-param-snapped-status-copy
-    why: a recorded index the transcript does not serve opens the window's anchor turn and says so
+    why: a recorded index the transcript does not serve opens the window's anchor turn and names it by the row's own label
     search: '?turn=99'
     expectWindowAnchor: '99'
     expectSegments: ['0']
-    expectSnapped: "turn 99 is not in this transcript's served view, so the viewer opened turn 10."
+    expectOpenedLabel: '#1'
+    expectSnapped: "?turn=99 is not in this transcript's served view, so the viewer opened #1."
+  - name: turn-param-snapped-unnumbered-row
+    why: an opened row the server sends no number for is named without one
+    search: '?turn=99'
+    numberAbsent: [0]
+    expectWindowAnchor: '99'
+    expectSegments: ['0']
+    expectSnapped: "?turn=99 is not in this transcript's served view, so the viewer opened the first available turn."
 
 # Downloads read the whole stored copy once per action, while two of the
 # three segments are loaded. The files are compared byte for byte.

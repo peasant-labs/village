@@ -218,9 +218,21 @@ function PositionedGraph({ read, onRetry }: { read: GraphRead; onRetry: () => vo
   );
 }
 
-/** The status line for a `?turn=N` the transcript does not serve. */
-export function snappedTurnLine(requestedTurn: number, openedTurn: number): string {
-  return `turn ${requestedTurn} is not in this transcript's served view, so the viewer opened turn ${openedTurn}.`;
+/** The status line for a `?turn=N` the transcript does not serve. `requestedTurn` is the value the
+ *  address carries; `openedLabel` is the label the opened row itself shows (the server's display
+ *  number), or undefined when the row shows none. */
+export function snappedTurnLine(requestedTurn: number, openedLabel: string | undefined): string {
+  const opened = openedLabel ? `#${openedLabel}` : 'the first available turn';
+  return `?turn=${requestedTurn} is not in this transcript's served view, so the viewer opened ${opened}.`;
+}
+
+type LoadedSegments = NonNullable<PositionedTranscript['viewerProps']['segments']>;
+
+/** Every turn the positioned reader has loaded, in whichever collection shape it supplies. */
+function loadedSegmentTurns(segments: LoadedSegments | undefined) {
+  if (!segments) return [];
+  const list = segments instanceof Map ? [...segments.values()] : Array.isArray(segments) ? segments : Object.values(segments);
+  return list.flatMap((segment) => segment.turns);
 }
 
 function SessionDetailV2Content({
@@ -561,9 +573,15 @@ function SessionDetailV2Content({
         onEarlierHistoryOpenChange: setEarlierHistoryOpen,
       };
   const landing = positioned?.controls.landing;
+  // The opened row names itself by the label the server gave it; the host never derives a
+  // number from the recorded index. The line waits until that row is loaded.
+  const openedRow =
+    landing?.snapped && landing.anchorTurn !== undefined
+      ? loadedSegmentTurns(positionedProps?.segments).find((turn) => turn.recordedIndex === landing.anchorTurn)
+      : undefined;
   const snappedLine =
-    landing?.snapped && landing.requestedAnchor !== undefined && landing.anchorTurn !== undefined
-      ? snappedTurnLine(landing.requestedAnchor, landing.anchorTurn)
+    openedRow && landing?.requestedAnchor !== undefined
+      ? snappedTurnLine(landing.requestedAnchor, openedRow.numberAbsent ? undefined : openedRow.label)
       : null;
   const shownOmittedImages = positioned ? positioned.controls.header?.omittedImages ?? 0 : omittedImages;
   const readMode = positioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content;

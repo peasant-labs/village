@@ -31,6 +31,10 @@ type NoFallbackCase = {
 type LandingCase = {
   name: string; why: string; search: string; expectWindowAnchor: string; expectSegments: string[];
   expectText?: string; expectSnapped?: string;
+  /** main-partition positions this case's server sends no display number for */
+  numberAbsent?: number[];
+  /** the number label the opened (active) row itself shows */
+  expectOpenedLabel?: string;
 };
 type DownloadRow = { name: string; label: string; file: string; type: string };
 /** What a graph case ends on: the drawn graph, the list alone, or the graph's failure state. */
@@ -60,7 +64,7 @@ const id = spec.transcriptId;
 const requiredFixtureNames = [
   "v2-failure-409-stale", "v2-failure-503-busy", "v2-failure-410-unavailable", "v2-failure-404-denied",
   "v2-failure-network", "v2-failure-malformed",
-  "turn-param-lands-requested-position", "turn-param-snapped-status-copy",
+  "turn-param-lands-requested-position", "turn-param-snapped-status-copy", "turn-param-snapped-unnumbered-row",
   "download-json-bytes-partial-load", "download-jsonl-bytes-partial-load", "download-markdown-bytes-partial-load",
   "graph-open-reads-content-once", "list-mode-never-reads-content", "graph-content-failure-keeps-list",
 ];
@@ -215,13 +219,17 @@ it("directory-context-mismatch-discarded", async () => {
 describe("landing", () => {
   for (const row of fixture.landing) {
     it(row.name, async () => {
-      const fetchMock = await mountPositioned(buildPositionedBodies(spec), row.search);
+      const fetchMock = await mountPositioned(buildPositionedBodies({ ...spec, numberAbsent: row.numberAbsent ?? spec.numberAbsent }), row.search);
       await waitFor(() => expect(new Set(segmentReads(fetchMock))).toEqual(new Set(row.expectSegments)));
       const anchors = urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"));
       expect(anchors).toContain(row.expectWindowAnchor);
       if (row.expectText) await waitFor(() => expect(screen.getAllByText(row.expectText!).length).toBeGreaterThan(0));
       if (row.expectSnapped) {
         await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveTextContent(row.expectSnapped!));
+        // The line names the row the reader sees by that row's own label.
+        if (row.expectOpenedLabel) {
+          await waitFor(() => expect(document.querySelector(".txn-turn.txn-active .txn-turnnum")).toHaveTextContent(row.expectOpenedLabel!));
+        }
       } else {
         expect(screen.queryByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toBeNull();
       }

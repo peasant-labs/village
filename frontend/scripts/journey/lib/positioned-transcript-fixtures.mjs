@@ -1,5 +1,5 @@
-/* The positioned transcripts both mocks serve: the transcript page's subject and the review queue's
-   first submission, each with its metadata, its stored copy and the five positioned reads. Every
+/* The positioned transcripts both mocks serve: the transcript page's subject, the snapped deep
+   link's subject and the review queue's first submission, each with its metadata, its stored copy and the five positioned reads. Every
    positioned body comes from the one shared builder (positioned-bodies.mjs), so a body Schema's
    parsers refuse stops the mock before it listens. */
 import { readFileSync } from 'node:fs'
@@ -43,6 +43,7 @@ export function positionedSpec(fixture, { withheld = false } = {}) {
     transcriptId: fixture.transcriptId,
     rowsPerSegment: fixture.rowsPerSegment,
     turns: turnsOf(fixture),
+    firstRecordedIndex: fixture.firstRecordedIndex ?? 0,
     numberAbsent: fixture.numberAbsent ?? [],
     history: fixture.history ?? [],
     session: withheld ? {} : fixture.session,
@@ -71,8 +72,8 @@ function served(fixture, withheld) {
 
 // Built once at import: a refused body throws here, before the mock listens.
 const transcripts = {
-  [PositionedWorld.Served]: [served(POSITIONED.main, false), served(POSITIONED.preview, false)],
-  [PositionedWorld.Withheld]: [served(POSITIONED.main, true), served(POSITIONED.preview, true)],
+  [PositionedWorld.Served]: [served(POSITIONED.main, false), served(POSITIONED.snapped, false), served(POSITIONED.preview, false)],
+  [PositionedWorld.Withheld]: [served(POSITIONED.main, true), served(POSITIONED.snapped, true), served(POSITIONED.preview, true)],
 }
 
 const answer = (res, status, body, headers = {}) => {

@@ -129,3 +129,11 @@ mutations:
     replacement: "  const graphWanted = positioned !== undefined;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: list-mode-never-reads-content}
+
+  - name: snapped-line-prints-recorded-index
+    why: the snapped-turn line naming the opened row by its recorded index instead of the label the row shows
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "openedRow.numberAbsent ? undefined : openedRow.label"
+    replacement: "String(landing.anchorTurn)"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: turn-param-snapped-status-copy}

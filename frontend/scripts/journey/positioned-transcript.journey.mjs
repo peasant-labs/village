@@ -20,6 +20,7 @@ import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from '../
 const DESKTOP = { width: 1440, height: 900 }
 const MAIN = POSITIONED.main
 const PREVIEW = POSITIONED.preview
+const SNAPPED = POSITIONED.snapped
 const page_ = (search = '') => `/transcripts/${MAIN.transcriptId}${search}`
 const MOCK_PORT = String(process.env.JOURNEY_MOCK_PORT || 8799)
 const POSITIONED_TESTID = SessionDetailV2TestId.ModePositioned.wire
@@ -145,11 +146,14 @@ test.describe('positioned transcript reader', () => {
   })
 
   test('journey-turn-requested-row-filtered', async ({ page }) => {
-    await page.goto(page_(`?turn=${MAIN.unservedTurn}`))
+    // The line names the opened row by the label that row shows, which differs from its recorded index.
+    await page.goto(`/transcripts/${SNAPPED.transcriptId}?turn=${SNAPPED.unservedTurn}`)
     await expect(page.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveText(
-      `turn ${MAIN.unservedTurn} is not in this transcript's served view, so the viewer opened turn 0.`,
+      `?turn=${SNAPPED.unservedTurn} is not in this transcript's served view, so the viewer opened ${SNAPPED.openedLabel}.`,
     )
-    await expect(stream(page).locator('.txn-turn', { hasText: rowText(0) })).toHaveClass(/txn-active/)
+    const opened = stream(page).locator('.txn-turn', { hasText: `${SNAPPED.prompts[0]} [step 1]` })
+    await expect(opened).toHaveClass(/txn-active/)
+    await expect(opened.locator('.txn-turnnum')).toHaveText(SNAPPED.openedLabel)
   })
 
   test('journey-download-after-segment-failure', async ({ page }) => {

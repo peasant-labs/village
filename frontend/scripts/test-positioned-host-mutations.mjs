@@ -42,6 +42,7 @@ const requiredNames = [
   "http-date-read-as-seconds",
   "graph-reads-content-on-mount",
   "list-reads-content",
+  "snapped-line-prints-recorded-index",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {

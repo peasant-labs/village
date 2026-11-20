@@ -46,6 +46,26 @@ main:
   farTurn: 33
   unservedTurn: 999
 
+# The snapped deep link's subject. Its recorded indexes start at 10 while the
+# server labels its rows from 1, so a status line that named the opened row by
+# its recorded index (10), or by a number the page derived from it (11),
+# would not match the row's own label (#1).
+snapped:
+  transcriptId: 3c6a9e21-4d7b-4f0a-8e52-91b7c0d4a6f8
+  title: open a deep link the transcript does not serve
+  owner: riley-owner
+  ownerId: 0f1e2d3c-4b5a-4968-8776-655443322110
+  rowsPerSegment: 4
+  segments: 2
+  firstRecordedIndex: 10
+  session: {project: positioned-reader, gitBranch: feature/positioned-reads}
+  prompts:
+    - Open the turn the link names, or say which one opened instead.
+  replies:
+    - The link names a turn this view does not serve, so the first row opened.
+  unservedTurn: 999
+  openedLabel: '#1'
+
 preview:
   transcriptId: 7b000000-0000-4000-8000-000000000001
   title: Add retries to the webhook
