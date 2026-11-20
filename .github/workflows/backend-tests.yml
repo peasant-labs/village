@@ -83,7 +83,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" > changed.txt
-          if grep -Eq '^(backend/|go\.work$|Makefile$|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/|\.unstring\.yaml$|\.unstring-baseline\.yaml$|\.github/workflows/backend-tests\.yml$)' changed.txt; then
+          if grep -Eq '^(backend/|go\.work$|Makefile$|frontend/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts/|\.unstring\.yaml$|\.unstring-baseline\.yaml$|\.github/workflows/)' changed.txt; then
             echo "run=true" >> "${GITHUB_OUTPUT}"
           else
             echo "run=false" >> "${GITHUB_OUTPUT}"
@@ -355,7 +355,13 @@ jobs:
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
       - name: Install ast-grep
-        run: npm install --global @ast-grep/cli@0.51.2
+        # The pool's tool cache is shared across concurrent VMs; keep this install job-private.
+        run: |
+          set -euo pipefail
+          prefix="$RUNNER_TEMP/ast-grep"
+          npm install --prefix "$prefix" --no-save --no-package-lock @ast-grep/cli@0.51.2
+          echo "$prefix/node_modules/.bin" >> "$GITHUB_PATH"
+          "$prefix/node_modules/.bin/ast-grep" --version
 
       - name: Static guard (unstring)
         run: make check-unstring
