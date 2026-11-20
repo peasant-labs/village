@@ -12,6 +12,7 @@ import {
   renderProductionRoute,
   type MountedRouteHandler,
 } from "@/test/mountedProductionRoute";
+import { PositionedReadFailureKind } from "@peasant-labs/fairtrade/ui";
 import { readTranscriptForDownload } from "@/lib/transcriptExport";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
@@ -348,7 +349,10 @@ describe("downloads", () => {
     fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadJSON.wire }));
     await waitFor(() => expect(contentSignal).toBeDefined());
     reloaded = true;
-    fireEvent.click(screen.getByRole("button", { name: "reload transcript" }));
+    // The stale failure state's own action, as the fixture names it.
+    const reload = fixture.noFallback.find((row) => row.kind === PositionedReadFailureKind.Stale)?.retry;
+    expect(reload).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: reload }));
     await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
     expect(document.querySelector("[data-read-failure]")).toBeNull();
     await waitFor(() => expect(contentSignal?.aborted).toBe(true));
