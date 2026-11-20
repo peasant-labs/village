@@ -321,6 +321,43 @@ describe("downloads", () => {
     expect(saved).toEqual([]);
   });
 
+  it("download-revision-change-mounted-aborts", async () => {
+    // The mounted page: a download is in flight when the reader reloads onto
+    // another revision. The page aborts the read and saves no file, even when
+    // the stored copy answers afterwards.
+    const saved = captureDownloads();
+    const before = buildPositionedBodies(spec);
+    const after = buildPositionedBodies({ ...spec, revision: "4" });
+    let reloaded = false;
+    let contentSignal: AbortSignal | undefined;
+    let answerContent: (() => void) | undefined;
+    const routes: MountedRouteHandler = (raw, init) => {
+      if (new URL(raw).pathname.endsWith(`/transcripts/${id}/content`)) {
+        contentSignal = init?.signal ?? undefined;
+        return new Promise<Response>((resolveContent, reject) => {
+          answerContent = () => resolveContent(json(before.content));
+          contentSignal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        });
+      }
+      // Revision 3's segments answer stale until the reader reloads onto revision 4.
+      return reloaded ? positionedRoutes(after)(raw, init) : positionedRoutes(before, { segmentFailure: { status: 409 } })(raw, init);
+    };
+    installRESTFixture(id, metadata(), before.content, "positioned host", undefined, routes);
+    await renderProductionRoute(id);
+    await waitFor(() => expect(document.querySelector('[data-read-failure="stale"]')).not.toBeNull());
+    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadJSON.wire }));
+    await waitFor(() => expect(contentSignal).toBeDefined());
+    reloaded = true;
+    fireEvent.click(screen.getByRole("button", { name: "reload transcript" }));
+    await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
+    expect(document.querySelector("[data-read-failure]")).toBeNull();
+    await waitFor(() => expect(contentSignal?.aborted).toBe(true));
+    // An answer that arrives anyway is not saved.
+    answerContent?.();
+    await act(async () => { await Promise.resolve(); });
+    expect(saved).toEqual([]);
+  });
+
   it("download-abort-saves-nothing", async () => {
     const saved = captureDownloads();
     const controller = new AbortController();

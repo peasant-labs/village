@@ -145,3 +145,11 @@ mutations:
     replacement: "      signal,\n"
     killers:
       - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-timeout-uses-content}
+
+  - name: download-epoch-never-ends
+    why: a revision change that neither aborts the download in flight nor ends its epoch, so the old revision's file is saved
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    return () => {\n      epoch.abort.abort();\n      downloadEpoch.current = { id: epoch.id + 1, abort: new AbortController() };\n    };\n"
+    replacement: "    return () => { void epoch; };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}

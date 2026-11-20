@@ -44,6 +44,7 @@ const requiredNames = [
   "list-reads-content",
   "snapped-line-prints-recorded-index",
   "discovery-timeout-removed",
+  "download-epoch-never-ends",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
