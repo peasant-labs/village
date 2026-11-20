@@ -24,3 +24,7 @@ cases:
     body: '{"serves":["segmented-reads-v2"]}'
   - name: capability-read-failure-uses-content
     rejected: true
+  # The version read never answers; the deadline passes and the page reads the
+  # whole document. The test fires the deadline itself, so nothing sleeps.
+  - name: capability-timeout-uses-content
+    hangs: true

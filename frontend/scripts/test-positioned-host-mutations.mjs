@@ -43,6 +43,7 @@ const requiredNames = [
   "graph-reads-content-on-mount",
   "list-reads-content",
   "snapped-line-prints-recorded-index",
+  "discovery-timeout-removed",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {

@@ -137,3 +137,11 @@ mutations:
     replacement: "String(landing.anchorTurn)"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: turn-param-snapped-status-copy}
+
+  - name: discovery-timeout-removed
+    why: a version read with no deadline, so a stalled answer holds the page before either reader mounts
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "      signal: AbortSignal.any(signal ? [signal, deadline] : [deadline]),\n"
+    replacement: "      signal,\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-timeout-uses-content}
