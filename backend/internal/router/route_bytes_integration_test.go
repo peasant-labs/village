@@ -118,11 +118,11 @@ func TestRouteBytesPostgres(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			req := httptest.NewRequest(c.Method, w.replace(c.Path), strings.NewReader(w.replace(c.RequestBody)))
 			switch c.As {
-			case "anonymous":
+			case routeByteCallerAnonymous:
 			case "":
 				req.Header.Set("Authorization", "Bearer "+w.tokens["account"])
 			default:
-				token, ok := w.tokens[c.As]
+				token, ok := w.tokens[string(c.As)]
 				if !ok {
 					t.Fatalf("case %q signs in as unknown account %q", c.Name, c.As)
 				}

@@ -46,7 +46,7 @@ type routeByteCase struct {
 	Providers bool `yaml:"providers"`
 	// As names the session the request carries: empty for the main account,
 	// "anonymous" for none, or another seeded account.
-	As string `yaml:"as"`
+	As routeByteCaller `yaml:"as"`
 	// Capture names the values read back after the request, from the
 	// response or the database, before the body is compared.
 	Capture []string `yaml:"capture"`
@@ -270,3 +270,9 @@ func TestRouteBytes(t *testing.T) {
 		})
 	}
 }
+
+// routeByteCaller names the session a route-byte case sends: empty for the
+// main account, routeByteCallerAnonymous for none, or another seeded account.
+type routeByteCaller string
+
+const routeByteCallerAnonymous routeByteCaller = "anonymous"
