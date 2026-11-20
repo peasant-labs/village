@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -13,6 +14,8 @@ import {
 } from "@/test/mountedProductionRoute";
 import { readTranscriptForDownload } from "@/lib/transcriptExport";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
+import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
+import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
 
 // The transcript page over the positioned reader. The real route mounts
 // (TranscriptDetailPage -> SessionDetailV2 -> fairtrade's reader and viewer);
@@ -31,13 +34,17 @@ type LandingCase = {
 type DownloadRow = { name: string; label: string; file: string; type: string };
 type Fixture = {
   transcript: Spec;
+  retryActions: string[];
   noFallback: NoFallbackCase[];
   landing: LandingCase[];
   downloads: { search: string; loadedSegments: string[]; rows: DownloadRow[] };
 };
 
-const fixture = parse(readFileSync("src/testdata/transcript-positioned-host.yaml", "utf8")) as Fixture;
+// unstring-allow: data-path-literal — named once at module scope and read only through this constant
+const TESTDATA = resolve(process.cwd(), "src/testdata");
+const fixture = parse(readFileSync(resolve(TESTDATA, "transcript-positioned-host.yaml"), "utf8")) as Fixture;
 const spec = fixture.transcript;
+const [opening, , , middle, last] = spec.turns.map((turn) => turn.content);
 const id = spec.transcriptId;
 
 const requiredFixtureNames = [
@@ -84,17 +91,21 @@ function positionedRoutes(
     const match = url.pathname.match(POSITIONED_ROUTE);
     if (!match) return undefined;
     if (options.failure) return fail(options.failure);
+    const answers: Record<string, () => Response> = {
+      header: () => json(bodies.header),
+      window: () => {
+        const anchor = url.searchParams.get("anchor");
+        return json(bodies.window(anchor === null ? undefined : Number(anchor)));
+      },
+      segments: () => json(bodies.directory(Number(url.searchParams.get("page") ?? "1"))),
+      "segments/locate": () => {
+        const found = bodies.locate(JSON.parse(String(init?.body)).reference);
+        return found ? json(found) : json({ error: "no match" }, { status: 404 });
+      },
+    };
     const route = match[1];
-    if (route === "header") return json(bodies.header);
-    if (route === "window") {
-      const anchor = url.searchParams.get("anchor");
-      return json(bodies.window(anchor === null ? undefined : Number(anchor)));
-    }
-    if (route === "segments") return json(bodies.directory(Number(url.searchParams.get("page") ?? "1")));
-    if (route === "segments/locate") {
-      const match = bodies.locate(JSON.parse(String(init?.body)).reference);
-      return match ? json(match) : json({ error: "no match" }, { status: 404 });
-    }
+    const answer = answers[route];
+    if (answer) return answer();
     if (options.segmentFailure) return fail(options.segmentFailure);
     return json(bodies.segment(Number(route.split("/")[1])));
   };
@@ -118,7 +129,7 @@ async function mountPositioned(
 ) {
   const fetchMock = installRESTFixture(id, metadata(options.contentHash), bodies.content, "positioned host", undefined, positionedRoutes(bodies, options));
   await renderProductionRoute(id, search);
-  await waitFor(() => expect(screen.getByTestId("transcript-mode-positioned")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.ModePositioned.wire)).toBeInTheDocument());
   return fetchMock;
 }
 
@@ -128,7 +139,7 @@ const segmentReads = (fetchMock: ReturnType<typeof vi.fn>) =>
   urls(fetchMock).map((url) => url.pathname.match(/\/segments\/(\d+)$/)?.[1]).filter((value): value is string => value !== undefined);
 
 async function openMore(): Promise<HTMLElement> {
-  fireEvent.click(screen.getByRole("button", { name: "more" }));
+  fireEvent.click(screen.getByRole("button", { name: TranscriptHeaderActionsLabel.More.wire }));
   return screen.findByRole("menu");
 }
 
@@ -153,10 +164,10 @@ describe("v2-failure-never-requests-content", () => {
         fireEvent.click(screen.getByRole("button", { name: row.retry }));
         await waitFor(() => expect(document.querySelector(`[data-read-failure="${row.kind}"]`)).not.toBeNull());
       } else {
-        expect(screen.queryByRole("button", { name: /try again|reload transcript|try now/ })).toBeNull();
+        for (const action of fixture.retryActions) expect(screen.queryByRole("button", { name: action })).toBeNull();
       }
       // The downloads stay with the failure state.
-      expect(screen.getByTestId("transcript-header-actions")).toBeInTheDocument();
+      expect(screen.getByTestId(TranscriptHeaderActionsTestId.Root.wire)).toBeInTheDocument();
       expect(contentReads(fetchMock)).toEqual([]);
     });
   }
@@ -168,7 +179,7 @@ it("capability-absent-mounts-content", async () => {
     new URL(raw).pathname.endsWith("/schema/version") ? json({ segmentedReadVersion: "0.1.0", minSegmentedReadVersion: "0.1.0" }) : undefined,
   );
   await renderProductionRoute(id);
-  await waitFor(() => expect(screen.getByTestId("transcript-mode-content")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.ModeContent.wire)).toBeInTheDocument());
   await waitFor(() => expect(contentReads(fetchMock)).toHaveLength(1));
   expect(urls(fetchMock).some((url) => POSITIONED_ROUTE.test(url.pathname))).toBe(false);
 });
@@ -183,7 +194,7 @@ it("directory-context-mismatch-discarded", async () => {
   const fetchMock = await mountPositioned(bodies);
   await waitFor(() => expect(document.querySelector('[data-read-failure="malformed"]')).not.toBeNull());
   expect(urls(fetchMock).some((url) => url.pathname.endsWith("/segments") && url.searchParams.get("page") === "2")).toBe(true);
-  await waitFor(() => expect(screen.getAllByText("Open the reader at the deep link.").length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
   expect(contentReads(fetchMock)).toEqual([]);
 });
 
@@ -196,9 +207,9 @@ describe("landing", () => {
       expect(anchors).toContain(row.expectWindowAnchor);
       if (row.expectText) await waitFor(() => expect(screen.getAllByText(row.expectText!).length).toBeGreaterThan(0));
       if (row.expectSnapped) {
-        await waitFor(() => expect(screen.getByTestId("transcript-snapped-turn")).toHaveTextContent(row.expectSnapped!));
+        await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveTextContent(row.expectSnapped!));
       } else {
-        expect(screen.queryByTestId("transcript-snapped-turn")).toBeNull();
+        expect(screen.queryByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toBeNull();
       }
       expect(contentReads(fetchMock)).toEqual([]);
     });
@@ -213,13 +224,13 @@ it("carried-anchor-uses-locator", async () => {
   const locate = fetchMock.mock.calls.find(([input]) => String(input).includes("/segments/locate"));
   expect(locate?.[1]?.method).toBe("POST");
   expect(JSON.parse(String(locate?.[1]?.body))).toMatchObject({ reference: "entry-middle" });
-  await waitFor(() => expect(screen.getAllByText("The second segment holds the middle rows.").length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText(middle).length).toBeGreaterThan(0));
 });
 
 it("locator-no-match-keeps-general-link", async () => {
   const fetchMock = await mountPositioned(buildPositionedBodies(spec), carried("entry-missing"));
   await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/segments/locate"))).toBe(true));
-  await waitFor(() => expect(screen.getAllByText("Open the reader at the deep link.").length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
   expect(document.querySelector("[data-read-failure]")).toBeNull();
   expect(segmentReads(fetchMock)).toEqual(["0"]);
 });
@@ -227,14 +238,11 @@ it("locator-no-match-keeps-general-link", async () => {
 it("saved-labels-keyed-by-recorded-index", async () => {
   // The second row's recorded index is 11; its position is 1. Only the label
   // saved against the recorded index belongs to it.
-  await mountPositioned(buildPositionedBodies(spec), "", {
-    annotations: [
-      { id: "a-1", typeId: "turn_flag", typeName: "turn_flag", value: "highlight", targetEntryIndex: 11 },
-      { id: "a-2", typeId: "turn_flag", typeName: "turn_flag", value: "retry", targetEntryIndex: 1 },
-    ],
-  });
-  await waitFor(() => expect(screen.getAllByText("highlight").length).toBeGreaterThan(0));
-  expect(screen.queryByText("retry")).toBeNull();
+  const byRecordedIndex = { id: "a-1", typeId: "turn_flag", typeName: "turn_flag", value: "highlight", targetEntryIndex: 11 };
+  const byPosition = { id: "a-2", typeId: "turn_flag", typeName: "turn_flag", value: "retry", targetEntryIndex: 1 };
+  await mountPositioned(buildPositionedBodies(spec), "", { annotations: [byRecordedIndex, byPosition] });
+  await waitFor(() => expect(screen.getAllByText(byRecordedIndex.value).length).toBeGreaterThan(0));
+  expect(screen.queryByText(byPosition.value)).toBeNull();
 });
 
 describe("downloads", () => {
@@ -243,21 +251,21 @@ describe("downloads", () => {
       const saved = captureDownloads();
       const fetchMock = await mountPositioned(buildPositionedBodies(spec), fixture.downloads.search);
       await waitFor(() => expect(new Set(segmentReads(fetchMock))).toEqual(new Set(fixture.downloads.loadedSegments)));
-      await waitFor(() => expect(screen.getAllByText("Now read the last segment.").length).toBeGreaterThan(0));
+      await waitFor(() => expect(screen.getAllByText(last).length).toBeGreaterThan(0));
       fireEvent.click(within(await openMore()).getByRole("menuitem", { name: row.label }));
       await waitFor(() => expect(saved).toHaveLength(1));
       expect(contentReads(fetchMock)).toHaveLength(1);
       expect(saved[0].type).toMatch(new RegExp(`^${row.type}`));
-      expect(await saved[0].text()).toBe(readFileSync(`src/testdata/${row.file}`, "utf8"));
+      expect(await saved[0].text()).toBe(readFileSync(resolve(TESTDATA, row.file), "utf8"));
     });
   }
 
   it("download-after-v2-page-mount-has-source", async () => {
     const saved = captureDownloads();
     const fetchMock = await mountPositioned(buildPositionedBodies(spec));
-    await waitFor(() => expect(screen.getAllByText("Open the reader at the deep link.").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
     expect(contentReads(fetchMock)).toEqual([]);
-    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "download json" }));
+    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadJSON.wire }));
     await waitFor(() => expect(saved).toHaveLength(1));
     // One authorized read of the whole stored copy, with the viewer's headers.
     const reads = fetchMock.mock.calls.filter(([input]) => String(input).endsWith(`/transcripts/${id}/content`));
@@ -270,7 +278,7 @@ describe("downloads", () => {
     const fetchMock = await mountPositioned(buildPositionedBodies(spec), "", { segmentFailure: { status: 409 } });
     await waitFor(() => expect(document.querySelector('[data-read-failure="stale"]')).not.toBeNull());
     expect(contentReads(fetchMock)).toEqual([]);
-    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "download markdown" }));
+    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadMarkdown.wire }));
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(contentReads(fetchMock)).toHaveLength(1);
   });
@@ -323,10 +331,10 @@ it("preview-read-only-no-downloads", async () => {
       </QueryClientProvider>,
     );
   });
-  await waitFor(() => expect(screen.getByTestId("transcript-mode-positioned")).toBeInTheDocument());
-  await waitFor(() => expect(screen.getAllByText("Open the reader at the deep link.").length).toBeGreaterThan(0));
-  expect(screen.queryByTestId("transcript-header-actions")).toBeNull();
-  expect(screen.queryByRole("button", { name: "more" })).toBeNull();
+  await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.ModePositioned.wire)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
+  expect(screen.queryByTestId(TranscriptHeaderActionsTestId.Root.wire)).toBeNull();
+  expect(screen.queryByRole("button", { name: TranscriptHeaderActionsLabel.More.wire })).toBeNull();
   expect(urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"))).toEqual([null]);
   expect(contentReads(fetchMock)).toEqual([]);
 });

@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { segmentedReadCapability, TranscriptReadMode } from "./segmentedReadCapability";
 
+// unstring-allow: data-path-literal — named once at module scope and read only through this constant
+const FIXTURE = resolve(process.cwd(), "src/testdata/segmented-read-capability.yaml");
+
 type Fixture = { name: string; body?: string; positioned?: boolean; rejected?: boolean };
-const { cases } = parse(readFileSync("src/testdata/segmented-read-capability.yaml", "utf8")) as { cases: Fixture[] };
+const { cases } = parse(readFileSync(FIXTURE, "utf8")) as { cases: Fixture[] };
 const requiredNames = [
   "capability-advertised-mounts-positioned", "capability-v1-only-uses-content",
   "capability-later-without-0.2.0-uses-content", "capability-lookalike-token-refused-leading",

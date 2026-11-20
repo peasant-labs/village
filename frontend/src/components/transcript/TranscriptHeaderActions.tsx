@@ -2,7 +2,21 @@
 
 import type { ComponentProps } from "react";
 import { Download, Eye, MoreHorizontal, Pencil } from "lucide-react";
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import { CopyIconButton, Menu } from "@/lib/ft-ui";
+
+/** The test ids this component renders. */
+export const TranscriptHeaderActionsTestId = {
+  Root: closed("transcript-header-actions", "the transcript header's copy-link and more actions"),
+} as const;
+
+/** The names a reader meets: the menu trigger and every reader's download rows. */
+export const TranscriptHeaderActionsLabel = {
+  More: closed("more", "the menu of transcript actions"),
+  DownloadMarkdown: closed("download markdown", "save the transcript as markdown"),
+  DownloadJSON: closed("download json", "save the stored transcript as json"),
+  DownloadJSONL: closed("download jsonl", "save the stored transcript's turns as json lines"),
+} as const;
 
 type MenuItems = NonNullable<ComponentProps<typeof Menu>["items"]>;
 
@@ -55,9 +69,9 @@ export default function TranscriptHeaderActions({ url, onCopied, owner, onDownlo
           { label: "edit title", icon: Pencil, onSelect: () => requestAnimationFrame(() => requestAnimationFrame(owner.onEditTitle)) },
         ]
       : []),
-    { label: "download markdown", icon: Download, onSelect: onDownloadMarkdown },
-    { label: "download json", icon: Download, onSelect: onDownloadJSON },
-    { label: "download jsonl", icon: Download, onSelect: onDownloadJSONL },
+    { label: TranscriptHeaderActionsLabel.DownloadMarkdown.wire, icon: Download, onSelect: onDownloadMarkdown },
+    { label: TranscriptHeaderActionsLabel.DownloadJSON.wire, icon: Download, onSelect: onDownloadJSON },
+    { label: TranscriptHeaderActionsLabel.DownloadJSONL.wire, icon: Download, onSelect: onDownloadJSONL },
   ];
 
   const names = owner?.visibility === "public" ? "anyone with the link" : owner ? accessNamesLine(owner.accessNames) : null;
@@ -69,9 +83,9 @@ export default function TranscriptHeaderActions({ url, onCopied, owner, onDownlo
     ) : undefined;
 
   return (
-    <span className="cmg-transcript-actions" data-testid="transcript-header-actions">
+    <span className="cmg-transcript-actions" data-testid={TranscriptHeaderActionsTestId.Root.wire}>
       <CopyIconButton value={url} label="copy link" onCopied={onCopied} />
-      <Menu icon={MoreHorizontal} ariaLabel="more" size="sm" align="end" items={items} caption={caption} />
+      <Menu icon={MoreHorizontal} ariaLabel={TranscriptHeaderActionsLabel.More.wire} size="sm" align="end" items={items} caption={caption} />
     </span>
   );
 }

@@ -1,14 +1,20 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
+import { API_URL_BASE } from "../api";
 import { villagePositionedTransport } from "./positionedTransport";
+
+const transcriptBase = `${API_URL_BASE}/transcripts/${encodeURIComponent("a/b")}`;
+// unstring-allow: data-path-literal — named once at module scope and read only through this constant
+const FIXTURE = resolve(process.cwd(), "src/testdata/positioned-transport.yaml");
 
 type Case = {
   name: string; operation: "header" | "directory" | "segment" | "window" | "locate";
   request: object; path: string; query: Record<string, string>; post?: boolean;
 };
 type RetryCase = { name: string; header?: string; now?: number; expected?: number };
-const fixture = parse(readFileSync("src/testdata/positioned-transport.yaml", "utf8")) as {
+const fixture = parse(readFileSync(FIXTURE, "utf8")) as {
   sendsV2AndEcho: Case[]; retryAfterParse: RetryCase[];
 };
 const required = {
@@ -36,7 +42,7 @@ describe("transport-sends-v2-and-echo", () => {
       await method(item.request, signal);
       const [input, init] = fetchMock.mock.calls[0];
       const url = new URL(String(input));
-      expect(url.pathname).toBe(`/api/v1/transcripts/a%2Fb${item.path}`);
+      expect(url.href).toBe(`${transcriptBase}${item.path}?${url.searchParams}`);
       expect(Object.fromEntries(url.searchParams)).toEqual(item.query);
       expect(init?.cache).toBe("no-store");
       expect(init?.signal).toBe(signal);

@@ -18,6 +18,10 @@ transcript:
     - {role: user, content: Now read the last segment.}
     - {role: assistant, content: The last segment closes the transcript.}
 
+# Every action a positioned failure state can offer; a kind with none shows
+# none of them.
+retryActions: [try again, reload transcript, try now]
+
 # A positioned read that fails after the page mounts shows the reader's own
 # failure state and never reads the whole document instead. Every positioned
 # route answers the row's way; `retry` is the failure state's own action, or

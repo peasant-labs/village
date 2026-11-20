@@ -19,6 +19,7 @@ import {
   type TurnLabel,
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
+import { closed } from '@peasant-labs/fairtrade/closed-value';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -136,6 +137,16 @@ interface SessionDetailV2Props {
   knownHarness?: string;
 }
 
+/** The two ways the view is mounted: the standalone route, or a preview column. */
+const SessionDetailVariant = { Full: "full", Preview: "preview" } as const satisfies Record<string, NonNullable<SessionDetailV2Props["variant"]>>;
+
+/** The test ids this view renders for its read. */
+export const SessionDetailV2TestId = {
+  ModePositioned: closed("transcript-mode-positioned", "a transcript read through the positioned reader"),
+  ModeContent: closed("transcript-mode-content", "a transcript read as the whole document"),
+  SnappedTurn: closed("transcript-snapped-turn", "the line a deep link to an unserved turn shows"),
+} as const;
+
 type ContentProps = SessionDetailV2Props & { positioned?: PositionedTranscript };
 
 /**
@@ -172,7 +183,7 @@ function PositionedSessionDetailV2(props: SessionDetailV2Props) {
   const [target] = useState(() =>
     positionedReadTarget(
       transcriptId,
-      variant === 'preview' || typeof window === 'undefined' ? '' : window.location.search,
+      variant === SessionDetailVariant.Preview || typeof window === 'undefined' ? '' : window.location.search,
       transcriptContentHash,
     ),
   );
@@ -522,12 +533,12 @@ function SessionDetailV2Content({
     <div
       className={isPreview ? 'on-transcript-preview' : 'flex flex-col h-full min-h-0 min-w-0'}
       data-transcript-mode={readMode}
-      data-testid={positioned ? 'transcript-mode-positioned' : 'transcript-mode-content'}
+      data-testid={(positioned ? SessionDetailV2TestId.ModePositioned : SessionDetailV2TestId.ModeContent).wire}
     >
       <div className="flex-1 min-h-0 min-w-0" ref={streamContainerRef}>
         <TranscriptViewer
           {...readProps}
-          streamPrelude={snappedLine ? <p role="status" data-testid="transcript-snapped-turn">{snappedLine}</p> : undefined}
+          streamPrelude={snappedLine ? <p role="status" data-testid={SessionDetailV2TestId.SnappedTurn.wire}>{snappedLine}</p> : undefined}
           beforeHeader={<>
       {beforeHeader}
       {shownOmittedImages > 0 && (

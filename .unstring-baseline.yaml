@@ -847,7 +847,7 @@ rules:
     frontend/src/components/transcript/ScopedGroupedContinuation.tsx: 1
     frontend/src/components/transcript/ScopedGroupedHelperSection.tsx: 1
     frontend/src/components/transcript/ScopedHelperGroups.tsx: 6
-    frontend/src/components/transcript/TranscriptHeaderActions.tsx: 2
+    frontend/src/components/transcript/TranscriptHeaderActions.tsx: 1
     frontend/src/components/transcript/TranscriptList.tsx: 1
     frontend/src/components/transcript/TranscriptPullRequests.tsx: 2
     frontend/src/privacyLinks.test.tsx: 1
