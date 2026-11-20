@@ -1,0 +1,30 @@
+cases:
+  - name: capability-advertised-mounts-positioned
+    body: '{"segmentedReadVersion":"0.2.0","minSegmentedReadVersion":"0.1.0"}'
+    positioned: true
+  - name: capability-v1-only-uses-content
+    body: '{"segmentedReadVersion":"0.1.0","minSegmentedReadVersion":"0.1.0"}'
+  - name: capability-later-without-0.2.0-uses-content
+    body: '{"segmentedReadVersion":"0.3.0","minSegmentedReadVersion":"0.1.0"}'
+  - name: capability-lookalike-token-refused-leading
+    body: '{"segmentedReadVersion":"10.2.0","minSegmentedReadVersion":"0.1.0"}'
+  - name: capability-lookalike-token-refused-trailing
+    body: '{"segmentedReadVersion":"0.2.00","minSegmentedReadVersion":"0.1.0"}'
+  - name: capability-lookalike-token-refused-middle
+    body: '{"segmentedReadVersion":"0.20.0","minSegmentedReadVersion":"0.1.0"}'
+  - name: capability-min-only-uses-content
+    body: '{"minSegmentedReadVersion":"0.2.0"}'
+  - name: capability-min-token-does-not-enable
+    body: '{"segmentedReadVersion":"0.1.0","minSegmentedReadVersion":"0.2.0"}'
+  - name: capability-empty-body-uses-content
+    body: ''
+  - name: capability-refused-pair-uses-content
+    body: '{"segmentedReadVersion":"0.2.0","minSegmentedReadVersion":42}'
+  - name: capability-ignores-health-trait
+    body: '{"serves":["segmented-reads-v2"]}'
+  - name: capability-read-failure-uses-content
+    rejected: true
+  # The version read never answers; the deadline passes and the page reads the
+  # whole document. The test fires the deadline itself, so nothing sleeps.
+  - name: capability-timeout-uses-content
+    hangs: true

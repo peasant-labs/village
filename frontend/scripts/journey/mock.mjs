@@ -22,6 +22,16 @@
  *                          wait for their approval (lib/collective-fixtures.mjs)
  *   signed-out-public-collective - signed out, and the collective the viewer has
  *                          not joined is public, so it reads with no account
+ *   positioned           - `/schema/version` advertises positioned reads, and the
+ *                          positioned transcripts (lib/positioned-transcript-fixtures.mjs)
+ *                          answer them; the curated collective's review queue lists
+ *                          the preview transcript. Without a positioned scenario
+ *                          nothing is advertised, so every other journey reads the
+ *                          whole document.
+ *   positioned-revoked   - as positioned, but every read of the positioned transcripts
+ *                          answers 404, as after the reader's access was revoked
+ *   positioned-withheld  - as positioned, with the owner, project and branch withheld
+ *                          by the server's anonymous projection
  *
  * Setting any scenario also puts the collectives world back as it started.
  *   default           - the composed fixtures as-is
@@ -59,12 +69,19 @@ import {
 import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
 import { demoContributionContentPath, handleDemoContributionRequest, resetDemoContributions } from './lib/demo-contribution-fixtures.mjs'
 import { handleLongDemoRequest, resetLongDemo } from './lib/long-transcript-demo.mjs'
+import { handlePositionedRequest, PositionedWorld } from './lib/positioned-transcript-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
 const TRANSCRIPT_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'visual', 'mock-rest.mjs')
 
 let scenario = 'default'
+/** The positioned world each positioned scenario answers in; any other scenario advertises nothing. */
+const POSITIONED_SCENARIOS = {
+  positioned: PositionedWorld.Served,
+  'positioned-revoked': PositionedWorld.Revoked,
+  'positioned-withheld': PositionedWorld.Withheld,
+}
 if (process.env.MOCK_DEMO_ATTACHMENTS === '1') applyCollectivePageScenario('curated-owner')
 
 const send = (res, code, body) => {
@@ -154,7 +171,10 @@ const server = createServer(async (req, res) => {
       resetCollectiveWorld()
       resetDemoContributions()
       resetLongDemo()
-      applyCollectivePageScenario(process.env.MOCK_DEMO_ATTACHMENTS === '1' && scenario === 'default' ? 'curated-owner' : scenario)
+      // A positioned world reviews the curated collective's queue, whose first
+      // submission is the positioned preview transcript.
+      const collectiveScenario = scenario in POSITIONED_SCENARIOS ? 'curated-owner' : scenario
+      applyCollectivePageScenario(process.env.MOCK_DEMO_ATTACHMENTS === '1' && scenario === 'default' ? 'curated-owner' : collectiveScenario)
       return send(res, 200, { scenario })
     }
   }
@@ -162,6 +182,8 @@ const server = createServer(async (req, res) => {
   if ((scenario === 'signed-out' || scenario === 'signed-out-public-collective') && req.method === 'GET' && path === '/auth/me') {
     return send(res, 401, { error: 'not signed in' })
   }
+
+  if (scenario in POSITIONED_SCENARIOS && (await handlePositionedRequest(req, res, POSITIONED_SCENARIOS[scenario]))) return
 
   // This scenario owns the transcript owner's membership list as well as the
   // transcript routes. Resolve it before the generic home membership fixture.

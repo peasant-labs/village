@@ -1,0 +1,66 @@
+# What the server may write while it publishes and serves a transcript's
+# positioned reads, and what it must never write.
+#
+# privacy_markers_integration_test.go publishes one synthetic transcript
+# through the production router, sends every request below, and captures
+# everything the server writes in-process: the request log (the standard
+# logger), slog, standard output and standard error. The captured text must
+# contain no marker. The required names are listed in the test.
+#
+# Placeholders the test fills in: {transcript} (the id publish returned),
+# {missing} (an id nobody published), {entry} (a turn's entry reference),
+# {unmatched_entry}, {revision} and {representation} (the values the header
+# read served), {revision_marker} and {representation_marker} (malformed echo
+# values), {stale_revision} and {stale_representation} (well-formed but stale
+# echo values), {turn}, {query}, {content_hash} (the served content hash).
+
+# Values the test plants or receives. The test also adds the transcript id,
+# the unpublished {missing} id, the owner's user id, GitHub id and login, the
+# title the server derived, the served representation and content hash, the
+# bearer token and the raw request paths.
+plants:
+  session_id: sess_privacymarkersession
+  entry: privacy-marker-entry-reference
+  unmatched_entry: privacy-marker-entry-unmatched
+  representation_marker: privacy-marker-representation
+  revision_marker: privacy-marker-revision
+  # Well-formed echo values the server parses and then refuses as stale.
+  stale_representation: r1.feedfacecafebeeffeedfacecafebeeffeedfacecafebeeffeedfacecafebeef
+  stale_revision: "424242"
+  turn: 987654
+  query: privacy-marker-query
+  project: privacy-marker-project
+  content: privacy-marker-content
+  # The source file path the publish names.
+  source_path: /privacy/privacy-marker-source.jsonl
+
+# Every request, as the owner (bearer) or with no session. `status` is the
+# answer each must get, so a request that never reached its handler fails the
+# test instead of passing it vacuously.
+requests:
+  - {name: header-owner, method: GET, path: "/api/v1/transcripts/{transcript}/header?v=2&q={query}", viewer: owner, status: 200}
+  - {name: header-denied, method: GET, path: "/api/v1/transcripts/{transcript}/header?v=2&q={query}", viewer: anonymous, status: 404}
+  - {name: directory-owner, method: GET, path: "/api/v1/transcripts/{transcript}/segments?v=2&partition=main&page=1&q={query}", viewer: owner, status: 200}
+  - {name: directory-denied, method: GET, path: "/api/v1/transcripts/{transcript}/segments?v=2&partition=main&page=1&q={query}", viewer: anonymous, status: 404}
+  - {name: segment-owner, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={revision}&representation={representation}&q={query}", viewer: owner, status: 200}
+  - {name: segment-denied, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={revision}&representation={representation}", viewer: anonymous, status: 404}
+  - {name: segment-representation-malformed, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={revision}&representation={representation_marker}", viewer: owner, status: 400}
+  - {name: segment-revision-malformed, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={revision_marker}&representation={representation}", viewer: owner, status: 400}
+  - {name: segment-representation-stale, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={revision}&representation={stale_representation}", viewer: owner, status: 409}
+  - {name: segment-revision-stale, method: GET, path: "/api/v1/transcripts/{transcript}/segments/0?v=2&partition=main&revision={stale_revision}&representation={representation}", viewer: owner, status: 409}
+  - {name: window-owner, method: GET, path: "/api/v1/transcripts/{transcript}/window?v=2&partition=main&anchor=1&q={query}", viewer: owner, status: 200}
+  - {name: window-unserved-anchor, method: GET, path: "/api/v1/transcripts/{transcript}/window?v=2&partition=main&anchor={turn}", viewer: owner, status: 200}
+  - {name: window-denied, method: GET, path: "/api/v1/transcripts/{transcript}/window?v=2&partition=main&anchor={turn}", viewer: anonymous, status: 404}
+  - {name: locate-owner-match, method: POST, path: "/api/v1/transcripts/{transcript}/segments/locate?v=2", viewer: owner, status: 200,
+     body: '{"reference":"{entry}","revision":"{revision}","representation":"{representation}","contentHash":"{content_hash}"}'}
+  - {name: locate-owner-unmatched, method: POST, path: "/api/v1/transcripts/{transcript}/segments/locate?v=2", viewer: owner, status: 404,
+     body: '{"reference":"{unmatched_entry}","revision":"{revision}","representation":"{representation}","contentHash":"{content_hash}"}'}
+  - {name: locate-denied, method: POST, path: "/api/v1/transcripts/{transcript}/segments/locate?v=2", viewer: anonymous, status: 404,
+     body: '{"reference":"{entry}","revision":"{revision}","representation":"{representation}","contentHash":"{content_hash}"}'}
+  - {name: locate-invalid-body, method: POST, path: "/api/v1/transcripts/{transcript}/segments/locate?v=2", viewer: owner, status: 400,
+     body: '{"reference":"{entry}","contentHash":{"{query}":true}}'}
+  - {name: deep-link-turn, method: GET, path: "/api/v1/transcripts/{transcript}?turn={turn}&q={query}", viewer: owner, status: 200}
+  - {name: content-owner, method: GET, path: "/api/v1/transcripts/{transcript}/content?q={query}", viewer: owner, status: 200}
+  - {name: missing-transcript, method: GET, path: "/api/v1/transcripts/{missing}/header?v=2&q={query}", viewer: owner, status: 404}
+  - {name: unmatched-route, method: GET, path: "/api/v1/transcripts/{transcript}/{query}/{entry}", viewer: owner, status: 404}
+  - {name: invalid-segment-index, method: GET, path: "/api/v1/transcripts/{transcript}/segments/{query}?v=2", viewer: owner, status: 400}

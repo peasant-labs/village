@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
 // The demo's drop-in composite + its one wire to view adapter. This viewer
 // mounts fairtrade's own graph engine and helpers directly; the demo and both
 // apps all render the SAME composite.
@@ -12,12 +11,16 @@ import {
   UnverifiedPullRequests,
   ToastProvider,
   useToast,
-  adaptTranscript,
-  computeAnalytics,
-  annotateTranscript,
+  PositionedLanding,
+  usePositionedTranscript,
+  type PositionedTranscript,
   type TurnLabel,
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
+import { SessionDetailV2TestId } from './readModeTestIds';
+import { WholeDocumentGraph } from './WholeDocumentGraph';
+import { useWholeDocumentGraph, type WholeDocumentReadEpoch } from './useWholeDocumentGraph';
+import { TranscriptViewMode } from './transcriptViewMode';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -29,7 +32,6 @@ import {
   relationshipHref,
   resolveRelationshipAnchorTurn,
 } from '@/lib/relationshipAnchor';
-import { detectPhases } from '@/lib/insights';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -47,11 +49,15 @@ import ManageAccessDialog from '@/components/transcript/ManageAccessDialog';
 import { useTranscriptCollectives } from '@/lib/queries/collectives';
 import { useTranscriptPullRequests } from '@/lib/queries/pulls';
 import {
+  cookWholeTranscript,
+  readTranscriptForDownload,
   saveTranscriptFile,
   transcriptFile,
   type TranscriptExportFormat,
 } from '@/lib/transcriptExport';
-import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
+import { buildProjectHref, buildTranscriptBreadcrumb, shownTranscriptTitle } from './transcriptChrome';
+import { TranscriptReadMode } from '@/lib/queries/segmentedReadCapability';
+import { positionedReadTarget, villagePositionedTransport } from '@/lib/queries/positionedTransport';
 import { isOwnedBy, type PublicOwner } from '@/lib/publicOwner';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
@@ -121,7 +127,22 @@ interface SessionDetailV2Props {
    *  every capability forced off (see the `variant === "preview"` branches
    *  below). Closed union; there is no third variant. */
   variant?: "full" | "preview";
+  /** How the content is read, chosen by the page before this mounts.
+   *  `content` (default) renders `detail`, the whole document. `positioned`
+   *  mounts fairtrade's positioned reader over the transcript's segment
+   *  routes and ignores `detail`; a failed positioned read shows the
+   *  reader's own failure state and never falls back to the whole document. */
+  readMode?: TranscriptReadMode;
+  /** The harness the metadata read names; a download parses with it. */
+  knownHarness?: string;
 }
+
+/** The two ways the view is mounted: the standalone route, or a preview column. */
+const SessionDetailVariant = { Full: "full", Preview: "preview" } as const satisfies Record<string, NonNullable<SessionDetailV2Props["variant"]>>;
+
+export { SessionDetailV2TestId };
+
+type ContentProps = SessionDetailV2Props & { positioned?: PositionedTranscript };
 
 /**
  * Thin adapter around fairtrade's `<TranscriptViewer>` composite, the same
@@ -134,7 +155,53 @@ interface SessionDetailV2Props {
  * `graphSlot`.
  */
 export function SessionDetailV2(props: SessionDetailV2Props) {
-  return <ToastProvider placement="top-right"><SessionDetailV2Content {...props} /></ToastProvider>;
+  return (
+    <ToastProvider placement="top-right">
+      {props.readMode === TranscriptReadMode.Positioned
+        ? <PositionedSessionDetailV2 {...props} />
+        : <SessionDetailV2Content {...props} />}
+    </ToastProvider>
+  );
+}
+
+/**
+ * The positioned read: one reader per transcript and mount. The transport is
+ * memoised on the transcript id, because the reader restarts whenever its
+ * transport object changes. A `?turn=N` deep link asks for the window at that
+ * recorded index and lands exactly on it when it is served; a carried branch
+ * point goes through the locator.
+ */
+function PositionedSessionDetailV2(props: SessionDetailV2Props) {
+  const { transcriptId, transcriptTitle, transcriptContentHash, variant } = props;
+  const transport = useMemo(() => villagePositionedTransport(transcriptId), [transcriptId]);
+  // A preview column sits on another page, whose query is not a deep link.
+  const [target] = useState(() =>
+    positionedReadTarget(
+      transcriptId,
+      variant === SessionDetailVariant.Preview || typeof window === 'undefined' ? '' : window.location.search,
+      transcriptContentHash,
+    ),
+  );
+  const session = useMemo(() => ({ title: shownTranscriptTitle(transcriptTitle) }), [transcriptTitle]);
+  const positioned = usePositionedTranscript({ transport, target, landing: PositionedLanding.Exact, session });
+  return <SessionDetailV2Content {...props} positioned={positioned} />;
+}
+
+/** The status line for a `?turn=N` the transcript does not serve. `requestedTurn` is the value the
+ *  address carries; `openedLabel` is the label the opened row itself shows (the server's display
+ *  number), or undefined when the row shows none. */
+export function snappedTurnLine(requestedTurn: number, openedLabel: string | undefined): string {
+  const opened = openedLabel ? `#${openedLabel}` : 'the first available turn';
+  return `?turn=${requestedTurn} is not in this transcript's served view, so the viewer opened ${opened}.`;
+}
+
+type LoadedSegments = NonNullable<PositionedTranscript['viewerProps']['segments']>;
+
+/** Every turn the positioned reader has loaded, in whichever collection shape it supplies. */
+function loadedSegmentTurns(segments: LoadedSegments | undefined) {
+  if (!segments) return [];
+  const list = segments instanceof Map ? [...segments.values()] : Array.isArray(segments) ? segments : Object.values(segments);
+  return list.flatMap((segment) => segment.turns);
 }
 
 function SessionDetailV2Content({
@@ -159,7 +226,9 @@ function SessionDetailV2Content({
   publishedContent = false,
   presentation,
   variant = "full",
-}: SessionDetailV2Props) {
+  knownHarness,
+  positioned,
+}: ContentProps) {
   const toast = useToast();
   void sessionId; // retained in the prop contract for callers / deep links
   const { user } = useAuth();
@@ -214,48 +283,23 @@ function SessionDetailV2Content({
   // The preview column shows none.
   const pullRequestsQuery = useTranscriptPullRequests(transcriptId, !isPreview);
 
-  // Host-derived inputs for the GRAPH engine (the composite derives its own).
-  const turns = useMemo(() => detail?.turns ?? [], [detail]);
-  const phases = useMemo(() => detectPhases(turns), [turns]);
-  const annotations = useMemo(
-    () => annotateTranscript(turns),
-    [turns],
-  );
-
   // The ONE wire→view projection (fairtrade's adapter). Village has no
   // personal-medians stream; the scorecard rides when the payload carries one.
-  const vm = useMemo(() => {
-    if (!detail) return null;
-    const analytics = computeAnalytics(turns as Parameters<typeof computeAnalytics>[0], {
-      scorecard: detail.scorecard ?? undefined,
-    } as Parameters<typeof computeAnalytics>[1]);
-    const adapted = adaptTranscript(
-      detail as Parameters<typeof adaptTranscript>[0],
-      undefined,
-      analytics,
-      // Read metadata, not durable content: the adapter cooks the source/
-      // starter links and an exact branch anchor only when the navigation it
-      // receives still agrees with the durable relationship.
-      { relationshipNavigation, ...(publishedContent ? { payloadMode: 'published' as const } : {}) },
-    );
-    // Overlay the stored title onto the hero — see `overlayStoredTitle` for
-    // why the composite's own derivation (falling through to the first
-    // `role: user` turn) is not safe to let through unmodified (village#32).
-    return overlayStoredTitle(adapted, transcriptTitle);
-  }, [detail, turns, transcriptTitle, relationshipNavigation, publishedContent]);
-
-  // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
-  const toolVMsByTurn = useMemo(
-    () => new Map((vm?.turns ?? []).map((turn) => [turn.index, turn.toolCalls])),
-    [vm],
+  const vm = useMemo(
+    () => (detail
+      ? cookWholeTranscript(detail, { storedTitle: transcriptTitle, relationshipNavigation, published: publishedContent })
+      : null),
+    [detail, transcriptTitle, relationshipNavigation, publishedContent],
   );
 
   // Resolve the carried anchor against the COOKED target turns (the adapter's
   // rendered mapping, including folded call refs). Absent/unresolvable stays
   // null: the target opens at its ordinary position.
+  // A positioned read resolves the carried anchor through its locator.
+  const isPositioned = positioned !== undefined;
   const anchorTurn = useMemo(
-    () => (carriedAnchor && vm ? resolveRelationshipAnchorTurn(vm.turns, carriedAnchor) : null),
-    [carriedAnchor, vm],
+    () => (!isPositioned && carriedAnchor && vm ? resolveRelationshipAnchorTurn(vm.turns, carriedAnchor) : null),
+    [isPositioned, carriedAnchor, vm],
   );
 
   // ?turn=N permalinks land on that turn; otherwise the persisted read state
@@ -272,11 +316,13 @@ function SessionDetailV2Content({
     return undefined;
   });
   const [activeTurn, setActiveTurn] = useState<number | undefined>(
-    () => initialTurnParam ?? restoredReadState.activeTurn ?? undefined,
+    // A positioned read lands where the reader's window says; a saved
+    // position from another read is not a served position.
+    () => (positioned ? undefined : initialTurnParam ?? restoredReadState.activeTurn ?? undefined),
   );
   const [search, setSearch] = useState<string>(restoredReadState.search);
   const [earlierHistoryOpen, setEarlierHistoryOpen] = useState<Record<string, boolean>>(
-    restoredReadState.earlierHistoryOpen,
+    () => (positioned ? {} : restoredReadState.earlierHistoryOpen),
   );
 
   // The verified branch point wins over `?turn=N` and any previously saved
@@ -352,7 +398,41 @@ function SessionDetailV2Content({
 
   // Every download, from the header's `download markdown` row and from the
   // raw json/jsonl rows, is one file written from what the page shows.
+  // A positioned page holds only part of the transcript, so its downloads
+  // read the whole stored copy, once per download, and save it only while the
+  // page still shows the same revision of the same transcript.
+  const positionedRevision = positioned?.controls.header?.revision;
+  const downloadEpoch = useRef<WholeDocumentReadEpoch>({ id: 0, abort: new AbortController() });
+  useEffect(() => {
+    const epoch = downloadEpoch.current;
+    return () => {
+      epoch.abort.abort();
+      downloadEpoch.current = { id: epoch.id + 1, abort: new AbortController() };
+    };
+  }, [transcriptId, positionedRevision]);
+  const [viewMode, setViewMode] = useState<TranscriptViewMode>(TranscriptViewMode.List);
+  const positionedGraph = useWholeDocumentGraph({
+    positioned: positioned !== undefined,
+    viewMode,
+    revision: positionedRevision,
+    transcriptId,
+    storedTitle: transcriptTitle,
+    knownHarness,
+    relationshipNavigation,
+    epoch: downloadEpoch,
+  });
+
   function handleExport(format: TranscriptExportFormat) {
+    if (positioned) {
+      const { id, abort } = downloadEpoch.current;
+      readTranscriptForDownload(
+        { transcriptId, format, url: transcriptUrl, storedTitle: transcriptTitle, knownHarness, relationshipNavigation },
+        { signal: abort.signal, isCurrent: () => downloadEpoch.current.id === id },
+      ).catch((reason: unknown) => {
+        toast.err(reason instanceof Error ? reason.message : 'the transcript download could not be read. try the download again.', { title: 'download failed' });
+      });
+      return;
+    }
     if (!vm || !detail) return;
     saveTranscriptFile(
       transcriptFile(format, { viewModel: vm, detail, url: transcriptUrl, transcriptId }),
@@ -377,7 +457,7 @@ function SessionDetailV2Content({
     return { ...label, id: created.id };
   }
 
-  if (!detail) {
+  if (!detail && !positioned) {
     // A REST failure with nothing loaded must be VISIBLE — an endless
     // shimmer with the error swallowed is how a dead backend hides.
     if (error) {
@@ -407,6 +487,52 @@ function SessionDetailV2Content({
   // the resolved identity — reading it here would reintroduce the "two
   // algorithms disagree" bug this slice removes, so `projectName` always
   // wins.
+  // What the viewer reads: the positioned reader's own props, or the whole
+  // document cooked here. The host keeps its own active-turn state either way.
+  const positionedProps = positioned?.viewerProps;
+  const readProps = positionedProps
+    ? {
+        ...positionedProps,
+        // `usePositionedTranscript` always supplies the view model; its
+        // published type is a partial of the viewer's props.
+        viewModel: positionedProps.viewModel!,
+        initialPosition: sourcePosition != null
+          ? { kind: 'tool-call' as const, ...sourcePosition, requestKey: String(sourcePosition.requestKey) }
+          : positionedProps.initialPosition,
+        onActiveTurnChange: (turn: number) => {
+          setActiveTurn(turn);
+          positionedProps.onActiveTurnChange?.(turn);
+        },
+      }
+    : {
+        viewModel: vm!,
+        integrity,
+        transcriptContentHash,
+        contentHash: renderedContentHash,
+        initialPosition:
+          sourcePosition != null
+            ? { kind: 'tool-call' as const, ...sourcePosition, requestKey: String(sourcePosition.requestKey) }
+            : anchorTurn != null
+            ? { kind: 'turn' as const, turnIndex: anchorTurn, requestKey: carriedAnchor?.sourceEntryRef }
+            : undefined,
+        onActiveTurnChange: setActiveTurn,
+        earlierHistoryOpen,
+        onEarlierHistoryOpenChange: setEarlierHistoryOpen,
+      };
+  const landing = positioned?.controls.landing;
+  // The opened row names itself by the label the server gave it; the host never derives a
+  // number from the recorded index. The line waits until that row is loaded.
+  const openedRow =
+    landing?.snapped && landing.anchorTurn !== undefined
+      ? loadedSegmentTurns(positionedProps?.segments).find((turn) => turn.recordedIndex === landing.anchorTurn)
+      : undefined;
+  const snappedLine =
+    openedRow && landing?.requestedAnchor !== undefined
+      ? snappedTurnLine(landing.requestedAnchor, openedRow.numberAbsent ? undefined : openedRow.label)
+      : null;
+  const shownOmittedImages = positioned ? positioned.controls.header?.omittedImages ?? 0 : omittedImages;
+  const readMode = positioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content;
+
   const project = projectName;
   const projectHref = buildProjectHref(owner, projectHash);
   const visibility = transcriptVisibility ?? 'private';
@@ -415,17 +541,30 @@ function SessionDetailV2Content({
     // Bounded host: the composite's .txn-app is height:100%, so a bounded
     // column is what lets its stream scroll internally — which is what
     // reveals the sticky scrubber timeline and anchors the keybind hint.
-    <div className={isPreview ? 'on-transcript-preview' : 'flex flex-col h-full min-h-0 min-w-0'}>
+    <div
+      className={isPreview ? 'on-transcript-preview' : 'flex flex-col h-full min-h-0 min-w-0'}
+      data-transcript-mode={readMode}
+      data-testid={(positioned ? SessionDetailV2TestId.ModePositioned : SessionDetailV2TestId.ModeContent).wire}
+    >
       <div className="flex-1 min-h-0 min-w-0" ref={streamContainerRef}>
         <TranscriptViewer
-          integrity={integrity}
-          transcriptContentHash={transcriptContentHash}
-          contentHash={renderedContentHash}
+          {...readProps}
           beforeHeader={<>
       {beforeHeader}
-      {omittedImages > 0 && (
+      {/* Above the header, not in the stream: landing scrolls the stream to
+          the opened row, which would carry a line at its top out of view. */}
+      {snappedLine && (
+        <p
+          role="status"
+          className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3"
+          data-testid={SessionDetailV2TestId.SnappedTurn.wire}
+        >
+          {snappedLine}
+        </p>
+      )}
+      {shownOmittedImages > 0 && (
         <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3">
-          {omittedImages} {omittedImages === 1 ? 'image' : 'images'} omitted
+          {shownOmittedImages} {shownOmittedImages === 1 ? 'image' : 'images'} omitted
         </p>
       )}
       {error != null && (
@@ -463,7 +602,6 @@ function SessionDetailV2Content({
           presentation={presentation}
           sidebarLayout={isPreview ? previewSidebarLayout : undefined}
           onSidebarLayoutChange={isPreview ? setPreviewSidebarLayout : undefined}
-          viewModel={vm!}
           theme={theme}
           // The header row is the host's own, as in the fairtrade in-use demo:
           // the link, an icon-only copy button and a `more` menu. The
@@ -551,23 +689,13 @@ function SessionDetailV2Content({
             collectiveName,
           })}
           LinkComponent={Link}
-          // A verified branch point opens the target there (one-time position);
-          // without one the existing `?turn=N` / saved-position behavior runs.
-          initialPosition={
-            sourcePosition != null
-              ? { kind: 'tool-call', ...sourcePosition, requestKey: String(sourcePosition.requestKey) }
-              : anchorTurn != null
-              ? { kind: 'turn', turnIndex: anchorTurn, requestKey: carriedAnchor?.sourceEntryRef }
-              : undefined
-          }
+          // The one-time position (a verified branch point, a deep link's
+          // landing) and the earlier-history disclosures come in `readProps`.
           activeTurn={activeTurn}
-          onActiveTurnChange={setActiveTurn}
           // Controlled read state the host persists, so Back after following a
           // source link restores the child's query and earlier disclosures.
           search={search}
           onSearchChange={setSearch}
-          earlierHistoryOpen={earlierHistoryOpen}
-          onEarlierHistoryOpenChange={setEarlierHistoryOpen}
           // Per-turn copied anchors are full permalinks into the transcript
           // record — the pre-composite link shape.
           anchorHref={(turnIndex) =>
@@ -583,39 +711,42 @@ function SessionDetailV2Content({
           // renders in preview and shows the composite's built-in "no graph
           // engine" empty state; hiding the toggle itself is a fairtrade
           // follow-up.
+          // A positioned page holds only some segments, so its graph draws
+          // the whole stored copy it reads when the graph opens.
           graphSlot={
             isPreview
               ? undefined
-              : () => (
-                  <TrajectoryGraph
-                    turns={turns}
-                    toolVMsByTurn={toolVMsByTurn}
-                    filteredTurns={turns}
-                    phases={phases}
-                    annotations={annotations}
-                    searchMatches={[]}
-                    provider={detail.harness}
-                  />
-                )
+              : positioned
+              ? positionedGraph
+              : detail && vm
+              ? () => <WholeDocumentGraph detail={detail} viewModel={vm} />
+              : undefined
           }
+          viewMode={positioned ? viewMode : undefined}
+          onViewModeChange={positioned ? setViewMode : undefined}
           // Village's typed label model — saved chips + the single-panel
           // popover both host-owned (the composite's good/neutral/bad model
           // stays the demo's).
-          renderTurnActions={(turn) => (
+          // Saved labels are keyed by the recorded index; a positioned row
+          // carries its own, and a row with none has no labels.
+          renderTurnActions={(turn) => {
+            const entryIndex = positioned ? turn.recordedIndex : turn.index;
+            return (
             <span className="inline-flex items-center gap-1.5">
-              {(savedLabelsByEntry.get(turn.index) ?? []).map((label) => (
+              {(entryIndex === undefined ? [] : savedLabelsByEntry.get(entryIndex) ?? []).map((label) => (
                 <span key={label.id || `${label.typeId}:${label.value}`} className="chip">
                   {label.value}
                 </span>
               ))}
-              {presentation === 'classic' && canLabel && transcriptId && (
+              {presentation === 'classic' && canLabel && transcriptId && entryIndex !== undefined && (
                 <TurnLabelPopover
-                  entryIndex={turn.index}
+                  entryIndex={entryIndex}
                   onSave={(label) => handleLabelSave(label)}
                 />
               )}
             </span>
-          )}
+            );
+          }}
         />
       </div>
 

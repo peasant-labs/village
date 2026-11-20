@@ -3,6 +3,9 @@
 import type { ComponentProps } from "react";
 import { Download, Eye, MoreHorizontal, Pencil } from "lucide-react";
 import { CopyIconButton, Menu } from "@/lib/ft-ui";
+import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "./transcriptHeaderActionsNames";
+
+export { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId };
 
 type MenuItems = NonNullable<ComponentProps<typeof Menu>["items"]>;
 
@@ -55,9 +58,9 @@ export default function TranscriptHeaderActions({ url, onCopied, owner, onDownlo
           { label: "edit title", icon: Pencil, onSelect: () => requestAnimationFrame(() => requestAnimationFrame(owner.onEditTitle)) },
         ]
       : []),
-    { label: "download markdown", icon: Download, onSelect: onDownloadMarkdown },
-    { label: "download json", icon: Download, onSelect: onDownloadJSON },
-    { label: "download jsonl", icon: Download, onSelect: onDownloadJSONL },
+    { label: TranscriptHeaderActionsLabel.DownloadMarkdown.wire, icon: Download, onSelect: onDownloadMarkdown },
+    { label: TranscriptHeaderActionsLabel.DownloadJSON.wire, icon: Download, onSelect: onDownloadJSON },
+    { label: TranscriptHeaderActionsLabel.DownloadJSONL.wire, icon: Download, onSelect: onDownloadJSONL },
   ];
 
   const names = owner?.visibility === "public" ? "anyone with the link" : owner ? accessNamesLine(owner.accessNames) : null;
@@ -69,9 +72,9 @@ export default function TranscriptHeaderActions({ url, onCopied, owner, onDownlo
     ) : undefined;
 
   return (
-    <span className="cmg-transcript-actions" data-testid="transcript-header-actions">
+    <span className="cmg-transcript-actions" data-testid={TranscriptHeaderActionsTestId.Root.wire}>
       <CopyIconButton value={url} label="copy link" onCopied={onCopied} />
-      <Menu icon={MoreHorizontal} ariaLabel="more" size="sm" align="end" items={items} caption={caption} />
+      <Menu icon={MoreHorizontal} ariaLabel={TranscriptHeaderActionsLabel.More.wire} size="sm" align="end" items={items} caption={caption} />
     </span>
   );
 }

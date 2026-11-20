@@ -4,6 +4,7 @@ import { useState } from "react";
 import RequestFailureState from "@/components/RequestFailureState";
 import { isApiErrorStatus } from "@/lib/api";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
+import { TranscriptReadMode, useSegmentedReadCapability } from "@/lib/queries/segmentedReadCapability";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
@@ -29,11 +30,18 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
   const { data, isLoading } = metadata;
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const retrying = transcriptId != null && retryingId === transcriptId;
+  // The same reader choice the full route makes, made before the preview
+  // mounts. The preview stays read-only either way.
+  const capability = useSegmentedReadCapability(transcriptId != null);
+  const readMode = capability.data;
   const {
     data: contentRead,
     isLoading: contentLoading,
     error: contentError,
-  } = useTranscriptContent(transcriptId ?? "", { knownHarness: data?.transcript.model_provider, enabled: !!data });
+  } = useTranscriptContent(transcriptId ?? "", {
+    knownHarness: data?.transcript.model_provider,
+    enabled: !!data && readMode === TranscriptReadMode.Content,
+  });
 
   const content = contentRead?.content;
 
@@ -69,7 +77,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
     );
   }
 
-  if (isLoading) {
+  if (isLoading || (data && readMode === undefined)) {
     return (
       <div className="h-full flex flex-col gap-3 p-6">
         <div className="h-4 w-1/3 animate-shimmer" />
@@ -87,7 +95,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
     );
   }
 
-  if (!contentLoading && content != null && !isSessionDetailPayload(content)) {
+  if (readMode === TranscriptReadMode.Content && !contentLoading && content != null && !isSessionDetailPayload(content)) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 border border-rule bg-surface text-center px-6">
         <FileX2 size={28} strokeWidth={1.5} className="text-ink-4" aria-hidden />
@@ -106,6 +114,8 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
   return (
     <SessionDetailV2
       variant="preview"
+      readMode={readMode}
+      knownHarness={t.model_provider}
       sessionId={t.local_id || transcriptId}
       transcriptId={t.id}
       transcriptVisibility={t.visibility}

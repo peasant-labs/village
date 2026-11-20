@@ -18,7 +18,7 @@
     "journey:collectives-built": "node scripts/journey/run-collectives-built.mjs",
     "lint": "node scripts/assert-unstring-eslint-enabled.mjs && eslint",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run && pnpm run test:mutation",
-    "test:mutation": "node scripts/test-unstring-eslint-enabled.mjs && node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs",
+    "test:mutation": "node scripts/test-unstring-eslint-enabled.mjs && node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs && node scripts/test-positioned-host-mutations.mjs",
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
     "shoot:explore": "node scripts/visual/explore-shoot.mjs",
@@ -48,7 +48,7 @@
     "shoot:profile-prompt-settings": "node scripts/visual/profile-prompt-settings-shoot.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.71",
+    "@peasant-labs/fairtrade": "0.2.0",
     "@peasant-labs/schema": "0.58.1",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
