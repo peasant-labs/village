@@ -1,0 +1,54 @@
+# The positioned transcripts the journey mock and the visual mock serve. Every
+# body comes from scripts/journey/lib/positioned-bodies.mjs, which checks it
+# against Schema's parsers before either mock starts.
+#
+# `main` is the transcript page's subject: ten segments of four rows, one row
+# the server sends no number for, and one earlier-history section. A deep link
+# to `farTurn` opens a run far from the default open, so the page shows the
+# gap between the two runs. `previewId` is the first submission the curated
+# collective's review queue lists (lib/collective-fixtures.mjs), served as a
+# smaller positioned transcript for the preview column.
+
+advertisement: {segmentedReadVersion: '0.2.0', minSegmentedReadVersion: '0.1.0'}
+
+main:
+  transcriptId: 5e9d1c3a-7b2f-4d8e-9a61-0c4b7e2f1d93
+  title: read a long session through the positioned reader
+  owner: riley-owner
+  ownerId: 0f1e2d3c-4b5a-4968-8776-655443322110
+  rowsPerSegment: 4
+  segments: 10
+  numberAbsent: [5]
+  session: {project: positioned-reader, gitBranch: feature/positioned-reads}
+  prompts:
+    - Open the reader at the deep link and check which segments it asks for.
+    - Why does the boundary between the two runs name the segments it skips?
+    - Make the history section show its recorded count while it is closed.
+    - Check that a refetched segment keeps its numbers after eviction.
+    - Summarise what changed in the fetch set and why.
+  replies:
+    - The window names its own run, so the reader asks for exactly those segments.
+    - The directory says how many rows sit between the runs, so the boundary can name them.
+    - The closed section shows the count the directory records, qualified until it opens.
+  history:
+    - state: uncertain_migrated
+      turns:
+        - {role: user, content: Start from the earlier plan before the session was resumed.}
+        - {role: assistant, content: The earlier plan read the whole document at once.}
+        - {role: user, content: Keep that plan in the history section.}
+        - {role: assistant, content: It stays there, numbered on its own.}
+  farTurn: 33
+  unservedTurn: 999
+
+preview:
+  transcriptId: 7b000000-0000-4000-8000-000000000001
+  title: Add retries to the webhook
+  owner: dan-ops
+  ownerId: 0f1e2d3c-4b5a-4968-8776-655443322111
+  rowsPerSegment: 4
+  segments: 2
+  session: {project: ingest-api, gitBranch: retries}
+  prompts:
+    - Add retries to the webhook with a capped backoff.
+  replies:
+    - The webhook now retries three times with a capped backoff.

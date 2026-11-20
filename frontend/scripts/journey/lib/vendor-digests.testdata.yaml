@@ -49,6 +49,8 @@ files:
     kind: app-local
   - name: positioned-bodies.mjs
     kind: app-local
+  - name: positioned-transcript-fixtures.mjs
+    kind: app-local
   - name: pull-request-fixtures.mjs
     kind: app-local
   - name: transcript-fixtures.mjs

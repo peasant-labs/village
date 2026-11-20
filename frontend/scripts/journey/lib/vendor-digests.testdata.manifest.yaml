@@ -22,6 +22,7 @@ requiredFileNames:
   - long-transcript-demo.mjs
   - long-transcript-demo.test.mjs
   - positioned-bodies.mjs
+  - positioned-transcript-fixtures.mjs
   - pull-request-fixtures.mjs
   - transcript-fixtures.mjs
 requiredVendoredNames:
