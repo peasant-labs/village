@@ -1,0 +1,124 @@
+/* Mutation runner for the transcript page's positioned reader.
+
+   Applies each source mutation in testdata/positioned-host-mutations.yaml on its own, runs the
+   mutation's named killer cases, and requires a case carrying the killer's name to be among the
+   cases that FAILED. A run that fails without that case failing (a file that no longer compiles, a
+   killer whose name matched nothing) is not a kill and stops the runner. The file is restored after
+   every mutation, also when the runner throws.
+
+   Journey killers need the journey mock and a dev server, so they run only with
+   POSITIONED_MUTATIONS_JOURNEYS=1; the row's vitest killer always runs.
+
+   usage: node scripts/test-positioned-host-mutations.mjs */
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { parse } from "yaml";
+
+const WHERE = "test-positioned-host-mutations.mjs";
+const fixtureURL = new URL("./testdata/positioned-host-mutations.yaml", import.meta.url);
+const frontend = new URL("..", import.meta.url);
+const withJourneys = process.env.POSITIONED_MUTATIONS_JOURNEYS === "1";
+
+const root = parse(await readFile(fixtureURL, "utf8"), { strict: true });
+if (root == null || typeof root !== "object" || Array.isArray(root) || Object.keys(root).join(",") !== "mutations") {
+  throw new Error(`${WHERE}: the fixture root must contain only mutations; fix ${fixtureURL.pathname}.`);
+}
+const requiredNames = [
+  "v2-error-reads-content",
+  "version-token-substring",
+  "decide-on-min-alone",
+  "decide-on-health-trait",
+  "export-from-loaded-segments",
+  "json-indent-dropped",
+  "json-trailing-newline-dropped",
+  "epoch-ignored",
+  "revision-echo-dropped",
+  "representation-echo-dropped",
+  "http-date-read-as-seconds",
+];
+const names = root.mutations.map(({ name }) => name);
+if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
+  throw new Error(`${WHERE}: mutation names differ from the required list; got ${names.join(", ")}.`);
+}
+
+const scratch = mkdtempSync(join(tmpdir(), "positioned-mutations-"));
+/** The file under mutation and its original text, restored on any exit, a signal or a closed pipe. */
+let pending = null;
+const restore = () => {
+  if (pending) writeFileSync(pending.url, pending.source);
+  pending = null;
+};
+process.on("exit", () => {
+  restore();
+  rmSync(scratch, { recursive: true, force: true });
+});
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGPIPE"]) process.on(signal, () => process.exit(1));
+process.stdout.on("error", () => process.exit(1));
+
+/** The names of the failing cases a killer run reported, or the reason the run proves nothing. */
+function runKiller(killer) {
+  const report = join(scratch, "report.json");
+  rmSync(report, { force: true });
+  if (killer.kind === "vitest") {
+    spawnSync("pnpm", ["exec", "vitest", "run", killer.file, "-t", killer.name, "--reporter=json", `--outputFile=${report}`], {
+      cwd: frontend, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "--no-experimental-webstorage" },
+    });
+    const result = JSON.parse(readFileSync(report, "utf8"));
+    return result.testResults.flatMap((file) => file.assertionResults)
+      .filter((test) => test.status === "failed")
+      .map((test) => [...test.ancestorTitles, test.title].join(" "));
+  }
+  if (killer.kind === "journey") {
+    const run = spawnSync("pnpm", ["exec", "playwright", "test", "--config", "playwright.journey.config.mjs", killer.file, "-g", killer.name, "--project", "dark", "--reporter=json"], {
+      cwd: frontend, encoding: "utf8", env: { ...process.env, JOURNEY_HTML: "0" }, maxBuffer: 64 * 1024 * 1024,
+    });
+    const result = JSON.parse(run.stdout);
+    const failed = [];
+    const walk = (suite, path) => {
+      for (const spec of suite.specs ?? []) {
+        if (spec.tests.some((test) => test.results.some((r) => r.status === "failed" || r.status === "timedOut"))) failed.push([...path, spec.title].join(" "));
+      }
+      for (const child of suite.suites ?? []) walk(child, [...path, child.title]);
+    };
+    for (const suite of result.suites ?? []) walk(suite, []);
+    return failed;
+  }
+  throw new Error(`${WHERE}: killer kind ${JSON.stringify(killer.kind)} is not vitest or journey.`);
+}
+
+let killed = 0;
+for (const mutation of root.mutations) {
+  const sourceURL = new URL(mutation.file, fixtureURL);
+  const source = await readFile(sourceURL, "utf8");
+  const expected = mutation.occurrences ?? 1;
+  const found = source.split(mutation.original).length - 1;
+  if (found !== expected) {
+    throw new Error(`${WHERE}: ${mutation.name} expects its original text ${expected} time(s) in ${mutation.file}, found ${found}; update the fixture to the current source.`);
+  }
+  pending = { url: sourceURL, source };
+  await writeFile(sourceURL, source.split(mutation.original).join(mutation.replacement));
+  try {
+    for (const killer of mutation.killers) {
+      if (killer.kind === "journey" && !withJourneys) {
+        process.stdout.write(`skipped journey killer: ${mutation.name} -> ${killer.name} (set POSITIONED_MUTATIONS_JOURNEYS=1)\n`);
+        continue;
+      }
+      const failing = runKiller(killer);
+      if (!failing.some((title) => title.includes(killer.name))) {
+        throw new Error(
+          `${WHERE}: ${mutation.name} survived ${killer.kind} killer ${killer.name}: ` +
+            (failing.length ? `only ${failing.join("; ")} failed` : "no named case failed (did the file stop compiling, or does the killer name match nothing?)") +
+            `. Restore the case or the production path it guards.`,
+        );
+      }
+      process.stdout.write(`mutation killed: ${mutation.name} by ${killer.kind} ${killer.name}\n`);
+    }
+    killed += 1;
+  } finally {
+    restore();
+  }
+}
+process.stdout.write(`all ${killed} positioned-host mutations killed\n`);
