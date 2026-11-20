@@ -14,14 +14,17 @@ import (
 var routeBytesYAML []byte
 
 type routeByteCase struct {
-	Name    string            `yaml:"name"`
-	Method  string            `yaml:"method"`
-	Path    string            `yaml:"path"`
-	Headers map[string]string `yaml:"headers"`
-	Status  int               `yaml:"status"`
-	Want    map[string]string `yaml:"want_headers"`
-	Body    string            `yaml:"body"`
-	Repeat  int               `yaml:"repeat"`
+	Name              string            `yaml:"name"`
+	Method            string            `yaml:"method"`
+	Path              string            `yaml:"path"`
+	Headers           map[string]string `yaml:"headers"`
+	Status            int               `yaml:"status"`
+	Want              map[string]string `yaml:"want_headers"`
+	Body              string            `yaml:"body"`
+	Repeat            int               `yaml:"repeat"`
+	Database          bool              `yaml:"database"`
+	RequestBody       string            `yaml:"request_body"`
+	OnlyOutcomeReason string            `yaml:"only_outcome_reason"`
 }
 
 var requiredRouteByteCases = []string{
@@ -33,9 +36,12 @@ var requiredRouteByteCases = []string{
 	"delete-attestation-anonymous", "create-annotation-anonymous",
 	"batch-publish-anonymous", "set-project-name-anonymous", "clear-project-name-anonymous",
 	"github-login-sixth-request",
+	"create-api-key", "list-api-keys", "peasant-revoke-api-key",
+	"batch-publish-signed-in", "organization-search-null-avatar", "organization-search-avatar",
 }
 
-func TestRouteBytes(t *testing.T) {
+func routeByteCases(t *testing.T) []routeByteCase {
+	t.Helper()
 	cases, err := decodeSingleYAMLDocument[[]routeByteCase](routeBytesYAML)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +63,15 @@ func TestRouteBytes(t *testing.T) {
 	if !reflect.DeepEqual(required, seen) {
 		t.Fatalf("fixture names differ from required names: required %v, got %v", required, seen)
 	}
+	return cases
+}
+
+func TestRouteBytes(t *testing.T) {
+	cases := routeByteCases(t)
 	for _, c := range cases {
+		if c.Database {
+			continue
+		}
 		t.Run(c.Name, func(t *testing.T) {
 			routes := New(&config.Config{JWTSecret: "route-bytes-test-only-secret", FrontendURL: "https://example.test"}, nil, nil, nil)
 			req := httptest.NewRequest(c.Method, c.Path, nil)

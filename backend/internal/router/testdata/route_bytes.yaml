@@ -1,4 +1,5 @@
 - name: health-no-pool
+  only_outcome_reason: Liveness remains 200 when the migration registry is unavailable.
   method: GET
   path: /health
   status: 200
@@ -6,6 +7,7 @@
   body: |
     {"status":"ok","serves":["publish-revision-n","segmented-reads-v2"]}
 - name: logout
+  only_outcome_reason: Logout always clears the cookie and answers 200.
   method: POST
   path: /api/v1/auth/logout
   status: 200
@@ -81,6 +83,7 @@
   path: /api/v1/transcripts/00000000-0000-0000-0000-000000000001/annotations
 - <<: *anonymous
   name: batch-publish-anonymous
+  only_outcome_reason: The batch handler is a stub and has no success response.
   method: POST
   path: /api/v1/transcripts/publish/batch
 - <<: *anonymous
@@ -91,3 +94,54 @@
   name: clear-project-name-anonymous
   method: DELETE
   path: /api/v1/users/me/projects/example/display-name
+- name: create-api-key
+  database: true
+  method: POST
+  path: /api/v1/auth/api-keys
+  request_body: '{"label":"golden"}'
+  status: 201
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"created_at":"{{created_at}}","id":"{{id}}","key":"{{key}}","label":"golden","prefix":"peasant_"}
+- name: list-api-keys
+  database: true
+  method: GET
+  path: /api/v1/auth/api-keys
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    [{"id":"{{id}}","key_prefix":"peasant_","label":"golden","created_at":"{{created_at}}","last_used":null,"revoked_at":null}]
+- name: peasant-revoke-api-key
+  database: true
+  method: DELETE
+  path: /api/v1/auth/api-keys/{{id}}
+  headers: {Authorization: "Bearer {{key}}"}
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"status":"revoked"}
+- name: batch-publish-signed-in
+  database: true
+  only_outcome_reason: The batch handler is a stub and has no success response.
+  method: POST
+  path: /api/v1/transcripts/publish/batch
+  status: 501
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"Batch publish coming soon"}
+- name: organization-search-null-avatar
+  database: true
+  method: GET
+  path: /api/v1/orgs/search?q={{org_null}}
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"organizations":[{"org_login":"{{org_null}}","avatar_url":null,"member_count":1,"transcript_count":0}]}
+- name: organization-search-avatar
+  database: true
+  method: GET
+  path: /api/v1/orgs/search?q={{org_avatar}}
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"organizations":[{"org_login":"{{org_avatar}}","avatar_url":"https://example.test/avatar.png","member_count":1,"transcript_count":0}]}
