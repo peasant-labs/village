@@ -11,6 +11,7 @@
      positioned-failure-downloads  every segment read failing, with the download menu open
      positioned-preview-contribute the contribute page's preview column
      positioned-preview-review     the review page's preview column
+     positioned-graph              the graph view, drawn from the one whole-document read opening it makes
 
    Fails closed before any PNG: the served build must carry `transcript-mode-positioned`, the page
    response must carry `Referrer-Policy: no-referrer`, and the page must mount the positioned mode.
@@ -185,6 +186,21 @@ try {
     await page.click(`${HEADER_ACTIONS} button[aria-label="${TranscriptHeaderActionsLabel.More.wire}"]`)
     await waitFor(page, '[role="menu"]')
     await shot(page, 'positioned-failure-downloads')
+    await page.close()
+  }
+  // The graph view: opening it reads the whole stored copy once, and the graph draws from it.
+  {
+    const page = await openPage()
+    const contentReads = []
+    page.on('request', (request) => { if (new URL(request.url()).pathname.endsWith(`/transcripts/${MAIN.transcriptId}/content`) && request.method() === HttpMethod.Get) contentReads.push(request.url()) })
+    await page.goto(transcript(), { waitUntil: 'domcontentloaded' })
+    await waitFor(page, '.txn-turn')
+    if (contentReads.length !== 0) fail(`the list read /content ${contentReads.length} time(s) before the graph opened; it must read none.`)
+    const graph = await page.waitForFunction((name) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name), { timeout: 10000 }, POSITIONED.viewButtons.graph)
+    await graph.click()
+    await waitFor(page, '.react-flow .react-flow__node')
+    if (contentReads.length !== 1) fail(`opening the graph read /content ${contentReads.length} time(s); it must read it once.`)
+    await shot(page, 'positioned-graph')
     await page.close()
   }
   // Both preview columns.
