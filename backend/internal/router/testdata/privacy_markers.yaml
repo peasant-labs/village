@@ -15,8 +15,9 @@
 # echo values), {turn}, {query}, {content_hash} (the served content hash).
 
 # Values the test plants or receives. The test also adds the transcript id,
-# the session id, the served representation and content hash, the bearer
-# token and the raw request paths.
+# the unpublished {missing} id, the owner's user id, GitHub id and login, the
+# title the server derived, the served representation and content hash, the
+# bearer token and the raw request paths.
 plants:
   session_id: sess_privacymarkersession
   entry: privacy-marker-entry-reference
@@ -30,6 +31,8 @@ plants:
   query: privacy-marker-query
   project: privacy-marker-project
   content: privacy-marker-content
+  # The source file path the publish names.
+  source_path: /privacy/privacy-marker-source.jsonl
 
 # Every request, as the owner (bearer) or with no session. `status` is the
 # answer each must get, so a request that never reached its handler fails the

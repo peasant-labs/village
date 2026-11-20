@@ -82,6 +82,7 @@ type privacyPlants struct {
 	Query                string `yaml:"query"`
 	Project              string `yaml:"project"`
 	Content              string `yaml:"content"`
+	SourcePath           string `yaml:"source_path"`
 }
 
 type privacyFixture struct {
@@ -137,8 +138,11 @@ func (c *capturedOutput) String() string {
 	return c.buf.String()
 }
 
-// captureServerOutput redirects every in-process output to one buffer until the test ends.
-func captureServerOutput(t *testing.T) *capturedOutput {
+// captureServerOutput redirects every in-process output to one buffer until
+// the test ends. The returned flush restores the outputs and waits until the
+// pipe copiers have drained, so a read after it sees everything written; the
+// test's cleanup calls it too, and only the first call has an effect.
+func captureServerOutput(t *testing.T) (*capturedOutput, func()) {
 	t.Helper()
 	out := &capturedOutput{}
 	previousWriter, previousFlags := log.Writer(), log.Flags()
@@ -161,16 +165,20 @@ func captureServerOutput(t *testing.T) *capturedOutput {
 		return writer
 	}
 	outWriter, errWriter := redirect(&os.Stdout), redirect(&os.Stderr)
-	t.Cleanup(func() {
-		os.Stdout, os.Stderr = stdout, stderr
-		_ = outWriter.Close()
-		_ = errWriter.Close()
-		copies.Wait()
-		log.SetOutput(previousWriter)
-		log.SetFlags(previousFlags)
-		slog.SetDefault(previousSlog)
-	})
-	return out
+	var once sync.Once
+	flush := func() {
+		once.Do(func() {
+			os.Stdout, os.Stderr = stdout, stderr
+			_ = outWriter.Close()
+			_ = errWriter.Close()
+			copies.Wait()
+			log.SetOutput(previousWriter)
+			log.SetFlags(previousFlags)
+			slog.SetDefault(previousSlog)
+		})
+	}
+	t.Cleanup(flush)
+	return out, flush
 }
 
 // TestServerOutputCarriesNoTranscriptMarkers publishes a transcript through the
@@ -250,8 +258,9 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 	}
 
 	// Everything from the publish onward is captured.
-	captured := captureServerOutput(t)
-	published = publishPrivacyTranscript(t, routes, token, plants)
+	captured, flushCapture := captureServerOutput(t)
+	var title string
+	published, title = publishPrivacyTranscript(t, routes, token, plants)
 
 	send := func(method, path, body string, viewer privacyViewer) *httptest.ResponseRecorder {
 		var reader io.Reader
@@ -281,9 +290,10 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 		t.Fatalf("decode the header read: %v", err)
 	}
 	contentHash := header.ContentHash
+	missing := uuid.NewString()
 	fill := strings.NewReplacer(
 		"{transcript}", published.String(),
-		"{missing}", uuid.NewString(),
+		"{missing}", missing,
 		"{entry}", plants.Entry,
 		"{unmatched_entry}", plants.UnmatchedEntry,
 		"{revision}", header.Revision,
@@ -308,30 +318,39 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 		})
 	}
 
+	// Read only after every output has drained into the capture.
+	flushCapture()
 	output := captured.String()
-	// The capture must have seen the request log, or its silence proves nothing.
-	if lines := strings.Count(output, schemaRoute.VillageGetTranscriptMetadata.Pattern()); lines < len(fixture.Requests) {
-		t.Fatalf("the captured output holds %d request-log lines for transcript routes, want at least %d; the capture is not seeing the server's log:\n%s", lines, len(fixture.Requests), output)
-	}
 	markers := map[string]string{
-		"transcript id":           published.String(),
-		"transcript id (compact)": strings.ReplaceAll(published.String(), "-", ""),
-		"session id":              plants.SessionID,
-		"entry reference":         plants.Entry,
-		"unmatched entry":         plants.UnmatchedEntry,
-		"representation marker":   plants.RepresentationMarker,
-		"revision marker":         plants.RevisionMarker,
-		"stale representation":    plants.StaleRepresentation,
-		"stale revision":          plants.StaleRevision,
-		"turn":                    strconv.Itoa(plants.Turn),
-		"query":                   plants.Query,
-		"query string":            "?v=2",
-		"project":                 plants.Project,
-		"content":                 plants.Content,
-		"bearer token":            token,
-		"authorization scheme":    "Bearer ",
-		"owner login":             login,
-		"locate body":             `"reference"`,
+		"transcript id":                       published.String(),
+		"transcript id (compact)":             strings.ReplaceAll(published.String(), "-", ""),
+		"unpublished transcript id":           missing,
+		"unpublished transcript id (compact)": strings.ReplaceAll(missing, "-", ""),
+		"session id":                          plants.SessionID,
+		"entry reference":                     plants.Entry,
+		"unmatched entry":                     plants.UnmatchedEntry,
+		"representation marker":               plants.RepresentationMarker,
+		"revision marker":                     plants.RevisionMarker,
+		"stale representation":                plants.StaleRepresentation,
+		"stale revision":                      plants.StaleRevision,
+		"turn":                                strconv.Itoa(plants.Turn),
+		"query":                               plants.Query,
+		"query string":                        "?v=2",
+		"project":                             plants.Project,
+		"content":                             plants.Content,
+		"source path":                         plants.SourcePath,
+		"bearer token":                        token,
+		"authorization scheme":                "Bearer ",
+		"owner login":                         login,
+		"owner user id":                       owner.String(),
+		"owner user id (compact)":             strings.ReplaceAll(owner.String(), "-", ""),
+		"owner github id":                     strconv.FormatInt(githubID, 10),
+		"locate body":                         `"reference"`,
+	}
+	// A title this short could match unrelated log text; the derived title is
+	// built from the planted content, which is itself a marker.
+	if len(title) >= 8 {
+		markers["title"] = title
 	}
 	if len(header.Representation) >= 8 {
 		markers["served representation"] = header.Representation
@@ -341,17 +360,32 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 	}
 	for _, path := range paths {
 		markers["raw path "+path] = path
+		// A log that prints the path but drops the query still leaks it.
+		if bare, _, hasQuery := strings.Cut(path, "?"); hasQuery {
+			markers["raw path without query "+bare] = bare
+		}
 	}
+	leaked := false
 	for name, value := range markers {
 		if value != "" && strings.Contains(output, value) {
-			t.Errorf("the server's output names the %s (%q); it may name only route templates and statuses. Output:\n%s", name, value, output)
+			leaked = true
+			t.Errorf("the server's output names the %s (%q); it may name only route templates and statuses", name, value)
 		}
+	}
+	if leaked {
+		t.Errorf("the captured output that named a marker:\n%s", output)
+	}
+	// The capture must have seen the request log, or its silence proves
+	// nothing. It runs after the markers, so a log that prints raw paths (and
+	// so fewer template lines) fails on the named marker first.
+	if lines := strings.Count(output, schemaRoute.VillageGetTranscriptMetadata.Pattern()); lines < len(fixture.Requests) {
+		t.Errorf("the captured output holds %d request-log lines for transcript routes, want at least %d; either the capture is not seeing the server's log, or the log no longer prints route templates:\n%s", lines, len(fixture.Requests), output)
 	}
 }
 
 // publishPrivacyTranscript publishes the synthetic transcript through the
-// production publish route and returns its id.
-func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, plants privacyPlants) uuid.UUID {
+// production publish route and returns its id and the title the server gave it.
+func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, plants privacyPlants) (uuid.UUID, string) {
 	t.Helper()
 	contentBytes, err := os.ReadFile(privacyContentFixture)
 	if err != nil {
@@ -375,7 +409,7 @@ func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, p
 		Identity:    schema.SessionIdentity{SessionID: schema.SessionID(plants.SessionID), SchemaVersion: 2},
 		Model:       schema.ModelInfo{Harness: schema.HarnessClaudeCode, Model: "claude-opus-4-5"},
 		Timestamp:   schema.TimestampInfo{Start: 1700000000000, End: 1700000060000},
-		Source:      schema.SourceInfo{FilePath: "/privacy/transcript.jsonl", Format: "jsonl"},
+		Source:      schema.SourceInfo{FilePath: plants.SourcePath, Format: "jsonl"},
 		Project:     schema.ProjectContext{Hash: schema.ProjectHash(strings.Repeat("ab", 32)), Name: plants.Project},
 		Stats:       schema.SessionStats{TurnCount: 2, ToolCallCount: 1, DurationMs: 60000, TokensIn: 60, TokensOut: 40},
 		Diagnostics: schema.DiagnosticsInfo{Warnings: []schema.DiagnosticEntry{}},
@@ -409,13 +443,18 @@ func publishPrivacyTranscript(t *testing.T, routes http.Handler, token string, p
 	}
 	var response struct {
 		Transcript struct {
-			ID uuid.UUID `json:"id"`
+			ID    uuid.UUID `json:"id"`
+			Title *string   `json:"title"`
 		} `json:"transcript"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil || response.Transcript.ID == uuid.Nil {
 		t.Fatalf("decode the publish response %s: %v", rec.Body.String(), err)
 	}
-	return response.Transcript.ID
+	title := ""
+	if response.Transcript.Title != nil {
+		title = *response.Transcript.Title
+	}
+	return response.Transcript.ID, title
 }
 
 // deletePrivacyWorld removes the published transcript as the system actor, the
