@@ -12,7 +12,10 @@ const FIXTURE = resolve(process.cwd(), "src/testdata/referrer-policy.yaml");
 
 type Case = { name: string; path: string; noReferrer: boolean };
 const { cases } = YAML.parse(readFileSync(FIXTURE, "utf8")) as { cases: Case[] };
-const REQUIRED = ["transcript-page", "transcript-share-image", "home-page-unchanged", "review-page-unchanged"];
+const REQUIRED = [
+  "transcript-page", "transcript-share-image", "home-page-unchanged",
+  "contribute-preview-page", "review-preview-page", "collective-page-unchanged",
+];
 
 it("retains every referrer-policy case", () => {
   expect(cases.map((c) => c.name).sort()).toEqual([...REQUIRED].sort());

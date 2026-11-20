@@ -47,13 +47,16 @@ const nextConfig: NextConfig = {
   },
   // A transcript page's address names the transcript, and a deep link names
   // a turn or a carried entry. No request the page makes, and no link a
-  // reader follows from it, sends that address on as a referrer.
+  // reader follows from it, sends that address on as a referrer. The
+  // collective's contribute and review pages render transcript content in
+  // their preview column, so a link followed from that content does not send
+  // their address (which names the collective) either.
   async headers() {
+    const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
     return [
-      {
-        source: "/transcripts/:path*",
-        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
-      },
+      { source: "/transcripts/:path*", headers: noReferrer },
+      { source: "/collectives/:id/contribute", headers: noReferrer },
+      { source: "/collectives/:id/review", headers: noReferrer },
     ];
   },
   images: {
