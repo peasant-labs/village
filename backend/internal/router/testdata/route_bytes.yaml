@@ -1,0 +1,93 @@
+- name: health-no-pool
+  method: GET
+  path: /health
+  status: 200
+  want_headers: {Content-Type: application/json, Cache-Control: no-store}
+  body: |
+    {"status":"ok","serves":["publish-revision-n","segmented-reads-v2"]}
+- name: logout
+  method: POST
+  path: /api/v1/auth/logout
+  status: 200
+  want_headers: {Content-Type: application/json, Set-Cookie: "peasant_token=; Path=/; Max-Age=0; HttpOnly"}
+  body: |
+    {"status":"logged out"}
+- name: empty-organization-search
+  method: GET
+  path: /api/v1/orgs/search
+  status: 200
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"organizations":[]}
+- name: github-login-sixth-request
+  method: GET
+  path: /api/v1/auth/github
+  repeat: 5
+  status: 429
+  want_headers:
+    Content-Type: text/plain; charset=utf-8
+    Retry-After: "60"
+    X-RateLimit-Limit: "5"
+    X-RateLimit-Remaining: "0"
+  body: |
+    Too Many Requests
+- &anonymous
+  name: delete-account-anonymous
+  method: DELETE
+  path: /api/v1/auth/me
+  status: 401
+  want_headers: {Content-Type: application/json}
+  body: |
+    {"error":"Authentication required"}
+- <<: *anonymous
+  name: update-discoverability-anonymous
+  method: PATCH
+  path: /api/v1/auth/me/settings
+- <<: *anonymous
+  name: set-username-anonymous
+  method: PATCH
+  path: /api/v1/auth/me/username
+- <<: *anonymous
+  name: create-api-key-anonymous
+  method: POST
+  path: /api/v1/auth/api-keys
+- <<: *anonymous
+  name: list-api-keys-anonymous
+  method: GET
+  path: /api/v1/auth/api-keys
+- <<: *anonymous
+  name: revoke-api-key-anonymous
+  method: DELETE
+  path: /api/v1/auth/api-keys/00000000-0000-0000-0000-000000000001
+- <<: *anonymous
+  name: organization-visibility-anonymous
+  method: PATCH
+  path: /api/v1/auth/orgs/example/visibility
+- <<: *anonymous
+  name: delete-transcript-anonymous
+  method: DELETE
+  path: /api/v1/transcripts/00000000-0000-0000-0000-000000000001
+- <<: *anonymous
+  name: create-attestation-anonymous
+  method: POST
+  path: /api/v1/transcripts/00000000-0000-0000-0000-000000000001/attestations
+- <<: *anonymous
+  name: delete-attestation-anonymous
+  method: DELETE
+  path: /api/v1/transcripts/00000000-0000-0000-0000-000000000001/attestations/00000000-0000-0000-0000-000000000002
+- <<: *anonymous
+  name: create-annotation-anonymous
+  method: POST
+  path: /api/v1/transcripts/00000000-0000-0000-0000-000000000001/annotations
+- <<: *anonymous
+  name: batch-publish-anonymous
+  method: POST
+  path: /api/v1/transcripts/publish/batch
+- <<: *anonymous
+  name: set-project-name-anonymous
+  method: PATCH
+  path: /api/v1/users/me/projects/example
+- <<: *anonymous
+  name: clear-project-name-anonymous
+  method: DELETE
+  path: /api/v1/users/me/projects/example/display-name
