@@ -538,9 +538,19 @@ function SessionDetailV2Content({
       <div className="flex-1 min-h-0 min-w-0" ref={streamContainerRef}>
         <TranscriptViewer
           {...readProps}
-          streamPrelude={snappedLine ? <p role="status" data-testid={SessionDetailV2TestId.SnappedTurn.wire}>{snappedLine}</p> : undefined}
           beforeHeader={<>
       {beforeHeader}
+      {/* Above the header, not in the stream: landing scrolls the stream to
+          the opened row, which would carry a line at its top out of view. */}
+      {snappedLine && (
+        <p
+          role="status"
+          className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3"
+          data-testid={SessionDetailV2TestId.SnappedTurn.wire}
+        >
+          {snappedLine}
+        </p>
+      )}
       {shownOmittedImages > 0 && (
         <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3">
           {shownOmittedImages} {shownOmittedImages === 1 ? 'image' : 'images'} omitted
