@@ -5,8 +5,10 @@ import { it, expect } from 'vitest'
 import YAML from 'yaml'
 const here = dirname(fileURLToPath(import.meta.url))
 const directory = join(here, '../../../.github/workflows')
+const PRIVATE_INSTALL_FIXTURE_RELATIVE_PATH = 'testdata/private-install.yaml'
+const PRIVATE_INSTALL_FIXTURE = join(here, PRIVATE_INSTALL_FIXTURE_RELATIVE_PATH)
 it('keeps workflow npm installs job-private', () => {
-  const config = YAML.parse(readFileSync(join(here, 'testdata/private-install.yaml'), 'utf8'))
+  const config = YAML.parse(readFileSync(PRIVATE_INSTALL_FIXTURE, 'utf8'))
   const regex = (pattern) => new RegExp(pattern.replace(/^\(\?m\)/, ''), 'm')
   const global = regex(config.global_pattern)
   const normalize = (s) => s.replace(/\\\n\s*/g, ' ')
