@@ -19,8 +19,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import { SessionDetailV2TestId } from './readModeTestIds';
 import { WholeDocumentGraph } from './WholeDocumentGraph';
+import { useWholeDocumentGraph, type WholeDocumentReadEpoch } from './useWholeDocumentGraph';
 import { TranscriptViewMode } from './transcriptViewMode';
-import RequestFailureState from '@/components/RequestFailureState';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -51,10 +51,7 @@ import { useTranscriptPullRequests } from '@/lib/queries/pulls';
 import {
   cookWholeTranscript,
   readTranscriptForDownload,
-  readWholeTranscript,
   saveTranscriptFile,
-  WholeTranscriptPurpose,
-  type WholeTranscript,
   transcriptFile,
   type TranscriptExportFormat,
 } from '@/lib/transcriptExport';
@@ -188,34 +185,6 @@ function PositionedSessionDetailV2(props: SessionDetailV2Props) {
   const session = useMemo(() => ({ title: shownTranscriptTitle(transcriptTitle) }), [transcriptTitle]);
   const positioned = usePositionedTranscript({ transport, target, landing: PositionedLanding.Exact, session });
   return <SessionDetailV2Content {...props} positioned={positioned} />;
-}
-
-/** Where the positioned page's one whole-document read for the graph stands. Closed. */
-const GraphReadStatus = { Idle: 'idle', Ready: 'ready', Failed: 'failed' } as const;
-type GraphRead =
-  | { status: typeof GraphReadStatus.Idle }
-  | { status: typeof GraphReadStatus.Ready; revision: string | undefined; whole: WholeTranscript }
-  | { status: typeof GraphReadStatus.Failed; revision: string | undefined; message: string };
-
-/** The positioned page's graph: the read in flight, its failure with a retry, or the graph. The
- *  list beside it stays positioned whatever happens here. */
-function PositionedGraph({ read, onRetry }: { read: GraphRead; onRetry: () => void }) {
-  if (read.status === GraphReadStatus.Ready) return <WholeDocumentGraph detail={read.whole.detail} viewModel={read.whole.viewModel} />;
-  if (read.status === GraphReadStatus.Failed) {
-    return (
-      <RequestFailureState
-        title="the trajectory graph could not load"
-        message={read.message}
-        retryLabel="retry the graph"
-        onRetry={onRetry}
-      />
-    );
-  }
-  return (
-    <p className="px-6 py-6 text-[length:var(--fs-body)] text-ink-3" role="status" data-testid={SessionDetailV2TestId.GraphLoading.wire}>
-      loading the trajectory graph
-    </p>
-  );
 }
 
 /** The status line for a `?turn=N` the transcript does not serve. `requestedTurn` is the value the
@@ -433,7 +402,7 @@ function SessionDetailV2Content({
   // read the whole stored copy, once per download, and save it only while the
   // page still shows the same revision of the same transcript.
   const positionedRevision = positioned?.controls.header?.revision;
-  const downloadEpoch = useRef({ id: 0, abort: new AbortController() });
+  const downloadEpoch = useRef<WholeDocumentReadEpoch>({ id: 0, abort: new AbortController() });
   useEffect(() => {
     const epoch = downloadEpoch.current;
     return () => {
@@ -441,39 +410,17 @@ function SessionDetailV2Content({
       downloadEpoch.current = { id: epoch.id + 1, abort: new AbortController() };
     };
   }, [transcriptId, positionedRevision]);
-  // The positioned page draws the trajectory graph from the whole stored copy,
-  // read once when the reader opens the graph: a reader action like a
-  // download, never an answer to a positioned failure. The list never reads
-  // it. The read carries the download's epoch, so a revision change or an
-  // unmount aborts it and discards its answer.
   const [viewMode, setViewMode] = useState<TranscriptViewMode>(TranscriptViewMode.List);
-  const [graphRead, setGraphRead] = useState<GraphRead>({ status: GraphReadStatus.Idle });
-  const graphCurrent: GraphRead =
-    graphRead.status !== GraphReadStatus.Idle && graphRead.revision === positionedRevision ? graphRead : { status: GraphReadStatus.Idle };
-  const graphWanted = positioned !== undefined && viewMode === TranscriptViewMode.Graph;
-  // The revision a read is in flight for; a second render never starts a second read.
-  const graphRequested = useRef<{ revision: string | undefined } | null>(null);
-  useEffect(() => {
-    if (!graphWanted || graphCurrent.status !== GraphReadStatus.Idle) return;
-    const revision = positionedRevision;
-    if (graphRequested.current && graphRequested.current.revision === revision) return;
-    graphRequested.current = { revision };
-    const { id, abort } = downloadEpoch.current;
-    const epoch = { signal: abort.signal, isCurrent: () => downloadEpoch.current.id === id };
-    readWholeTranscript({ transcriptId, storedTitle: transcriptTitle, knownHarness, relationshipNavigation }, epoch, WholeTranscriptPurpose.Graph).then(
-      (whole) => {
-        if (whole && epoch.isCurrent()) setGraphRead({ status: GraphReadStatus.Ready, revision, whole });
-      },
-      (reason: unknown) => {
-        if (!epoch.isCurrent()) return;
-        setGraphRead({
-          status: GraphReadStatus.Failed,
-          revision,
-          message: reason instanceof Error ? reason.message : 'the trajectory graph could not be read. try again.',
-        });
-      },
-    );
-  }, [graphWanted, graphCurrent.status, positionedRevision, transcriptId, transcriptTitle, knownHarness, relationshipNavigation]);
+  const positionedGraph = useWholeDocumentGraph({
+    positioned: positioned !== undefined,
+    viewMode,
+    revision: positionedRevision,
+    transcriptId,
+    storedTitle: transcriptTitle,
+    knownHarness,
+    relationshipNavigation,
+    epoch: downloadEpoch,
+  });
 
   function handleExport(format: TranscriptExportFormat) {
     if (positioned) {
@@ -770,15 +717,7 @@ function SessionDetailV2Content({
             isPreview
               ? undefined
               : positioned
-              ? () => (
-                  <PositionedGraph
-                    read={graphCurrent}
-                    onRetry={() => {
-                      graphRequested.current = null;
-                      setGraphRead({ status: GraphReadStatus.Idle });
-                    }}
-                  />
-                )
+              ? positionedGraph
               : detail && vm
               ? () => <WholeDocumentGraph detail={detail} viewModel={vm} />
               : undefined

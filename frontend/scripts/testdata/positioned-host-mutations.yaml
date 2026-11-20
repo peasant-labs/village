@@ -116,17 +116,17 @@ mutations:
 
   - name: graph-reads-content-on-mount
     why: the graph reading the whole document every time it mounts, instead of once per revision
-    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
-    original: "    if (!graphWanted || graphCurrent.status !== GraphReadStatus.Idle) return;\n    const revision = positionedRevision;\n    if (graphRequested.current && graphRequested.current.revision === revision) return;\n"
-    replacement: "    if (!graphWanted) return;\n    const revision = positionedRevision;\n"
+    file: ../../src/components/session-detail/v2/useWholeDocumentGraph.tsx
+    original: "    if (!graphWanted || graphCurrent.status !== GraphReadStatus.Idle) return;\n    if (graphRequested.current && graphRequested.current.revision === revision) return;\n"
+    replacement: "    if (!graphWanted) return;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: graph-open-reads-content-once}
 
   - name: list-reads-content
     why: the list reading the whole document though the graph was never opened
-    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
-    original: "  const graphWanted = positioned !== undefined && viewMode === TranscriptViewMode.Graph;\n"
-    replacement: "  const graphWanted = positioned !== undefined;\n"
+    file: ../../src/components/session-detail/v2/useWholeDocumentGraph.tsx
+    original: "  const graphWanted = positioned && viewMode === TranscriptViewMode.Graph;\n"
+    replacement: "  const graphWanted = positioned;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: list-mode-never-reads-content}
 
