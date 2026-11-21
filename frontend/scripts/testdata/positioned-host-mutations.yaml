@@ -176,10 +176,18 @@ mutations:
   - name: saved-turn-by-position
     why: the positioned page saving its active row's served position, which a whole-document visit reads as another turn
     file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
-    original: "  const savedActiveTurn = positioned ? (activeRow ? activeRow.recordedIndex ?? null : activeRecordedIndex) : activeTurn ?? null;\n"
+    original: "  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;\n"
     replacement: "  const savedActiveTurn = activeTurn ?? null; void activeRow;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-content-after-positioned-same-turn}
+
+  - name: absent-recorded-index-clears-saved
+    why: a loaded row with no recorded index overwriting the saved position with null
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;\n"
+    replacement: "  const savedActiveTurn = positioned ? (activeRow ? activeRow.recordedIndex ?? null : activeRecordedIndex) : activeTurn ?? null;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-absent-recorded-index-keeps-previous}
 
   - name: saved-turn-not-targeted
     why: a return to the positioned page that opens at the start instead of the saved reading position

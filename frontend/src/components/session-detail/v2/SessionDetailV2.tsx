@@ -427,15 +427,16 @@ function SessionDetailV2Content({
   if (landing && landing !== selectedLanding && landing.position !== undefined) {
     setSelectedLanding(landing);
     setActiveTurn(landing.position);
+    if (landing.anchorTurn !== undefined) setActiveRecordedIndex(landing.anchorTurn);
   }
 
   // What the page saves, in the index space both reads share. The positioned
-  // page saves the active row's recorded index once that row is loaded, and
-  // until then the last one it knew.
+  // page saves the active row's recorded index when that row carries one, and
+  // keeps the last one it knew otherwise.
   const activeRow = positioned && activeTurn !== undefined
     ? loadedSegmentTurns(positioned.viewerProps.segments).find((turn) => turn.index === activeTurn)
     : undefined;
-  const savedActiveTurn = positioned ? (activeRow ? activeRow.recordedIndex ?? null : activeRecordedIndex) : activeTurn ?? null;
+  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;
   const positionedHistoryOpen = positioned?.viewerProps.earlierHistoryOpen;
   const savedEarlierHistoryOpen = useMemo(
     () => (isPositioned
@@ -746,9 +747,9 @@ function SessionDetailV2Content({
         onActiveTurnChange: (turn: number) => {
           setActiveTurn(turn);
           // `turn` is the row's served position; the page saves its recorded index. A row with
-          // none saves no position.
+          // none keeps the last saved position.
           const row = loadedSegmentTurns(positionedProps.segments).find((loaded) => loaded.index === turn);
-          if (row) setActiveRecordedIndex(row.recordedIndex ?? null);
+          if (row?.recordedIndex != null) setActiveRecordedIndex(row.recordedIndex);
           positionedProps.onActiveTurnChange?.(turn);
         },
       }

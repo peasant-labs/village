@@ -179,6 +179,13 @@ restore:
     expectWindowAnchor: '14'
     expectActiveText: Now read the last segment.
     expectScrollTop: 200
+  - name: restore-absent-recorded-index-keeps-previous
+    recordedIndexAbsent: [5]
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment., clickText: The last segment closes the transcript.}
+      - {mode: positioned, search: ''}
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
 
 scrollSave:
   name: scroll-save-throttled-per-frame

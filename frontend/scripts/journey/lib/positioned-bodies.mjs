@@ -17,6 +17,7 @@ import {
   isPositionedDirectoryPositionsValid,
   parseSessionDetailPayloadValue,
   TranscriptReadTransportKind,
+  TranscriptRecordedIndexState,
   TranscriptSegmentPartitionKind,
   zPositionedDirectory,
   zPositionedSegment,
@@ -48,6 +49,7 @@ const START = Date.parse("2026-11-12T09:00:00Z");
  * @property {number} rowsPerSegment
  * @property {number} [firstRecordedIndex]  the first main row's recorded index; rows count up from it (default 0)
  * @property {number[]} [numberAbsent]  main-partition positions the server sends no display number for
+ * @property {number[]} [recordedIndexAbsent]  main-partition positions the server serves with recordedIndexState "absent" and no recordedIndex
  * @property {number} [directoryPerPage]  main refs per directory page; omitted serves one page
  * @property {Array<{ turns: PositionedTurnSpec[], state?: string }>} [history]  earlier-history sections, in order
  * @property {{ project?: string, gitBranch?: string, gitRemote?: string }} [session]  the session fields the
@@ -89,6 +91,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
   const check = (parser, body, name) => mustParse(parser, mutateBody ? mutateBody(name, body) : body, name);
   const transport = { kind: TranscriptReadTransportKind.VillageTranscript, transcriptId: spec.transcriptId };
   const absent = new Set(spec.numberAbsent ?? []);
+  const recordedAbsent = new Set(spec.recordedIndexAbsent ?? []);
   const sessionFields = spec.session ?? { project: "positioned-reader" };
 
   /** One partition's rows, segments, refs and context. History sections record their own indexes from 0. */
@@ -105,13 +108,17 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     // The display numbers are this mock's own rule (position + 1), not the server's numbering,
     // which the backend proves against the real handler. Production code never derives a number:
     // it shows the label each row is served with.
-    const rows = turns.map((turn, position) => ({
-      position,
-      recordedIndex: turn.index,
-      recordedIndexState: "present",
-      ...(partition.kind === TranscriptSegmentPartitionKind.Main && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
-      turn,
-    }));
+    const rows = turns.map((turn, position) => {
+      const noRecordedIndex = partition.kind === TranscriptSegmentPartitionKind.Main && recordedAbsent.has(position);
+      return {
+        position,
+        ...(noRecordedIndex
+          ? { recordedIndexState: TranscriptRecordedIndexState.Absent }
+          : { recordedIndex: turn.index, recordedIndexState: TranscriptRecordedIndexState.Present }),
+        ...(partition.kind === TranscriptSegmentPartitionKind.Main && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
+        turn,
+      };
+    });
     const chunks = [];
     for (let start = 0; start < rows.length; start += spec.rowsPerSegment) chunks.push(rows.slice(start, start + spec.rowsPerSegment));
     let before = 0;
@@ -227,7 +234,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
       partition: part.partition,
       anchorPosition: anchor.position,
       anchorSegment,
-      anchorTurn: anchor.recordedIndex,
+      ...(anchor.recordedIndex !== undefined ? { anchorTurn: anchor.recordedIndex } : {}),
       ...(turn === undefined ? {} : { requestedAnchor: turn, ...(requested ? { requestedPosition: requested.position } : {}) }),
       firstPosition: part.chunks[anchorSegment][0].position,
       lastPosition: part.chunks[anchorSegment].at(-1).position,

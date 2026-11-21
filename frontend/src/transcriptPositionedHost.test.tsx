@@ -55,9 +55,10 @@ type RequestRefusal = {
   name: string; route: (typeof PositionedRoute)[keyof typeof PositionedRoute];
   query: Record<string, string>; body?: unknown; status?: number;
 };
-type RestoreVisit = { mode: TranscriptReadMode; search: string; activeText?: string; openHistory?: boolean; servedTurns?: number };
+type RestoreVisit = { mode: TranscriptReadMode; search: string; activeText?: string; clickText?: string; openHistory?: boolean; servedTurns?: number };
 type RestoreCase = {
   name: string; visits: RestoreVisit[]; history?: Spec["turns"];
+  recordedIndexAbsent?: number[];
   seed?: { activeTurn: number | null; turnOffset: number; readMode: TranscriptReadMode };
   rowTopBase?: number; expectScrollTop?: number;
   expectWindowAnchor?: string; expectNoWindowAnchor?: string; expectActiveText?: string;
@@ -105,6 +106,7 @@ const requiredFixtureNames = [
   "restore-content-after-positioned-same-turn", "restore-positioned-after-content-same-turn",
   "restore-positioned-earlier-history-open", "restore-content-earlier-history-after-positioned",
   "restore-positioned-restores-offset",
+  "restore-absent-recorded-index-keeps-previous",
   "scroll-save-throttled-per-frame",
   "restore-offset-cancels-on-wheel", "restore-offset-cancels-on-touchstart",
   "restore-offset-cancels-on-keydown", "restore-offset-cancels-on-scroll",
@@ -316,7 +318,12 @@ describe("restore", () => {
   /** One visit: the page mounted in the visit's read, waiting until it shows rows. */
   async function visit(row: RestoreCase, step: RestoreVisit) {
     const turns = step.servedTurns === undefined ? spec.turns : spec.turns.slice(0, step.servedTurns);
-    const bodies = buildPositionedBodies({ ...spec, turns, ...(row.history ? { history: [{ turns: row.history }] } : {}) });
+    const bodies = buildPositionedBodies({
+      ...spec,
+      turns,
+      ...(row.recordedIndexAbsent ? { recordedIndexAbsent: row.recordedIndexAbsent } : {}),
+      ...(row.history ? { history: [{ turns: row.history }] } : {}),
+    });
     let fetchMock: ReturnType<typeof vi.fn>;
     if (step.mode === TranscriptReadMode.Positioned) {
       fetchMock = await mountPositioned(bodies, step.search);
@@ -365,6 +372,10 @@ describe("restore", () => {
         }
         if (earlier.activeText) {
           await waitFor(() => expect(document.querySelector(".txn-turn.txn-active")).toHaveTextContent(earlier.activeText!));
+        }
+        if (earlier.clickText) {
+          fireEvent.click(screen.getAllByText(earlier.clickText)[0]);
+          await waitFor(() => expect(document.querySelector(".txn-turn.txn-active")).toHaveTextContent(earlier.clickText!));
         }
         // Leaving the page saves where it was read.
         cleanup();
