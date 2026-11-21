@@ -22,11 +22,16 @@
   why: A load nobody waits for must stop and give its reserved bytes back, or a burst of abandoned reads would leave the cache refusing admission to everyone.
   budget: 1000
   sizes: [1000]
-- name: cache-admission-refusal-503
-  scenario: admission-refusal-retained
-  why: A generation that does not fit beside the retained bytes is refused before anything is read, with the bounded refusal and no partial entry; room freed by a purge admits it.
+- name: cache-full-of-cold-entries-evicts-least-recent
+  scenario: eviction-least-recent
+  why: When retained entries fill the budget and nothing is in flight, a read of another generation must evict the least recently read entries and be admitted; refusing it would hold the refusal for as long as hot entries keep being read, while the copy promises a short retry.
   budget: 1000
   sizes: [400, 400, 400]
+- name: cache-all-in-flight-exhaustion-refuses-and-evicts-nothing
+  scenario: in-flight-exhaustion
+  why: When the loads in flight alone leave no room, evicting retained entries cannot admit the read; it is refused with the bounded refusal, nothing is read, and no retained entry is evicted for a read that is refused anyway.
+  budget: 1000
+  sizes: [300, 600, 500]
 - name: cache-admission-counts-reserved-bytes
   scenario: admission-refusal-reserved
   why: Bytes reserved by a load in flight count against the budget, so two loads that each fit alone cannot both run when together they do not.
@@ -40,9 +45,9 @@
   readers: 2
 - name: cache-retention-is-strict-after-load
   scenario: strict-retention
-  why: A load admitted on a low estimate may hold more than it was weighed at; the real bytes are checked again at retention, and an entry that would break the budget is served and not kept.
+  why: A load admitted on a low estimate may hold more than it was weighed at; its real weight is checked again at retention. An entry heavier than the whole budget is served and not kept, and one that fits only without older entries evicts them, so the retained weight never exceeds the budget.
   budget: 1000
-  sizes: [400, 900]
+  sizes: [400, 1100, 900]
 - name: cache-lifetime-expiry
   scenario: lifetime-expiry
   why: An entry idle for the lifetime is dropped by the sweep and not before; a read refreshes it; and a request never sweeps.
@@ -107,3 +112,11 @@
 - name: cache-absent-cache-loads-and-purges-nothing
   scenario: nil-cache
   why: A handler built without a cache loads on every read and its purge calls are no-ops, so no write path needs a cache to exist.
+- name: cache-index-memory-counts-against-budget
+  scenario: index-memory
+  why: The partition indexes built from a generation (rows, verdicts, refs, positions, native metadata) are retained with it; a transcript of many short turns or many history partitions holds far more index than bytes, so each build must raise the entry's weight, and a grown entry must evict colder ones or leave the cache itself rather than break the budget.
+  budget: 4194304
+  turns: 600
+- name: cache-index-memory-charged-through-the-read
+  scenario: index-memory-read
+  why: The read path is what builds partitions in production; a directory read through the mounted handler must leave the retained weight equal to the bytes plus the index it built, or the accounting only holds in unit tests.

@@ -189,7 +189,17 @@ func (h *Handler) beginSegmentedRead(w http.ResponseWriter, r *http.Request) (*s
 		return nil, false
 	}
 	return &segmentedRead{row: row, opened: opened, withheld: withheld, native: native, representation: representation, reserve: func() (func(), error) {
-		return h.contentCache.AcquireBuild(context.WithoutCancel(r.Context()))
+		release, err := h.contentCache.AcquireBuild(context.WithoutCancel(r.Context()))
+		if err != nil {
+			return nil, err
+		}
+		// A build adds an index to the generation; once it ends, the cache
+		// weighs the retained entry again so the index counts against the
+		// budget.
+		return func() {
+			release()
+			h.contentCache.Charge(id, opened.Index)
+		}, nil
 	}, refuseBusy: func(w http.ResponseWriter, err error) {
 		recordTranscriptRefusal(r, err)
 		h.segmentedBusy(w, r, row)
