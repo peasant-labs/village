@@ -52,7 +52,22 @@ var requiredPrivacyRequestNames = []string{
 	"window-owner", "window-unserved-anchor", "window-denied",
 	"locate-owner-match", "locate-owner-unmatched", "locate-denied", "locate-invalid-body",
 	"deep-link-turn", "content-owner", "missing-transcript", "unmatched-route", "invalid-segment-index",
+	"header-missing-anonymous", "directory-missing", "segment-missing", "window-missing", "locate-missing",
 }
+
+// requiredIndistinguishableGroups names every refusal group the fixture must
+// keep, with the requests each must hold, so a group cannot shrink to one
+// request and compare nothing.
+var requiredIndistinguishableGroups = map[string][]string{
+	"transcript-not-found": {
+		"header-denied", "directory-denied", "segment-denied", "window-denied", "locate-denied",
+		"missing-transcript", "header-missing-anonymous", "directory-missing", "segment-missing", "window-missing", "locate-missing",
+	},
+}
+
+// indistinguishableHeaders are the response headers a refusal group must
+// answer alike, beside its status and body.
+var indistinguishableHeaders = []string{"Content-Type", "Cache-Control"}
 
 type privacyViewer string
 
@@ -68,6 +83,8 @@ type privacyRequest struct {
 	Viewer privacyViewer `yaml:"viewer"`
 	Status int           `yaml:"status"`
 	Body   string        `yaml:"body"`
+	// Indistinguishable names the refusal group whose answers must match.
+	Indistinguishable string `yaml:"indistinguishable"`
 }
 
 type privacyPlants struct {
@@ -108,6 +125,28 @@ func loadPrivacyFixture(t *testing.T) privacyFixture {
 	for _, name := range requiredPrivacyRequestNames {
 		if !names[name] {
 			t.Fatalf("%s lost required request %q; restore it", privacyMarkersFixture, name)
+		}
+	}
+	groups := map[string][]string{}
+	for _, r := range fixture.Requests {
+		if r.Indistinguishable != "" {
+			groups[r.Indistinguishable] = append(groups[r.Indistinguishable], r.Name)
+		}
+	}
+	for group, want := range requiredIndistinguishableGroups {
+		got := map[string]bool{}
+		for _, name := range groups[group] {
+			got[name] = true
+		}
+		for _, name := range want {
+			if !got[name] {
+				t.Fatalf("%s lost %q from the indistinguishable group %q; restore it", privacyMarkersFixture, name, group)
+			}
+		}
+	}
+	for group := range groups {
+		if _, known := requiredIndistinguishableGroups[group]; !known {
+			t.Fatalf("%s names the indistinguishable group %q, which requiredIndistinguishableGroups does not list; add it there with its requests", privacyMarkersFixture, group)
 		}
 	}
 	if len(names) != len(requiredPrivacyRequestNames) {
@@ -307,6 +346,13 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 		"{content_hash}", contentHash,
 	)
 	paths := []string{}
+	type refusal struct {
+		name    string
+		status  int
+		body    string
+		headers []string
+	}
+	refusals := map[string][]refusal{}
 	for _, request := range fixture.Requests {
 		t.Run(request.Name, func(t *testing.T) {
 			path := fill.Replace(request.Path)
@@ -315,7 +361,25 @@ func TestServerOutputCarriesNoTranscriptMarkers(t *testing.T) {
 			if rec.Code != request.Status {
 				t.Fatalf("%s %s as %s = %d %s, want %d", request.Method, path, request.Viewer, rec.Code, rec.Body.String(), request.Status)
 			}
+			if request.Indistinguishable != "" {
+				headers := make([]string, 0, len(indistinguishableHeaders))
+				for _, name := range indistinguishableHeaders {
+					headers = append(headers, name+": "+rec.Header().Get(name))
+				}
+				refusals[request.Indistinguishable] = append(refusals[request.Indistinguishable], refusal{name: request.Name, status: rec.Code, body: rec.Body.String(), headers: headers})
+			}
 		})
+	}
+	// A refusal for a transcript the viewer may not read answers exactly as one
+	// for a transcript that does not exist, on every route: the same status,
+	// body and content headers.
+	for group, answers := range refusals {
+		first := answers[0]
+		for _, other := range answers[1:] {
+			if other.status != first.status || other.body != first.body || strings.Join(other.headers, "\n") != strings.Join(first.headers, "\n") {
+				t.Errorf("the %s refusals differ, so a refusal tells a reader whether the transcript exists: %s answered %d %v %q, %s answered %d %v %q; answer every refusal in the group alike", group, first.name, first.status, first.headers, first.body, other.name, other.status, other.headers, other.body)
+			}
+		}
 	}
 
 	// Read only after every output has drained into the capture.

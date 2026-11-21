@@ -12,7 +12,7 @@
 advertisement: {segmentedReadVersion: '0.2.0', minSegmentedReadVersion: '0.1.0'}
 
 # The actions Fairtrade's positioned failure states offer, as a reader meets them.
-failureActions: {retry: try again}
+failureActions: {retry: try again, reload: reload transcript}
 
 # The trace canvas's view toggles, as a reader meets them.
 viewButtons: {list: list, graph: graph}

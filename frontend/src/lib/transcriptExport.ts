@@ -172,6 +172,16 @@ export function cookWholeTranscript(
  * The reader state a download belongs to. A file is saved only while its
  * epoch is current: the page has not moved to another transcript or another
  * revision of this one, and the page is still mounted.
+ *
+ * The guard compares the page's revision, not the downloaded bytes, on
+ * purpose. The `/content` route may canonicalize an older stored copy and
+ * install the result as a new generation while it serves it, so its
+ * `Village-Content-Hash` can differ from the hash the positioned header named
+ * for the same content; and the header withholds its hash from some readers.
+ * A byte comparison would then refuse a good download, or decide nothing.
+ * The download is the transcript's current stored copy, which is what a
+ * reader asks for; a page showing an older revision learns so from its own
+ * next read, which answers stale.
  */
 export interface DownloadEpoch {
   signal: AbortSignal;

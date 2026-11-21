@@ -156,6 +156,37 @@ test.describe('positioned transcript reader', () => {
     await expect(opened.locator('.txn-turnnum')).toHaveText(SNAPPED.openedLabel)
   })
 
+  test('journey-restore-reading-position', async ({ page }) => {
+    // A reader reads the far run with the earlier history open, leaves for another page, and comes
+    // back to the transcript's plain address.
+    await page.goto(page_(`?turn=${MAIN.farTurn}`))
+    const far = stream(page).locator('.txn-turn', { hasText: rowText(MAIN.farTurn) })
+    await expect(far).toHaveClass(/txn-active/)
+    await page.locator('.txn-earlier-toggle').click()
+    await expect(page.locator('.txn-earlier').getByText(MAIN.history[0].turns[0].content)).toBeVisible()
+    // The reader brings the far row to the top and scrolls back a little, so it sits lower in the
+    // stream than a landing would put it.
+    await far.evaluate((row) => row.scrollIntoView({ block: 'start' }))
+    await stream(page).evaluate((element) => element.scrollBy(0, -60))
+    await expect(far).toHaveClass(/txn-active/)
+    const offset = async () => {
+      const [row, box] = await Promise.all([far.boundingBox(), stream(page).boundingBox()])
+      return Math.round(row.y - box.y)
+    }
+    const saved = await offset()
+    await page.goto('/')
+    const log = recordRequests(page)
+    await page.goto(page_())
+    // The saved turn is the reader's target, asked for by its recorded index, as a deep link is.
+    await expect.poll(() => positionedReads(log).some(({ url }) => url.pathname.endsWith('/window') && url.searchParams.get('anchor') === String(MAIN.farTurn))).toBe(true)
+    await expect(far).toHaveClass(/txn-active/)
+    await expect(page.locator('.txn-earlier').getByText(MAIN.history[0].turns[0].content)).toBeVisible()
+    // The active row is back where it sat in the stream.
+    await expect.poll(async () => Math.abs((await offset()) - saved)).toBeLessThanOrEqual(2)
+    await expect(page.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveCount(0)
+    expect(contentReads(log)).toEqual([])
+  })
+
   test('journey-download-after-segment-failure', async ({ page }) => {
     const log = recordRequests(page)
     await failRead(page, (url) => url.pathname.endsWith(`/segments/${segmentOf(MAIN.farTurn)}`), { status: 409, json: { error: 'changed' } }, { once: false })

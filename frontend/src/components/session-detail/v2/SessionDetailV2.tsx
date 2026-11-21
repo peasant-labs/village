@@ -12,6 +12,7 @@ import {
   ToastProvider,
   useToast,
   PositionedLanding,
+  PositionedReadStatus,
   usePositionedTranscript,
   type PositionedTranscript,
   type TurnLabel,
@@ -21,6 +22,7 @@ import { SessionDetailV2TestId } from './readModeTestIds';
 import { WholeDocumentGraph } from './WholeDocumentGraph';
 import { useWholeDocumentGraph, type WholeDocumentReadEpoch } from './useWholeDocumentGraph';
 import { TranscriptViewMode } from './transcriptViewMode';
+import { FairtradeScrollSelector, turnRowSelector } from './fairtradeScrollSelectors';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -142,7 +144,12 @@ const SessionDetailVariant = { Full: "full", Preview: "preview" } as const satis
 
 export { SessionDetailV2TestId };
 
-type ContentProps = SessionDetailV2Props & { positioned?: PositionedTranscript };
+/** Where a positioned read's target turn came from: the address's `?turn=N`, or the reading
+ *  position a previous visit saved. It names the target in the snapped-turn line. Closed. */
+export const PositionedOpening = Object.freeze({ DeepLink: 'deep-link', SavedPosition: 'saved-position' } as const);
+export type PositionedOpening = (typeof PositionedOpening)[keyof typeof PositionedOpening];
+
+type ContentProps = SessionDetailV2Props & { positioned?: PositionedTranscript; opening?: PositionedOpening };
 
 /**
  * Thin adapter around fairtrade's `<TranscriptViewer>` composite, the same
@@ -169,39 +176,96 @@ export function SessionDetailV2(props: SessionDetailV2Props) {
  * memoised on the transcript id, because the reader restarts whenever its
  * transport object changes. A `?turn=N` deep link asks for the window at that
  * recorded index and lands exactly on it when it is served; a carried branch
- * point goes through the locator.
+ * point goes through the locator. With neither, a reading position a previous
+ * visit saved is the target the same way, by its recorded index: the reader
+ * lands exactly on it, or on the window's anchor with the snapped-turn line
+ * when the transcript no longer serves it.
  */
 function PositionedSessionDetailV2(props: SessionDetailV2Props) {
   const { transcriptId, transcriptTitle, transcriptContentHash, variant } = props;
   const transport = useMemo(() => villagePositionedTransport(transcriptId), [transcriptId]);
-  // A preview column sits on another page, whose query is not a deep link.
-  const [target] = useState(() =>
-    positionedReadTarget(
-      transcriptId,
-      variant === SessionDetailVariant.Preview || typeof window === 'undefined' ? '' : window.location.search,
-      transcriptContentHash,
-    ),
-  );
+  // A preview column sits on another page, whose query is not a deep link,
+  // and it opens at the start rather than where the full page was read.
+  const [{ target, opening }] = useState(() => {
+    const preview = variant === SessionDetailVariant.Preview || typeof window === 'undefined';
+    const deepLink = positionedReadTarget(transcriptId, preview ? '' : window.location.search, transcriptContentHash);
+    const saved = preview ? null : readTranscriptReadState(transcriptId).activeTurn;
+    return deepLink.turn === undefined && deepLink.entry === undefined && saved !== null
+      ? { target: { ...deepLink, turn: saved }, opening: PositionedOpening.SavedPosition }
+      : { target: deepLink, opening: PositionedOpening.DeepLink };
+  });
   const session = useMemo(() => ({ title: shownTranscriptTitle(transcriptTitle) }), [transcriptTitle]);
   const positioned = usePositionedTranscript({ transport, target, landing: PositionedLanding.Exact, session });
-  return <SessionDetailV2Content {...props} positioned={positioned} />;
+  return <SessionDetailV2Content {...props} positioned={positioned} opening={opening} />;
 }
 
-/** The status line for a `?turn=N` the transcript does not serve. `requestedTurn` is the value the
- *  address carries; `openedLabel` is the label the opened row itself shows (the server's display
- *  number), or undefined when the row shows none. */
-export function snappedTurnLine(requestedTurn: number, openedLabel: string | undefined): string {
-  const opened = openedLabel ? `#${openedLabel}` : 'the first available turn';
-  return `?turn=${requestedTurn} is not in this transcript's served view, so the viewer opened ${opened}.`;
+/** The status line for a target turn the transcript does not serve. `requestedTurn` is the
+ *  recorded index asked for: the value a `?turn=N` address carries, or the saved reading
+ *  position. `openedLabel` is the label the opened row itself shows (the server's display
+ *  number), or undefined when the row shows none; the reader then opened the window's anchor,
+ *  the nearest turn it serves. */
+export function snappedTurnLine(opening: PositionedOpening, requestedTurn: number, openedLabel: string | undefined): string {
+  const opened = openedLabel ? `#${openedLabel}` : 'the nearest available turn';
+  return opening === PositionedOpening.SavedPosition
+    ? `the turn you were reading is no longer in this transcript's served view, so the viewer opened ${opened}.`
+    : `?turn=${requestedTurn} is not in this transcript's served view, so the viewer opened ${opened}.`;
 }
 
 type LoadedSegments = NonNullable<PositionedTranscript['viewerProps']['segments']>;
 
-/** Every turn the positioned reader has loaded, in whichever collection shape it supplies. */
+/** Every main-partition turn the positioned reader has loaded. `usePositionedTranscript` supplies
+ *  its loaded segments as an array in ordinal order; the viewer's prop type also admits a Map or
+ *  a record, for hosts that pass segments to it directly, which this page never does. */
 function loadedSegmentTurns(segments: LoadedSegments | undefined) {
-  if (!segments) return [];
-  const list = segments instanceof Map ? [...segments.values()] : Array.isArray(segments) ? segments : Object.values(segments);
-  return list.flatMap((segment) => segment.turns);
+  return Array.isArray(segments) ? segments.flatMap((segment) => segment.turns) : [];
+}
+
+/** The positioned stream's row for a main-partition position. Earlier-history rows number their
+ *  own positions, so a row inside a history section is never the main row. */
+function mainRow(stream: HTMLElement, position: number): HTMLElement | undefined {
+  return [...stream.querySelectorAll<HTMLElement>(turnRowSelector(position))].find((row) => !row.closest(FairtradeScrollSelector.EarlierHistory));
+}
+
+/** How far a row sits below the top of its scrolling stream, in pixels. */
+function rowOffset(stream: HTMLElement, row: HTMLElement): number {
+  return row.getBoundingClientRect().top - stream.getBoundingClientRect().top;
+}
+
+/** Whether `row` intersects `stream`'s visible viewport. */
+function isRowInView(stream: HTMLElement, row: HTMLElement): boolean {
+  const streamRect = stream.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  return streamRect.bottom > streamRect.top && rowRect.bottom > streamRect.top && rowRect.top < streamRect.bottom;
+}
+
+/** Frames a restored offset waits for the landing and the reopened history to settle before it
+ *  gives up and leaves the row where the landing put it: about ten seconds at 60 frames a second. */
+export const RESTORE_OFFSET_MAX_FRAMES = 600;
+
+/** Listen to scroll on `stream` and persist at most once per animation frame. */
+function observeStreamScroll(stream: HTMLElement, persist: () => void, onScrollEvent?: () => void): () => void {
+  let frame = 0;
+  const onScroll = () => {
+    onScrollEvent?.();
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      persist();
+    });
+  };
+  const onPageHide = () => {
+    if (!frame) return;
+    cancelAnimationFrame(frame);
+    frame = 0;
+    persist();
+  };
+  stream.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('pagehide', onPageHide);
+  return () => {
+    stream.removeEventListener('scroll', onScroll);
+    window.removeEventListener('pagehide', onPageHide);
+    if (frame) cancelAnimationFrame(frame);
+  };
 }
 
 function SessionDetailV2Content({
@@ -228,6 +292,7 @@ function SessionDetailV2Content({
   variant = "full",
   knownHarness,
   positioned,
+  opening = PositionedOpening.DeepLink,
 }: ContentProps) {
   const toast = useToast();
   void sessionId; // retained in the prop contract for callers / deep links
@@ -244,6 +309,11 @@ function SessionDetailV2Content({
   // below seed from it, so Back after following a source link restores the
   // child's query, selection, disclosure, and scroll.
   const [restoredReadState] = useState(() => readTranscriptReadState(transcriptId));
+  const isPositioned = positioned !== undefined;
+  // Both reads save the active turn by its recorded index and the earlier-history
+  // disclosure by section, so either read restores what the other saved. A
+  // saved scroll offset belongs to the read that wrote it.
+  const savedByPositioned = restoredReadState.readMode === TranscriptReadMode.Positioned;
   const [sourcePosition, setSourcePosition] = useState<(UnverifiedPullRequestSource & { requestKey: number }) | null>(null);
 
   // A source link may have carried the child's verified branch-point anchor
@@ -296,7 +366,6 @@ function SessionDetailV2Content({
   // rendered mapping, including folded call refs). Absent/unresolvable stays
   // null: the target opens at its ordinary position.
   // A positioned read resolves the carried anchor through its locator.
-  const isPositioned = positioned !== undefined;
   const anchorTurn = useMemo(
     () => (!isPositioned && carriedAnchor && vm ? resolveRelationshipAnchorTurn(vm.turns, carriedAnchor) : null),
     [isPositioned, carriedAnchor, vm],
@@ -316,14 +385,35 @@ function SessionDetailV2Content({
     return undefined;
   });
   const [activeTurn, setActiveTurn] = useState<number | undefined>(
-    // A positioned read lands where the reader's window says; a saved
-    // position from another read is not a served position.
+    // A positioned read lands where the reader's window says: a deep link,
+    // or a saved position asked for by its recorded index as the target.
     () => (positioned ? undefined : initialTurnParam ?? restoredReadState.activeTurn ?? undefined),
+  );
+  // The positioned page's active row by its recorded index, which is what it
+  // saves; `activeTurn` there is the row's served position.
+  const [activeRecordedIndex, setActiveRecordedIndex] = useState<number | null>(
+    () => (positioned ? restoredReadState.activeTurn : null),
   );
   const [search, setSearch] = useState<string>(restoredReadState.search);
   const [earlierHistoryOpen, setEarlierHistoryOpen] = useState<Record<string, boolean>>(
     () => (positioned ? {} : restoredReadState.earlierHistoryOpen),
   );
+
+  // The positioned reader owns its earlier-history disclosure. A saved one is
+  // handed to it once, when its directory names the sections, and only for the
+  // sections it names; until then the saved disclosure is what the page keeps.
+  const positionedSections = positioned?.viewerProps.viewModel?.earlierHistory;
+  const sectionsKnown = (positionedSections?.length ?? 0) > 0;
+  const historyHandedOver = useRef(false);
+  useEffect(() => {
+    if (!positioned || !sectionsKnown || historyHandedOver.current) return;
+    historyHandedOver.current = true;
+    const named = new Set(positionedSections?.map((section) => section.id));
+    const open = Object.fromEntries(
+      Object.entries(restoredReadState.earlierHistoryOpen).filter(([id, isOpen]) => isOpen && named.has(id)),
+    );
+    if (Object.keys(open).length > 0) positioned.viewerProps.onEarlierHistoryOpenChange?.(open);
+  }, [positioned, positionedSections, sectionsKnown, restoredReadState]);
 
   // The verified branch point wins over `?turn=N` and any previously saved
   // position for this target: the reader asked to be shown where the child
@@ -337,45 +427,203 @@ function SessionDetailV2Content({
     setActiveTurn(anchorTurn);
   }
 
+  // The positioned reader's landing (a deep link, a saved position, a carried
+  // branch point, or the default open) selects the row it opened, as a
+  // `?turn=N` does on the whole-document page.
+  const landing = positioned?.controls.landing;
+  const [selectedLanding, setSelectedLanding] = useState<typeof landing>(null);
+  if (landing && landing !== selectedLanding && landing.position !== undefined) {
+    setSelectedLanding(landing);
+    setActiveTurn(landing.position);
+    if (landing.anchorTurn !== undefined) setActiveRecordedIndex(landing.anchorTurn);
+  }
+
+  // What the page saves, in the index space both reads share. The positioned
+  // page saves the active row's recorded index when that row carries one, and
+  // keeps the last one it knew otherwise.
+  const activeRow = positioned && activeTurn !== undefined
+    ? loadedSegmentTurns(positioned.viewerProps.segments).find((turn) => turn.index === activeTurn)
+    : undefined;
+  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;
+  const positionedHistoryOpen = positioned?.viewerProps.earlierHistoryOpen;
+  const savedEarlierHistoryOpen = useMemo(
+    () => (isPositioned
+      ? sectionsKnown ? positionedHistoryOpen ?? {} : restoredReadState.earlierHistoryOpen
+      : earlierHistoryOpen),
+    [isPositioned, sectionsKnown, positionedHistoryOpen, restoredReadState, earlierHistoryOpen],
+  );
+
   // The scroller the host restores after Back. Fairtrade owns the stream's own
   // scroll behavior; village owns where the reader was.
   const streamContainerRef = useRef<HTMLDivElement | null>(null);
-  const scrollTopRef = useRef<number>(restoredReadState.scrollTop);
-  const readStateRef = useRef({ search, activeTurn, earlierHistoryOpen });
+  const scrollTopRef = useRef<number>(savedByPositioned ? 0 : restoredReadState.scrollTop);
+  const turnOffsetRef = useRef<number>(savedByPositioned ? restoredReadState.turnOffset : 0);
+  // A reopened history section above the landed row moves it as it loads, so
+  // the saved offset waits until every section the page reopens has settled.
+  const reopening = Object.keys(restoredReadState.earlierHistoryOpen).filter((id) => restoredReadState.earlierHistoryOpen[id]);
+  const historySettling = isPositioned && reopening.length > 0 && (
+    !sectionsKnown || (positionedSections ?? []).some(
+      (section) => reopening.includes(section.id) && section.status !== PositionedReadStatus.Ready && section.status !== PositionedReadStatus.Failed,
+    )
+  );
+  const readStateRef = useRef({ search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn, historySettling });
   useEffect(() => {
-    readStateRef.current = { search, activeTurn, earlierHistoryOpen };
-  }, [search, activeTurn, earlierHistoryOpen]);
+    readStateRef.current = { search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn, historySettling };
+  }, [search, savedActiveTurn, savedEarlierHistoryOpen, activeTurn, historySettling]);
 
+  const lastSavedStateRef = useRef<string | null>(null);
   const persistReadState = useCallback(() => {
-    writeTranscriptReadState(transcriptId, {
+    // A positioned preview opens at the start and never restores, so it saves
+    // nothing over the full page's reading position either.
+    if (isPositioned && isPreview) return;
+    if (isPositioned) {
+      // Where the active row sits in the stream, while the stream is still
+      // on the page; an unmount keeps the offset the last scroll measured.
+      const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+      const position = readStateRef.current.activePosition;
+      const row = stream?.isConnected && position !== undefined ? mainRow(stream, position) : undefined;
+      if (stream && row) turnOffsetRef.current = rowOffset(stream, row);
+    }
+    const nextState = {
       search: readStateRef.current.search,
-      activeTurn: readStateRef.current.activeTurn ?? null,
+      activeTurn: readStateRef.current.activeTurn,
       earlierHistoryOpen: readStateRef.current.earlierHistoryOpen,
-      scrollTop: scrollTopRef.current,
-    });
-  }, [transcriptId]);
+      scrollTop: isPositioned ? 0 : scrollTopRef.current,
+      turnOffset: isPositioned ? turnOffsetRef.current : 0,
+      readMode: isPositioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content,
+    };
+    const key = `${transcriptId}:${JSON.stringify(nextState)}`;
+    if (lastSavedStateRef.current === key) return;
+    lastSavedStateRef.current = key;
+    writeTranscriptReadState(transcriptId, nextState);
+  }, [transcriptId, isPositioned, isPreview]);
 
   // Persist the latest reading position when the child route unmounts (e.g.
   // navigating to the current parent) so Back lands where it left.
   useEffect(() => () => persistReadState(), [persistReadState]);
 
+  // A positioned page also saves as its position changes: a full page load
+  // away from it runs no unmount.
+  useEffect(() => {
+    if (isPositioned) persistReadState();
+  }, [isPositioned, persistReadState, search, savedActiveTurn, savedEarlierHistoryOpen]);
+
   useEffect(() => {
     if (!detail) return;
-    const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+    const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
     if (!stream) return;
     // A one-time position — the `?turn=N` permalink or the carried branch
     // anchor — owns the initial scroll. Only when neither is present does the
     // saved read position apply; otherwise this restore would immediately undo
-    // the composite's own `initialPosition` scroll.
-    const hasInitialPosition = initialTurnParam != null || anchorTurn != null;
+    // the composite's own `initialPosition` scroll. A position the positioned
+    // page saved has no offset in this stream: the viewer opens at the saved
+    // active turn instead.
+    const hasInitialPosition = initialTurnParam != null || anchorTurn != null || savedByPositioned;
     if (!hasInitialPosition) stream.scrollTop = scrollTopRef.current;
-    const onScroll = () => {
+    return observeStreamScroll(stream, persistReadState, () => {
       scrollTopRef.current = stream.scrollTop;
-      persistReadState();
+    });
+  }, [detail, persistReadState, initialTurnParam, anchorTurn, savedByPositioned]);
+
+  // The positioned stream exists once the reader shows rows; it saves on
+  // scroll, gated to at most once per animation frame.
+  const positionedStatus = positioned?.viewerProps.positionedRead?.status;
+  const loadedSegmentCount = Array.isArray(positioned?.viewerProps.segments) ? positioned.viewerProps.segments.length : 0;
+  useEffect(() => {
+    if (!isPositioned) return;
+    const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+    if (!stream) return;
+    return observeStreamScroll(stream, persistReadState);
+  }, [isPositioned, positionedStatus, loadedSegmentCount, persistReadState]);
+
+  // A saved position the reader landed on exactly is put back where it sat in
+  // the stream: once the landed row is active and the stream has stopped
+  // moving, the stream scrolls by the row's distance from its saved offset.
+  // Fairtrade's landing has put the row in view; this only restores the
+  // offset within it, once, and gives up if the landing never settles.
+  const offsetRestored = useRef(!(isPositioned && opening === PositionedOpening.SavedPosition && savedByPositioned));
+  useEffect(() => {
+    const position = landing?.position;
+    if (offsetRestored.current || !landing || landing.snapped || position === undefined) return;
+    let frames = 0;
+    let previous: number | undefined;
+    let settled = false;
+    let handle = 0;
+    let canceled = false;
+    let listeningStream: HTMLElement | null = null;
+
+    const detach = () => {
+      if (!listeningStream) return;
+      listeningStream.removeEventListener('wheel', onUserScroll);
+      listeningStream.removeEventListener('touchstart', onUserScroll);
+      listeningStream.removeEventListener('keydown', onUserScroll);
+      listeningStream.removeEventListener('scroll', onStreamScroll);
+      listeningStream = null;
     };
-    stream.addEventListener('scroll', onScroll, { passive: true });
-    return () => stream.removeEventListener('scroll', onScroll);
-  }, [detail, persistReadState, initialTurnParam, anchorTurn]);
+    const cancel = () => {
+      if (canceled) return;
+      canceled = true;
+      offsetRestored.current = true;
+      cancelAnimationFrame(handle);
+      detach();
+    };
+    const onUserScroll = () => cancel();
+    // Fairtrade's landing and history-reopen adjustments scroll the stream
+    // before it settles; once settled, any scroll the restore did not cause
+    // cancels it, while wheel/touch/key input cancels at any time.
+    const onStreamScroll = () => {
+      if (settled) cancel();
+    };
+    const attach = (stream: HTMLElement) => {
+      if (listeningStream === stream) return;
+      detach();
+      listeningStream = stream;
+      stream.addEventListener('wheel', onUserScroll, { passive: true });
+      stream.addEventListener('touchstart', onUserScroll, { passive: true });
+      stream.addEventListener('keydown', onUserScroll);
+      stream.addEventListener('scroll', onStreamScroll, { passive: true });
+    };
+
+    const step = () => {
+      if (canceled) return;
+      const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+      if (stream) attach(stream);
+      const row = stream ? mainRow(stream, position) : undefined;
+      if (
+        stream &&
+        row &&
+        readStateRef.current.activePosition === position &&
+        readStateRef.current.activeTurn === restoredReadState.activeTurn &&
+        !readStateRef.current.historySettling &&
+        isRowInView(stream, row)
+      ) {
+        if (settled && previous === stream.scrollTop) {
+          offsetRestored.current = true;
+          detach();
+          stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;
+          return;
+        }
+        settled = previous === stream.scrollTop;
+        previous = stream.scrollTop;
+      } else {
+        settled = false;
+      }
+      frames += 1;
+      if (frames < RESTORE_OFFSET_MAX_FRAMES) handle = requestAnimationFrame(step);
+      else {
+        offsetRestored.current = true;
+        detach();
+      }
+    };
+    const initialStream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+    if (initialStream) attach(initialStream);
+    handle = requestAnimationFrame(step);
+    return () => {
+      canceled = true;
+      cancelAnimationFrame(handle);
+      detach();
+    };
+  }, [landing, restoredReadState]);
 
   // A source/starter link opens the CURRENT target, never a historical replay.
   // The adapter only reports a usable navigation target when the viewer is
@@ -422,13 +670,28 @@ function SessionDetailV2Content({
     epoch: downloadEpoch,
   });
 
+  // A download the page's revision change stopped saves nothing, so the page
+  // says so until the next download starts. Leaving the page stops one too,
+  // and then there is nobody to tell.
+  const [downloadStopped, setDownloadStopped] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   function handleExport(format: TranscriptExportFormat) {
     if (positioned) {
       const { id, abort } = downloadEpoch.current;
+      setDownloadStopped(false);
       readTranscriptForDownload(
         { transcriptId, format, url: transcriptUrl, storedTitle: transcriptTitle, knownHarness, relationshipNavigation },
         { signal: abort.signal, isCurrent: () => downloadEpoch.current.id === id },
-      ).catch((reason: unknown) => {
+      ).then((saved) => {
+        if (!saved && mounted.current) setDownloadStopped(true);
+      }, (reason: unknown) => {
         toast.err(reason instanceof Error ? reason.message : 'the transcript download could not be read. try the download again.', { title: 'download failed' });
       });
       return;
@@ -501,6 +764,10 @@ function SessionDetailV2Content({
           : positionedProps.initialPosition,
         onActiveTurnChange: (turn: number) => {
           setActiveTurn(turn);
+          // `turn` is the row's served position; the page saves its recorded index. A row with
+          // none keeps the last saved position.
+          const row = loadedSegmentTurns(positionedProps.segments).find((loaded) => loaded.index === turn);
+          if (row?.recordedIndex != null) setActiveRecordedIndex(row.recordedIndex);
           positionedProps.onActiveTurnChange?.(turn);
         },
       }
@@ -519,16 +786,17 @@ function SessionDetailV2Content({
         earlierHistoryOpen,
         onEarlierHistoryOpenChange: setEarlierHistoryOpen,
       };
-  const landing = positioned?.controls.landing;
   // The opened row names itself by the label the server gave it; the host never derives a
-  // number from the recorded index. The line waits until that row is loaded.
+  // number from the recorded index. The line waits until that row is loaded, and it goes when
+  // the reader evicts the opened row's segment after the reader has moved far from it: the line
+  // describes the opening, and a reader who has read on has moved past it.
   const openedRow =
     landing?.snapped && landing.anchorTurn !== undefined
       ? loadedSegmentTurns(positionedProps?.segments).find((turn) => turn.recordedIndex === landing.anchorTurn)
       : undefined;
   const snappedLine =
     openedRow && landing?.requestedAnchor !== undefined
-      ? snappedTurnLine(landing.requestedAnchor, openedRow.numberAbsent ? undefined : openedRow.label)
+      ? snappedTurnLine(opening, landing.requestedAnchor, openedRow.numberAbsent ? undefined : openedRow.label)
       : null;
   const shownOmittedImages = positioned ? positioned.controls.header?.omittedImages ?? 0 : omittedImages;
   const readMode = positioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content;
@@ -560,6 +828,15 @@ function SessionDetailV2Content({
           data-testid={SessionDetailV2TestId.SnappedTurn.wire}
         >
           {snappedLine}
+        </p>
+      )}
+      {downloadStopped && (
+        <p
+          role="status"
+          className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-ink-3"
+          data-testid={SessionDetailV2TestId.DownloadStopped.wire}
+        >
+          the transcript changed while it was downloading, so no file was saved. download it again to save the current version.
         </p>
       )}
       {shownOmittedImages > 0 && (

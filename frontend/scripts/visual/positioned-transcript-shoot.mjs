@@ -8,6 +8,9 @@
      positioned-busy             a busy read waiting its Retry-After
      positioned-reload           a stale read asking for a reload
      positioned-snapped-turn     an unserved ?turn and the status line it shows
+     positioned-restored         a return to the plain address: the saved turn, its offset and the open history
+     positioned-snapped-saved    a saved position the transcript no longer serves, and the status line it shows
+     positioned-download-stopped a download a revision change stopped, and the line that says so
      positioned-failure-downloads  every segment read failing, with the download menu open
      positioned-preview-contribute the contribute page's preview column
      positioned-preview-review     the review page's preview column
@@ -16,7 +19,9 @@
    Fails closed before any PNG: the served build must carry `transcript-mode-positioned`, the page
    response must carry `Referrer-Policy: no-referrer`, and the page must mount the positioned mode.
    Every capture passes the non-empty surface gate. Failure states are injected by intercepting the
-   browser's positioned reads; everything else is served by scripts/visual/mock-rest-positioned.mjs.
+   browser's positioned reads (a held read is left unanswered); a saved position the transcript no
+   longer serves is written into the page's session store before it loads; everything else is
+   served by scripts/visual/mock-rest-positioned.mjs.
 
    usage (the app built with NEXT_PUBLIC_API_URL pointing at the mock, served by the standalone server):
      MOCK_REST_PORT=8795 node scripts/visual/mock-rest-positioned.mjs &
@@ -88,6 +93,9 @@ const gate = new SurfaceGate(await browser.newPage())
 const pause = (ms) => new Promise((r) => setTimeout(r, ms))
 const errors = []
 
+/** What an override returns to leave a read unanswered until the page aborts it. */
+const HOLD = Symbol('hold the read')
+
 /** A fresh page: signed in, theme pinned, deterministic, with an optional positioned-read override. */
 async function openPage(override) {
   const page = await browser.newPage()
@@ -102,6 +110,7 @@ async function openPage(override) {
       // A CORS preflight goes through, so the injected status reaches the reader as an answer.
       const answer = request.method() === HttpMethod.Get ? override(new URL(request.url())) : null
       if (!answer) return request.continue()
+      if (answer === HOLD) return undefined
       return request.respond({
         status: answer.status,
         contentType: 'application/json',
@@ -176,6 +185,71 @@ try {
     await page.goto(transcript(`?turn=${MAIN.unservedTurn}`), { waitUntil: 'domcontentloaded' })
     await waitFor(page, byTestId(SessionDetailV2TestId.SnappedTurn.wire))
     await shot(page, 'positioned-snapped-turn')
+    await page.close()
+  }
+  // A return to the plain address after reading the far run with the history open.
+  {
+    const page = await openPage()
+    await page.goto(transcript(`?turn=${MAIN.farTurn}`), { waitUntil: 'domcontentloaded' })
+    await waitFor(page, '.txn-earlier-toggle')
+    await page.waitForFunction((text) => document.querySelector('.txn-turn.txn-active')?.textContent.includes(text), { timeout: 10000 }, rowText(MAIN.farTurn))
+    await page.click('.txn-earlier-toggle')
+    await page.waitForFunction((text) => document.querySelector('.txn-earlier')?.textContent.includes(text), { timeout: 10000 }, MAIN.history[0].turns[0].content)
+    // The reader brings the far row back to the top and scrolls back a little.
+    const far = await page.waitForFunction((text) => [...document.querySelectorAll('.txn-turn')].find((el) => el.textContent.includes(text)), { timeout: 10000 }, rowText(MAIN.farTurn))
+    await far.evaluate((row) => row.scrollIntoView({ block: 'start' }))
+    await page.$eval('.txn-stream', (stream) => stream.scrollBy(0, -60))
+    await page.waitForFunction((text) => document.querySelector('.txn-turn.txn-active')?.textContent.includes(text), { timeout: 10000 }, rowText(MAIN.farTurn))
+    await pause(400)
+    await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' })
+    await page.goto(transcript(), { waitUntil: 'domcontentloaded' })
+    await page.waitForFunction((text) => document.querySelector('.txn-turn.txn-active')?.textContent.includes(text), { timeout: 10000 }, rowText(MAIN.farTurn))
+    await page.waitForFunction((text) => document.querySelector('.txn-earlier')?.textContent.includes(text), { timeout: 10000 }, MAIN.history[0].turns[0].content)
+    await shot(page, 'positioned-restored')
+    await page.close()
+  }
+  // A saved position the transcript no longer serves snaps to the window's anchor and says so. The
+  // page saves its position on the first visit; the shoot then moves the saved turn to one the
+  // transcript does not serve, as a republish that drops turns would, and returns.
+  {
+    const page = await openPage()
+    await page.goto(transcript(), { waitUntil: 'domcontentloaded' })
+    await waitFor(page, '.txn-turn.txn-active')
+    await pause(400)
+    const moved = await page.evaluate((id, turn) => {
+      const key = Object.keys(sessionStorage).find((name) => name.endsWith(id))
+      if (!key) return false
+      sessionStorage.setItem(key, JSON.stringify({ ...JSON.parse(sessionStorage.getItem(key)), activeTurn: turn }))
+      return true
+    }, MAIN.transcriptId, MAIN.unservedTurn)
+    if (!moved) fail('the positioned page saved no reading position on its first visit; it must save one as its position changes.')
+    await page.goto(transcript(), { waitUntil: 'domcontentloaded' })
+    await waitFor(page, byTestId(SessionDetailV2TestId.SnappedTurn.wire))
+    await shot(page, 'positioned-snapped-saved')
+    await page.close()
+  }
+  // A download in flight when the reader reloads onto the transcript's current copy: the far run
+  // answers stale once, the download's /content read is held, and the reload ends its epoch.
+  {
+    let staleSent = false
+    const page = await openPage((url) => {
+      if (url.pathname.endsWith(`/transcripts/${MAIN.transcriptId}/content`)) return HOLD
+      if (!staleSent && segmentRead(FAR_SEGMENT)(url)) {
+        staleSent = true
+        return { status: 409 }
+      }
+      return null
+    })
+    await page.goto(transcript(`?turn=${MAIN.farTurn}`), { waitUntil: 'domcontentloaded' })
+    await waitFor(page, '[data-read-failure="stale"]')
+    await page.click(`${HEADER_ACTIONS} button[aria-label="${TranscriptHeaderActionsLabel.More.wire}"]`)
+    const json = await page.waitForFunction((name) => [...document.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent.trim() === name), { timeout: 10000 }, TranscriptHeaderActionsLabel.DownloadJSON.wire)
+    await json.click()
+    const reload = await page.waitForFunction((name) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name), { timeout: 10000 }, POSITIONED.failureActions.reload)
+    await reload.click()
+    await waitFor(page, byTestId(SessionDetailV2TestId.DownloadStopped.wire))
+    await page.waitForFunction((text) => [...document.querySelectorAll('.txn-turn')].some((el) => el.textContent.includes(text)), { timeout: 10000 }, rowText(MAIN.farTurn))
+    await shot(page, 'positioned-download-stopped')
     await page.close()
   }
   // Every segment read fails: the failure state, and the download menu still offered.
