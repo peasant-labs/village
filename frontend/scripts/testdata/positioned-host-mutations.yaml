@@ -204,3 +204,11 @@ mutations:
     replacement: "        void saved;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}
+
+  - name: restored-offset-dropped
+    why: a return that lands on the saved row but not where it sat in the stream
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "          stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;\n"
+    replacement: "          void row;\n"
+    killers:
+      - {kind: journey, file: scripts/journey/positioned-transcript.journey.mjs, name: journey-restore-reading-position}
