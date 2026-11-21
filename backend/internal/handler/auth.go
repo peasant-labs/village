@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 	schemaRoute "github.com/peasant-labs/schema/route"
 	"golang.org/x/oauth2"
 
@@ -366,7 +367,7 @@ func fetchGitHubOrgSnapshot(ctx context.Context, client *http.Client) ([]githubO
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	auth.ClearCookie(w)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "logged out"})
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
@@ -376,7 +377,38 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch user")
 		return
 	}
-	writeJSON(w, http.StatusOK, dbUser)
+	writeAccountRecord(w, dbUser)
+}
+
+// writeAccountRecord refuses rows that cannot satisfy the account contract.
+func writeAccountRecord(w http.ResponseWriter, user sqlc.User) {
+	record, err := accountRecord(user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, record)
+}
+
+func accountRecord(user sqlc.User) (schema.VillageUser, error) {
+	if !user.CreatedAt.Valid || !user.UpdatedAt.Valid {
+		return schema.VillageUser{}, errors.New("Cannot return the account: the account row violates the contract's non-null created_at or updated_at in the account response. Ask an operator to repair the missing timestamp before retrying")
+	}
+	return schema.VillageUser{
+		ID: villageUUID(user.ID), GithubID: user.GithubID, GithubUsername: user.GithubUsername,
+		DisplayName: pgTextToStringPtr(user.DisplayName), AvatarURL: pgTextToStringPtr(user.AvatarUrl),
+		CreatedAt: user.CreatedAt.Time, UpdatedAt: user.UpdatedAt.Time, IsDiscoverable: user.IsDiscoverable,
+		Provider: user.Provider, ProviderUserID: user.ProviderUserID, UsernameChosen: user.UsernameChosen,
+		ProviderUsername: pgTextToStringPtr(user.ProviderUsername), PreviewBeforeAttach: user.PreviewBeforeAttach,
+		AutoAttachPullRequests: user.AutoAttachPullRequests,
+	}, nil
+}
+
+func pgTimePtr(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Time
 }
 
 // UpdateMySettings updates the authenticated user's privacy settings.
@@ -406,7 +438,7 @@ func (h *Handler) UpdateMySettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to update settings")
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	writeAccountRecord(w, updated)
 }
 
 // usernamePattern enforces the canonical handle format: 3–30 chars, lowercase
@@ -452,7 +484,7 @@ func (h *Handler) SetMyUsername(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to set username")
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	writeAccountRecord(w, updated)
 }
 
 // sanitizeHandle reduces an arbitrary provider handle to our handle charset:
@@ -523,7 +555,7 @@ func (h *Handler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	h.purgeOwnerContent(user.PgID(), purgeDelete)
 	auth.ClearCookie(w)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "deleted"})
 }
 
 func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -553,13 +585,19 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":         key.ID,
-		"key":        plaintext,
-		"prefix":     prefix,
-		"label":      req.Label,
-		"created_at": key.CreatedAt,
-	})
+	created, err := createdAPIKeyRecord(key, plaintext, prefix, req.Label)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+func createdAPIKeyRecord(key sqlc.ApiKey, plaintext, prefix, label string) (schema.VillageCreatedAPIKey, error) {
+	if !key.CreatedAt.Valid {
+		return schema.VillageCreatedAPIKey{}, errors.New("Cannot return the created API key: the key row violates the contract's non-null created_at in the create API key response. The key was stored but cannot be returned; ask an operator to repair or revoke it, then create another key")
+	}
+	return schema.VillageCreatedAPIKey{ID: villageUUID(key.ID), Key: plaintext, Prefix: prefix, Label: label, CreatedAt: key.CreatedAt.Time}, nil
 }
 
 func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
@@ -569,7 +607,14 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}
-	writeJSON(w, http.StatusOK, keys)
+	out := make([]schema.VillageAPIKey, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, schema.VillageAPIKey{
+			ID: villageUUID(key.ID), KeyPrefix: key.KeyPrefix, Label: pgTextToStringPtr(key.Label),
+			CreatedAt: pgTimePtr(key.CreatedAt), LastUsed: pgTimePtr(key.LastUsed), RevokedAt: pgTimePtr(key.RevokedAt),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -587,7 +632,7 @@ func (h *Handler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to revoke API key")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "revoked"})
 }
 
 // CLILogin starts the CLI OAuth flow. It inserts a DB session keyed by

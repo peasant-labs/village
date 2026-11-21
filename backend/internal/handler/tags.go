@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 	"strconv"
+
+	"github.com/peasant-labs/schema"
 )
 
 func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
@@ -11,7 +13,11 @@ func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list tags")
 		return
 	}
-	writeJSON(w, http.StatusOK, tags)
+	out := make([]schema.VillageTagUsage, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, schema.VillageTagUsage{ID: villageUUID(tag.ID), Name: tag.Name, UsageCount: tag.UsageCount})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) PopularTags(w http.ResponseWriter, r *http.Request) {
@@ -24,5 +30,9 @@ func (h *Handler) PopularTags(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list popular tags")
 		return
 	}
-	writeJSON(w, http.StatusOK, tags)
+	out := make([]schema.VillageTagUsage, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, schema.VillageTagUsage{ID: villageUUID(tag.ID), Name: tag.Name, UsageCount: tag.UsageCount})
+	}
+	writeJSON(w, http.StatusOK, out)
 }

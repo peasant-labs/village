@@ -73,7 +73,7 @@ func (h *Handler) ListTranscriptAnnotations(w http.ResponseWriter, r *http.Reque
 		annotations = append(annotations, summary)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"annotations": annotations})
+	writeJSON(w, http.StatusOK, schema.VillageTranscriptAnnotationsResponse{Annotations: annotations})
 }
 
 // createManualAnnotationRequest is the JSON body for POST .../annotations.
