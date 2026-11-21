@@ -143,29 +143,55 @@ const (
 	historySectionSize = int64(unsafe.Sizeof(schema.TranscriptHistorySection{}))
 	partitionHeadBytes = int64(unsafe.Sizeof(partitionIndex{}))
 	intBytes           = int64(unsafe.Sizeof(int(0)))
+	// smallAllocBytes is the 16-byte floor for small heap allocations so 8-byte
+	// int targets and short strings are not rounded down below the allocator's
+	// small-object size class.
+	smallAllocBytes int64 = 16
 )
+
+func allocEstimate(size int64) int64 {
+	if size <= 0 {
+		return 0
+	}
+	if size < smallAllocBytes {
+		return smallAllocBytes
+	}
+	return size
+}
 
 // estimateMemory is the bytes a built index keeps alive beyond the held
 // document: its slices at capacity, each row's display number and recorded
-// index, each segment's conversation span, and the decoded native metadata.
-// Decoded native records are weighed at twice their stored JSON, a
-// conservative allowance for the strings and maps decoding allocates. It is an
-// estimate for the cache budget, not an exact heap measure; strings shared
-// between a row and its verdict are counted once.
+// index, each segment's conversation span and FirstTurn/LastTurn targets when
+// set, and the decoded native metadata. Decoded native records are weighed at
+// twice their stored JSON, a conservative allowance for the strings and maps
+// decoding allocates.
+//
+// Calibration reference: operational peak RSS target of at most 1.5x the
+// whole-document read (GET /content) at two concurrent first loads, on a 32 GiB
+// instance. Error bound: remaining uncounted runtime overhead (map headers,
+// slice headers, and pointer-scan rounding above 16 bytes) is a few percent of
+// the retained index weight, not a multiple; strings shared between a row and
+// its verdict are counted once.
 func (p *partitionIndex) estimateMemory(nativeJSON int64) int64 {
-	n := partitionHeadBytes + intBytes // the struct and TotalConversationTurns
+	n := partitionHeadBytes + allocEstimate(intBytes) // the struct and TotalConversationTurns
 	n += int64(cap(p.Rows)) * indexedTurnBytes
 	for _, row := range p.Rows {
-		n += int64(len(row.DisplayNumber))
+		n += allocEstimate(int64(len(row.DisplayNumber)))
 		if row.RecordedIndex != nil {
-			n += intBytes
+			n += allocEstimate(intBytes)
 		}
 	}
 	n += int64(cap(p.Verdict)) * cookedTurnBytes
 	n += int64(cap(p.Refs)) * segmentRefBytes
 	for _, ref := range p.Refs {
 		if ref.ConversationTurns != nil {
-			n += conversationBytes
+			n += allocEstimate(conversationBytes)
+		}
+		if ref.FirstTurn != nil {
+			n += allocEstimate(intBytes)
+		}
+		if ref.LastTurn != nil {
+			n += allocEstimate(intBytes)
 		}
 	}
 	n += int64(cap(p.Positions)) * positionRefBytes

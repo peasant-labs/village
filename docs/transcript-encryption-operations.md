@@ -216,9 +216,11 @@ and a build holds the partition's parsed turns until the build ends. With two
 slots, at most two such transient copies exist at once. The design target is a
 peak resident memory within 1.5 times what `GET /content` needs for the same two
 concurrent first loads, inside the 32 GiB per-instance limit; that is checked
-with benchmarks, not by a required test. The Go soft memory limit is separate
-from this budget. An evicted entry stays in memory until the reads holding it
-finish.
+with benchmarks, not by a required test. The index memory estimate is calibrated
+against that 1.5x peak RSS target and carries an error bound of a few percent
+from uncounted Go runtime map/slice-header and allocator rounding overhead. The
+Go soft memory limit is separate from this budget. An evicted entry stays in
+memory until the reads holding it finish.
 
 A process drops a transcript's entries when it publishes, rewrites, changes the
 visibility of, unshares or deletes that transcript, and drops an owner's entries
