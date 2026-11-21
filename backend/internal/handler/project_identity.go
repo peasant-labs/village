@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
@@ -324,22 +325,13 @@ func (h *Handler) writeResolvedProject(ctx context.Context, w http.ResponseWrite
 	writeJSON(w, http.StatusOK, resolvedProjectPayload(projectHash, resolved))
 }
 
-// resolvedProject is the project-identity envelope every project-aware response
-// carries. project_hash stays on it because the hash, not the name, is what a
-// client routes and groups by.
-type resolvedProject struct {
-	ProjectHash string                 `json:"project_hash"`
-	DisplayName string                 `json:"project_display_name"`
-	NameSource  projectname.NameSource `json:"project_name_source"`
-	RemoteLabel string                 `json:"project_remote_label"`
-}
-
-func resolvedProjectPayload(projectHash string, resolved projectname.Resolved) resolvedProject {
-	return resolvedProject{
-		ProjectHash: projectHash,
-		DisplayName: resolved.DisplayName,
-		NameSource:  resolved.Source,
-		RemoteLabel: resolved.RemoteLabel,
+// resolvedProjectPayload keeps the hash, not the name, as the routing key.
+func resolvedProjectPayload(projectHash string, resolved projectname.Resolved) schema.VillageResolvedProject {
+	return schema.VillageResolvedProject{
+		ProjectHash:        schema.ProjectHash(projectHash),
+		ProjectDisplayName: resolved.DisplayName,
+		ProjectNameSource:  schema.VillageProjectNameSource(resolved.Source),
+		ProjectRemoteLabel: resolved.RemoteLabel,
 	}
 }
 
@@ -351,22 +343,8 @@ func projectNotFoundForOwnerMessage(projectHash string) string {
 		projectHash)
 }
 
-// ProjectCollectiveRollupEntry is one collective in a project's roll-up.
-//
-// It carries NO share counters. The roll-up is restricted to APPROVED shares, and
-// the pending and rejected tallies are the owner's alone by user ratification —
-// this page can be loaded by a non-owner, so surfacing them here would be a
-// disclosure change rather than a convenience. TranscriptCount is therefore the
-// count of that collective's APPROVED transcripts from this project, and the only
-// count the shape admits.
-type ProjectCollectiveRollupEntry struct {
-	ID              pgtype.UUID `json:"id"`
-	Name            string      `json:"name"`
-	Description     pgtype.Text `json:"description"`
-	LinkedGithubOrg pgtype.Text `json:"linked_github_org"`
-	TranscriptCount int32       `json:"transcript_count"`
-}
-
+// The roll-up carries no share counters because pending and rejected tallies
+// are private to the owner. Its transcript count includes approved shares only.
 // projectCollectiveRollup answers which collectives hold this project's accepted
 // transcripts, as this viewer may see them.
 //
@@ -376,7 +354,7 @@ type ProjectCollectiveRollupEntry struct {
 // row; it must never add, relax, or second-guess a visibility rule, because a
 // second copy of that predicate is exactly the drift the single query exists to
 // prevent.
-func (h *Handler) projectCollectiveRollup(ctx context.Context, ownerID pgtype.UUID, projectHash string, viewerID pgtype.UUID, viewerIsOwner bool) ([]ProjectCollectiveRollupEntry, error) {
+func (h *Handler) projectCollectiveRollup(ctx context.Context, ownerID pgtype.UUID, projectHash string, viewerID pgtype.UUID, viewerIsOwner bool) ([]schema.VillageProjectCollective, error) {
 	rows, err := h.queries.ListProjectCollectiveRollup(ctx, sqlc.ListProjectCollectiveRollupParams{
 		OwnerID:       ownerID,
 		ProjectHash:   projectHash,
@@ -386,17 +364,26 @@ func (h *Handler) projectCollectiveRollup(ctx context.Context, ownerID pgtype.UU
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]ProjectCollectiveRollupEntry, 0, len(rows))
+	entries := make([]schema.VillageProjectCollective, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, ProjectCollectiveRollupEntry{
-			ID:              row.ID,
+		entries = append(entries, schema.VillageProjectCollective{
+			ID:              villageUUID(row.ID),
 			Name:            row.Name,
-			Description:     row.Description,
-			LinkedGithubOrg: row.LinkedGithubOrg,
+			Description:     pgTextToStringPtr(row.Description),
+			LinkedGithubOrg: pgTextToStringPtr(row.LinkedGithubOrg),
 			TranscriptCount: row.TranscriptCount,
 		})
 	}
 	return entries, nil
+}
+
+// userProjectResponse keeps transcriptResponse because the schema transcript
+// has a different JSON field order.
+type userProjectResponse struct {
+	Collectives []schema.VillageProjectCollective `json:"collectives"`
+	Owner       schema.VillagePublicOwner         `json:"owner"`
+	Project     schema.VillageResolvedProject     `json:"project"`
+	Transcripts []transcriptResponse              `json:"transcripts"`
 }
 
 // GetUserProject serves one user's project page: who owns it, what it is called,
@@ -513,11 +500,11 @@ func (h *Handler) GetUserProject(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, projectPageTranscriptResponse(t, resolved).withParent(parents.of(t.ID)))
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"project":     resolvedProjectPayload(projectHash, resolved),
-		"owner":       publicProfileOfUser(target),
-		"transcripts": responses,
-		"collectives": collectives,
+	writeJSON(w, http.StatusOK, userProjectResponse{
+		Project:     resolvedProjectPayload(projectHash, resolved),
+		Owner:       publicProfileOfUser(target),
+		Transcripts: responses,
+		Collectives: collectives,
 	})
 }
 

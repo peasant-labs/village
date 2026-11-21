@@ -11,21 +11,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
-// transcriptCommitResponse is the wire shape for a persisted transcript commit.
-// Nullable columns (message, author name/email, timestamps) map to JSON null via
-// pointers, mirroring how the annotations GET handler surfaces optional fields.
-// Timestamps are emitted as Unix milliseconds, matching the payload's
-// commitTime/authorTime convention.
-type transcriptCommitResponse struct {
-	Sha         string  `json:"sha"`
-	Message     *string `json:"message"`
-	AuthorName  *string `json:"authorName"`
-	AuthorEmail *string `json:"authorEmail"`
-	AuthoredAt  *int64  `json:"authoredAt"`
-	CommittedAt *int64  `json:"committedAt"`
-	Order       int32   `json:"order"`
-}
-
 // ListTranscriptCommits returns the git commits persisted for a transcript, in
 // payload order.
 //
@@ -74,18 +59,18 @@ func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	commits := make([]transcriptCommitResponse, 0, len(rows))
+	commits := make([]schema.VillageTranscriptCommit, 0, len(rows))
 	for _, row := range rows {
-		commits = append(commits, transcriptCommitRowToResponse(row).withholdIdentity(owner))
+		commits = append(commits, withholdCommitIdentity(transcriptCommitRowToResponse(row), owner))
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"commits": commits})
+	writeJSON(w, http.StatusOK, schema.VillageTranscriptCommitsResponse{Commits: commits})
 }
 
 // transcriptCommitRowToResponse maps a stored commit row to the wire shape,
 // surfacing nullable pgtype columns as JSON null.
-func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) transcriptCommitResponse {
-	return transcriptCommitResponse{
+func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) schema.VillageTranscriptCommit {
+	return schema.VillageTranscriptCommit{
 		Sha:         row.Sha,
 		Message:     pgTextToStringPtr(row.Message),
 		AuthorName:  pgTextToStringPtr(row.AuthorName),
@@ -101,7 +86,7 @@ func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) transcriptCommitRe
 // message, whose trailers (Co-authored-by, Signed-off-by) carry names and
 // emails. All three become null; the SHA, timestamps and order stay. A
 // profile owner keeps every field.
-func (c transcriptCommitResponse) withholdIdentity(owner schema.VillagePublicOwner) transcriptCommitResponse {
+func withholdCommitIdentity(c schema.VillageTranscriptCommit, owner schema.VillagePublicOwner) schema.VillageTranscriptCommit {
 	if owner.IsProfile() {
 		return c
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 	"golang.org/x/oauth2"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
@@ -365,7 +366,7 @@ func fetchGitHubOrgSnapshot(ctx context.Context, client *http.Client) ([]githubO
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	auth.ClearCookie(w)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "logged out"})
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
@@ -376,6 +377,13 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, dbUser)
+}
+
+func pgTimePtr(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Time
 }
 
 // UpdateMySettings updates the authenticated user's privacy settings.
@@ -522,7 +530,7 @@ func (h *Handler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	h.purgeOwnerContent(user.PgID(), purgeDelete)
 	auth.ClearCookie(w)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "deleted"})
 }
 
 func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -568,7 +576,14 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}
-	writeJSON(w, http.StatusOK, keys)
+	out := make([]schema.VillageAPIKey, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, schema.VillageAPIKey{
+			ID: villageUUID(key.ID), KeyPrefix: key.KeyPrefix, Label: pgTextToStringPtr(key.Label),
+			CreatedAt: pgTimePtr(key.CreatedAt), LastUsed: pgTimePtr(key.LastUsed), RevokedAt: pgTimePtr(key.RevokedAt),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -586,7 +601,7 @@ func (h *Handler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to revoke API key")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "revoked"})
 }
 
 // CLILogin starts the CLI OAuth flow. It inserts a DB session keyed by

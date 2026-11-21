@@ -1925,7 +1925,7 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 	if !deleteSucceeded {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "deleted"})
 }
 
 func (h *Handler) ShareTranscript(w http.ResponseWriter, r *http.Request) {

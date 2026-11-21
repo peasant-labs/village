@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/peasant-labs/schema"
 )
 
 // buildRevision is set by the linker, not by the running process's environment.
@@ -24,20 +26,13 @@ func (h *Handler) SetSegmentedReadsMounted(mounted bool) {
 	h.segmentedReadsMounted = mounted
 }
 
-type healthProbe struct {
-	Status        string        `json:"status"`
-	BuildRevision string        `json:"buildRevision,omitempty"`
-	Migrations    *int64        `json:"migrations,omitempty"`
-	Serves        []healthTrait `json:"serves"`
-}
-
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	probe := healthProbe{
+	probe := schema.VillageHealthResponse{
 		Status: "ok",
-		Serves: []healthTrait{healthPublishRevision},
+		Serves: []string{string(healthPublishRevision)},
 	}
 	if h.segmentedReadsMounted {
-		probe.Serves = append(probe.Serves, healthSegmentedReads)
+		probe.Serves = append(probe.Serves, string(healthSegmentedReads))
 	}
 	if shortBuildRevision.MatchString(buildRevision) {
 		probe.BuildRevision = buildRevision
