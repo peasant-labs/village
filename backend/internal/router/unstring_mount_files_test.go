@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -45,19 +44,11 @@ type unstringConfig struct {
 	} `yaml:"endpoints"`
 }
 
-// TestUnstringMountFilesCoverRouteMounts fails when a production router file
-// mounts a group-relative route and matches no endpoints.mountFiles entry.
-// Each entry is a path or a glob. The live tree is the positive case:
-// router.go lists /health, which is outside the default /api/v1 prefix, and
-// backend/internal/router/*.go matches that file.
+// TestUnstringMountFilesCoverRouteMounts requires coverage for every router
+// file with a mount call, even when all current patterns use contract members.
 func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 	root := repoRoot(t)
 	cfg := readUnstringConfig(t, filepath.Join(root, ".unstring.yaml"))
-	prefixes := cfg.Endpoints.Prefixes
-	if len(prefixes) == 0 {
-		// unstring-allow: go-endpoint-literal — config default when prefixes are empty, not a route
-		prefixes = []string{"/api/v1"}
-	}
 	mountEntries := make([]string, len(cfg.Endpoints.MountFiles))
 	for i, name := range cfg.Endpoints.MountFiles {
 		mountEntries[i] = filepath.ToSlash(name)
@@ -69,7 +60,7 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 		t.Fatalf("read %s: %v; the mount-file check cannot see route files", routerDir, err)
 	}
 
-	var scanned, inScope int
+	var scanned, mounts int
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -99,45 +90,19 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 			if _, ok := mountCallees[sel.Sel.Name]; !ok {
 				return true
 			}
-			// Method is chi.Router.Method(method, pattern, handler). The route
-			// pattern is Args[1]; every other callee keeps the pattern in Args[0].
-			// A one-argument Method has no pattern slot, so it falls back to Args[0].
-			pattern := call.Args[0]
-			if sel.Sel.Name == "Method" && len(call.Args) > 1 {
-				pattern = call.Args[1]
+			mounts++
+			if !known {
+				pos := fset.Position(call.Pos())
+				t.Errorf("%s:%d: route mount is outside endpoints.mountFiles; add %q or a matching glob", rel, pos.Line, rel)
 			}
-			// The mount rule matches any string literal inside that argument,
-			// including one nested in a concatenation or a call. Constants and
-			// non-literal arguments are not resolved.
-			ast.Inspect(pattern, func(n ast.Node) bool {
-				lit, ok := n.(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					return true
-				}
-				value, err := strconv.Unquote(lit.Value)
-				if err != nil {
-					t.Errorf("%s:%d: route literal %s could not be unquoted (%v); the mount-file check only accepts a Go string literal", rel, fset.Position(lit.Pos()).Line, lit.Value, err)
-					return true
-				}
-				if !groupRelative(value, prefixes) {
-					return true
-				}
-				inScope++
-				if known {
-					return true
-				}
-				pos := fset.Position(lit.Pos())
-				t.Errorf("%s:%d: route literal %q is group-relative, so the mount rule ignores it unless the file matches an endpoints.mountFiles entry; add %q or a glob that matches it", rel, pos.Line, value, rel)
-				return true
-			})
 			return true
 		})
 	}
 	if scanned == 0 {
 		t.Fatal("no production Go files under backend/internal/router; the mount-file check would pass without seeing a router")
 	}
-	if inScope == 0 {
-		t.Fatal("no group-relative route literal in backend/internal/router; the live tree should mount /health outside the endpoint prefix, so this pass would be vacuous")
+	if mounts == 0 {
+		t.Fatal("no route mount calls found; the mount-file check would be vacuous")
 	}
 }
 

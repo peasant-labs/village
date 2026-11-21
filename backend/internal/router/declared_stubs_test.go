@@ -123,9 +123,7 @@ func TestDeclaredStubRoutes_AnswerNotImplemented(t *testing.T) {
 }
 
 // TestDeclaredStubRoutes_AreMountedAndDeclared proves each stub is a route the
-// served contract declares and the server mounts. A stub for a route the
-// contract does not declare belongs in the undocumented-routes manifest
-// instead, or nowhere.
+// served contract declares and the server mounts.
 func TestDeclaredStubRoutes_AreMountedAndDeclared(t *testing.T) {
 	mounted := map[string]bool{}
 	for _, r := range mountedRoutes(t) {
