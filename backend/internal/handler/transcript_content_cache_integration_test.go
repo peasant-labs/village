@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -263,8 +264,7 @@ func TestTranscriptContentCacheEncrypted(t *testing.T) {
 				if !cache.has(key) {
 					t.Fatal("the read did not warm an entry")
 				}
-				// unstring-allow: go-endpoint-literal — account deletion is not declared by the contract
-				r := httptest.NewRequest(http.MethodDelete, "/api/v1/auth/me", nil)
+				r := httptest.NewRequest(http.MethodDelete, route.VillageDeleteMyAccount.Pattern(), nil)
 				r = r.WithContext(context.WithValue(w.ctx, UserContextKey, w.owner))
 				recorder := httptest.NewRecorder()
 				w.handler.DeleteAccount(recorder, r)

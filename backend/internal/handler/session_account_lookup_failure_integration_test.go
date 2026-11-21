@@ -47,9 +47,6 @@ type failingAccountLookup struct {
 	failures *atomic.Int64
 }
 
-// unstring-allow: go-endpoint-literal — API key creation is not in the served contract yet
-const lookupFailureCreateAPIKeyPath = "/api/v1/auth/api-keys"
-
 var errAccountLookupUnavailable = errors.New("connection to the account database was lost")
 
 func (q failingAccountLookup) GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error) {
@@ -99,7 +96,7 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 	// paths; only the account read fails.
 	routes := chi.NewRouter()
 	routes.With(h.AuthRequired).Get(route.VillageGetAuthenticatedVillageUser.Pattern(), h.Me)
-	routes.With(h.AuthRequired).Post(lookupFailureCreateAPIKeyPath, h.CreateAPIKey)
+	routes.With(h.AuthRequired).Post(route.VillageCreateMyAPIKey.Pattern(), h.CreateAPIKey)
 	routes.With(h.AuthOptional).Get(route.VillageGetTranscriptMetadata.Pattern(), h.GetTranscript)
 	// Probes that echo the viewer the same middleware attached, so anonymity is
 	// observed directly rather than inferred from a route's answer.
@@ -152,7 +149,7 @@ func TestSessionAccountLookupFailureFailsClosed(t *testing.T) {
 			}
 			for _, required := range []struct{ method, path, body string }{
 				{http.MethodGet, route.VillageGetAuthenticatedVillageUser.Pattern(), ""},
-				{http.MethodPost, lookupFailureCreateAPIKeyPath, `{"label":"during outage"}`},
+				{http.MethodPost, route.VillageCreateMyAPIKey.Pattern(), `{"label":"during outage"}`},
 				{http.MethodGet, lookupFailureRequiredProbePath, ""},
 			} {
 				got := serve(required.method, required.path, required.body, sign)

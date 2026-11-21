@@ -27,15 +27,6 @@ import (
 //go:embed testdata/session_account_lifecycle.yaml
 var sessionAccountLifecycleYAML []byte
 
-// The served contract does not declare these two account routes yet; both are
-// listed in testdata/undocumented_routes.yaml.
-const (
-	// unstring-allow: go-endpoint-literal — account deletion is not in the served contract yet
-	deleteAccountPath = "/api/v1/auth/me"
-	// unstring-allow: go-endpoint-literal — API key creation is not in the served contract yet
-	createAPIKeyPath = "/api/v1/auth/api-keys"
-)
-
 // sessionLifecycleContentPath is the existing transcript body the fixtures store.
 const sessionLifecycleContentPath = "../handler/testdata/contract/current/valid/content.json"
 
@@ -132,7 +123,7 @@ func runSessionAccountLifecycleCase(t *testing.T, w *sessionLifecycleWorld, c se
 	case sessionCredentialBearer:
 		sign = func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+session) }
 	case sessionCredentialAPIKey:
-		created := w.serve(t, http.MethodPost, createAPIKeyPath, `{"label":"session lifecycle"}`, func(r *http.Request) {
+		created := w.serve(t, http.MethodPost, schemaroute.VillageCreateMyAPIKey.Pattern(), `{"label":"session lifecycle"}`, func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer "+session)
 		})
 		var key struct {
@@ -147,7 +138,7 @@ func runSessionAccountLifecycleCase(t *testing.T, w *sessionLifecycleWorld, c se
 	}
 
 	if c.DeleteAccount {
-		gone := w.serve(t, http.MethodDelete, deleteAccountPath, "", sign)
+		gone := w.serve(t, http.MethodDelete, schemaroute.VillageDeleteMyAccount.Pattern(), "", sign)
 		if gone.Code != http.StatusOK || strings.TrimSpace(gone.Body.String()) != `{"status":"deleted"}` {
 			t.Fatalf("delete the account = %d %s, want 200 deleted", gone.Code, gone.Body.String())
 		}
@@ -160,7 +151,7 @@ func runSessionAccountLifecycleCase(t *testing.T, w *sessionLifecycleWorld, c se
 
 	keysBefore := w.countKeys(t, account)
 	me := w.serve(t, http.MethodGet, schemaroute.VillageGetAuthenticatedVillageUser.Pattern(), "", sign)
-	write := w.serve(t, http.MethodPost, createAPIKeyPath, `{"label":"after"}`, sign)
+	write := w.serve(t, http.MethodPost, schemaroute.VillageCreateMyAPIKey.Pattern(), `{"label":"after"}`, sign)
 	ownRead := w.serve(t, http.MethodGet, sessionLifecycleTranscriptPath(t, own), "", sign)
 	otherPrivate := w.serve(t, http.MethodGet, sessionLifecycleTranscriptPath(t, w.otherPrivate), "", sign)
 	otherPublic := w.serve(t, http.MethodGet, sessionLifecycleTranscriptPath(t, w.otherPublic), "", sign)
