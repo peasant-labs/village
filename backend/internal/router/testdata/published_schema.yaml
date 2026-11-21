@@ -1,10 +1,8 @@
-# Digest of `village-api-0.42.0.json` as built and uploaded by the Schema release
-# job (run 44295390680, uploader github-actions[bot], asset 763162953, GitHub
-# asset digest sha256:0aa562ef…a4a3b). That release job attached its assets to a
-# draft release (449898580) instead of the published v0.57.1 release, which is
-# published without assets; the bytes are identical to the v0.57.1 module's
-# generated file.
-name: published-village-api-0.42.0
-module: v0.57.1
-version: 0.42.0
-sha256: 0aa562efb619ee987a5942399d25f3e95d39cb5632da7384c2f1ab500d3a4a3b
+# Digest of `village-api-0.43.0.json` as built and uploaded by the Schema v0.61.0
+# release job (run 44959701194, uploader github-actions[bot], asset 777154892,
+# GitHub asset digest
+# sha256:e1d3e0f1571fb505aa9962d4e6c1b32d5075237a778fe36e0b0138653ac8ac3c).
+name: published-village-api-0.43.0
+module: v0.61.0
+version: 0.43.0
+sha256: e1d3e0f1571fb505aa9962d4e6c1b32d5075237a778fe36e0b0138653ac8ac3c
