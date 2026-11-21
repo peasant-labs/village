@@ -16,6 +16,8 @@ import (
 //go:embed testdata/account-invalid-timestamps.yaml
 var accountTimestampYAML []byte
 
+var validAccountTimestamp = pgtype.Timestamptz{Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Valid: true}
+
 func TestAccountResponsesRefuseMissingTimestamps(t *testing.T) {
 	cases, err := decodeFixtureRows[struct {
 		Name string `yaml:"name"`
@@ -31,7 +33,7 @@ func TestAccountResponsesRefuseMissingTimestamps(t *testing.T) {
 		}
 		seen[c.Name] = struct{}{}
 		t.Run(c.Name, func(t *testing.T) {
-			valid := pgtype.Timestamptz{Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Valid: true}
+			valid := validAccountTimestamp
 			user := sqlc.User{CreatedAt: valid, UpdatedAt: valid}
 			key := sqlc.ApiKey{CreatedAt: valid}
 			switch c.Kind {
