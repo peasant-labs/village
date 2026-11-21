@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/handler"
 	"github.com/peasant-labs/village/backend/internal/router"
@@ -24,22 +25,55 @@ func TestHealthProbeMountedRoutes(t *testing.T) {
 		Cases []struct {
 			Name   string   `yaml:"name"`
 			Traits []string `yaml:"traits"`
+			Mounts []string `yaml:"mounts"`
 		} `yaml:"cases"`
 	}
 	if err := yaml.Unmarshal(healthProbeRoutesYAML, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{"health-n-omits-segmented-reads-v2": false, "health-trait-absent-when-route-unmounted": false, "health-n1-serves-segmented-reads-v2": false, "health-serves-sorted-and-unique": false}
+	required := map[string]bool{
+		"health-n-omits-segmented-reads-v2":              false,
+		"health-trait-absent-when-route-unmounted":       false,
+		"health-n1-serves-segmented-reads-v2":            false,
+		"health-serves-sorted-and-unique":                false,
+		"health-trait-absent-directory-and-segment-only": false,
+		"health-trait-absent-directory-and-window-only":  false,
+		"health-trait-absent-segment-and-window-only":    false,
+	}
+	readRoutes := map[string]string{
+		"directory": schemaRoute.VillageGetTranscriptSegments.Pattern(),
+		"segment":   schemaRoute.VillageGetTranscriptSegment.Pattern(),
+		"window":    schemaRoute.VillageGetTranscriptWindow.Pattern(),
+	}
 	for _, c := range fixture.Cases {
-		if _, ok := required[c.Name]; !ok {
+		found, ok := required[c.Name]
+		if !ok {
 			continue
+		}
+		if found {
+			t.Fatalf("health fixture repeats required case %q", c.Name)
 		}
 		required[c.Name] = true
 		t.Run(c.Name, func(t *testing.T) {
 			cfg := &config.Config{JWTSecret: "synthetic-health-test-secret-at-least-32-bytes"}
 			var routes http.Handler
-			switch c.Name {
-			case "health-n-omits-segmented-reads-v2", "health-trait-absent-when-route-unmounted":
+			switch {
+			case len(c.Mounts) != 0:
+				// A router with only the named read routes mounted, so the
+				// trait's derivation sees a partial set.
+				mux := chi.NewRouter()
+				h := handler.New(cfg, nil, nil)
+				mux.Get("/health", h.Health)
+				for _, name := range c.Mounts {
+					pattern, known := readRoutes[name]
+					if !known {
+						t.Fatalf("unknown read route %q in mounts", name)
+					}
+					mux.Get(pattern, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+				}
+				router.ConfigureHealthRoutes(mux, h)
+				routes = mux
+			case c.Name == "health-n-omits-segmented-reads-v2", c.Name == "health-trait-absent-when-route-unmounted":
 				mux := chi.NewRouter()
 				h := handler.New(cfg, nil, nil)
 				mux.Get("/health", h.Health)
