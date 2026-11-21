@@ -14,12 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// mountCallees are the chi router methods that take a route pattern. Every
-// callee but Method puts that pattern in the first argument. Method takes the
-// HTTP method first and the pattern second: r.Method("GET", "/probe", h).
-// Trace and Connect take the pattern first, the same as Get.
-// A group-relative pattern (starts with "/" and is outside every configured
-// endpoint prefix) is visible to the mount rule only when its file is listed.
+// mountCallees are the chi router methods that mount or register a route.
 var mountCallees = map[string]struct{}{
 	"Connect":    {},
 	"Get":        {},
@@ -40,7 +35,6 @@ var mountCallees = map[string]struct{}{
 type unstringConfig struct {
 	Endpoints struct {
 		MountFiles []string `yaml:"mountFiles"`
-		Prefixes   []string `yaml:"prefixes"`
 	} `yaml:"endpoints"`
 }
 
@@ -121,26 +115,6 @@ func mountEntryCovers(entries []string, rel string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-// groupRelative reports whether pattern is a route the mount rule sees only in
-// a listed file: it starts with "/" and sits outside every endpoint prefix.
-// A pattern is under a prefix only when it equals that prefix or starts with
-// prefix+"/", so /api/v10/x is not under /api/v1. A bare HasPrefix would hide
-// that route and let an unlisted file escape.
-func groupRelative(pattern string, prefixes []string) bool {
-	if !strings.HasPrefix(pattern, "/") {
-		return false
-	}
-	for _, prefix := range prefixes {
-		if prefix == "" {
-			continue
-		}
-		if pattern == prefix || strings.HasPrefix(pattern, prefix+"/") {
-			return false
-		}
-	}
-	return true
 }
 
 func readUnstringConfig(t *testing.T, path string) unstringConfig {

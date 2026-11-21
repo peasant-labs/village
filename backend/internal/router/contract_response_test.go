@@ -51,6 +51,7 @@ func contractResponseFixturesFor(t *testing.T) contractResponseFixtures {
 // contractResponse checks the operation, status, required headers and response
 // body against the same document that the server serves.
 func contractResponse(method, requestPath string, rec *httptest.ResponseRecorder) error {
+	requestPath, _, _ = strings.Cut(requestPath, "?")
 	raw := schema.VillageAPISpecJSON()
 	var doc struct {
 		Paths map[string]map[string]json.RawMessage `json:"paths"`
@@ -205,5 +206,13 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 	required := map[string]bool{"undeclared-status": true, "missing-required-header": true, "invalid-body": true, "undeclared-operation": true, "undeclared-media": true, "invalid-json": true}
 	if !reflect.DeepEqual(seen, required) {
 		t.Fatalf("self-test names = %v; want %v", seen, required)
+	}
+}
+
+func TestContractResponseStripsQueryString(t *testing.T) {
+	rec := httptest.NewRecorder()
+	New(&config.Config{}, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health?probe=1", nil))
+	if err := contractResponse(http.MethodGet, "/health?probe=1", rec); err != nil {
+		t.Fatalf("contractResponse with query string failed: %v", err)
 	}
 }
