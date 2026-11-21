@@ -63,6 +63,9 @@ type RestoreCase = {
   expectWindowAnchor?: string; expectNoWindowAnchor?: string; expectActiveText?: string;
   expectSnapped?: string; expectHistoryText?: string;
 };
+type ScrollSaveCase = {
+  name: string; search: string; rowTopBase: number; burstEvents: number; movedScrollTop: number;
+};
 type Fixture = {
   transcript: Spec;
   retryActions: string[];
@@ -75,6 +78,7 @@ type Fixture = {
   builderRefusals: BuilderRefusal[];
   requestRefusals: RequestRefusal[];
   restore: RestoreCase[];
+  scrollSave: ScrollSaveCase;
 };
 
 const fixture = parse(readFileSync(testdataPath("transcript-positioned-host.yaml"), "utf8")) as Fixture;
@@ -97,12 +101,13 @@ const requiredFixtureNames = [
   "restore-content-after-positioned-same-turn", "restore-positioned-after-content-same-turn",
   "restore-positioned-earlier-history-open", "restore-content-earlier-history-after-positioned",
   "restore-positioned-restores-offset",
+  "scroll-save-throttled-per-frame",
 ];
 
 it("retains every named positioned-host case", () => {
   const names = [
     ...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph,
-    ...fixture.builderRefusals, ...fixture.requestRefusals, ...fixture.restore,
+    ...fixture.builderRefusals, ...fixture.requestRefusals, ...fixture.restore, fixture.scrollSave,
   ].map(({ name }) => name);
   expect(names.sort()).toEqual([...requiredFixtureNames].sort());
 });
@@ -375,6 +380,55 @@ describe("restore", () => {
       if (last.mode === TranscriptReadMode.Positioned) expect(contentReads(fetchMock)).toEqual([]);
     });
   }
+});
+
+it(fixture.scrollSave.name, async () => {
+  const row = fixture.scrollSave;
+  const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    if (this.classList.contains("txn-stream")) {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    const stream = this.closest(".txn-stream");
+    if (stream && this.hasAttribute("data-turn")) {
+      const index = Number(this.getAttribute("data-turn"));
+      const top = (index - 4) * 300 + row.rowTopBase - stream.scrollTop;
+      return { top, bottom: top + 40, left: 0, right: 800, width: 800, height: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+  });
+  await mountPositioned(buildPositionedBodies(spec), row.search);
+  const stream = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(".txn-stream");
+    expect(el?.querySelector(".txn-turn.txn-active")).not.toBeNull();
+    return el!;
+  });
+  Object.defineProperty(stream, "clientHeight", { value: 600, configurable: true });
+  Object.defineProperty(stream, "scrollHeight", { value: 2000, configurable: true });
+
+  // Settle any initial scroll-triggered active-turn update from Fairtrade before
+  // measuring the host's own per-frame scroll persistence.
+  fireEvent.scroll(stream);
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+  rectSpy.mockClear();
+  setItemSpy.mockClear();
+
+  for (let i = 0; i < row.burstEvents; i += 1) {
+    stream.scrollTop = row.movedScrollTop + i * 10;
+    fireEvent.scroll(stream);
+  }
+  expect(setItemSpy).toHaveBeenCalledTimes(0);
+
+  await waitFor(() => expect(setItemSpy).toHaveBeenCalledTimes(1));
+
+  // Subsequent scroll events with no change in saved state do not write storage again.
+  setItemSpy.mockClear();
+  for (let i = 0; i < row.burstEvents; i += 1) {
+    fireEvent.scroll(stream);
+  }
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  expect(setItemSpy).toHaveBeenCalledTimes(0);
 });
 
 const carried = (entry: string) => `?entry=${entry}&entryKind=before_redacted_entry&entryRevision=hash-current`;

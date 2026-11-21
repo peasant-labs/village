@@ -51,6 +51,8 @@ const requiredNames = [
   "saved-history-not-reopened",
   "stopped-download-silent",
   "restored-offset-dropped",
+  "scroll-save-unthrottled",
+  "scroll-save-writes-unchanged",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {

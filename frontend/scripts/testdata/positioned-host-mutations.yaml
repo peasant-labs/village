@@ -213,3 +213,19 @@ mutations:
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-restores-offset}
       - {kind: journey, file: scripts/journey/positioned-transcript.journey.mjs, name: journey-restore-reading-position}
+
+  - name: scroll-save-unthrottled
+    why: a scroll listener that reads layout and writes storage on every scroll event instead of once per frame
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (frame) return;\n    frame = requestAnimationFrame(() => {\n      frame = 0;\n      persist();\n    });\n"
+    replacement: "    persist();\n    void frame;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-throttled-per-frame}
+
+  - name: scroll-save-writes-unchanged
+    why: a reading-position save that writes storage even when the saved value has not changed
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (lastSavedStateRef.current === key) return;\n"
+    replacement: "    void key;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-throttled-per-frame}

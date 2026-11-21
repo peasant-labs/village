@@ -179,3 +179,10 @@ restore:
     expectWindowAnchor: '14'
     expectActiveText: Now read the last segment.
     expectScrollTop: 200
+
+scrollSave:
+  name: scroll-save-throttled-per-frame
+  search: '?turn=14'
+  rowTopBase: 300
+  burstEvents: 5
+  movedScrollTop: 50

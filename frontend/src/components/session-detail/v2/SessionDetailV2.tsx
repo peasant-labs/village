@@ -235,6 +235,24 @@ function rowOffset(stream: HTMLElement, row: HTMLElement): number {
  *  gives up and leaves the row where the landing put it: about ten seconds at 60 frames a second. */
 const RESTORE_OFFSET_MAX_FRAMES = 600;
 
+/** Listen to scroll on `stream` and persist at most once per animation frame. */
+function observeStreamScroll(stream: HTMLElement, persist: () => void, onScrollEvent?: () => void): () => void {
+  let frame = 0;
+  const onScroll = () => {
+    onScrollEvent?.();
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      persist();
+    });
+  };
+  stream.addEventListener('scroll', onScroll, { passive: true });
+  return () => {
+    stream.removeEventListener('scroll', onScroll);
+    if (frame) cancelAnimationFrame(frame);
+  };
+}
+
 function SessionDetailV2Content({
   sessionId,
   transcriptId,
@@ -437,6 +455,7 @@ function SessionDetailV2Content({
     readStateRef.current = { search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn, historySettling };
   }, [search, savedActiveTurn, savedEarlierHistoryOpen, activeTurn, historySettling]);
 
+  const lastSavedStateRef = useRef<string | null>(null);
   const persistReadState = useCallback(() => {
     // A positioned preview opens at the start and never restores, so it saves
     // nothing over the full page's reading position either.
@@ -449,14 +468,18 @@ function SessionDetailV2Content({
       const row = stream?.isConnected && position !== undefined ? mainRow(stream, position) : undefined;
       if (stream && row) turnOffsetRef.current = rowOffset(stream, row);
     }
-    writeTranscriptReadState(transcriptId, {
+    const nextState = {
       search: readStateRef.current.search,
       activeTurn: readStateRef.current.activeTurn,
       earlierHistoryOpen: readStateRef.current.earlierHistoryOpen,
       scrollTop: isPositioned ? 0 : scrollTopRef.current,
       turnOffset: isPositioned ? turnOffsetRef.current : 0,
       readMode: isPositioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content,
-    });
+    };
+    const key = `${transcriptId}:${JSON.stringify(nextState)}`;
+    if (lastSavedStateRef.current === key) return;
+    lastSavedStateRef.current = key;
+    writeTranscriptReadState(transcriptId, nextState);
   }, [transcriptId, isPositioned, isPreview]);
 
   // Persist the latest reading position when the child route unmounts (e.g.
@@ -481,25 +504,20 @@ function SessionDetailV2Content({
     // active turn instead.
     const hasInitialPosition = initialTurnParam != null || anchorTurn != null || savedByPositioned;
     if (!hasInitialPosition) stream.scrollTop = scrollTopRef.current;
-    const onScroll = () => {
+    return observeStreamScroll(stream, persistReadState, () => {
       scrollTopRef.current = stream.scrollTop;
-      persistReadState();
-    };
-    stream.addEventListener('scroll', onScroll, { passive: true });
-    return () => stream.removeEventListener('scroll', onScroll);
+    });
   }, [detail, persistReadState, initialTurnParam, anchorTurn, savedByPositioned]);
 
   // The positioned stream exists once the reader shows rows; it saves on
-  // every scroll, as the whole-document stream does.
+  // scroll, gated to at most once per animation frame.
   const positionedStatus = positioned?.viewerProps.positionedRead?.status;
   const loadedSegmentCount = Array.isArray(positioned?.viewerProps.segments) ? positioned.viewerProps.segments.length : 0;
   useEffect(() => {
     if (!isPositioned) return;
     const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
     if (!stream) return;
-    const onScroll = () => persistReadState();
-    stream.addEventListener('scroll', onScroll, { passive: true });
-    return () => stream.removeEventListener('scroll', onScroll);
+    return observeStreamScroll(stream, persistReadState);
   }, [isPositioned, positionedStatus, loadedSegmentCount, persistReadState]);
 
   // A saved position the reader landed on exactly is put back where it sat in
