@@ -39,17 +39,17 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 // NewWithDrain is New plus the background integrity check, started when it
 // is configured, the content cache's idle-lifetime ticker, and the work a
 // shutdown waits for after the server stops: the invitation emails still being
-// sent after their responses, an integrity check still in flight, and a cache
-// sweep still running.
+// sent after their responses, publish attachment work, an integrity check still
+// in flight, and a cache sweep still running.
 func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	routes, h := build(cfg, pool, blobs, titles)
 	h.StartIntegrityWorker()
 	h.StartContentCacheSweeper()
 	return routes, func(ctx context.Context) error {
 		// The drains share the shutdown's one deadline.
-		var integrityErr, cacheErr error
+		var integrityErr, cacheErr, attachmentErr error
 		var drains sync.WaitGroup
-		drains.Add(2)
+		drains.Add(3)
 		go func() {
 			defer drains.Done()
 			integrityErr = h.DrainIntegrity(ctx)
@@ -58,9 +58,13 @@ func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.Transcri
 			defer drains.Done()
 			cacheErr = h.DrainContentCache(ctx)
 		}()
+		go func() {
+			defer drains.Done()
+			attachmentErr = h.DrainPublishAttachments(ctx)
+		}()
 		noticesErr := h.DrainNotices(ctx)
 		drains.Wait()
-		return errors.Join(noticesErr, integrityErr, cacheErr)
+		return errors.Join(noticesErr, integrityErr, cacheErr, attachmentErr)
 	}
 }
 

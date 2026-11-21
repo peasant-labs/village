@@ -435,6 +435,8 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 	if repoName == "" {
 		return nil
 	}
+	ctx, cancel := attachmentWorkContext(ctx)
+	defer cancel()
 	candidates, err := h.queries.ListAuthorAttachmentsForRepo(ctx, sqlc.ListAuthorAttachmentsForRepoParams{
 		AuthorID: owner,
 		RepoName: repoName,
@@ -443,14 +445,6 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 	if err != nil {
 		return fmt.Errorf("could not read the owner's attachments for a published transcript: %w", err)
 	}
-
-	// The hook runs inside the publish request, so it must not inherit a context
-	// a client disconnect cancels, and it must be bounded so an unreachable
-	// GitHub cannot hold the publish open. One attachment failing must not stop
-	// the others.
-	hookCtx, cancel := attachmentWorkContext(ctx)
-	defer cancel()
-	ctx = hookCtx
 
 	var failures []error
 	for _, attachment := range candidates {

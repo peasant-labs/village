@@ -282,23 +282,22 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs st
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	shutdownErr := srv.Shutdown(shutdownCtx)
-	// No request runs any more, so no new invitation email can start. Give
-	// the ones already sending one delivery's time to finish, and stop the
-	// integrity check, waiting the same time for a check in flight. A check
+	// Once requests have stopped, no new background work can start. Give
+	// in-flight emails and attachment work time to finish, and stop the
+	// integrity check. A check
 	// can take longer than this; one cut off here was never recorded, so its
 	// attempt is due again once its hold passes and the next start retries it.
 	drainCtx, cancelDrain := context.WithTimeout(context.Background(), noticeDrainTimeout)
 	defer cancelDrain()
 	if err := drain(drainCtx); err != nil {
-		slog.Warn("shutdown did not finish the invitation email and integrity check drains", "operation", "invitation_notice_drain,integrity_check_drain", "consequence", "an invitation may have no email, and it is still shown in the app; an interrupted integrity check is retried after its next attempt time", "error", err.Error())
+		slog.Warn("shutdown did not finish background work", "operation", "background_drain", "consequence", "an email, integrity check, or attachment refresh may remain incomplete", "error", err.Error())
 	}
 	return shutdownErr
 }
 
-// noticeDrainTimeout bounds how long a shutdown waits for invitation emails
-// still being sent (one delivery is bounded at 15 seconds) and for an
-// integrity check in flight.
-const noticeDrainTimeout = 20 * time.Second
+// noticeDrainTimeout also accommodates completion and refresh, each bounded
+// independently to 30 seconds, after a publish.
+const noticeDrainTimeout = 65 * time.Second
 
 // reportShareStateConsistency compares the derived transcript_shares projection
 // against a latest-event fold over the whole ledger and reports the result. It

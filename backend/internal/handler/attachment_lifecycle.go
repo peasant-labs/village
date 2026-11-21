@@ -31,8 +31,7 @@ import (
 // change lands, and nothing else in the lifecycle assumes a level.
 const attachmentRedactionLevel = string(redact.Standard)
 
-// attachmentHookTimeout bounds the post-publish completion work, which runs
-// inside the publish request but must not be tied to the client's connection.
+// attachmentHookTimeout bounds each detached attachment operation.
 const attachmentHookTimeout = 30 * time.Second
 
 func attachmentWorkContext(ctx context.Context) (context.Context, context.CancelFunc) {
