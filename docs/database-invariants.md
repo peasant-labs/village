@@ -779,6 +779,16 @@ the "most turns" sort orders by.
   transcript to a public pull request is the owner's own public act. For the
   same reason the GitHub prompt-digest comment on that pull request names its
   author's handle.
+- **The commits list withholds the commit author and message.** A git author
+  name or email can name the owner, and so can a message: trailers such as
+  `Co-authored-by` and `Signed-off-by` carry names and emails. For an owner
+  anonymous to the viewer, `GET /transcripts/{id}/commits` serves each
+  commit's `message`, `authorName` and `authorEmail` as null
+  (`withholdIdentity`); the SHA, timestamps and order are served as stored. A
+  viewer who may see the owner gets every field as stored.
+  `GET /pull/transcripts/{id}/publish-metadata`, which carries the same
+  commits, refuses an owner anonymous to the viewer outright with its shared
+  404.
 - **`content_hash` is kept beside an anonymous owner.** The pull envelope and
   transcript rows still carry it: peasant uses it for conditional pulls and
   caching, and confirming a guessed repository from it would need the whole
