@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/auth"
 )
 
@@ -101,6 +103,7 @@ var requiredAbsenteeReads = []string{
 	"read-retracted-shared-role-denied-404", "read-retracted-shared-departed-member-404",
 	"read-retracted-private-stranger-404", "read-retracted-content-routes-404",
 	"pull-retracted-stays-404", "pull-unavailable-stays-404",
+	"pull-list-omits-unavailable",
 }
 
 func TestAbsenteeReads(t *testing.T) {
@@ -175,6 +178,7 @@ func TestAbsenteeReads(t *testing.T) {
 			mux.Get("/transcripts/{id}/window", w.handler.GetTranscriptWindow)
 			mux.Get("/transcripts/{id}/header", w.handler.GetTranscriptHeader)
 			mux.Post("/transcripts/{id}/segments/locate", w.handler.LocateTranscriptEntry)
+			mux.Get("/pull/transcripts", w.handler.ListPullableTranscripts)
 			mux.Get("/pull/transcripts/{id}", w.handler.GetPullTranscript)
 			mux.Get("/pull/transcripts/{id}/content", w.handler.GetPullTranscriptContent)
 			mux.Get("/pull/transcripts/{id}/annotations", w.handler.GetPullTranscriptAnnotations)
@@ -282,6 +286,42 @@ func TestAbsenteeReads(t *testing.T) {
 				unavailable()
 				for _, route := range fixture.PullRoutes {
 					compare404("/pull/transcripts/", route, w.owner)
+				}
+			case "pull-list-omits-unavailable":
+				list := func() schema.PullListResponse {
+					t.Helper()
+					out := read("/pull/transcripts", "", absenteeRoute{Method: http.MethodGet}, w.owner)
+					if out.Code != http.StatusOK {
+						t.Fatalf("pull list: %d %s", out.Code, out.Body.String())
+					}
+					var page schema.PullListResponse
+					if err := json.Unmarshal(out.Body.Bytes(), &page); err != nil {
+						t.Fatal(err)
+					}
+					return page
+				}
+				listed := func(page schema.PullListResponse) bool {
+					for _, info := range page.Transcripts {
+						if string(info.TranscriptID) == id {
+							return true
+						}
+					}
+					return false
+				}
+				before := list()
+				if !listed(before) || before.Total != len(before.Transcripts) {
+					t.Fatalf("the present transcript is not listed: %+v", before)
+				}
+				unavailable()
+				after := list()
+				if listed(after) || after.Total != before.Total-1 || after.Total != len(after.Transcripts) {
+					t.Fatalf("the unavailable transcript is still offered: total %d -> %d, listed %v", before.Total, after.Total, listed(after))
+				}
+				// Every transcript the list still offers can be fetched.
+				for _, info := range after.Transcripts {
+					if got := read("/pull/transcripts/", string(info.TranscriptID), absenteeRoute{Method: http.MethodGet, Suffix: "/content"}, w.owner); got.Code != http.StatusOK {
+						t.Fatalf("listed transcript %s cannot be fetched: %d", info.TranscriptID, got.Code)
+					}
 				}
 			default:
 				testSharedRetraction(t, w, pool, mux, c.Name, id, missing, fixture.RetractedCopy, meta, read, compare404, check410)

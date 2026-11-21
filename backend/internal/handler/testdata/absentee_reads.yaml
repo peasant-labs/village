@@ -16,6 +16,7 @@ cases:
   - name: read-retracted-content-routes-404
   - name: pull-retracted-stays-404
   - name: pull-unavailable-stays-404
+  - name: pull-list-omits-unavailable
 content_routes:
   - {method: GET, suffix: /content}
   - {method: GET, suffix: "/segments?v=2"}
