@@ -376,6 +376,12 @@ func TestHandlerListTranscriptCommits_MapsRows(t *testing.T) {
 			gotTranscriptID = transcriptID
 			return []sqlc.TranscriptCommit{commitRow, nullRow}, nil
 		},
+		// The owner is discoverable, so the commit author is served as stored.
+		// The withheld author of an anonymous owner is covered against
+		// PostgreSQL in the router package.
+		getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) {
+			return sqlc.User{ID: id, GithubUsername: "commit-owner", IsDiscoverable: true}, nil
+		},
 	}
 	h := newTestHandler(q, nil)
 
