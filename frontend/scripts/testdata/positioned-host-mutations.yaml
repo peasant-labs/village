@@ -172,3 +172,35 @@ mutations:
     replacement: "    return () => { void epoch; };\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}
+
+  - name: saved-turn-by-position
+    why: the positioned page saving its active row's served position, which a whole-document visit reads as another turn
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const savedActiveTurn = positioned ? (activeRow ? activeRow.recordedIndex ?? null : activeRecordedIndex) : activeTurn ?? null;\n"
+    replacement: "  const savedActiveTurn = activeTurn ?? null; void activeRow;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-content-after-positioned-same-turn}
+
+  - name: saved-turn-not-targeted
+    why: a return to the positioned page that opens at the start instead of the saved reading position
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "deepLink.entry === undefined && saved !== null"
+    replacement: "deepLink.entry === undefined && saved !== null && false"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-lands-saved-turn}
+
+  - name: saved-history-not-reopened
+    why: a return to the positioned page that leaves the earlier history it had open closed
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (Object.keys(open).length > 0) positioned.viewerProps.onEarlierHistoryOpenChange?.(open);\n"
+    replacement: "    void open;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-earlier-history-open}
+
+  - name: stopped-download-silent
+    why: a download the revision change stopped that saves nothing and says nothing
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "        if (!saved && mounted.current) setDownloadStopped(true);\n"
+    replacement: "        void saved;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}

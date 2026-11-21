@@ -46,6 +46,10 @@ const requiredNames = [
   "snapped-line-prints-recorded-index",
   "discovery-timeout-removed",
   "download-epoch-never-ends",
+  "saved-turn-by-position",
+  "saved-turn-not-targeted",
+  "saved-history-not-reopened",
+  "stopped-download-silent",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {

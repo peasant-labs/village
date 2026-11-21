@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { testdataPath } from "@/test/testdataPath";
@@ -17,6 +17,8 @@ import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
 import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
 import { TranscriptViewMode } from "@/components/session-detail/v2/transcriptViewMode";
+import { TranscriptReadMode } from "@/lib/queries/segmentedReadCapability";
+import { TranscriptSegmentPartitionKind } from "@peasant-labs/schema";
 
 // The transcript page over the positioned reader. The real route mounts
 // (TranscriptDetailPage -> SessionDetailV2 -> fairtrade's reader and viewer);
@@ -52,17 +54,24 @@ type RequestRefusal = {
   name: string; route: (typeof PositionedRoute)[keyof typeof PositionedRoute];
   query: Record<string, string>; body?: unknown; status?: number;
 };
+type RestoreVisit = { mode: TranscriptReadMode; search: string; activeText?: string; openHistory?: boolean; servedTurns?: number };
+type RestoreCase = {
+  name: string; visits: RestoreVisit[]; history?: Spec["turns"];
+  expectWindowAnchor?: string; expectNoWindowAnchor?: string; expectActiveText?: string;
+  expectSnapped?: string; expectHistoryText?: string;
+};
 type Fixture = {
   transcript: Spec;
   retryActions: string[];
   noFallback: NoFallbackCase[];
   landing: LandingCase[];
-  downloads: { search: string; loadedSegments: string[]; staleReloadAction: string; rows: DownloadRow[] };
+  downloads: { search: string; loadedSegments: string[]; staleReloadAction: string; stoppedLine: string; rows: DownloadRow[] };
   viewButtons: Record<TranscriptViewMode, string>;
   graphFailureTitle: string;
   graph: GraphCase[];
   builderRefusals: BuilderRefusal[];
   requestRefusals: RequestRefusal[];
+  restore: RestoreCase[];
 };
 
 const fixture = parse(readFileSync(testdataPath("transcript-positioned-host.yaml"), "utf8")) as Fixture;
@@ -81,12 +90,15 @@ const requiredFixtureNames = [
   "mock-refuses-read-without-selector", "mock-refuses-read-with-other-selector", "mock-refuses-segment-without-echo",
   "mock-refuses-segment-stale-revision", "mock-refuses-segment-stale-representation", "mock-refuses-window-partial-echo",
   "mock-answers-window-before-echo", "mock-answers-segment-with-echo", "mock-refuses-invalid-locate-body", "mock-refuses-stale-locate",
+  "restore-positioned-lands-saved-turn", "restore-deep-link-wins-over-saved-turn", "restore-saved-turn-not-served-snaps",
+  "restore-content-after-positioned-same-turn", "restore-positioned-after-content-same-turn",
+  "restore-positioned-earlier-history-open", "restore-content-earlier-history-after-positioned",
 ];
 
 it("retains every named positioned-host case", () => {
   const names = [
     ...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph,
-    ...fixture.builderRefusals, ...fixture.requestRefusals,
+    ...fixture.builderRefusals, ...fixture.requestRefusals, ...fixture.restore,
   ].map(({ name }) => name);
   expect(names.sort()).toEqual([...requiredFixtureNames].sort());
 });
@@ -138,13 +150,18 @@ function positionedRoutes(
     const kind = ROUTE_KIND[route] ?? PositionedRoute.Segment;
     const refusal = bodies.requestRefusal(kind, url.searchParams, kind === PositionedRoute.Locate ? JSON.parse(String(init?.body)) : undefined);
     if (refusal) return json({ error: refusal.error }, { status: refusal.status });
+    // Each read answers the partition it names: the main one, or a history section.
+    const partition = url.searchParams.get("partition") === TranscriptSegmentPartitionKind.History
+      ? { kind: TranscriptSegmentPartitionKind.History, sectionIndex: Number(url.searchParams.get("section")) }
+      : { kind: TranscriptSegmentPartitionKind.Main };
+    const served = (body: unknown) => (body === undefined ? json({ error: "no such positioned read" }, { status: 404 }) : json(body));
     const answers: Record<string, () => Response> = {
       header: () => json(bodies.header),
       window: () => {
         const anchor = url.searchParams.get("anchor");
-        return json(bodies.window(anchor === null ? undefined : Number(anchor)));
+        return served(bodies.windowFor(partition, anchor === null ? undefined : Number(anchor)));
       },
-      segments: () => json(bodies.directory(Number(url.searchParams.get("page") ?? "1"))),
+      segments: () => served(bodies.directoryFor(partition, Number(url.searchParams.get("page") ?? "1"))),
       "segments/locate": () => {
         const found = bodies.locate(JSON.parse(String(init?.body)).reference);
         return found ? json(found) : json({ error: "no match" }, { status: 404 });
@@ -153,7 +170,7 @@ function positionedRoutes(
     const answer = answers[route];
     if (answer) return answer();
     if (options.segmentFailure) return fail(options.segmentFailure);
-    return json(bodies.segment(Number(route.split("/")[1])));
+    return served(bodies.segmentFor(partition, Number(route.split("/")[1])));
   };
 }
 
@@ -278,6 +295,64 @@ describe("landing", () => {
   }
 });
 
+describe("restore", () => {
+  /** One visit: the page mounted in the visit's read, waiting until it shows rows. */
+  async function visit(row: RestoreCase, step: RestoreVisit) {
+    const turns = step.servedTurns === undefined ? spec.turns : spec.turns.slice(0, step.servedTurns);
+    const bodies = buildPositionedBodies({ ...spec, turns, ...(row.history ? { history: [{ turns: row.history }] } : {}) });
+    let fetchMock: ReturnType<typeof vi.fn>;
+    if (step.mode === TranscriptReadMode.Positioned) {
+      fetchMock = await mountPositioned(bodies, step.search);
+    } else {
+      // No advertisement: the page reads the whole document.
+      fetchMock = installRESTFixture(id, metadata(), bodies.content, "positioned host", undefined, (raw) =>
+        new URL(raw).pathname.endsWith("/schema/version") ? json({ segmentedReadVersion: "0.1.0", minSegmentedReadVersion: "0.1.0" }) : undefined,
+      );
+      await renderProductionRoute(id, step.search);
+      await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.ModeContent.wire)).toBeInTheDocument());
+    }
+    await waitFor(() => expect(document.querySelector(".txn-stream .txn-turn")).not.toBeNull());
+    return fetchMock;
+  }
+
+  for (const row of fixture.restore) {
+    it(row.name, async () => {
+      const visits = [...row.visits];
+      const last = visits.pop()!;
+      for (const earlier of visits) {
+        await visit(row, earlier);
+        if (earlier.openHistory) {
+          fireEvent.click(await waitFor(() => {
+            const toggle = document.querySelector<HTMLElement>(".txn-earlier-toggle");
+            expect(toggle).not.toBeNull();
+            return toggle!;
+          }));
+          await waitFor(() => expect(screen.getAllByText(row.history!.at(-1)!.content).length).toBeGreaterThan(0));
+        }
+        if (earlier.activeText) {
+          await waitFor(() => expect(document.querySelector(".txn-turn.txn-active")).toHaveTextContent(earlier.activeText!));
+        }
+        // Leaving the page saves where it was read.
+        cleanup();
+      }
+      const fetchMock = await visit(row, last);
+      const anchors = () => urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"));
+      if (row.expectWindowAnchor) await waitFor(() => expect(anchors()).toContain(row.expectWindowAnchor));
+      if (row.expectNoWindowAnchor) expect(anchors()).not.toContain(row.expectNoWindowAnchor);
+      if (row.expectActiveText) {
+        await waitFor(() => expect(document.querySelector(".txn-turn.txn-active")).toHaveTextContent(row.expectActiveText!));
+      }
+      if (row.expectSnapped) {
+        await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toHaveTextContent(row.expectSnapped!));
+      } else {
+        expect(screen.queryByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toBeNull();
+      }
+      if (row.expectHistoryText) await waitFor(() => expect(screen.getAllByText(row.expectHistoryText!).length).toBeGreaterThan(0));
+      if (last.mode === TranscriptReadMode.Positioned) expect(contentReads(fetchMock)).toEqual([]);
+    });
+  }
+});
+
 const carried = (entry: string) => `?entry=${entry}&entryKind=before_redacted_entry&entryRevision=hash-current`;
 
 it("carried-anchor-uses-locator", async () => {
@@ -392,10 +467,14 @@ describe("downloads", () => {
     await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
     expect(document.querySelector("[data-read-failure]")).toBeNull();
     await waitFor(() => expect(contentSignal?.aborted).toBe(true));
-    // An answer that arrives anyway is not saved.
+    // An answer that arrives anyway is not saved, and the page says the download stopped.
     answerContent?.();
     await act(async () => { await Promise.resolve(); });
     expect(saved).toEqual([]);
+    await waitFor(() => expect(screen.getByTestId(SessionDetailV2TestId.DownloadStopped.wire)).toHaveTextContent(fixture.downloads.stoppedLine));
+    // The next download clears it.
+    fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadJSON.wire }));
+    await waitFor(() => expect(screen.queryByTestId(SessionDetailV2TestId.DownloadStopped.wire)).toBeNull());
   });
 
   it("download-abort-saves-nothing", async () => {

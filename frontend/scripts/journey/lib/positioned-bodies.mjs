@@ -12,6 +12,7 @@
    only have to be ones a real server could send. */
 
 import {
+  EarlierHistoryState,
   isConversationTurn,
   isPositionedDirectoryPositionsValid,
   parseSessionDetailPayloadValue,
@@ -152,9 +153,11 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
   }
 
   const main = partitionOf(spec.turns, { kind: TranscriptSegmentPartitionKind.Main }, spec.firstRecordedIndex ?? 0, TranscriptSegmentPartitionKind.Main);
+  // Every section has a state: the stored copy requires one. A spec that names none gets the
+  // unresolved state, in the directory and the stored copy alike.
   const history = (spec.history ?? []).map((section, sectionIndex) => ({
     ...partitionOf(section.turns, { kind: TranscriptSegmentPartitionKind.History, sectionIndex }, 0, `history ${sectionIndex}`),
-    state: section.state,
+    state: section.state ?? EarlierHistoryState.UncertainUnresolved,
   }));
 
   const session = {
@@ -194,7 +197,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
           ? {
               history: history.map((section, index) => ({
                 index,
-                ...(section.state ? { state: section.state } : {}),
+                state: section.state,
                 totalTurns: section.context.totalTurns,
                 totalConversationTurns: section.context.totalConversationTurns,
                 usagePresent: "unknown",
@@ -254,7 +257,14 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
 
   /** The whole stored document the `/content` route serves, from the same turns. It must pass
       Schema's session-detail parser, and is served as built. */
-  const built = { ...session, totalTokens: 0, tokensIn: 0, tokensOut: 0, turns: main.turns };
+  const built = {
+    ...session,
+    totalTokens: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    turns: main.turns,
+    ...(history.length > 0 ? { earlierHistory: history.map((section) => ({ state: section.state, turns: section.turns })) } : {}),
+  };
   const content = mutateBody ? mutateBody("content", built) : built;
   try {
     parseSessionDetailPayloadValue(content);
