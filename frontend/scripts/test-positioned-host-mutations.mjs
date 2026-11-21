@@ -31,6 +31,7 @@ if (root == null || typeof root !== "object" || Array.isArray(root) || Object.ke
 const requiredNames = [
   "v2-error-reads-content",
   "version-token-substring",
+  "version-current-member-only",
   "decide-on-min-alone",
   "decide-on-health-trait",
   "export-from-loaded-segments",

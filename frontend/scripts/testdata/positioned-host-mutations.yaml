@@ -7,6 +7,17 @@
 # mutation replaces every one of them. A killer of kind `journey` runs only with
 # POSITIONED_MUTATIONS_JOURNEYS=1, since it needs the journey mock and a dev
 # server; the vitest killer of the same row always runs.
+#
+# Exit condition. Each row guards a decision this page makes on top of
+# Fairtrade's reader: which reader to mount, that a positioned failure never
+# reads /content, how a download is read and when it is saved, what the
+# transport sends, and what the host's own status line names. A row is removed
+# when that decision moves out of Village into a package whose own tests kill
+# the same mutation (Fairtrade's reader, or Schema's discovery helpers), and
+# its killer case moves or goes with it. The runner, its entry in
+# `test:mutation` and this fixture are deleted when no row is left. A row is
+# never removed only because its killer is slow or because it has not failed
+# in a while.
 mutations:
   - name: v2-error-reads-content
     why: a positioned failure that reads the whole document instead
@@ -28,24 +39,32 @@ mutations:
   - name: version-token-substring
     why: a version token matched by substring instead of exact membership
     file: ../../src/lib/queries/segmentedReadCapability.ts
-    original: "    return window?.current === SegmentedReadAPIVersion\n"
-    replacement: "    return window?.current.includes(SegmentedReadAPIVersion)\n"
+    original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
+    replacement: "  return [served.current, served.min].some((token) => token.includes(SegmentedReadAPIVersion));\n"
     killers:
       - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused}
+
+  - name: version-current-member-only
+    why: a window served only when its current member is the token, so a later server that still serves the reads gets the whole document
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
+    replacement: "  return served.current === SegmentedReadAPIVersion;\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-later-serving-0.2.0-mounts-positioned}
 
   - name: decide-on-min-alone
     why: the mode decided from minSegmentedReadVersion alone
     file: ../../src/lib/queries/segmentedReadCapability.ts
-    original: "    const window = parseSegmentedReadVersionAdvertisement(await response.text());\n    return window?.current === SegmentedReadAPIVersion\n"
-    replacement: "    const window = JSON.parse((await response.text()) || \"{}\");\n    return window?.minSegmentedReadVersion === SegmentedReadAPIVersion\n"
+    original: "    const served = parseSegmentedReadVersionAdvertisement(await response.text());\n    return served !== null && servesPositionedReads(served)\n"
+    replacement: "    const served = JSON.parse((await response.text()) || \"{}\");\n    return served?.minSegmentedReadVersion === SegmentedReadAPIVersion\n"
     killers:
       - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-min-only-uses-content}
 
   - name: decide-on-health-trait
     why: the mode decided from the health route's serves trait
     file: ../../src/lib/queries/segmentedReadCapability.ts
-    original: "    const window = parseSegmentedReadVersionAdvertisement(await response.text());\n    return window?.current === SegmentedReadAPIVersion\n"
-    replacement: "    const window = JSON.parse((await response.text()) || \"{}\");\n    return (window?.serves ?? []).includes(\"segmented-reads-v2\")\n"
+    original: "    const served = parseSegmentedReadVersionAdvertisement(await response.text());\n    return served !== null && servesPositionedReads(served)\n"
+    replacement: "    const served = JSON.parse((await response.text()) || \"{}\");\n    return (served?.serves ?? []).includes(\"segmented-reads-v2\")\n"
     killers:
       - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-ignores-health-trait}
 
