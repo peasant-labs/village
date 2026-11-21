@@ -35,7 +35,7 @@ on:
       - "scripts/test-go-test-events.sh"
       - "scripts/testdata/go-test-events/**"
       - "scripts/require-tests.sh"
-      - "scripts/require-tests.py"
+      - "scripts/require-tests.go"
       - "scripts/gate-required-tests.yaml"
       - "scripts/test-require-tests.sh"
       - "scripts/testdata/require-tests/**"

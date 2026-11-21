@@ -6,4 +6,4 @@ if [[ $# -gt 1 ]]; then
   echo "usage: require-tests.sh [io|parity|schema] < go-test.jsonl" >&2
   exit 2
 fi
-exec python3 "$dir/require-tests.py" "$dir/gate-required-tests.yaml" "${1:-auto}"
+exec go run "$dir/require-tests.go" "$dir/gate-required-tests.yaml" "${1:-auto}"
