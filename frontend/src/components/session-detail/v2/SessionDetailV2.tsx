@@ -437,6 +437,9 @@ function SessionDetailV2Content({
   }, [search, savedActiveTurn, savedEarlierHistoryOpen, activeTurn, historySettling]);
 
   const persistReadState = useCallback(() => {
+    // A positioned preview opens at the start and never restores, so it saves
+    // nothing over the full page's reading position either.
+    if (isPositioned && isPreview) return;
     if (isPositioned) {
       // Where the active row sits in the stream, while the stream is still
       // on the page; an unmount keeps the offset the last scroll measured.
@@ -453,7 +456,7 @@ function SessionDetailV2Content({
       turnOffset: isPositioned ? turnOffsetRef.current : 0,
       readMode: isPositioned ? TranscriptReadMode.Positioned : TranscriptReadMode.Content,
     });
-  }, [transcriptId, isPositioned]);
+  }, [transcriptId, isPositioned, isPreview]);
 
   // Persist the latest reading position when the child route unmounts (e.g.
   // navigating to the current parent) so Back lands where it left.

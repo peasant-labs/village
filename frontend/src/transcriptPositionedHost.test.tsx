@@ -18,6 +18,7 @@ import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/c
 import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
 import { TranscriptViewMode } from "@/components/session-detail/v2/transcriptViewMode";
 import { TranscriptReadMode } from "@/lib/queries/segmentedReadCapability";
+import { emptyTranscriptReadState, readTranscriptReadState } from "@/lib/transcriptReadState";
 import { TranscriptSegmentPartitionKind } from "@peasant-labs/schema";
 
 // The transcript page over the positioned reader. The real route mounts
@@ -515,6 +516,9 @@ it("preview-read-only-no-downloads", async () => {
   expect(screen.queryByRole("button", { name: TranscriptHeaderActionsLabel.More.wire })).toBeNull();
   expect(urls(fetchMock).filter((url) => url.pathname.endsWith("/window")).map((url) => url.searchParams.get("anchor"))).toEqual([null]);
   expect(contentReads(fetchMock)).toEqual([]);
+  // It opens at the start and saves no reading position over the full page's.
+  cleanup();
+  expect(readTranscriptReadState(id)).toEqual(emptyTranscriptReadState());
 });
 
 describe("mock-invalid-body-refuses", () => {
