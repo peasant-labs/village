@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/auth"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 //go:embed testdata/absentee_reads.yaml
@@ -308,14 +309,23 @@ func TestAbsenteeReads(t *testing.T) {
 					}
 					return false
 				}
+				queries := sqlc.New(pool)
+				countBefore, err := queries.CountPullableTranscripts(w.ctx, w.owner.PgID())
+				if err != nil {
+					t.Fatalf("CountPullableTranscripts before: %v", err)
+				}
 				before := list()
-				if !listed(before) || before.Total != len(before.Transcripts) {
-					t.Fatalf("the present transcript is not listed: %+v", before)
+				if !listed(before) || before.Total != len(before.Transcripts) || countBefore != int64(before.Total) {
+					t.Fatalf("the present transcript is not listed: %+v (count %d)", before, countBefore)
 				}
 				unavailable()
+				countAfter, err := queries.CountPullableTranscripts(w.ctx, w.owner.PgID())
+				if err != nil {
+					t.Fatalf("CountPullableTranscripts after: %v", err)
+				}
 				after := list()
-				if listed(after) || after.Total != before.Total-1 || after.Total != len(after.Transcripts) {
-					t.Fatalf("the unavailable transcript is still offered: total %d -> %d, listed %v", before.Total, after.Total, listed(after))
+				if listed(after) || after.Total != before.Total-1 || after.Total != len(after.Transcripts) || countAfter != countBefore-1 || countAfter != int64(after.Total) {
+					t.Fatalf("the unavailable transcript is still offered: total %d -> %d, count %d -> %d, listed %v", before.Total, after.Total, countBefore, countAfter, listed(after))
 				}
 				// Every transcript the list still offers can be fetched.
 				for _, info := range after.Transcripts {
