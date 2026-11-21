@@ -29,15 +29,23 @@ var requiredPullContentCases = []string{
 	"member_pulls_bare_detail", "member_pulls_raw_jsonl", "member_pulls_unreadable_content", "owner_pulls_bare_detail",
 }
 
+type pullContentFixtureKind string
+
+const (
+	pullContentEnvelopeWithRepository pullContentFixtureKind = "envelope_with_repository"
+	pullContentRawJSONLWithRepository pullContentFixtureKind = "raw_jsonl_with_repository"
+	pullContentUnreadable             pullContentFixtureKind = "unreadable"
+)
+
 func storedPullContent(t *testing.T, kind string) []byte {
 	t.Helper()
-	switch kind {
-	case "envelope_with_repository":
+	switch pullContentFixtureKind(kind) {
+	case pullContentEnvelopeWithRepository:
 		return contentWithRepositoryJSON()
-	case "raw_jsonl_with_repository":
+	case pullContentRawJSONLWithRepository:
 		return []byte(`[{"role":"user","content":"hi","cwd":"/home/withheld-person/withheld-project-name","gitBranch":"withheld-branch"},` +
 			`{"role":"assistant","content":"yo","cwd":"/home/withheld-person/withheld-project-name","gitBranch":"withheld-branch"}]`)
-	case "unreadable":
+	case pullContentUnreadable:
 		return []byte(`not a transcript at all`)
 	}
 	t.Fatalf("unknown stored content %q", kind)
@@ -89,8 +97,8 @@ func TestPullContentWithholdsAnAnonymousOwnersRepository(t *testing.T) {
 			w := httptest.NewRecorder()
 			h.GetPullTranscriptContent(w, r)
 
-			switch c.Want {
-			case "unreadable":
+			switch pullContentFixtureKind(c.Want) {
+			case pullContentUnreadable:
 				var refusal struct {
 					Code  string `json:"code"`
 					Error string `json:"error"`

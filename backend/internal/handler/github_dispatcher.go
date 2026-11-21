@@ -20,6 +20,17 @@ import (
 // recorded the installation.
 type promptCommandDispatcher struct{ h *Handler }
 
+// githubWebhookAction is the action field of a GitHub webhook payload, limited
+// to the actions Village acts on.
+type githubWebhookAction string
+
+const (
+	githubActionOpened      githubWebhookAction = "opened"
+	githubActionReopened    githubWebhookAction = "reopened"
+	githubActionSynchronize githubWebhookAction = "synchronize"
+	githubActionCreated     githubWebhookAction = "created"
+)
+
 func (promptCommandDispatcher) Installation(context.Context, github.Event) error { return nil }
 
 // PullRequest refreshes an already-attached pull request when a new push arrives,
@@ -31,8 +42,8 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return fmt.Errorf("the pull_request payload could not be decoded: %w", err)
 	}
-	switch payload.Action {
-	case "opened", "reopened", "synchronize":
+	switch githubWebhookAction(payload.Action) {
+	case githubActionOpened, githubActionReopened, githubActionSynchronize:
 	default:
 		return nil
 	}
@@ -61,7 +72,7 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 		isFork:       payload.IsFork(),
 		authorID:     payload.PullRequest.User.ID,
 	}
-	if payload.Action == "opened" {
+	if githubWebhookAction(payload.Action) == githubActionOpened {
 		handled, err := d.h.autoAttachOpenedPullRequest(ctx, link, pull)
 		if handled || err != nil {
 			return err
@@ -123,7 +134,7 @@ func (d promptCommandDispatcher) IssueComment(ctx context.Context, event github.
 	if !payload.IsPullRequest() {
 		return nil
 	}
-	if payload.Action != "created" {
+	if githubWebhookAction(payload.Action) != githubActionCreated {
 		// An edit or a deletion carries the body too; acting on those would
 		// re-execute a command the author has already withdrawn.
 		return nil
