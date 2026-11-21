@@ -124,3 +124,8 @@
   scenario: index-memory-native-metadata
   why: Decoded native metadata allocates strings and maps beyond its stored JSON; the partition estimate must charge twice the native JSON byte length so a native-heavy transcript cannot under-report its cache weight.
   budget: 4194304
+- name: cache-evicted-entry-held-by-reader-stays-readable
+  scenario: evicted-held-readable
+  why: An entry evicted while a reader still holds it stops counting against the cache budget immediately, yet the holding reader must still be able to read its copy cleanly until it returns.
+  budget: 1000
+  sizes: [450, 450]

@@ -338,6 +338,11 @@ func (c *transcriptContentCache) admitLocked(weight int64) error {
 		return transcriptAdmissionError{kind: transcriptRefusalCount}
 	}
 	if evict {
+		// Evict eagerly at admission rather than deferring until retainLocked:
+		// keeping retained + reserved <= budget prevents a load's plaintext
+		// allocation from stacking on top of a full cache (which would reach
+		// up to 2*budget). Failed loads are exceptional, so freeing cold
+		// entries before allocating is the smaller, safer choice for memory.
 		c.evictLocked(c.budget-c.reserved-weight, nil)
 	}
 	c.heavyWork++

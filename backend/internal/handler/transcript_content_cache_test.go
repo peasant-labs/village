@@ -61,6 +61,7 @@ var requiredContentCacheCases = []string{
 	"cache-index-memory-counts-against-budget",
 	"cache-index-memory-charged-through-the-read",
 	"cache-index-memory-native-metadata-weight",
+	"cache-evicted-entry-held-by-reader-stays-readable",
 }
 
 func loadContentCacheCases(t *testing.T) []contentCacheCase {
@@ -901,6 +902,28 @@ func TestTranscriptContentCache(t *testing.T) {
 				}
 				if got := cache.stats().RetainedBytes; got != withNativeIdx.retainedWeight() || got != int64(len(withNativeIdx.Bytes))+withNativeIdx.metadataMemory+nativeBuilt.memory {
 					t.Fatalf("cache retained weight = %d, want %d", got, withNativeIdx.retainedWeight())
+				}
+
+			case "evicted-held-readable":
+				cache := c.newCache(nil)
+				key1, key2 := cacheTestKey(1), cacheTestKey(2)
+				opened1 := cacheAcquire(t, cache, key1, c.loader(t, key1, c.Sizes[0]))
+				cacheAcquire(t, cache, key2, c.loader(t, key2, c.Sizes[1]))
+				if cache.has(key1) || !cache.has(key2) {
+					t.Fatalf("expected key1 to be evicted and key2 retained: key1=%v key2=%v", cache.has(key1), cache.has(key2))
+				}
+				stats := cache.stats()
+				if stats.Purged[purgeEvicted] != 1 || stats.RetainedBytes > c.Budget {
+					t.Fatalf("eviction accounting: %+v (budget %d)", stats, c.Budget)
+				}
+				// The reader still holding opened1 can finish reading its copy
+				// even though the evicted entry no longer counts against RetainedBytes.
+				part, err := opened1.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
+				if err != nil || len(part.Rows) == 0 {
+					t.Fatalf("held evicted entry failed to serve partition: (%v, %v)", part, err)
+				}
+				if _, err := opened1.Bytes.ReadTurnBytes(ctx, part.Rows[0].Start, part.Rows[0].End); err != nil {
+					t.Fatalf("held evicted entry failed to read turn bytes: %v", err)
 				}
 
 			default:

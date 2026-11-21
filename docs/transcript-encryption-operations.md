@@ -221,8 +221,10 @@ concurrent first loads, inside the 32 GiB per-instance limit; that is checked
 with benchmarks, not by a required test. The index memory estimate is calibrated
 against that 1.5x peak RSS target and carries an error bound of a few percent
 from uncounted Go runtime map/slice-header and allocator rounding overhead. The
-Go soft memory limit is separate from this budget. An evicted entry stays in
-memory until the reads holding it finish.
+Go soft memory limit is separate from this budget. An evicted or dropped entry
+stops counting against the 256 MiB cache budget immediately, but stays in memory
+until every active request holding it finishes; transient memory can therefore
+exceed 256 MiB by those in-flight held copies until their handlers return.
 
 A process drops a transcript's entries when it publishes, rewrites, changes the
 visibility of, unshares or deletes that transcript, and drops an owner's entries
