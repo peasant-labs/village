@@ -1,18 +1,17 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
-import { buildPositionedBodies } from "../scripts/journey/lib/positioned-bodies.mjs";
+import { testdataPath } from "@/test/testdataPath";
+import { buildPositionedBodies, PositionedRoute } from "../scripts/journey/lib/positioned-bodies.mjs";
 import {
   installMountedRouteTeardown,
   installRESTFixture,
   renderProductionRoute,
   type MountedRouteHandler,
 } from "@/test/mountedProductionRoute";
-import { PositionedReadFailureKind } from "@peasant-labs/fairtrade/ui";
 import { readTranscriptForDownload } from "@/lib/transcriptExport";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
@@ -44,20 +43,29 @@ type GraphCase = {
   name: string; views: TranscriptViewMode[]; contentStatus: number; expectContentReads: number;
   expect: (typeof GraphOutcome)[keyof typeof GraphOutcome];
 };
+/** One body the shared builder must refuse: which, the edit that breaks it, and the read that builds it on demand. */
+type BuilderRefusal = {
+  name: string; body: string; field: string; value: unknown; call?: { window?: number; locate?: string };
+};
+/** One request the mocks must refuse with `status`, or answer when `status` is absent. */
+type RequestRefusal = {
+  name: string; route: (typeof PositionedRoute)[keyof typeof PositionedRoute];
+  query: Record<string, string>; body?: unknown; status?: number;
+};
 type Fixture = {
   transcript: Spec;
   retryActions: string[];
   noFallback: NoFallbackCase[];
   landing: LandingCase[];
-  downloads: { search: string; loadedSegments: string[]; rows: DownloadRow[] };
+  downloads: { search: string; loadedSegments: string[]; staleReloadAction: string; rows: DownloadRow[] };
   viewButtons: Record<TranscriptViewMode, string>;
   graphFailureTitle: string;
   graph: GraphCase[];
+  builderRefusals: BuilderRefusal[];
+  requestRefusals: RequestRefusal[];
 };
 
-// unstring-allow: data-path-literal — named once at module scope and read only through this constant
-const TESTDATA = resolve(process.cwd(), "src/testdata");
-const fixture = parse(readFileSync(resolve(TESTDATA, "transcript-positioned-host.yaml"), "utf8")) as Fixture;
+const fixture = parse(readFileSync(testdataPath("transcript-positioned-host.yaml"), "utf8")) as Fixture;
 const spec = fixture.transcript;
 const [opening, , , middle, last] = spec.turns.map((turn) => turn.content);
 const id = spec.transcriptId;
@@ -68,10 +76,18 @@ const requiredFixtureNames = [
   "turn-param-lands-requested-position", "turn-param-snapped-status-copy", "turn-param-snapped-unnumbered-row",
   "download-json-bytes-partial-load", "download-jsonl-bytes-partial-load", "download-markdown-bytes-partial-load",
   "graph-open-reads-content-once", "list-mode-never-reads-content", "graph-content-failure-keeps-list",
+  "mock-refuses-header-body", "mock-refuses-directory-body", "mock-refuses-default-window-body",
+  "mock-refuses-anchored-window-body", "mock-refuses-segment-body", "mock-refuses-locate-body", "mock-refuses-content-body",
+  "mock-refuses-read-without-selector", "mock-refuses-read-with-other-selector", "mock-refuses-segment-without-echo",
+  "mock-refuses-segment-stale-revision", "mock-refuses-segment-stale-representation", "mock-refuses-window-partial-echo",
+  "mock-answers-window-before-echo", "mock-answers-segment-with-echo", "mock-refuses-invalid-locate-body", "mock-refuses-stale-locate",
 ];
 
 it("retains every named positioned-host case", () => {
-  const names = [...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph].map(({ name }) => name);
+  const names = [
+    ...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph,
+    ...fixture.builderRefusals, ...fixture.requestRefusals,
+  ].map(({ name }) => name);
   expect(names.sort()).toEqual([...requiredFixtureNames].sort());
 });
 
@@ -85,6 +101,13 @@ const ADVERTISED = { segmentedReadVersion: "0.2.0", minSegmentedReadVersion: "0.
 const POSITIONED_ROUTE = /\/transcripts\/[^/]+\/(header|segments\/locate|segments\/\d+|segments|window)$/;
 
 type Bodies = ReturnType<typeof buildPositionedBodies>;
+/** The positioned route each matched path names; any other match is a segment read. */
+const ROUTE_KIND: Record<string, (typeof PositionedRoute)[keyof typeof PositionedRoute]> = {
+  header: PositionedRoute.Header,
+  segments: PositionedRoute.Directory,
+  window: PositionedRoute.Window,
+  "segments/locate": PositionedRoute.Locate,
+};
 type Failure = { status?: number; retryAfter?: string; network?: boolean; malformed?: boolean };
 
 /** The advertisement, and the five positioned routes answered from `bodies`, or failed the given
@@ -110,6 +133,11 @@ function positionedRoutes(
     const match = url.pathname.match(POSITIONED_ROUTE);
     if (!match) return undefined;
     if (options.failure) return fail(options.failure);
+    // A request a real server would refuse is refused here too.
+    const route = match[1];
+    const kind = ROUTE_KIND[route] ?? PositionedRoute.Segment;
+    const refusal = bodies.requestRefusal(kind, url.searchParams, kind === PositionedRoute.Locate ? JSON.parse(String(init?.body)) : undefined);
+    if (refusal) return json({ error: refusal.error }, { status: refusal.status });
     const answers: Record<string, () => Response> = {
       header: () => json(bodies.header),
       window: () => {
@@ -122,7 +150,6 @@ function positionedRoutes(
         return found ? json(found) : json({ error: "no match" }, { status: 404 });
       },
     };
-    const route = match[1];
     const answer = answers[route];
     if (answer) return answer();
     if (options.segmentFailure) return fail(options.segmentFailure);
@@ -156,6 +183,18 @@ const urls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.map((
 const contentReads = (fetchMock: ReturnType<typeof vi.fn>) => urls(fetchMock).filter((url) => url.pathname.endsWith("/content"));
 const segmentReads = (fetchMock: ReturnType<typeof vi.fn>) =>
   urls(fetchMock).map((url) => url.pathname.match(/\/segments\/(\d+)$/)?.[1]).filter((value): value is string => value !== undefined);
+
+/** Waits until every read the page has started has answered and the page started no new one in
+    answer to them: the condition the graph cases wait on, instead of a fixed sleep. */
+async function readsSettled(fetchMock: ReturnType<typeof vi.fn>): Promise<void> {
+  let seen = -1;
+  while (seen !== fetchMock.mock.calls.length) {
+    seen = fetchMock.mock.calls.length;
+    await act(async () => {
+      await Promise.allSettled(fetchMock.mock.results.map((result) => result.value));
+    });
+  }
+}
 
 async function openMore(): Promise<HTMLElement> {
   fireEvent.click(screen.getByRole("button", { name: TranscriptHeaderActionsLabel.More.wire }));
@@ -279,7 +318,7 @@ describe("downloads", () => {
       await waitFor(() => expect(saved).toHaveLength(1));
       expect(contentReads(fetchMock)).toHaveLength(1);
       expect(saved[0].type).toMatch(new RegExp(`^${row.type}`));
-      expect(await saved[0].text()).toBe(readFileSync(resolve(TESTDATA, row.file), "utf8"));
+      expect(await saved[0].text()).toBe(readFileSync(testdataPath(row.file), "utf8"));
     });
   }
 
@@ -349,10 +388,7 @@ describe("downloads", () => {
     fireEvent.click(within(await openMore()).getByRole("menuitem", { name: TranscriptHeaderActionsLabel.DownloadJSON.wire }));
     await waitFor(() => expect(contentSignal).toBeDefined());
     reloaded = true;
-    // The stale failure state's own action, as the fixture names it.
-    const reload = fixture.noFallback.find((row) => row.kind === PositionedReadFailureKind.Stale)?.retry;
-    expect(reload).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: reload }));
+    fireEvent.click(screen.getByRole("button", { name: fixture.downloads.staleReloadAction }));
     await waitFor(() => expect(screen.getAllByText(opening).length).toBeGreaterThan(0));
     expect(document.querySelector("[data-read-failure]")).toBeNull();
     await waitFor(() => expect(contentSignal?.aborted).toBe(true));
@@ -402,12 +438,31 @@ it("preview-read-only-no-downloads", async () => {
   expect(contentReads(fetchMock)).toEqual([]);
 });
 
-it("mock-invalid-body-refuses-start", () => {
+describe("mock-invalid-body-refuses", () => {
   // The shared builder refuses a body Schema's parser refuses, so no mock
-  // built on it can start.
-  expect(() => buildPositionedBodies(spec, {
-    mutateBody: (name, body) => (name === "segment 1" ? { ...body, rows: [] } : body),
-  })).toThrow(/positioned mock refused to start: its segment 1 body/);
+  // built on it can start, or answer with it.
+  for (const row of fixture.builderRefusals) {
+    it(row.name, () => {
+      expect(() => {
+        const bodies = buildPositionedBodies(spec, {
+          mutateBody: (name, body) => (name === row.body ? { ...body, [row.field]: row.value } : body),
+        });
+        if (row.call?.window !== undefined) bodies.window(row.call.window);
+        if (row.call?.locate !== undefined) bodies.locate(row.call.locate);
+      }).toThrow(`The positioned mock refused its ${row.body} body`);
+    });
+  }
+});
+
+describe("mock-request-refusals", () => {
+  // The mocks answer only requests a real server answers.
+  const bodies = buildPositionedBodies(spec);
+  for (const row of fixture.requestRefusals) {
+    it(row.name, () => {
+      const refusal = bodies.requestRefusal(row.route, new URLSearchParams(row.query), row.body);
+      expect(refusal?.status).toBe(row.status);
+    });
+  }
 });
 
 describe("graph", () => {
@@ -437,8 +492,8 @@ describe("graph", () => {
         expect(document.querySelector(".react-flow")).toBeNull();
       }
       await waitFor(() => expect(contentReads(fetchMock)).toHaveLength(row.expectContentReads));
-      // Nothing more is read after the reads settle.
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Nothing more is read once every read the page started has answered.
+      await readsSettled(fetchMock);
       expect(contentReads(fetchMock)).toHaveLength(row.expectContentReads);
     });
   }

@@ -64,6 +64,9 @@ landing:
 downloads:
   search: '?turn=14'
   loadedSegments: ['2', '0']
+  # The stale failure state's own action, which the mounted revision-change
+  # case clicks to move the reader onto the next revision.
+  staleReloadAction: reload transcript
   rows:
     - {name: download-json-bytes-partial-load, label: download json, file: positioned-download/expected.json, type: application/json}
     - {name: download-jsonl-bytes-partial-load, label: download jsonl, file: positioned-download/expected.jsonl, type: application/x-ndjson}
@@ -80,3 +83,34 @@ graph:
   - {name: graph-open-reads-content-once, views: [graph, list, graph], contentStatus: 200, expectContentReads: 1, expect: graph}
   - {name: list-mode-never-reads-content, views: [], contentStatus: 200, expectContentReads: 0, expect: list}
   - {name: graph-content-failure-keeps-list, views: [graph], contentStatus: 403, expectContentReads: 1, expect: failure}
+
+# The shared builder refuses every body Schema's parser refuses, one row per
+# body type, so no mock built on it can start or answer with it. `body` is the
+# builder's name for the body, `field` and `value` the edit that breaks it, and
+# `call` the read that builds a body made on demand (a window at a recorded
+# index, a locator answer).
+builderRefusals:
+  - {name: mock-refuses-header-body, body: header, field: revision, value: 3}
+  - {name: mock-refuses-directory-body, body: directory page 1, field: segments, value: none}
+  - {name: mock-refuses-default-window-body, body: window default, field: anchorPosition, value: first}
+  - {name: mock-refuses-anchored-window-body, body: window 14, field: anchorPosition, value: first, call: {window: 14}}
+  - {name: mock-refuses-segment-body, body: segment 1, field: rows, value: []}
+  - {name: mock-refuses-locate-body, body: locate entry-open, field: position, value: first, call: {locate: entry-open}}
+  - {name: mock-refuses-content-body, body: content, field: turns, value: none}
+
+# The mocks refuse a request a real server would refuse, so a page that stops
+# sending the positioned protocol's selector, or the revision and
+# representation echo, fails against them. `query` is the request's query;
+# `echo: served` fills in the served revision and representation; `status`
+# is the refusal, or absent for a request the mock answers.
+requestRefusals:
+  - {name: mock-refuses-read-without-selector, route: header, query: {}, status: 400}
+  - {name: mock-refuses-read-with-other-selector, route: directory, query: {v: '1', partition: main, page: '1'}, status: 400}
+  - {name: mock-refuses-segment-without-echo, route: segment, query: {v: '2', partition: main}, status: 400}
+  - {name: mock-refuses-segment-stale-revision, route: segment, query: {v: '2', partition: main, revision: '2', representation: r1}, status: 409}
+  - {name: mock-refuses-segment-stale-representation, route: segment, query: {v: '2', partition: main, revision: '3', representation: r0}, status: 409}
+  - {name: mock-refuses-window-partial-echo, route: window, query: {v: '2', partition: main, revision: '3'}, status: 400}
+  - {name: mock-answers-window-before-echo, route: window, query: {v: '2', partition: main}}
+  - {name: mock-answers-segment-with-echo, route: segment, query: {v: '2', partition: main, revision: '3', representation: r1}}
+  - {name: mock-refuses-invalid-locate-body, route: locate, query: {v: '2'}, body: {reference: entry-open}, status: 400}
+  - {name: mock-refuses-stale-locate, route: locate, query: {v: '2'}, body: {reference: entry-open, revision: '2', representation: r1, contentHash: ''}, status: 409}

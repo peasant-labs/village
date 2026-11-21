@@ -4,20 +4,38 @@
    whole-document `/content` read for one transcript, all from the same turns. Every body is built
    once, at construction, and must pass Schema's z* parsers and the shared directory-position rule;
    the first refusal throws, so a mock built on a body a real client would discard never starts.
+   The `/content` body passes Schema's published session-detail parser the same way. The bodies'
+   `requestRefusal` answers a request a real server would refuse (no `v=2`, a missing or stale
+   revision and representation echo, an invalid locate body), so a page that stops sending them
+   fails against the mocks too.
    Window and numbering semantics are proved against the real handler in the backend; these bodies
    only have to be ones a real server could send. */
 
 import {
   isConversationTurn,
   isPositionedDirectoryPositionsValid,
+  parseSessionDetailPayloadValue,
   TranscriptReadTransportKind,
   TranscriptSegmentPartitionKind,
   zPositionedDirectory,
   zPositionedSegment,
   zPositionedWindow,
   zTranscriptContentHeader,
+  zTranscriptEntryLocateRequest,
   zTranscriptEntryMatch,
 } from "@peasant-labs/schema";
+
+/** The `v` selector every positioned read carries: the positioned protocol's generation. */
+const POSITIONED_READ_SELECTOR = "2";
+
+/** The positioned routes a request names, for `requestRefusal`. Closed. */
+export const PositionedRoute = Object.freeze({
+  Header: "header",
+  Directory: "directory",
+  Window: "window",
+  Segment: "segment",
+  Locate: "locate",
+});
 
 const START = Date.parse("2026-11-12T09:00:00Z");
 
@@ -37,15 +55,19 @@ const START = Date.parse("2026-11-12T09:00:00Z");
  * @property {string} [representation]
  */
 
+/** The refusal for a body Schema's parser refuses: which body, why, and what to fix. */
+function refusedBody(name, issues) {
+  return new TypeError(
+    `The positioned mock refused its ${name} body: it is not one Schema's parser accepts (${issues}). ` +
+      "Fix the spec passed to buildPositionedBodies (scripts/journey/lib/positioned-bodies.mjs) so every body is one a real server could send.",
+  );
+}
+
 /** Parse with the real parser or refuse, naming the body and what to fix. */
 function mustParse(parser, body, name) {
   const parsed = parser.safeParse(body);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
-    throw new TypeError(
-      `The positioned mock refused to start: its ${name} body is not one Schema's parser accepts (${issues}). ` +
-        "Fix the spec passed to buildPositionedBodies (scripts/journey/lib/positioned-bodies.mjs) so every body is one a real server could send.",
-    );
+    throw refusedBody(name, parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
   }
   return parsed.data;
 }
@@ -230,14 +252,46 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     }, `locate ${reference}`);
   };
 
-  /** The whole stored document the `/content` route serves, from the same turns. */
-  const content = {
-    ...session,
-    totalTokens: 0,
-    tokensIn: 0,
-    tokensOut: 0,
-    turns: main.turns,
-  };
+  /** The whole stored document the `/content` route serves, from the same turns. It must pass
+      Schema's session-detail parser, and is served as built. */
+  const built = { ...session, totalTokens: 0, tokensIn: 0, tokensOut: 0, turns: main.turns };
+  const content = mutateBody ? mutateBody("content", built) : built;
+  try {
+    parseSessionDetailPayloadValue(content);
+  } catch (error) {
+    throw refusedBody("content", error instanceof Error ? error.message : String(error));
+  }
+
+  /** A refusal a real server would send for this request, or undefined when it is one the server
+      answers. `query` is the request's URLSearchParams; `body` the parsed locate body. */
+  function requestRefusal(route, query, body) {
+    const where = `the positioned mock refused a ${route} read`;
+    const fix = "fix the request the page makes in src/lib/queries/positionedTransport.ts";
+    if (query.get("v") !== POSITIONED_READ_SELECTOR) {
+      return { status: 400, error: `${where}: it carries no v=${POSITIONED_READ_SELECTOR}, so a real server would read it as another protocol; ${fix}.` };
+    }
+    const stale = (revisionValue, representationValue) =>
+      revisionValue !== main.context.revision || representationValue !== main.context.representation;
+    if (route === PositionedRoute.Segment || route === PositionedRoute.Window) {
+      const echoed = [query.get("revision"), query.get("representation")];
+      // A window may open before the reader knows the revision; a segment never does.
+      if (route === PositionedRoute.Window && echoed.every((value) => value === null)) return undefined;
+      if (echoed.some((value) => value === null)) {
+        return { status: 400, error: `${where}: it echoes only part of the revision and representation, which a real server refuses; ${fix}.` };
+      }
+      if (stale(...echoed)) {
+        return { status: 409, error: `${where}: its revision or representation echo names another copy than the one served; the reader must reload.` };
+      }
+    }
+    if (route === PositionedRoute.Locate) {
+      const parsed = zTranscriptEntryLocateRequest.safeParse(body);
+      if (!parsed.success) return { status: 400, error: `${where}: its body is not a locate request Schema's parser accepts; ${fix}.` };
+      if (stale(parsed.data.revision, parsed.data.representation)) {
+        return { status: 409, error: `${where}: its revision or representation names another copy than the one served; the reader must reload.` };
+      }
+    }
+    return undefined;
+  }
 
   return {
     transcriptId: spec.transcriptId,
@@ -260,5 +314,6 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     segmentFor: (partition, index) => partitions.get(partitionKey(partition))?.segments[index],
     locate,
     content,
+    requestRefusal,
   };
 }
