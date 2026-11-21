@@ -415,10 +415,10 @@ func (w *projectNameWorld) renderSurface(t *testing.T, h *Handler, surface, view
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/users/"+w.ownerName+"/projects/"+w.projectHash, nil)
 		r = withProjectPageURLParams(r, w.ownerName, w.projectHash)
 		var page struct {
-			Project resolvedProject `json:"project"`
+			Project schema.VillageResolvedProject `json:"project"`
 		}
 		decodeSurface(t, h.GetUserProject, w.asViewer(r, viewer), surface, &page)
-		return renderedProject{DisplayName: page.Project.DisplayName, NameSource: page.Project.NameSource}
+		return renderedProject{DisplayName: page.Project.ProjectDisplayName, NameSource: projectname.NameSource(page.Project.ProjectNameSource)}
 
 	case "profile":
 		return w.renderListSurface(t, h, surface, viewer, "?owner="+w.ownerName)
@@ -501,17 +501,17 @@ func (w *projectNameWorld) renderOverrideSurface(t *testing.T, h *Handler) rende
 	patch := httptest.NewRequest(http.MethodPatch, "/api/v1/users/me/projects/"+w.projectHash,
 		strings.NewReader(fmt.Sprintf(`{"display_name":%q}`, name)))
 	patch = withChiURLParam(patch, "projectHash", w.projectHash)
-	var patched resolvedProject
+	var patched schema.VillageResolvedProject
 	decodeSurface(t, h.SetProjectDisplayName, w.asViewer(patch, "owner"), "override_response (rename)", &patched)
 	if existing != "" {
-		return renderedProject{DisplayName: patched.DisplayName, NameSource: patched.NameSource}
+		return renderedProject{DisplayName: patched.ProjectDisplayName, NameSource: projectname.NameSource(patched.ProjectNameSource)}
 	}
 
 	clear := httptest.NewRequest(http.MethodDelete, "/api/v1/users/me/projects/"+w.projectHash+"/display-name", nil)
 	clear = withChiURLParam(clear, "projectHash", w.projectHash)
-	var cleared resolvedProject
+	var cleared schema.VillageResolvedProject
 	decodeSurface(t, h.ClearProjectDisplayName, w.asViewer(clear, "owner"), "override_response (reset)", &cleared)
-	return renderedProject{DisplayName: cleared.DisplayName, NameSource: cleared.NameSource}
+	return renderedProject{DisplayName: cleared.ProjectDisplayName, NameSource: projectname.NameSource(cleared.ProjectNameSource)}
 }
 
 // decodeSurface runs one handler and decodes a 200 body, failing with the
