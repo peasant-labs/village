@@ -60,6 +60,7 @@ var requiredContentCacheCases = []string{
 	"cache-absent-cache-loads-and-purges-nothing",
 	"cache-index-memory-counts-against-budget",
 	"cache-index-memory-charged-through-the-read",
+	"cache-index-memory-native-metadata-weight",
 }
 
 func loadContentCacheCases(t *testing.T) []contentCacheCase {
@@ -862,6 +863,44 @@ func TestTranscriptContentCache(t *testing.T) {
 				}
 				if got := h.contentCache.stats().RetainedBytes; got != before+main.memory || got != x.retainedWeight() {
 					t.Fatalf("after the read the entry is weighed at %d, want %d (bytes, summaries and the main index)", got, before+main.memory)
+				}
+
+			case "index-memory-native-metadata":
+				nativeJSON := `[{"id":"rec-1","kind":"unknown","source":{"origin":"harness"},"data":{"note":"` + strings.Repeat("n", 512) + `"}}]`
+				plainDoc := []byte(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"native-weight","harness":"claude-code","turns":[{"index":0,"role":"user","content":"ok","timestamp":"2026-01-01T00:00:01Z","depth":0}]}}`)
+				withNativeDoc := []byte(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"native-weight","harness":"claude-code","nativeMetadata":` + nativeJSON + `,"turns":[{"index":0,"role":"user","content":"ok","timestamp":"2026-01-01T00:00:01Z","depth":0}]}}`)
+				key := cacheTestKey(1)
+				plainIdx, err := newTranscriptIndex(transcriptIndexInput{Revision: key.Revision, ModelProvider: key.ModelProvider, Bytes: plainDoc})
+				if err != nil {
+					t.Fatal(err)
+				}
+				plainBuilt, err := plainIdx.Partition(mainPartitionKey(), noTranscriptBuildReserve)
+				if err != nil {
+					t.Fatal(err)
+				}
+				withNativeIdx, err := newTranscriptIndex(transcriptIndexInput{Revision: key.Revision, ModelProvider: key.ModelProvider, Bytes: withNativeDoc})
+				if err != nil {
+					t.Fatal(err)
+				}
+				cache := c.newCache(nil)
+				if _, err := cache.Acquire(ctx, key, transcriptCacheLoad{Weight: int64(len(withNativeIdx.Bytes))}, func(context.Context) (*openedTranscript, error) {
+					return &openedTranscript{Index: withNativeIdx, Bytes: withNativeIdx}, nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				nativeBuilt, err := withNativeIdx.Partition(mainPartitionKey(), chargingReserve(cache, key.ID, withNativeIdx))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(nativeBuilt.Native) != 1 {
+					t.Fatalf("decoded %d native records, want 1", len(nativeBuilt.Native))
+				}
+				wantDelta := int64(cap(nativeBuilt.Native))*nativeRecordBytes + 2*int64(len(nativeJSON))
+				if got := nativeBuilt.memory - plainBuilt.memory; got != wantDelta {
+					t.Fatalf("native metadata partition weight delta = %d, want %d (cap %d * %d + 2 * %d)", got, wantDelta, cap(nativeBuilt.Native), nativeRecordBytes, len(nativeJSON))
+				}
+				if got := cache.stats().RetainedBytes; got != withNativeIdx.retainedWeight() || got != int64(len(withNativeIdx.Bytes))+withNativeIdx.metadataMemory+nativeBuilt.memory {
+					t.Fatalf("cache retained weight = %d, want %d", got, withNativeIdx.retainedWeight())
 				}
 
 			default:

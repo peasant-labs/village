@@ -120,3 +120,7 @@
 - name: cache-index-memory-charged-through-the-read
   scenario: index-memory-read
   why: The read path is what builds partitions in production; a directory read through the mounted handler must leave the retained weight equal to the bytes plus the index it built, or the accounting only holds in unit tests.
+- name: cache-index-memory-native-metadata-weight
+  scenario: index-memory-native-metadata
+  why: Decoded native metadata allocates strings and maps beyond its stored JSON; the partition estimate must charge twice the native JSON byte length so a native-heavy transcript cannot under-report its cache weight.
+  budget: 4194304
