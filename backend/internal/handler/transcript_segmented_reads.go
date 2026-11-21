@@ -11,13 +11,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/middleware"
 )
 
 // segmentedRead binds every read to the freshly authorized row and the
@@ -32,30 +32,16 @@ type segmentedRead struct {
 	refuseBusy     func(http.ResponseWriter, error)
 }
 
-type transcriptRefusalLabel struct {
-	route string
-	kind  transcriptRefusalKind
-}
-
-var transcriptRefusals = struct {
-	sync.Mutex
-	counts map[transcriptRefusalLabel]uint64
-}{counts: make(map[transcriptRefusalLabel]uint64)}
-
+// recordTranscriptRefusal writes the one operator signal for a read the cache
+// refused: a structured log line naming the matched route template and which
+// limit refused it (weight or count). There is no in-process counter; the
+// runbook section "Transcript content cache" explains how to read the signal.
 func recordTranscriptRefusal(r *http.Request, err error) {
 	var admission transcriptAdmissionError
 	if !errors.As(err, &admission) {
 		return
 	}
-	route := "unknown"
-	if routeContext := chi.RouteContext(r.Context()); routeContext != nil && routeContext.RoutePattern() != "" {
-		route = routeContext.RoutePattern()
-	}
-	label := transcriptRefusalLabel{route: route, kind: admission.kind}
-	transcriptRefusals.Lock()
-	transcriptRefusals.counts[label]++
-	transcriptRefusals.Unlock()
-	slog.Info("transcript read admission refused", "route", route, "kind", admission.kind)
+	slog.Info("transcript read admission refused", "operation", "transcript_read_admission", "route", middleware.RouteLabel(r), "kind", string(admission.kind))
 }
 
 func segmentedHeaders(w http.ResponseWriter) {

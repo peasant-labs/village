@@ -319,6 +319,9 @@ func (c *transcriptContentCache) admitLocked(weight int64) error {
 }
 
 // AcquireBuild reserves a heavy-work slot until its caller finishes building.
+// The returned release frees the slot once; a second call is a no-op, so a
+// caller that releases on both a deferred path and an early one cannot free a
+// slot another build holds.
 func (c *transcriptContentCache) AcquireBuild(ctx context.Context) (func(), error) {
 	if c == nil {
 		return func() {}, nil
@@ -332,10 +335,13 @@ func (c *transcriptContentCache) AcquireBuild(ctx context.Context) (func(), erro
 	if err != nil {
 		return nil, err
 	}
+	var once sync.Once
 	return func() {
-		c.mu.Lock()
-		c.heavyWork--
-		c.mu.Unlock()
+		once.Do(func() {
+			c.mu.Lock()
+			c.heavyWork--
+			c.mu.Unlock()
+		})
 	}, nil
 }
 
