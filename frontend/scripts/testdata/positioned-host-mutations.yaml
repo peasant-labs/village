@@ -211,4 +211,5 @@ mutations:
     original: "          stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;\n"
     replacement: "          void row;\n"
     killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-restores-offset}
       - {kind: journey, file: scripts/journey/positioned-transcript.journey.mjs, name: journey-restore-reading-position}

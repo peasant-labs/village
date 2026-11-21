@@ -18,7 +18,7 @@ import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/c
 import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
 import { TranscriptViewMode } from "@/components/session-detail/v2/transcriptViewMode";
 import { TranscriptReadMode } from "@/lib/queries/segmentedReadCapability";
-import { emptyTranscriptReadState, readTranscriptReadState } from "@/lib/transcriptReadState";
+import { emptyTranscriptReadState, readTranscriptReadState, writeTranscriptReadState } from "@/lib/transcriptReadState";
 import { TranscriptSegmentPartitionKind } from "@peasant-labs/schema";
 
 // The transcript page over the positioned reader. The real route mounts
@@ -58,6 +58,8 @@ type RequestRefusal = {
 type RestoreVisit = { mode: TranscriptReadMode; search: string; activeText?: string; openHistory?: boolean; servedTurns?: number };
 type RestoreCase = {
   name: string; visits: RestoreVisit[]; history?: Spec["turns"];
+  seed?: { activeTurn: number | null; turnOffset: number; readMode: TranscriptReadMode };
+  rowTopBase?: number; expectScrollTop?: number;
   expectWindowAnchor?: string; expectNoWindowAnchor?: string; expectActiveText?: string;
   expectSnapped?: string; expectHistoryText?: string;
 };
@@ -94,6 +96,7 @@ const requiredFixtureNames = [
   "restore-positioned-lands-saved-turn", "restore-deep-link-wins-over-saved-turn", "restore-saved-turn-not-served-snaps",
   "restore-content-after-positioned-same-turn", "restore-positioned-after-content-same-turn",
   "restore-positioned-earlier-history-open", "restore-content-earlier-history-after-positioned",
+  "restore-positioned-restores-offset",
 ];
 
 it("retains every named positioned-host case", () => {
@@ -318,6 +321,23 @@ describe("restore", () => {
 
   for (const row of fixture.restore) {
     it(row.name, async () => {
+      if (row.seed) {
+        writeTranscriptReadState(id, { ...emptyTranscriptReadState(), ...row.seed });
+      }
+      if (row.rowTopBase !== undefined) {
+        const base = row.rowTopBase;
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+          if (this.classList.contains("txn-stream")) {
+            return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+          }
+          const stream = this.closest(".txn-stream");
+          if (stream && this.hasAttribute("data-turn")) {
+            const top = base - stream.scrollTop;
+            return { top, bottom: top + 40, left: 0, right: 800, width: 800, height: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+          }
+          return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+        });
+      }
       const visits = [...row.visits];
       const last = visits.pop()!;
       for (const earlier of visits) {
@@ -349,6 +369,9 @@ describe("restore", () => {
         expect(screen.queryByTestId(SessionDetailV2TestId.SnappedTurn.wire)).toBeNull();
       }
       if (row.expectHistoryText) await waitFor(() => expect(screen.getAllByText(row.expectHistoryText!).length).toBeGreaterThan(0));
+      if (row.expectScrollTop !== undefined) {
+        await waitFor(() => expect(document.querySelector<HTMLElement>(".txn-stream")?.scrollTop).toBe(row.expectScrollTop!));
+      }
       if (last.mode === TranscriptReadMode.Positioned) expect(contentReads(fetchMock)).toEqual([]);
     });
   }

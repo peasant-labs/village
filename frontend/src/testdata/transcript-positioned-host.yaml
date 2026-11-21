@@ -171,3 +171,11 @@ restore:
       - {mode: positioned, search: '', openHistory: true}
       - {mode: content, search: ''}
     expectHistoryText: The earlier plan stays in its own section.
+  - name: restore-positioned-restores-offset
+    seed: {activeTurn: 14, turnOffset: 100, readMode: positioned}
+    visits:
+      - {mode: positioned, search: ''}
+    rowTopBase: 300
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
+    expectScrollTop: 200
