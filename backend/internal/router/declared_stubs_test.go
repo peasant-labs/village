@@ -32,7 +32,7 @@ type declaredStubRoutesFile struct {
 // requiredDeclaredStubRoutes names the rows that must exist. It lives here so
 // deleting a fixture row cannot delete the check with it; landing a real
 // handler removes the row and its name together.
-var requiredDeclaredStubRoutes = []string{}
+var requiredDeclaredStubRoutes = []string{"batch publish"}
 
 func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 	t.Helper()
@@ -128,7 +128,7 @@ func TestDeclaredStubRoutes_AnswerNotImplemented(t *testing.T) {
 // instead, or nowhere.
 func TestDeclaredStubRoutes_AreMountedAndDeclared(t *testing.T) {
 	mounted := map[string]bool{}
-	for _, r := range mountedAPIRoutes(t) {
+	for _, r := range mountedRoutes(t) {
 		mounted[routeKey(r.Method, r.Path)] = true
 	}
 	declared := map[string]bool{}

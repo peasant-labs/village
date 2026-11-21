@@ -186,11 +186,8 @@ const (
 // publishing client reaches.
 func (h *Handler) RegisterPublishRoutes(r chi.Router) {
 	r.With(h.AuthRequired).Post(MountPattern(schemaRoute.VillagePublishTranscript), h.PublishTranscript)
-	// The batch route has no contract declaration yet, so it is mounted from a
-	// literal and listed in the router's testdata/undocumented_routes.yaml. Do
-	// not add a local route registry for it; mount it from its schema member
-	// once the contract declares it.
-	r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
+	// Batch publishing is a declared authenticated stub.
+	r.With(h.AuthRequired).Post(MountPattern(schemaRoute.VillagePublishTranscriptBatch), h.PublishBatch)
 }
 
 func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {

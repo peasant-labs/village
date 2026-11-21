@@ -735,10 +735,9 @@ rules:
     backend/internal/handler/user_settings_test.go: 1
     backend/internal/router/collective_alias_routes_integration_test.go: 1
     backend/internal/router/collective_alias_routes_test.go: 1
-    backend/internal/router/contract_drift_test.go: 3
+    backend/internal/router/contract_drift_test.go: 2
     backend/internal/router/publish_batch_test.go: 1
     backend/internal/router/published_schema_test.go: 1
-    backend/internal/router/router.go: 37
     backend/internal/router/transcript_pulls_route_integration_test.go: 1
   go-json-body-map:
     backend/internal/github/checks.go: 2

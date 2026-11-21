@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"golang.org/x/oauth2"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
@@ -47,7 +48,7 @@ func (h *Handler) GitHubLogin(w http.ResponseWriter, r *http.Request) {
 	oauthCfg := auth.GitHubOAuthConfig(
 		h.cfg.GitHubClientID,
 		h.cfg.GitHubClientSecret,
-		fmt.Sprintf("%s/api/v1/auth/github/callback", h.cfg.BaseURL),
+		h.cfg.BaseURL+schemaRoute.VillageCompleteGitHubSignIn.Pattern(),
 	)
 	state := generateState()
 	http.SetCookie(w, &http.Cookie{
@@ -66,7 +67,7 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	oauthCfg := auth.GitHubOAuthConfig(
 		h.cfg.GitHubClientID,
 		h.cfg.GitHubClientSecret,
-		fmt.Sprintf("%s/api/v1/auth/github/callback", h.cfg.BaseURL),
+		h.cfg.BaseURL+schemaRoute.VillageCompleteGitHubSignIn.Pattern(),
 	)
 
 	stateCookie, err := r.Cookie("oauth_state")
@@ -612,7 +613,7 @@ func (h *Handler) CLILogin(w http.ResponseWriter, r *http.Request) {
 	oauthCfg := auth.GitHubOAuthConfig(
 		h.cfg.GitHubClientID,
 		h.cfg.GitHubClientSecret,
-		fmt.Sprintf("%s/api/v1/auth/github/callback", h.cfg.BaseURL),
+		h.cfg.BaseURL+schemaRoute.VillageCompleteGitHubSignIn.Pattern(),
 	)
 	oauthState := generateState()
 

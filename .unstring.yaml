@@ -8,3 +8,6 @@ schema:
 endpoints:
   callees: [api]
   mountFiles: [backend/internal/router/*.go]
+typed:
+  goMountLiteral:
+    enabled: true

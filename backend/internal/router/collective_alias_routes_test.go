@@ -57,7 +57,7 @@ func collectiveAliasRoutes(t *testing.T) []collectiveAliasRoute {
 func TestCollectiveAliasMountsAndAuth(t *testing.T) {
 	router := productionRouter(t)
 	mounted := map[string]bool{}
-	for _, route := range enumerateAPIRoutes(t, router) {
+	for _, route := range enumerateRoutes(t, router) {
 		mounted[routeKey(route.Method, route.Path)] = true
 	}
 	for _, c := range collectiveAliasRoutes(t) {

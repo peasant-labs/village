@@ -714,6 +714,7 @@
   body: |
     {"annotations":[{"id":"{{annotation_id}}","targetKind":"entry","targetSessionId":"golden-{{public_id}}","targetEntryIndex":0,"targetEntryEndIndex":1,"isPrimary":false,"annotatorKind":"human","annotatorName":"{{login}}","typeId":"quality","typeName":"quality","value":"good","contentHash":"{{annotation_hash}}","createdAt":{{annotation_created_at}}}]}
 - name: list-commits
+  # The owner must be discoverable for this anonymous read.
   database: true
   as: anonymous
   method: GET
@@ -1328,3 +1329,21 @@
   want_headers: {"Content-Type": "application/json"}
   body: |
     {"error":"transcript blob cleanup failed because object storage did not delete the retained ciphertext in handler.deleteBlobForCleanup during delete_target_cleanup; database authority is unchanged and reconciliation is required; inspect the transcript_blob_reconciliation_required event, restore object storage, then reconcile before retrying: object storage refused the deletion"}
+
+- name: unsubscribe-invalid
+  method: POST
+  path: /api/v1/email/unsubscribe
+  status: 400
+  header_patterns: {X-RateLimit-Reset: "^[0-9]+$"}
+  want_headers: {Content-Type: application/json, X-RateLimit-Limit: "60", X-RateLimit-Remaining: "59"}
+  body: |
+    {"error":"This unsubscribe link is invalid or has expired. You can turn invitation emails off in your settings."}
+- name: unsubscribe-rate-limited
+  method: POST
+  path: /api/v1/email/unsubscribe
+  repeat: 60
+  status: 429
+  header_patterns: {X-RateLimit-Reset: "^[0-9]+$"}
+  want_headers: {Content-Type: "text/plain; charset=utf-8", Retry-After: "60", X-RateLimit-Limit: "60", X-RateLimit-Remaining: "0", X-Content-Type-Options: nosniff}
+  body: |
+    Too Many Requests
