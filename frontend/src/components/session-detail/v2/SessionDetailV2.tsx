@@ -12,6 +12,7 @@ import {
   ToastProvider,
   useToast,
   PositionedLanding,
+  PositionedReadStatus,
   usePositionedTranscript,
   type PositionedTranscript,
   type TurnLabel,
@@ -229,8 +230,9 @@ function rowOffset(stream: HTMLElement, row: HTMLElement): number {
   return row.getBoundingClientRect().top - stream.getBoundingClientRect().top;
 }
 
-/** Frames a restored offset waits for the landing scroll to settle before it gives up. */
-const RESTORE_OFFSET_MAX_FRAMES = 120;
+/** Frames a restored offset waits for the landing and the reopened history to settle before it
+ *  gives up and leaves the row where the landing put it: about ten seconds at 60 frames a second. */
+const RESTORE_OFFSET_MAX_FRAMES = 600;
 
 function SessionDetailV2Content({
   sessionId,
@@ -421,10 +423,18 @@ function SessionDetailV2Content({
   const streamContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollTopRef = useRef<number>(savedByPositioned ? 0 : restoredReadState.scrollTop);
   const turnOffsetRef = useRef<number>(savedByPositioned ? restoredReadState.turnOffset : 0);
-  const readStateRef = useRef({ search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn });
+  // A reopened history section above the landed row moves it as it loads, so
+  // the saved offset waits until every section the page reopens has settled.
+  const reopening = Object.keys(restoredReadState.earlierHistoryOpen).filter((id) => restoredReadState.earlierHistoryOpen[id]);
+  const historySettling = isPositioned && reopening.length > 0 && (
+    !sectionsKnown || (positionedSections ?? []).some(
+      (section) => reopening.includes(section.id) && section.status !== PositionedReadStatus.Ready && section.status !== PositionedReadStatus.Failed,
+    )
+  );
+  const readStateRef = useRef({ search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn, historySettling });
   useEffect(() => {
-    readStateRef.current = { search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn };
-  }, [search, savedActiveTurn, savedEarlierHistoryOpen, activeTurn]);
+    readStateRef.current = { search, activeTurn: savedActiveTurn, earlierHistoryOpen: savedEarlierHistoryOpen, activePosition: activeTurn, historySettling };
+  }, [search, savedActiveTurn, savedEarlierHistoryOpen, activeTurn, historySettling]);
 
   const persistReadState = useCallback(() => {
     if (isPositioned) {
@@ -503,7 +513,7 @@ function SessionDetailV2Content({
     const step = () => {
       const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
       const row = stream ? mainRow(stream, position) : undefined;
-      if (stream && row && readStateRef.current.activePosition === position) {
+      if (stream && row && readStateRef.current.activePosition === position && !readStateRef.current.historySettling) {
         if (previous === stream.scrollTop) {
           offsetRestored.current = true;
           stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;
