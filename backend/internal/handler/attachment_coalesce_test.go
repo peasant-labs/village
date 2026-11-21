@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -94,7 +95,7 @@ func publishSessionForCoalesce(t *testing.T, h *Handler, owner uuid.UUID, repo, 
 		t.Fatal(err)
 	}
 	body, boundary := multipartBody(t, map[string]string{"metadata": string(raw)}, `[{"role":"user","content":"hello"}]`)
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", body)
+	r := httptest.NewRequest(http.MethodPost, route.VillagePublishTranscript.Pattern(), body)
 	r.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, &AuthUser{ID: owner, Username: "test"}))
 	w := httptest.NewRecorder()
