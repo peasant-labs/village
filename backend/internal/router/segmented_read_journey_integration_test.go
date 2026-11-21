@@ -20,6 +20,7 @@ import (
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -29,12 +30,25 @@ import (
 //go:embed testdata/segmented_read_journey.yaml
 var segmentedReadJourneyYAML []byte
 
+// journeyContentFixture is the published transcript the journey stores. It is
+// the handler package's canonical valid content document.
+const journeyContentFixture = "../handler/testdata/contract/current/valid/content.json"
+
+// journeyRoutePaths builds each journey route's path from the contract.
+var journeyRoutePaths = map[string]func(id string) (string, error){
+	"header":    schemaRoute.VillageGetTranscriptHeaderPath,
+	"directory": schemaRoute.VillageGetTranscriptSegmentsPath,
+	"segment":   func(id string) (string, error) { return schemaRoute.VillageGetTranscriptSegmentPath(id, 0) },
+	"window":    schemaRoute.VillageGetTranscriptWindowPath,
+	"locate":    schemaRoute.VillageLocateTranscriptEntryPath,
+}
+
 type segmentedJourneyFixture struct {
 	Reference string `yaml:"reference"`
 	Routes    []struct {
 		Name   string `yaml:"name"`
 		Method string `yaml:"method"`
-		Suffix string `yaml:"suffix"`
+		Query  string `yaml:"query"`
 	} `yaml:"routes"`
 	Viewers []struct {
 		Name   string `yaml:"name"`
@@ -158,7 +172,7 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 		}
 	})
 
-	stored, err := os.ReadFile("../handler/testdata/contract/current/valid/content.json")
+	stored, err := os.ReadFile(journeyContentFixture)
 	if err != nil {
 		t.Fatalf("read the transcript fixture: %v", err)
 	}
@@ -224,11 +238,22 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 		routes.ServeHTTP(rec, req)
 		return rec
 	}
-	base := "/api/v1/transcripts/"
+	path := func(name string, id uuid.UUID) string {
+		t.Helper()
+		build, ok := journeyRoutePaths[name]
+		if !ok {
+			t.Fatalf("journey route %q has no contract path builder", name)
+		}
+		built, err := build(id.String())
+		if err != nil {
+			t.Fatalf("build the %s path: %v", name, err)
+		}
+		return built
+	}
 
 	// The owner's directory read supplies the identity the locator request
 	// must echo.
-	directory := serve(http.MethodGet, base+transcript.String()+"/segments?v=2", tokens["owner"], nil)
+	directory := serve(http.MethodGet, path("directory", transcript)+"?v=2", tokens["owner"], nil)
 	if directory.Code != http.StatusOK {
 		t.Fatalf("the owner's directory read = %d %s", directory.Code, directory.Body.String())
 	}
@@ -251,12 +276,12 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 				if route.Method == http.MethodPost {
 					body = locate
 				}
-				got := serve(route.Method, base+transcript.String()+route.Suffix, tokens[viewer.Name], body)
+				got := serve(route.Method, path(route.Name, transcript)+route.Query, tokens[viewer.Name], body)
 				if got.Code != viewer.Status {
-					t.Fatalf("%s %s as %s = %d %s, want %d", route.Method, route.Suffix, viewer.Name, got.Code, got.Body.String(), viewer.Status)
+					t.Fatalf("%s %s as %s = %d %s, want %d", route.Method, route.Name, viewer.Name, got.Code, got.Body.String(), viewer.Status)
 				}
 				if viewer.Status != http.StatusOK {
-					missing := serve(route.Method, base+uuid.NewString()+route.Suffix, tokens[viewer.Name], body)
+					missing := serve(route.Method, path(route.Name, uuid.New())+route.Query, tokens[viewer.Name], body)
 					if missing.Code != got.Code || missing.Body.String() != got.Body.String() || missing.Header().Get("Cache-Control") != got.Header().Get("Cache-Control") {
 						t.Fatalf("the private transcript is distinguishable from a missing one for %s: %d %q / %d %q", viewer.Name, got.Code, got.Body.String(), missing.Code, missing.Body.String())
 					}
