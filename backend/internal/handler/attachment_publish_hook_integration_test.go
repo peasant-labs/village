@@ -60,6 +60,9 @@ func attachmentPublishSession(t *testing.T, h *Handler, owner pgtype.UUID, usern
 	r = r.WithContext(context.WithValue(context.Background(), UserContextKey, &AuthUser{ID: uuid.UUID(owner.Bytes), Username: username}))
 	w := httptest.NewRecorder()
 	h.PublishTranscript(w, r)
+	if err := h.DrainPublishAttachments(context.Background()); err != nil {
+		t.Fatalf("drain publish attachment work: %v", err)
+	}
 	return w.Code, w.Body.String()
 }
 

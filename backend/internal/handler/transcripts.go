@@ -441,6 +441,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// transcript was briefly private has already withdrawn it from the digest.
 	var narrowedFrom string
 	var narrowedID pgtype.UUID
+	var narrowedRepo string
 	var audienceLeftPrivate bool
 	// republishedID is the transcript a republish may have replaced, set before
 	// its first write so every outcome, including an ambiguous commit, drops
@@ -529,6 +530,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				return currentErr
 			}
 			if current.Visibility != dbVisibilityPrivate {
+				narrowedRepo = reponame.NormalizeRemote(current.GitRemote.String)
 				// The narrowing, the replacement that restores, and the
 				// compensating restore each run detached from the request, on a
 				// deadline of their own. A client that hangs up in the middle of a
@@ -920,15 +922,18 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// narrows nothing and would never repost them, and a refresh that ran while
 	// it was briefly private has already dropped it from the digest.
 	//
-	// This runs at return, so a waiting attachment is completed first and the
-	// refresh sees the state completion left behind.
-	if narrowedFrom != "" {
-		defer func() {
-			if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), narrowedID); refreshErr != nil {
-				log.Printf("pull request attachment refresh after a republish narrowing failed: %v", refreshErr)
+	// Schedule both operations together on return: completion runs first, and
+	// the narrowing refresh sees the state completion left behind.
+	var completionRepo string
+	defer func() {
+		if completionRepo != "" || narrowedFrom != "" {
+			repo := completionRepo
+			if repo == "" {
+				repo = narrowedRepo
 			}
-		}()
-	}
+			h.startPublishAttachmentWork(r.Context(), ownerPgID, repo, completionRepo != "", narrowedID, narrowedFrom != "")
+		}
+	}()
 	if err != nil {
 		if candidateWritten {
 			emitBlobReconciliation("publish", candidateID, candidate, TransactionCommitAmbiguous)
@@ -948,11 +953,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// an attachment for the same repository without a second click. A failure
 	// here must not fail the publish: the transcript is already durable, and the
 	// next push or a Refresh retries the attachment work.
-	if repoName := reponame.NormalizeRemote(transcript.GitRemote.String); repoName != "" {
-		if err := h.completeAttachmentsForPublishedTranscript(r.Context(), transcript.OwnerID, repoName); err != nil {
-			log.Printf("pull request attachment completion after publish failed: %v", err)
-		}
-	}
+	completionRepo = reponame.NormalizeRemote(transcript.GitRemote.String)
 	// Note: Tags are not part of schema.PublishRequest in the new wire format
 	// Tags linking is deferred to a future enhancement
 
