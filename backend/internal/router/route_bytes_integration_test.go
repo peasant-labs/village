@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	mathrand "math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -42,11 +43,11 @@ type routeBytesWorld struct {
 	values map[string]string
 	// tokens are the sessions a case may carry, by its "as" name.
 	tokens map[string]string
-	// githubSignIn and gitlabSignIn are the provider identities the fake
+	// signIns are the provider identities the fake
 	// providers report; installations are the App installations they know.
-	githubSignIn, gitlabSignIn int64
-	installations              map[int64]int64
-	blobs                      *recordingBlobStore
+	signIns       map[string]int64
+	installations map[int64]int64
+	blobs         *recordingBlobStore
 }
 
 // recordingBlobStore stands in for encrypted object storage on the deletion
@@ -56,11 +57,16 @@ type recordingBlobStore struct {
 	storage.TranscriptBlobStore
 	mu      sync.Mutex
 	deleted []string
+	// refuse makes every deletion fail, as unreachable object storage does.
+	refuse bool
 }
 
 func (b *recordingBlobStore) Delete(_ context.Context, d storage.BlobDescriptor) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.refuse {
+		return errors.New("object storage refused the deletion")
+	}
 	b.deleted = append(b.deleted, string(d.ObjectKey()))
 	return nil
 }
@@ -86,16 +92,21 @@ func TestRouteBytesPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	configured := New(&config.Config{
+	configuredConfig := &config.Config{
 		JWTSecret: routeBytesSecret, FrontendURL: "https://example.test", BaseURL: "https://api.example.test",
 		GitHubClientID: "client", GitHubClientSecret: "secret", GitLabClientID: "client", GitLabClientSecret: "secret",
+		HuggingFaceClientID: "client", HuggingFaceClientSecret: "secret", CodebergClientID: "client", CodebergClientSecret: "secret",
+		SourceHutClientID: "client", SourceHutClientSecret: "secret",
 		GitHubAppID: "1", GitHubAppSlug: "village-golden",
 		GitHubAppPrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})),
-	}, pool, w.blobs, nil)
+	}
+	configured := New(configuredConfig, pool, w.blobs, nil)
+	failingStorage := New(configuredConfig, pool, &recordingBlobStore{refuse: true}, nil)
 
 	providers := fakeProviders{
-		githubUser: func() (int64, string) { return w.githubSignIn, w.values["github_sign_in"] },
-		gitlabUser: func() (int64, string) { return w.gitlabSignIn, w.values["gitlab_sign_in"] },
+		users: func(provider string) (int64, string) {
+			return w.signIns[provider], w.values[provider+"_sign_in"]
+		},
 		installations: func(id int64) (string, int64, bool) {
 			account, ok := w.installations[id]
 			if account == w.githubAccountID(t) {
@@ -138,7 +149,10 @@ func TestRouteBytesPostgres(t *testing.T) {
 				req = req.WithContext(context.WithValue(req.Context(), oauth2.HTTPClient, &http.Client{Transport: providers}))
 			}
 			routes := plain
-			if c.Configured {
+			switch {
+			case c.FailingStorage:
+				routes = failingStorage
+			case c.Configured:
 				routes = configured
 			}
 			rec := httptest.NewRecorder()
@@ -154,14 +168,8 @@ func TestRouteBytesPostgres(t *testing.T) {
 				t.Fatalf("status = %d (body %q), want %d", rec.Code, rec.Body.String(), c.Status)
 			}
 			assertRouteBody(t, c, rec.Body.String(), w.replace(c.Body))
-			for k, v := range c.Want {
-				if got := strings.Join(rec.Header().Values(k), ", "); got != w.replace(v) {
-					t.Errorf("%s = %q, want %q", k, got, w.replace(v))
-				}
-			}
-			if c.Name == "list-api-keys" && (strings.Contains(rec.Body.String(), w.values["key"]) || strings.Contains(rec.Body.String(), "key_hash")) {
-				t.Fatal("list exposed the plaintext key or key hash")
-			}
+			assertRouteHeaders(t, c, rec.Header(), w.replace)
+			assertRouteBodyOmits(t, c, rec.Body.String(), w.replace)
 		})
 	}
 }
@@ -236,8 +244,39 @@ var routeByteCaptures = map[string]func(*testing.T, *routeBytesWorld, *httptest.
 	"web-session": func(t *testing.T, w *routeBytesWorld, rec *httptest.ResponseRecorder) {
 		w.values["session"] = sessionFromLocation(t, rec, w.values["github_sign_in"])
 	},
-	"provider-session": func(t *testing.T, w *routeBytesWorld, rec *httptest.ResponseRecorder) {
-		w.values["session"] = sessionFromLocation(t, rec, w.values["gitlab_sign_in"])
+	"gitlab-session":      providerSession("gitlab"),
+	"huggingface-session": providerSession("huggingface"),
+	"codeberg-session":    providerSession("codeberg"),
+	"sourcehut-session":   providerSession("sourcehut"),
+	"cli-login-state": func(t *testing.T, w *routeBytesWorld, rec *httptest.ResponseRecorder) {
+		match := regexp.MustCompile(`^oauth_state=([0-9a-f]{32});`).FindStringSubmatch(rec.Header().Get("Set-Cookie"))
+		if len(match) != 2 {
+			t.Fatalf("invalid state cookie %q", rec.Header().Get("Set-Cookie"))
+		}
+		var port int
+		var state string
+		w.scan(t, `SELECT cli_port,cli_state FROM cli_auth_sessions WHERE oauth_state=$1`, []any{match[1]}, &port, &state)
+		if port != 43124 || state != w.values["cli_login_state"] {
+			t.Fatalf("CLI session for %s records port %d state %q", match[1], port, state)
+		}
+		w.values["cli_login_oauth_state"] = match[1]
+	},
+	"cli-exchange": func(t *testing.T, w *routeBytesWorld, rec *httptest.ResponseRecorder) {
+		var got struct {
+			APIKey string `json:"api_key"`
+			KeyID  string `json:"key_id"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		var user uuid.UUID
+		var label string
+		w.scan(t, `SELECT k.user_id,k.label FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.id=$1 AND k.key_hash=$2 AND u.github_id=$3`,
+			[]any{got.KeyID, auth.HashAPIKey(got.APIKey), w.signIns["github"]}, &user, &label)
+		if label != "peasant-cli" {
+			t.Fatalf("exchanged key label %q", label)
+		}
+		w.values["cli_key"], w.values["cli_key_id"], w.values["github_sign_in_id"] = got.APIKey, got.KeyID, user.String()
 	},
 	"cli-code": func(t *testing.T, w *routeBytesWorld, _ *httptest.ResponseRecorder) {
 		var code string
@@ -275,6 +314,14 @@ var routeByteCaptures = map[string]func(*testing.T, *routeBytesWorld, *httptest.
 		w.values["annotation_id"], w.values["annotation_hash"] = id.String(), hash
 		w.values["annotation_created_at"] = strconv.FormatInt(created.UnixMilli(), 10)
 	},
+	// A refused object deletion still answers 500 after the row is gone.
+	"doomed-row-deleted": func(t *testing.T, w *routeBytesWorld, _ *httptest.ResponseRecorder) {
+		var n int
+		w.scan(t, `SELECT count(*) FROM transcripts WHERE id=$1`, []any{w.values["doomed_id"]}, &n)
+		if n != 0 {
+			t.Fatal("the refused object deletion left the transcript row")
+		}
+	},
 	"transcript-deleted": func(t *testing.T, w *routeBytesWorld, _ *httptest.ResponseRecorder) {
 		var n int
 		w.scan(t, `SELECT count(*) FROM transcripts WHERE id=$1`, []any{w.values["private_id"]}, &n)
@@ -285,6 +332,14 @@ var routeByteCaptures = map[string]func(*testing.T, *routeBytesWorld, *httptest.
 			t.Fatalf("deletion left %d rows and removed objects %q", n, deleted)
 		}
 	},
+}
+
+// providerSession captures the session a provider's web sign-in hands the
+// frontend.
+func providerSession(provider string) func(*testing.T, *routeBytesWorld, *httptest.ResponseRecorder) {
+	return func(t *testing.T, w *routeBytesWorld, rec *httptest.ResponseRecorder) {
+		w.values["session"] = sessionFromLocation(t, rec, w.values[provider+"_sign_in"])
+	}
 }
 
 // sessionFromLocation reads the session a web sign-in hands the frontend and
@@ -332,6 +387,7 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 		for sql, key := range map[string]string{
 			`DELETE FROM tags WHERE name = $1`:                     w.values["tag"],
 			`DELETE FROM cli_auth_sessions WHERE oauth_state = $1`: w.values["cli_oauth_state"],
+			`DELETE FROM cli_auth_sessions WHERE cli_state = $1`:   w.values["cli_login_state"],
 		} {
 			if _, err := pool.Exec(ctx, sql, key); err != nil {
 				t.Errorf("%s: %v", sql, err)
@@ -341,11 +397,13 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 			t.Errorf("remove installations: %v", err)
 		}
 		if _, err := pool.Exec(ctx, `DELETE FROM users WHERE id = ANY($1::uuid[]) OR github_id = $2`,
-			users, w.githubSignIn); err != nil {
+			users, w.signIns["github"]); err != nil {
 			t.Errorf("remove test users: %v", err)
 		}
-		if _, err := pool.Exec(ctx, `DELETE FROM users WHERE provider = 'gitlab' AND provider_user_id = $1`, strconv.FormatInt(w.gitlabSignIn, 10)); err != nil {
-			t.Errorf("remove the gitlab sign-in: %v", err)
+		for provider, id := range w.signIns {
+			if _, err := pool.Exec(ctx, `DELETE FROM users WHERE provider = $1 AND provider_user_id = $2`, provider, strconv.FormatInt(id, 10)); err != nil {
+				t.Errorf("remove the %s sign-in: %v", provider, err)
+			}
 		}
 		purgeRouteBytesAudit(t, pool, transcripts)
 	})
@@ -371,7 +429,7 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 		return id
 	}
 	account := insertUser("account")
-	insertUser("other")
+	other := insertUser("other")
 	insertUser("deletable")
 
 	login := w.values["login"]
@@ -386,19 +444,24 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 	w.values["project"], w.values["private_project"] = strings.Repeat(suffix(), 6)[:64], strings.Repeat(suffix(), 6)[:64]
 	// A project with no name evidence is labelled from its hash.
 	w.values["project_label"], w.values["private_project_label"] = "project-"+w.values["project"][:12], "project-"+w.values["private_project"][:12]
-	insertTranscript := func(name, visibility, project string) uuid.UUID {
+	insertTranscript := func(name, visibility, project string, owner uuid.UUID) uuid.UUID {
 		id := uuid.New()
 		execRouteBytesSystem(t, `
 			INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes,
 			                         schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version, project_hash)
 			VALUES ($1, $2, $3, 'golden transcript', $4, 'claude-code', 'model', $5, 2, '0.1.0', $6, 'wrapped', 'aes-256-gcm-random-nonce-v1', 1, $7)`,
-			pool, id, account, "golden-"+id.String(), visibility, "transcripts/"+id.String()+".bin", strings.Repeat("7", 64), project)
+			pool, id, owner, "golden-"+id.String(), visibility, "transcripts/"+id.String()+".bin", strings.Repeat("7", 64), project)
 		transcripts = append(transcripts, id)
 		w.values[name+"_id"] = id.String()
 		return id
 	}
-	public := insertTranscript("public", "public", w.values["project"])
-	insertTranscript("private", "private", w.values["private_project"])
+	public := insertTranscript("public", "public", w.values["project"], account)
+	insertTranscript("private", "private", w.values["private_project"], account)
+	// A transcript whose deletion meets refusing object storage.
+	insertTranscript("doomed", "private", w.values["private_project"], account)
+	// Another account's private transcript, which the account may neither
+	// see nor delete.
+	insertTranscript("foreign", "private", w.values["private_project"], other)
 	w.values["tag"] = "golden-" + suffix()
 	var tagID uuid.UUID
 	if err := pool.QueryRow(ctx, `INSERT INTO tags(name) VALUES($1) RETURNING id`, w.values["tag"]).Scan(&tagID); err != nil {
@@ -428,9 +491,12 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 	// a CLI session waiting on a sign-in, and two App installations, one on
 	// the account's own GitHub identity and one on an account it does not
 	// control.
-	w.githubSignIn = 8_000_000_000 + mathrand.Int63n(1_000_000_000)
-	w.gitlabSignIn = 9_000_000_000 + mathrand.Int63n(1_000_000_000)
-	w.values["github_sign_in"], w.values["gitlab_sign_in"] = "golden-"+suffix(), "golden-"+suffix()
+	w.signIns = map[string]int64{}
+	for i, provider := range []string{"github", "gitlab", "huggingface", "codeberg", "sourcehut"} {
+		w.signIns[provider] = int64(i+4)*1_000_000_000 + mathrand.Int63n(1_000_000_000)
+		w.values[provider+"_sign_in"] = "golden-" + suffix()
+	}
+	w.values["cli_login_state"] = "golden-cli-" + suffix()
 	w.values["oauth_state"], w.values["cli_oauth_state"] = suffix()+suffix(), suffix()+suffix()
 	if _, err := pool.Exec(ctx, `INSERT INTO cli_auth_sessions(oauth_state,cli_port,cli_state) VALUES($1,43123,'cli-state')`, w.values["cli_oauth_state"]); err != nil {
 		t.Fatal(err)

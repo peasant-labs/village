@@ -17,7 +17,9 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/google/uuid"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 )
 
@@ -54,15 +56,39 @@ type routeByteCase struct {
 	// body must be a JSON array, framed exactly as the encoder writes it,
 	// holding one element whose bytes equal the golden.
 	SharedRows bool `yaml:"shared_rows"`
+	// HeaderPatterns are regular expressions a header's value must match,
+	// for values the server derives from the clock, such as the limiter's
+	// reset time.
+	HeaderPatterns map[string]string `yaml:"header_patterns"`
+	// AbsentHeaders names headers the response must not carry at all.
+	AbsentHeaders []string `yaml:"absent_headers"`
+	// ForbidBodySubstrings are templates the body must not contain, such as
+	// a secret the route must never echo.
+	ForbidBodySubstrings []string `yaml:"forbid_body_substrings"`
+	// SignedIn sends a valid session token on a no-database case, whose
+	// account the server cannot confirm.
+	SignedIn bool `yaml:"signed_in"`
+	// FailingStorage sends a database case to a configured router whose
+	// object storage refuses every deletion.
+	FailingStorage bool `yaml:"failing_storage"`
 }
 
 // fakeProviders answers the outbound requests the OAuth callbacks and the
 // GitHub App client make, so no test reaches a real provider. A token request
-// without a code is refused, as the providers refuse it.
+// without a code is refused, as the providers refuse it. users reports the
+// identity each provider signs in.
 type fakeProviders struct {
-	githubUser    func() (int64, string)
-	gitlabUser    func() (int64, string)
+	users         func(provider string) (int64, string)
 	installations func(id int64) (string, int64, bool)
+}
+
+// fakeProviderTokenURLs are the token endpoints of the five providers.
+var fakeProviderTokenURLs = map[string]bool{
+	"github.com/login/oauth/access_token":   true,
+	"gitlab.com/oauth/token":                true,
+	"huggingface.co/oauth/token":            true,
+	"codeberg.org/login/oauth/access_token": true,
+	"meta.sr.ht/oauth2/access-token":        true,
 }
 
 func (f fakeProviders) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -70,22 +96,30 @@ func (f fakeProviders) RoundTrip(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}},
 			Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 	}
-	switch r.URL.Host + r.URL.Path {
-	case "github.com/login/oauth/access_token", "gitlab.com/oauth/token":
+	endpoint := r.URL.Host + r.URL.Path
+	if fakeProviderTokenURLs[endpoint] {
 		body, _ := io.ReadAll(r.Body)
 		form, _ := url.ParseQuery(string(body))
 		if form.Get("code") == "" {
 			return answer(http.StatusBadRequest, `{"error":"invalid_grant"}`)
 		}
 		return answer(http.StatusOK, `{"access_token":"disposable","token_type":"bearer"}`)
+	}
+	switch endpoint {
 	case "api.github.com/user":
-		id, login := f.githubUser()
+		id, login := f.users("github")
 		return answer(http.StatusOK, fmt.Sprintf(`{"id":%d,"login":%q}`, id, login))
 	case "api.github.com/user/orgs":
 		return answer(http.StatusOK, `[]`)
 	case "gitlab.com/api/v4/user":
-		id, login := f.gitlabUser()
+		id, login := f.users("gitlab")
 		return answer(http.StatusOK, fmt.Sprintf(`{"id":%d,"username":%q,"name":"Golden Lab","avatar_url":"https://example.test/lab.png"}`, id, login))
+	case "huggingface.co/oauth/userinfo", "codeberg.org/login/oauth/userinfo":
+		id, login := f.users(map[string]string{"huggingface.co": "huggingface", "codeberg.org": "codeberg"}[r.URL.Host])
+		return answer(http.StatusOK, fmt.Sprintf(`{"sub":"%d","preferred_username":%q,"name":"Golden Hub","picture":"https://example.test/hub.png"}`, id, login))
+	case "meta.sr.ht/query":
+		id, login := f.users("sourcehut")
+		return answer(http.StatusOK, fmt.Sprintf(`{"data":{"me":{"id":%d,"username":%q,"canonicalName":"~%s","url":"https://sr.ht/~%s"}}}`, id, login, login, login))
 	}
 	if id, ok := strings.CutPrefix(r.URL.Path, "/app/installations/"); ok && r.URL.Host == "api.github.com" && f.installations != nil {
 		n, _ := strconv.ParseInt(id, 10, 64)
@@ -95,6 +129,37 @@ func (f fakeProviders) RoundTrip(r *http.Request) (*http.Response, error) {
 		return answer(http.StatusNotFound, `{"message":"Not Found"}`)
 	}
 	return nil, fmt.Errorf("no fake provider answers %s %s", r.Method, r.URL)
+}
+
+// assertRouteHeaders compares the pinned headers, after replace fills their
+// templates, and checks the headers that must be absent.
+func assertRouteHeaders(t *testing.T, c routeByteCase, got http.Header, replace func(string) string) {
+	t.Helper()
+	for name, value := range c.Want {
+		if have := strings.Join(got.Values(name), ", "); have != replace(value) {
+			t.Errorf("header %s = %q, want %q", name, have, replace(value))
+		}
+	}
+	for name, pattern := range c.HeaderPatterns {
+		if have := strings.Join(got.Values(name), ", "); !regexp.MustCompile(pattern).MatchString(have) {
+			t.Errorf("header %s = %q, want a match for %q", name, have, pattern)
+		}
+	}
+	for _, name := range c.AbsentHeaders {
+		if values := got.Values(name); len(values) != 0 {
+			t.Errorf("header %s = %q, want it absent", name, values)
+		}
+	}
+}
+
+// assertRouteBodyOmits checks the substrings a body must never contain.
+func assertRouteBodyOmits(t *testing.T, c routeByteCase, body string, replace func(string) string) {
+	t.Helper()
+	for _, forbidden := range c.ForbidBodySubstrings {
+		if f := replace(forbidden); f == "" || strings.Contains(body, f) {
+			t.Errorf("body %q contains forbidden %q (or the template is empty)", body, f)
+		}
+	}
 }
 
 // assertRouteBody compares a response body with its golden. A shared-rows
@@ -185,6 +250,32 @@ var requiredRouteByteCases = []string{
 	"list-commits", "list-commits-hidden",
 	"delete-transcript-without-blob-store", "delete-transcript", "delete-transcript-missing",
 	"delete-account",
+
+	"cli-login", "cli-exchange", "cli-exchange-used-code", "cli-exchange-unknown-code",
+	"huggingface-callback-web", "codeberg-callback-web", "sourcehut-callback-web",
+	"github-install-unconfigured-html", "github-install-callback-unconfigured-html",
+	"revoke-api-key-invalid-id", "clear-project-name-invalid-hash", "list-attestations-hidden",
+	"list-annotations-hidden", "create-attestation-hidden", "create-annotation-hidden",
+	"create-attestation-invalid-id", "create-annotation-invalid-id", "delete-transcript-invalid-id",
+	"delete-transcript-not-owner", "delete-transcript-storage-failure", "cli-login-missing-port-json", "cli-login-missing-port-html",
+	"cli-login-missing-state-json", "cli-login-missing-state-html", "cli-login-invalid-port-json",
+	"cli-login-invalid-port-html", "cli-login-port-below-range-json",
+	"cli-login-port-below-range-html", "cli-login-port-above-range-json",
+	"cli-login-port-above-range-html", "cli-login-sixth-request", "cli-exchange-invalid-json",
+	"cli-exchange-missing-code", "cli-exchange-missing-state", "cli-exchange-sixth-request",
+	"gitlab-login-sixth-request", "huggingface-login-sixth-request", "codeberg-login-sixth-request",
+	"sourcehut-login-sixth-request", "huggingface-callback-missing-code-json",
+	"huggingface-callback-missing-code-html", "codeberg-callback-missing-code-json",
+	"codeberg-callback-missing-code-html", "sourcehut-callback-missing-code-json",
+	"sourcehut-callback-missing-code-html", "list-api-keys-session-unconfirmed",
+	"create-api-key-session-unconfirmed", "revoke-api-key-session-unconfirmed",
+	"delete-account-session-unconfirmed", "update-discoverability-session-unconfirmed",
+	"set-username-session-unconfirmed", "organization-visibility-session-unconfirmed",
+	"github-install-session-unconfirmed", "github-install-callback-session-unconfirmed",
+	"batch-publish-session-unconfirmed", "delete-transcript-session-unconfirmed",
+	"create-annotation-session-unconfirmed", "create-attestation-session-unconfirmed",
+	"delete-attestation-session-unconfirmed", "set-project-name-session-unconfirmed",
+	"clear-project-name-session-unconfirmed",
 }
 
 func routeByteCases(t *testing.T) []routeByteCase {
@@ -230,20 +321,31 @@ func TestRouteBytes(t *testing.T) {
 				cfg.SourceHutClientID, cfg.SourceHutClientSecret = "client", "secret"
 			}
 			routes := New(cfg, nil, nil, nil)
-			req := httptest.NewRequest(c.Method, c.Path, nil)
-			for name, value := range c.Headers {
-				req.Header.Set(name, value)
-			}
-			for name, value := range c.Cookies {
-				req.AddCookie(&http.Cookie{Name: name, Value: value})
-			}
-			if c.Providers {
-				req = req.WithContext(context.WithValue(req.Context(), oauth2.HTTPClient, &http.Client{Transport: fakeProviders{}}))
+			session := ""
+			if c.SignedIn {
+				token, err := auth.CreateToken(cfg.JWTSecret, uuid.New(), "golden-unconfirmed")
+				if err != nil {
+					t.Fatal(err)
+				}
+				session = token
 			}
 			var w *httptest.ResponseRecorder
 			for i := 0; i <= c.Repeat; i++ {
+				req := httptest.NewRequest(c.Method, c.Path, strings.NewReader(c.RequestBody))
+				for name, value := range c.Headers {
+					req.Header.Set(name, value)
+				}
+				if session != "" {
+					req.Header.Set("Authorization", "Bearer "+session)
+				}
+				for name, value := range c.Cookies {
+					req.AddCookie(&http.Cookie{Name: name, Value: value})
+				}
+				if c.Providers {
+					req = req.WithContext(context.WithValue(req.Context(), oauth2.HTTPClient, &http.Client{Transport: fakeProviders{}}))
+				}
 				w = httptest.NewRecorder()
-				routes.ServeHTTP(w, req.Clone(req.Context()))
+				routes.ServeHTTP(w, req)
 			}
 			body := c.Body
 			if c.BodyFromPinnedSchema {
@@ -261,12 +363,9 @@ func TestRouteBytes(t *testing.T) {
 			if w.Code != c.Status || w.Body.String() != body {
 				t.Fatalf("got status %d body %q, want status %d body %q", w.Code, w.Body.String(), c.Status, body)
 			}
-			for name, value := range c.Want {
-				value = strings.ReplaceAll(value, "{{state}}", state)
-				if got := strings.Join(w.Header().Values(name), ", "); got != value {
-					t.Errorf("header %s = %q, want %q", name, got, value)
-				}
-			}
+			replace := func(value string) string { return strings.ReplaceAll(value, "{{state}}", state) }
+			assertRouteHeaders(t, c, w.Header(), replace)
+			assertRouteBodyOmits(t, c, w.Body.String(), replace)
 		})
 	}
 }
@@ -276,3 +375,74 @@ func TestRouteBytes(t *testing.T) {
 type routeByteCaller string
 
 const routeByteCallerAnonymous routeByteCaller = "anonymous"
+
+//go:embed testdata/route_bytes_deferred.yaml
+var routeBytesDeferredYAML []byte
+
+// deferredRouteStatus is a declared status no route-byte golden pins.
+type deferredRouteStatus struct {
+	Name   string `yaml:"name"`
+	Method string `yaml:"method"`
+	Route  string `yaml:"route"`
+	Status int    `yaml:"status"`
+	Reason string `yaml:"reason"`
+}
+
+// requiredDeferredRouteStatuses is the exact set of deferred status names.
+var requiredDeferredRouteStatuses = []string{
+	"list-api-keys-500", "create-api-key-500", "revoke-api-key-500", "cli-exchange-500",
+	"cli-login-500", "delete-account-500", "update-discoverability-500", "set-username-500",
+	"organization-visibility-500", "github-install-callback-500", "github-install-500",
+	"organization-search-500", "list-tags-500", "popular-tags-500", "list-annotations-500",
+	"create-annotation-500", "list-attestations-500", "create-attestation-500",
+	"delete-attestation-500", "list-commits-500", "set-project-name-500", "clear-project-name-500",
+	"public-organizations-500", "project-page-500",
+}
+
+// TestRouteBytesDeferredStatuses keeps the deferred list honest: every row
+// names a mounted route and gives a reason, and no golden already pins it.
+func TestRouteBytesDeferredStatuses(t *testing.T) {
+	file, err := decodeSingleYAMLDocument[struct {
+		DeferredStatuses []deferredRouteStatus `yaml:"deferred_statuses"`
+	}](routeBytesDeferredYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	present := map[string]bool{}
+	for _, d := range file.DeferredStatuses {
+		key := d.Name
+		if present[key] {
+			t.Fatalf("deferred status %q is listed twice", key)
+		}
+		present[key] = true
+		if strings.TrimSpace(d.Reason) == "" {
+			t.Errorf("deferred status %q gives no reason it cannot be reached", key)
+		}
+	}
+	required := map[string]bool{}
+	for _, key := range requiredDeferredRouteStatuses {
+		required[key] = true
+	}
+	if !reflect.DeepEqual(required, present) {
+		t.Fatalf("deferred statuses differ from the required set: required %v, got %v", required, present)
+	}
+
+	mounted := map[route]bool{}
+	for _, r := range mountedAPIRoutes(t) {
+		mounted[r] = true
+	}
+	cases := routeByteCases(t)
+	placeholder := regexp.MustCompile(`\{\{[^}]+\}\}`)
+	for _, d := range file.DeferredStatuses {
+		if !mounted[route{Method: d.Method, Path: d.Route}] {
+			t.Errorf("deferred status %s %s %d names a route the router does not mount", d.Method, d.Route, d.Status)
+		}
+		pattern := regexp.MustCompile("^" + regexp.MustCompile(`\\\{[^/]+\\\}`).ReplaceAllString(regexp.QuoteMeta(d.Route), `[^/]+`) + "$")
+		for _, c := range cases {
+			path, _, _ := strings.Cut(placeholder.ReplaceAllString(c.Path, "x"), "?")
+			if c.Method == d.Method && c.Status == d.Status && pattern.MatchString(path) {
+				t.Errorf("deferred status %s %s %d is pinned by case %q; remove the row", d.Method, d.Route, d.Status, c.Name)
+			}
+		}
+	}
+}
