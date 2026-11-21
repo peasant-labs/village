@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -53,9 +54,9 @@ func TestAccountResponsesRefuseMissingTimestamps(t *testing.T) {
 				},
 			}
 			h := newTestHandler(q, nil)
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+			req := httptest.NewRequest(http.MethodGet, route.VillageGetAuthenticatedVillageUser.Pattern(), nil)
 			if c.Kind == "key-created" {
-				req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/api-keys", strings.NewReader("{}"))
+				req = httptest.NewRequest(http.MethodPost, route.VillageCreateMyAPIKey.Pattern(), strings.NewReader("{}"))
 			}
 			req = req.WithContext(withTestUser(req.Context()))
 			rec := httptest.NewRecorder()
