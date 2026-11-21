@@ -44,6 +44,11 @@ cases:
     method: GET
     target: /health
     want: GET /health 200
+  - name: log-outside-router-no-route-context
+    method: GET
+    target: /synthetic-unmatched-path-marker/5e1f0c3a-0000-4000-8000-00000000d1d6
+    outside_router: true
+    want: GET unmatched 200
 forbidden:
   - 5e1f0c3a
   - d1d1

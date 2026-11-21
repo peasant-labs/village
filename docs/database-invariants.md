@@ -368,6 +368,10 @@ boundary are documented in
   rechecks the state under its row lock; if it moved after classification, it
   refuses and follows the existing candidate cleanup and audience-restore path.
   Declaring a loss and restoring its ciphertext remain operator-only operations.
+- **The pull list does not offer a recorded loss.** The pull list and its count,
+  unfiltered and filtered by collective, exclude `unavailable` rows, because
+  every pull read of such a row answers 404. A transcript the list offers can
+  be fetched; a restored transcript reappears with no other change.
 
 ## 2. Licensing data model
 

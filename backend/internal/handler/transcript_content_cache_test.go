@@ -5,6 +5,8 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
 	"strings"
@@ -27,6 +29,7 @@ type contentCacheCase struct {
 	Budget   int64    `yaml:"budget"`
 	Sizes    []int    `yaml:"sizes"`
 	Readers  int      `yaml:"readers"`
+	Turns    int      `yaml:"turns"`
 	Vary     []string `yaml:"vary"`
 	Fields   []string `yaml:"fields"`
 }
@@ -37,7 +40,8 @@ var requiredContentCacheCases = []string{
 	"cache-single-flight-two-viewers",
 	"cache-single-flight-joiner-survives-starter-cancel",
 	"cache-abandoned-load-is-canceled-and-releases-its-weight",
-	"cache-admission-refusal-503",
+	"cache-full-of-cold-entries-evicts-least-recent",
+	"cache-all-in-flight-exhaustion-refuses-and-evicts-nothing",
 	"cache-admission-counts-reserved-bytes",
 	"cache-oversized-single-flight",
 	"cache-retention-is-strict-after-load",
@@ -54,6 +58,10 @@ var requiredContentCacheCases = []string{
 	"cache-purge-on-harness-change",
 	"cache-entry-cooked-under-another-harness-is-not-retained",
 	"cache-absent-cache-loads-and-purges-nothing",
+	"cache-index-memory-counts-against-budget",
+	"cache-index-memory-charged-through-the-read",
+	"cache-index-memory-native-metadata-weight",
+	"cache-evicted-entry-held-by-reader-stays-readable",
 }
 
 func loadContentCacheCases(t *testing.T) []contentCacheCase {
@@ -153,6 +161,65 @@ func cacheTestOpened(t *testing.T, key transcriptCacheKey, size int, history int
 		t.Fatal(err)
 	}
 	return &openedTranscript{Index: index, Bytes: index}
+}
+
+// cacheTestWeight is the weight the cache retains a fresh generation of this
+// size at, before any partition is built: its bytes plus its header and history
+// summaries.
+func cacheTestWeight(t *testing.T, key transcriptCacheKey, size int, history int) int64 {
+	t.Helper()
+	return cacheTestOpened(t, key, size, history).Index.retainedWeight()
+}
+
+// cacheTestShortTurnsDocument is a canonical envelope of turns one-word turns
+// in the main partition and in each of history sections: little text, many
+// rows, so its indexes outweigh its bytes.
+func cacheTestShortTurnsDocument(turns int, history int) []byte {
+	array := func(stamp string) string {
+		var b strings.Builder
+		b.WriteByte('[')
+		for i := 0; i < turns; i++ {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			role := "user"
+			if i%2 == 1 {
+				role = "assistant"
+			}
+			fmt.Fprintf(&b, `{"index":%d,"role":"%s","content":"ok","timestamp":"%s","depth":0}`, i, role, stamp)
+		}
+		b.WriteByte(']')
+		return b.String()
+	}
+	var b strings.Builder
+	b.WriteString(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"short-turns","harness":"claude-code","turns":` + array("2026-01-01T00:00:01Z"))
+	if history > 0 {
+		b.WriteString(`,"earlierHistory":[`)
+		for i := 0; i < history; i++ {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			b.WriteString(`{"state":"uncertain_migrated","turns":` + array("2025-12-31T00:00:01Z") + `}`)
+		}
+		b.WriteByte(']')
+	}
+	b.WriteString(`}}`)
+	return []byte(b.String())
+}
+
+// chargingReserve is the reservation the read path hands a build: a heavy-work
+// slot whose release charges the cache for the index the build added.
+func chargingReserve(c *transcriptContentCache, id uuid.UUID, x *transcriptIndex) transcriptBuildReserve {
+	return func() (func(), error) {
+		release, err := c.AcquireBuild(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		return func() {
+			release()
+			c.Charge(id, x)
+		}, nil
+	}
 }
 
 // cacheTestLoader counts loads and can hold them at a gate.
@@ -336,28 +403,68 @@ func TestTranscriptContentCache(t *testing.T) {
 					t.Fatalf("the abandoned load kept its weight reserved: %v", err)
 				}
 
-			case "admission-refusal-retained":
+			case "eviction-least-recent":
 				cache := c.newCache(nil)
 				keys := []transcriptCacheKey{cacheTestKey(1), cacheTestKey(2), cacheTestKey(3)}
-				for i := 0; i < 2; i++ {
-					cacheAcquire(t, cache, keys[i], c.loader(t, keys[i], c.Sizes[i]))
+				loaders := make([]*cacheTestLoader, len(keys))
+				for i := range keys {
+					loaders[i] = c.loader(t, keys[i], c.Sizes[i])
 				}
-				refused := c.loader(t, keys[2], c.Sizes[2])
-				opened, err := cache.Acquire(ctx, keys[2], transcriptCacheLoad{Weight: int64(c.Sizes[2])}, refused.load)
-				if !errors.Is(err, errTranscriptReadBusy) || opened != nil {
-					t.Fatalf("over-budget read = (%v, %v), want the bounded refusal and no entry", opened, err)
+				cacheAcquire(t, cache, keys[0], loaders[0])
+				cacheAcquire(t, cache, keys[1], loaders[1])
+				// The first entry is read again, so the second is the least recent.
+				cacheAcquire(t, cache, keys[0], loaders[0])
+				// With every heavy-work slot taken the read is refused on count,
+				// and a read refused for any reason evicts nothing.
+				a, _ := cache.AcquireBuild(ctx)
+				b, _ := cache.AcquireBuild(ctx)
+				if _, err := cache.Acquire(ctx, keys[2], transcriptCacheLoad{Weight: int64(c.Sizes[2])}, loaders[2].load); !errors.Is(err, errTranscriptReadBusy) {
+					t.Fatalf("a read with every slot taken = %v, want the bounded refusal", err)
 				}
-				if refused.loads.Load() != 0 {
-					t.Fatal("a refused read still loaded the object")
+				if !cache.has(keys[1]) || cache.stats().Purged[purgeEvicted] != 0 || loaders[2].loads.Load() != 0 {
+					t.Fatalf("a read refused on count evicted an entry or loaded: %+v", cache.stats())
+				}
+				a()
+				b()
+				opened, err := cache.Acquire(ctx, keys[2], transcriptCacheLoad{Weight: int64(c.Sizes[2])}, loaders[2].load)
+				if err != nil || opened == nil {
+					t.Fatalf("a read beside cold retained entries = (%v, %v), want it admitted by eviction", opened, err)
+				}
+				if !cache.has(keys[0]) || cache.has(keys[1]) || !cache.has(keys[2]) {
+					t.Fatalf("eviction took the wrong entry: first %v second %v third %v", cache.has(keys[0]), cache.has(keys[1]), cache.has(keys[2]))
 				}
 				stats := cache.stats()
-				if stats.Entries != 2 || stats.RetainedBytes != int64(c.Sizes[0]+c.Sizes[1]) || cache.has(keys[2]) || stats.InFlight != 0 {
-					t.Fatalf("refusal left a partial entry or moved the accounting: %+v", stats)
+				want := cacheTestWeight(t, keys[0], c.Sizes[0], 0) + cacheTestWeight(t, keys[2], c.Sizes[2], 0)
+				if stats.Purged[purgeEvicted] != 1 || stats.RetainedBytes != want || stats.RetainedBytes > c.Budget || stats.InFlight != 0 {
+					t.Fatalf("eviction accounting: %+v, want one eviction and %d bytes retained", stats, want)
 				}
-				cache.PurgeTranscript(keys[0].ID, purgePublish)
-				cacheAcquire(t, cache, keys[2], refused)
-				if !cache.has(keys[2]) {
-					t.Fatal("room freed by a purge did not admit the refused generation")
+				if loaders[0].loads.Load() != 1 || loaders[2].loads.Load() != 1 {
+					t.Fatal("the hot entry was reloaded or the new generation loaded twice")
+				}
+
+			case "in-flight-exhaustion":
+				cache := c.newCache(nil)
+				kept, running, refusedKey := cacheTestKey(1), cacheTestKey(2), cacheTestKey(3)
+				cacheAcquire(t, cache, kept, c.loader(t, kept, c.Sizes[0]))
+				holder := c.loader(t, running, c.Sizes[1])
+				holder.gate = make(chan struct{})
+				inFlight := cacheAcquireAsync(cache, ctx, running, int64(c.Sizes[1]), holder)
+				cacheEventually(t, "the load to start", func() bool { return cacheWaiters(cache, running) == 1 })
+				refused := c.loader(t, refusedKey, c.Sizes[2])
+				opened, err := cache.Acquire(ctx, refusedKey, transcriptCacheLoad{Weight: int64(c.Sizes[2])}, refused.load)
+				if !errors.Is(err, errTranscriptReadBusy) || opened != nil || refused.loads.Load() != 0 {
+					t.Fatalf("a read with the budget reserved by loads in flight = (%v, %v, loads %d), want the bounded refusal and no read", opened, err, refused.loads.Load())
+				}
+				if !cache.has(kept) || cache.stats().Purged[purgeEvicted] != 0 || cache.has(refusedKey) {
+					t.Fatalf("a refused read evicted a retained entry or left one: %+v", cache.stats())
+				}
+				close(holder.gate)
+				if res := <-inFlight; res.err != nil {
+					t.Fatal(res.err)
+				}
+				cacheAcquire(t, cache, refusedKey, refused)
+				if !cache.has(refusedKey) || cache.stats().RetainedBytes > c.Budget {
+					t.Fatalf("once the load ended the read was not admitted within the budget: %+v", cache.stats())
 				}
 
 			case "admission-refusal-reserved":
@@ -412,7 +519,7 @@ func TestTranscriptContentCache(t *testing.T) {
 				if cache.has(bigX) {
 					t.Fatal("an oversized generation was retained")
 				}
-				if stats := cache.stats(); stats.Entries != 1 || stats.RetainedBytes != int64(c.Sizes[2]) {
+				if stats := cache.stats(); stats.Entries != 1 || stats.RetainedBytes != cacheTestWeight(t, small, c.Sizes[2], 0) {
 					t.Fatalf("the small load beside it was not the only retained entry: %+v", stats)
 				}
 				cacheAcquire(t, cache, bigY, other)
@@ -422,16 +529,23 @@ func TestTranscriptContentCache(t *testing.T) {
 
 			case "strict-retention":
 				cache := c.newCache(nil)
-				kept, heavy := cacheTestKey(1), cacheTestKey(2)
+				kept, oversized, heavy := cacheTestKey(1), cacheTestKey(2), cacheTestKey(3)
 				cacheAcquire(t, cache, kept, c.loader(t, kept, c.Sizes[0]))
-				loader := c.loader(t, heavy, c.Sizes[1])
-				// The row recorded a small size; the bytes it holds are large.
-				opened, err := cache.Acquire(ctx, heavy, transcriptCacheLoad{Weight: 100}, loader.load)
+				// Each row recorded a small size; the bytes it holds are large.
+				opened, err := cache.Acquire(ctx, oversized, transcriptCacheLoad{Weight: 100}, c.loader(t, oversized, c.Sizes[1]).load)
 				if err != nil || opened == nil {
 					t.Fatalf("a load admitted on its estimate must be served: (%v, %v)", opened, err)
 				}
-				if cache.has(heavy) || cache.stats().RetainedBytes != int64(c.Sizes[0]) {
-					t.Fatalf("an entry that breaks the budget was retained: %+v", cache.stats())
+				if cache.has(oversized) || !cache.has(kept) || cache.stats().RetainedBytes != cacheTestWeight(t, kept, c.Sizes[0], 0) {
+					t.Fatalf("an entry heavier than the budget was retained or evicted another: %+v", cache.stats())
+				}
+				opened, err = cache.Acquire(ctx, heavy, transcriptCacheLoad{Weight: 100}, c.loader(t, heavy, c.Sizes[2]).load)
+				if err != nil || opened == nil {
+					t.Fatalf("a load admitted on its estimate must be served: (%v, %v)", opened, err)
+				}
+				stats := cache.stats()
+				if !cache.has(heavy) || cache.has(kept) || stats.RetainedBytes != cacheTestWeight(t, heavy, c.Sizes[2], 0) || stats.RetainedBytes > c.Budget {
+					t.Fatalf("an entry that fits only alone did not evict the older one within the budget: %+v", stats)
 				}
 
 			case "lifetime-expiry":
@@ -457,7 +571,7 @@ func TestTranscriptContentCache(t *testing.T) {
 				if dropped := cache.Sweep(); dropped != 1 || cache.has(first) || !cache.has(second) {
 					t.Fatalf("the sweep dropped %d entries; want exactly the idle one", dropped)
 				}
-				if got := cache.stats(); got.Purged[purgeIdle] != 1 || got.RetainedBytes != int64(c.Sizes[1]) {
+				if got := cache.stats(); got.Purged[purgeIdle] != 1 || got.RetainedBytes != cacheTestWeight(t, second, c.Sizes[1], 0) {
 					t.Fatalf("idle accounting: %+v", got)
 				}
 
@@ -635,7 +749,7 @@ func TestTranscriptContentCache(t *testing.T) {
 					t.Fatalf("the owner purge dropped %d entries and must leave another owner's", dropped)
 				}
 				stats := cache.stats()
-				if stats.Purged[purgePublish] != 2 || stats.Purged[purgeDelete] != 1 || stats.Entries != 1 || stats.RetainedBytes != int64(c.Sizes[0]) {
+				if stats.Purged[purgePublish] != 2 || stats.Purged[purgeDelete] != 1 || stats.Entries != 1 || stats.RetainedBytes != cacheTestWeight(t, d, c.Sizes[0], 0) {
 					t.Fatalf("purge accounting: %+v", stats)
 				}
 
@@ -730,9 +844,196 @@ func TestTranscriptContentCache(t *testing.T) {
 					t.Fatal(err)
 				}
 
+			case "index-memory":
+				testCacheIndexMemory(t, c)
+
+			case "index-memory-read":
+				h, mux, base, x := admissionHandler(t, true)
+				before := h.contentCache.stats().RetainedBytes
+				if before != x.retainedWeight() || len(x.Partitions) != 0 {
+					t.Fatalf("the cold entry is weighed at %d, want %d with no index built", before, x.retainedWeight())
+				}
+				w := httptest.NewRecorder()
+				mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, base+"/segments?v=2", nil))
+				if w.Code != http.StatusOK {
+					t.Fatalf("directory read: %d %s", w.Code, w.Body.String())
+				}
+				main := x.Partitions[mainPartitionKey()]
+				if main == nil || main.memory <= 0 {
+					t.Fatal("the read built no main index")
+				}
+				if got := h.contentCache.stats().RetainedBytes; got != before+main.memory || got != x.retainedWeight() {
+					t.Fatalf("after the read the entry is weighed at %d, want %d (bytes, summaries and the main index)", got, before+main.memory)
+				}
+
+			case "index-memory-native-metadata":
+				nativeJSON := `[{"id":"rec-1","kind":"unknown","source":{"origin":"harness"},"data":{"note":"` + strings.Repeat("n", 512) + `"}}]`
+				plainDoc := []byte(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"native-weight","harness":"claude-code","turns":[{"index":0,"role":"user","content":"ok","timestamp":"2026-01-01T00:00:01Z","depth":0}]}}`)
+				withNativeDoc := []byte(`{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"native-weight","harness":"claude-code","nativeMetadata":` + nativeJSON + `,"turns":[{"index":0,"role":"user","content":"ok","timestamp":"2026-01-01T00:00:01Z","depth":0}]}}`)
+				key := cacheTestKey(1)
+				plainIdx, err := newTranscriptIndex(transcriptIndexInput{Revision: key.Revision, ModelProvider: key.ModelProvider, Bytes: plainDoc})
+				if err != nil {
+					t.Fatal(err)
+				}
+				plainBuilt, err := plainIdx.Partition(mainPartitionKey(), noTranscriptBuildReserve)
+				if err != nil {
+					t.Fatal(err)
+				}
+				withNativeIdx, err := newTranscriptIndex(transcriptIndexInput{Revision: key.Revision, ModelProvider: key.ModelProvider, Bytes: withNativeDoc})
+				if err != nil {
+					t.Fatal(err)
+				}
+				cache := c.newCache(nil)
+				if _, err := cache.Acquire(ctx, key, transcriptCacheLoad{Weight: int64(len(withNativeIdx.Bytes))}, func(context.Context) (*openedTranscript, error) {
+					return &openedTranscript{Index: withNativeIdx, Bytes: withNativeIdx}, nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				nativeBuilt, err := withNativeIdx.Partition(mainPartitionKey(), chargingReserve(cache, key.ID, withNativeIdx))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(nativeBuilt.Native) != 1 {
+					t.Fatalf("decoded %d native records, want 1", len(nativeBuilt.Native))
+				}
+				wantDelta := int64(cap(nativeBuilt.Native))*nativeRecordBytes + 2*int64(len(nativeJSON))
+				if got := nativeBuilt.memory - plainBuilt.memory; got != wantDelta {
+					t.Fatalf("native metadata partition weight delta = %d, want %d (cap %d * %d + 2 * %d)", got, wantDelta, cap(nativeBuilt.Native), nativeRecordBytes, len(nativeJSON))
+				}
+				if got := cache.stats().RetainedBytes; got != withNativeIdx.retainedWeight() || got != int64(len(withNativeIdx.Bytes))+withNativeIdx.metadataMemory+nativeBuilt.memory {
+					t.Fatalf("cache retained weight = %d, want %d", got, withNativeIdx.retainedWeight())
+				}
+
+			case "evicted-held-readable":
+				cache := c.newCache(nil)
+				key1, key2 := cacheTestKey(1), cacheTestKey(2)
+				opened1 := cacheAcquire(t, cache, key1, c.loader(t, key1, c.Sizes[0]))
+				cacheAcquire(t, cache, key2, c.loader(t, key2, c.Sizes[1]))
+				if cache.has(key1) || !cache.has(key2) {
+					t.Fatalf("expected key1 to be evicted and key2 retained: key1=%v key2=%v", cache.has(key1), cache.has(key2))
+				}
+				stats := cache.stats()
+				if stats.Purged[purgeEvicted] != 1 || stats.RetainedBytes > c.Budget {
+					t.Fatalf("eviction accounting: %+v (budget %d)", stats, c.Budget)
+				}
+				// The reader still holding opened1 can finish reading its copy
+				// even though the evicted entry no longer counts against RetainedBytes.
+				part, err := opened1.Index.Partition(mainPartitionKey(), noTranscriptBuildReserve)
+				if err != nil || len(part.Rows) == 0 {
+					t.Fatalf("held evicted entry failed to serve partition: (%v, %v)", part, err)
+				}
+				if _, err := opened1.Bytes.ReadTurnBytes(ctx, part.Rows[0].Start, part.Rows[0].End); err != nil {
+					t.Fatalf("held evicted entry failed to read turn bytes: %v", err)
+				}
+
 			default:
 				t.Fatalf("fixture scenario %q is unknown", c.Scenario)
 			}
 		})
+	}
+}
+
+// testCacheIndexMemory drives builds of a many-short-turn generation with
+// several history sections through the cache, with the reservation the read
+// path uses, and checks every build is charged and the budget holds.
+func testCacheIndexMemory(t *testing.T, c contentCacheCase) {
+	const sections = 3
+	turns := c.Turns
+	key := cacheTestKey(1)
+	open := func() *openedTranscript {
+		index, err := newTranscriptIndex(transcriptIndexInput{Revision: key.Revision, ModelProvider: key.ModelProvider, Bytes: cacheTestShortTurnsDocument(turns, sections)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &openedTranscript{Index: index, Bytes: index}
+	}
+	load := func(opened *openedTranscript) transcriptCacheLoader {
+		return func(context.Context) (*openedTranscript, error) { return opened, nil }
+	}
+
+	// Each build raises the entry's weight by the index it built.
+	cache := c.newCache(nil)
+	opened := open()
+	x := opened.Index
+	if _, err := cache.Acquire(context.Background(), key, transcriptCacheLoad{Weight: int64(len(x.Bytes))}, load(opened)); err != nil {
+		t.Fatal(err)
+	}
+	reserve := chargingReserve(cache, key.ID, x)
+	weight := cache.stats().RetainedBytes
+	if weight != x.retainedWeight() {
+		t.Fatalf("the cold entry is weighed at %d, want %d", weight, x.retainedWeight())
+	}
+	parts := []partitionKey{mainPartitionKey()}
+	for i := 0; i < sections; i++ {
+		parts = append(parts, historyPartitionKey(i))
+	}
+	for _, part := range parts {
+		built, err := x.Partition(part, reserve)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A row costs at least its served-row record and its verdict.
+		if floor := int64(turns) * (indexedTurnBytes + cookedTurnBytes); built.memory < floor {
+			t.Fatalf("partition %+v is estimated at %d bytes, below the %d its %d rows hold", part, built.memory, floor, turns)
+		}
+		got := cache.stats().RetainedBytes
+		if got != weight+built.memory {
+			t.Fatalf("after building %+v the entry is weighed at %d, want %d", part, got, weight+built.memory)
+		}
+		weight = got
+		// A second read of a built partition charges nothing more.
+		if _, err := x.Partition(part, reserve); err != nil || cache.stats().RetainedBytes != weight {
+			t.Fatalf("a repeated read of %+v changed the weight: %d -> %d (%v)", part, weight, cache.stats().RetainedBytes, err)
+		}
+	}
+	if index := weight - int64(len(x.Bytes)); index <= int64(len(x.Bytes)) {
+		t.Fatalf("the fixture's indexes weigh %d bytes against %d bytes of text; the case needs index-heavy content", index, len(x.Bytes))
+	}
+
+	// A grown entry evicts a colder one rather than break the budget.
+	full := weight
+	baseWeight := open().Index.retainedWeight()
+	cold := cacheTestKey(2)
+	coldSize := int(full-baseWeight) / 2
+	budgeted := newTranscriptContentCache(transcriptContentCacheConfig{Budget: full + int64(coldSize)/2})
+	if _, err := budgeted.Acquire(context.Background(), cold, transcriptCacheLoad{Weight: int64(coldSize)}, c.loader(t, cold, coldSize).load); err != nil {
+		t.Fatal(err)
+	}
+	grown := open()
+	if _, err := budgeted.Acquire(context.Background(), key, transcriptCacheLoad{Weight: int64(len(grown.Index.Bytes))}, load(grown)); err != nil {
+		t.Fatal(err)
+	}
+	if !budgeted.has(cold) || !budgeted.has(key) {
+		t.Fatal("both cold generations should fit before any index is built")
+	}
+	for _, part := range parts {
+		if _, err := grown.Index.Partition(part, chargingReserve(budgeted, key.ID, grown.Index)); err != nil {
+			t.Fatal(err)
+		}
+		if got := budgeted.stats().RetainedBytes; got > budgeted.budget {
+			t.Fatalf("building %+v left %d bytes retained over the %d budget", part, got, budgeted.budget)
+		}
+	}
+	if budgeted.has(cold) || !budgeted.has(key) || budgeted.stats().Purged[purgeEvicted] != 1 {
+		t.Fatalf("the grown entry did not evict the colder one: %+v", budgeted.stats())
+	}
+
+	// An entry whose indexes outgrow the whole budget leaves the cache, and
+	// its reader keeps the index it holds.
+	alone := newTranscriptContentCache(transcriptContentCacheConfig{Budget: baseWeight + (full-baseWeight)/2})
+	solo := open()
+	if _, err := alone.Acquire(context.Background(), key, transcriptCacheLoad{Weight: int64(len(solo.Index.Bytes))}, load(solo)); err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range parts {
+		if _, err := solo.Index.Partition(part, chargingReserve(alone, key.ID, solo.Index)); err != nil {
+			t.Fatalf("a build that outgrows the cache must still serve its reader: %v", err)
+		}
+		if got := alone.stats().RetainedBytes; got > alone.budget {
+			t.Fatalf("building %+v left %d bytes retained over the %d budget", part, got, alone.budget)
+		}
+	}
+	if alone.has(key) || alone.stats().RetainedBytes != 0 || alone.stats().Purged[purgeEvicted] != 1 {
+		t.Fatalf("an entry heavier than the budget stayed retained: %+v", alone.stats())
 	}
 }

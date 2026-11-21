@@ -238,8 +238,11 @@ type orderingWorld struct {
 
 func newOrderingWorld(t *testing.T, pool *pgxpool.Pool, objects storage.ObjectStore, ordinal int, initial []byte) *orderingWorld {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	t.Cleanup(cancel)
+	// The world, its first publish included, lives as long as the test. The
+	// bound is go test -timeout, not a wall-clock deadline here: a large
+	// subject's publish runs far slower under the race detector, and a deadline
+	// inside the publish path would fail the save rather than the test.
+	ctx := t.Context()
 	ownerID := pullInsertUser(t, ctx, pool, int64(998700+ordinal), "ordering-"+uuid.NewString()[:8])
 	t.Cleanup(func() { cleanupOwners(t, context.Background(), pool, ownerID) })
 	ring, err := config.ParseTranscriptKeyring(os.Getenv("TRANSCRIPT_KEK_ACTIVE_VERSION"), os.Getenv("TRANSCRIPT_KEK_KEYRING"))
