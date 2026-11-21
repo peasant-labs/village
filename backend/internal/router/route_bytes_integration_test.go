@@ -447,13 +447,15 @@ func seedRouteBytesWorld(t *testing.T, pool *pgxpool.Pool) *routeBytesWorld {
 	w.values["project_label"], w.values["private_project_label"] = "project-"+w.values["project"][:12], "project-"+w.values["private_project"][:12]
 	insertTranscript := func(name, visibility, project string, owner uuid.UUID) uuid.UUID {
 		id := uuid.New()
+		localID := "sess_golden" + strings.ReplaceAll(id.String(), "-", "")
 		execRouteBytesSystem(t, `
 			INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes,
 			                         schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version, project_hash)
 			VALUES ($1, $2, $3, 'golden transcript', $4, 'claude-code', 'model', $5, 2, '0.1.0', $6, 'wrapped', 'aes-256-gcm-random-nonce-v1', 1, $7)`,
-			pool, id, owner, "golden-"+id.String(), visibility, "transcripts/"+id.String()+".bin", strings.Repeat("7", 64), project)
+			pool, id, owner, localID, visibility, "transcripts/"+id.String()+".bin", strings.Repeat("7", 64), project)
 		transcripts = append(transcripts, id)
 		w.values[name+"_id"] = id.String()
+		w.values[name+"_local_id"] = localID
 		return id
 	}
 	public := insertTranscript("public", "public", w.values["project"], account)
