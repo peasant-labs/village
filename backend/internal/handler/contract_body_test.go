@@ -614,3 +614,58 @@ func TestCreateGroupAcceptsANullOrganization(t *testing.T) {
 		t.Fatalf("created %+v, want the named collective linked to no organization", created)
 	}
 }
+
+//go:embed testdata/contract_path_items.yaml
+var contractPathItemsYAML []byte
+
+type contractPathItemCase struct {
+	Name     string `yaml:"name"`
+	Document string `yaml:"document"`
+	Method   string `yaml:"method"`
+	Path     string `yaml:"path"`
+	Valid    string `yaml:"valid"`
+	Invalid  string `yaml:"invalid"`
+}
+
+func TestContractBody_PathItemMetadata(t *testing.T) {
+	cases, err := decodeFixtureRows[contractPathItemCase](contractPathItemsYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	required := map[string]bool{"path metadata does not hide operation schemas": false}
+	for _, c := range cases {
+		if _, ok := required[c.Name]; !ok || required[c.Name] {
+			t.Fatalf("unexpected or repeated case %q", c.Name)
+		}
+		required[c.Name] = true
+		t.Run(c.Name, func(t *testing.T) {
+			result := parseContractBodySchemas([]byte(c.Document))
+			if result.err != nil {
+				t.Fatalf("parse contract path item: %v", result.err)
+			}
+			compiled := result.byOperation[contractOperationKey(c.Method, c.Path)]
+			if compiled == nil {
+				t.Fatal("operation schema was not compiled")
+			}
+			valid, err := parseContractJSON([]byte(c.Valid))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := compiled.Validate(valid); err != nil {
+				t.Fatalf("valid body rejected: %v", err)
+			}
+			invalid, err := parseContractJSON([]byte(c.Invalid))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := compiled.Validate(invalid); err == nil {
+				t.Fatal("invalid body accepted")
+			}
+		})
+	}
+	for name, present := range required {
+		if !present {
+			t.Fatalf("missing case %q", name)
+		}
+	}
+}

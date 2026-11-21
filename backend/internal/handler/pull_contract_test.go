@@ -76,22 +76,24 @@ func requireFixtureNames(t *testing.T, fixture string, present map[string]bool, 
 func servedPullContractPattern(t *testing.T) *regexp.Regexp {
 	t.Helper()
 	var spec struct {
-		Paths map[string]struct {
-			Get struct {
-				Responses map[string]struct {
-					Headers map[string]struct {
-						Schema struct {
-							Pattern string `json:"pattern"`
-						} `json:"schema"`
-					} `json:"headers"`
-				} `json:"responses"`
-			} `json:"get"`
-		} `json:"paths"`
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
 	}
 	if err := json.Unmarshal(schema.VillageAPISpecJSON(), &spec); err != nil {
 		t.Fatalf("decode the served contract: %v", err)
 	}
-	pattern := spec.Paths["/api/v1/pull/transcripts"].Get.Responses["200"].Headers[schema.PullContractHeader].Schema.Pattern
+	var operation struct {
+		Responses map[string]struct {
+			Headers map[string]struct {
+				Schema struct {
+					Pattern string `json:"pattern"`
+				} `json:"schema"`
+			} `json:"headers"`
+		} `json:"responses"`
+	}
+	if err := json.Unmarshal(spec.Paths["/api/v1/pull/transcripts"]["get"], &operation); err != nil {
+		t.Fatalf("decode the pull operation: %v", err)
+	}
+	pattern := operation.Responses["200"].Headers[schema.PullContractHeader].Schema.Pattern
 	if pattern == "" {
 		t.Fatalf("the served contract declares no pattern for the %s response header", schema.PullContractHeader)
 	}

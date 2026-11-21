@@ -1,0 +1,7 @@
+- name: path metadata does not hide operation schemas
+  document: |
+    {"openapi":"3.0.3","paths":{"/sample":{"$ref":"#/components/pathItems/example","summary":"summary","description":"description","servers":[{"url":"/"}],"parameters":[{"name":"q","in":"query","schema":{"type":"string"}}],"x-owner":"example","post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}}}}}}}}
+  method: POST
+  path: /sample
+  valid: '{"name":"ok"}'
+  invalid: '{}'

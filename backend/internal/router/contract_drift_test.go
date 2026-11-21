@@ -95,7 +95,7 @@ func declaredContractRoutes(t *testing.T) []route {
 	for path, operations := range doc.Paths {
 		for method := range operations {
 			switch strings.ToUpper(method) {
-			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions, http.MethodTrace:
 				out = append(out, route{Method: strings.ToUpper(method), Path: path})
 			}
 		}
