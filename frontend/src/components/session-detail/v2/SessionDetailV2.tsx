@@ -253,9 +253,17 @@ function observeStreamScroll(stream: HTMLElement, persist: () => void, onScrollE
       persist();
     });
   };
+  const onPageHide = () => {
+    if (!frame) return;
+    cancelAnimationFrame(frame);
+    frame = 0;
+    persist();
+  };
   stream.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('pagehide', onPageHide);
   return () => {
     stream.removeEventListener('scroll', onScroll);
+    window.removeEventListener('pagehide', onPageHide);
     if (frame) cancelAnimationFrame(frame);
   };
 }
@@ -539,6 +547,7 @@ function SessionDetailV2Content({
     if (offsetRestored.current || !landing || landing.snapped || position === undefined) return;
     let frames = 0;
     let previous: number | undefined;
+    let settled = false;
     let handle = 0;
     let canceled = false;
     let listeningStream: HTMLElement | null = null;
@@ -548,7 +557,7 @@ function SessionDetailV2Content({
       listeningStream.removeEventListener('wheel', onUserScroll);
       listeningStream.removeEventListener('touchstart', onUserScroll);
       listeningStream.removeEventListener('keydown', onUserScroll);
-      listeningStream.removeEventListener('scroll', onUserScroll);
+      listeningStream.removeEventListener('scroll', onStreamScroll);
       listeningStream = null;
     };
     const cancel = () => {
@@ -559,6 +568,12 @@ function SessionDetailV2Content({
       detach();
     };
     const onUserScroll = () => cancel();
+    // Fairtrade's landing and history-reopen adjustments scroll the stream
+    // before it settles; once settled, any scroll the restore did not cause
+    // cancels it, while wheel/touch/key input cancels at any time.
+    const onStreamScroll = () => {
+      if (settled) cancel();
+    };
     const attach = (stream: HTMLElement) => {
       if (listeningStream === stream) return;
       detach();
@@ -566,7 +581,7 @@ function SessionDetailV2Content({
       stream.addEventListener('wheel', onUserScroll, { passive: true });
       stream.addEventListener('touchstart', onUserScroll, { passive: true });
       stream.addEventListener('keydown', onUserScroll);
-      stream.addEventListener('scroll', onUserScroll, { passive: true });
+      stream.addEventListener('scroll', onStreamScroll, { passive: true });
     };
 
     const step = () => {
@@ -582,13 +597,16 @@ function SessionDetailV2Content({
         !readStateRef.current.historySettling &&
         isRowInView(stream, row)
       ) {
-        if (previous === stream.scrollTop) {
+        if (settled && previous === stream.scrollTop) {
           offsetRestored.current = true;
           detach();
           stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;
           return;
         }
+        settled = previous === stream.scrollTop;
         previous = stream.scrollTop;
+      } else {
+        settled = false;
       }
       frames += 1;
       if (frames < RESTORE_OFFSET_MAX_FRAMES) handle = requestAnimationFrame(step);

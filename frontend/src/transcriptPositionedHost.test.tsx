@@ -477,6 +477,9 @@ describe("restoreGuards", () => {
         return el!;
       });
       if (row.event) {
+        if (row.event === "scroll") {
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
         fireEvent(stream, new Event(row.event, { bubbles: true }));
       }
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
