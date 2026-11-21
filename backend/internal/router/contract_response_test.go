@@ -187,11 +187,11 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 			case "body":
 				rec.Body.Reset()
 				rec.Body.WriteString(`{"status":42,"serves":[]}`)
-			case "path":
+			case "unknown-path":
 				path = "/not-a-route"
-			case "media":
+			case "wrong-media":
 				rec.Header().Set("Content-Type", "text/plain")
-			case "json":
+			case "malformed-json":
 				rec.Body.Reset()
 				rec.Body.WriteString("{")
 			default:

@@ -23,11 +23,11 @@ self_tests:
     mutation: body
     want: validate body
   - name: undeclared-operation
-    mutation: path
+    mutation: unknown-path
     want: undeclared operation
   - name: undeclared-media
-    mutation: media
+    mutation: wrong-media
     want: undeclared media
   - name: invalid-json
-    mutation: json
+    mutation: malformed-json
     want: decode body
