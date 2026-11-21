@@ -138,7 +138,7 @@ func loadCommitAuthorFixture(t *testing.T) commitAuthorFixture {
 // PostgreSQL, for an anonymous and a discoverable owner, as the owner, a
 // collective owner holding an approved submission, a signed-in stranger and a
 // signed-out caller. A caller to whom the owner is anonymous receives no
-// commit author name or email; every other caller receives the exact bytes the
+// commit author name, author email or message; every other caller receives the exact bytes the
 // route has always sent.
 func TestTranscriptCommitAuthorsFollowTheOwnerRule(t *testing.T) {
 	fixture := loadCommitAuthorFixture(t)
@@ -339,6 +339,17 @@ func TestTranscriptCommitAuthorsFollowTheOwnerRule(t *testing.T) {
 				for _, value := range []*string{commit.AuthorName, commit.AuthorEmail} {
 					if value != nil && strings.Contains(got, *value) {
 						t.Fatalf("%s: the response names commit author %q", c.Why, *value)
+					}
+				}
+				if commit.Message == nil {
+					continue
+				}
+				// JSON escapes < and >, so each piece between them is
+				// searched for on its own: a trailer's name and its email.
+				pieces := strings.FieldsFunc(*commit.Message, func(r rune) bool { return r == '\n' || r == '<' || r == '>' })
+				for _, piece := range pieces {
+					if piece = strings.TrimSpace(piece); piece != "" && strings.Contains(got, piece) {
+						t.Fatalf("%s: the response carries commit message text %q", c.Why, piece)
 					}
 				}
 			}

@@ -37,10 +37,12 @@ type transcriptCommitResponse struct {
 // the caller cannot view the transcript, they get 404 (not 403, to avoid
 // leaking existence), exactly like the annotations GET handler.
 //
-// A commit's author name and email can identify the transcript's owner, so
-// when the owner is anonymous to the caller (resolvePublicOwner, the rule the
-// publish metadata route applies to the same commits) both are sent as null.
-// A caller who may see the owner gets every field as stored.
+// A commit's author name and email can identify the transcript's owner, and so
+// can its message (trailers such as Co-authored-by and Signed-off-by carry a
+// name and an email), so when the owner is anonymous to the caller
+// (resolvePublicOwner, the rule the publish metadata route applies to the same
+// commits) all three are sent as null. A caller who may see the owner gets
+// every field as stored.
 func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -74,7 +76,7 @@ func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) 
 
 	commits := make([]transcriptCommitResponse, 0, len(rows))
 	for _, row := range rows {
-		commits = append(commits, transcriptCommitRowToResponse(row).withholdAuthor(owner))
+		commits = append(commits, transcriptCommitRowToResponse(row).withholdIdentity(owner))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"commits": commits})
@@ -94,14 +96,16 @@ func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) transcriptCommitRe
 	}
 }
 
-// withholdAuthor removes the commit author of a transcript whose owner is
-// anonymous to the viewer: a git author name or email can name that owner.
-// Both become null. A profile owner keeps every field.
-func (c transcriptCommitResponse) withholdAuthor(owner schema.VillagePublicOwner) transcriptCommitResponse {
+// withholdIdentity removes what can name the owner of a transcript whose
+// owner is anonymous to the viewer: the git author name and email, and the
+// message, whose trailers (Co-authored-by, Signed-off-by) carry names and
+// emails. All three become null; the SHA, timestamps and order stay. A
+// profile owner keeps every field.
+func (c transcriptCommitResponse) withholdIdentity(owner schema.VillagePublicOwner) transcriptCommitResponse {
 	if owner.IsProfile() {
 		return c
 	}
-	c.AuthorName, c.AuthorEmail = nil, nil
+	c.Message, c.AuthorName, c.AuthorEmail = nil, nil, nil
 	return c
 }
 
