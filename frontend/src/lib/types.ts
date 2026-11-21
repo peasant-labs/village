@@ -105,13 +105,13 @@ export interface User {
 
 /**
  * The tier a project's resolved display name came from (village backend
- * `internal/projectname.NameSource`). These routes are deliberately outside
- * the OpenAPI spec, so there is no generated TypeScript type — this is the
- * frontend's own closed, hand-declared union. Widening the server-side enum
- * without adding a member here must fail the BUILD, not silently render an
- * unstyled fallback: see {@link assertNameSourceExhaustive} for the
- * compile-time proof, and `describeNameSource` in `@/lib/format` for the one
- * live exhaustive consumer.
+ * `internal/projectname.NameSource`). The schema package does not yet emit
+ * this union as a standalone TypeScript type — this is the frontend's own
+ * closed, hand-declared union. Widening the server-side enum without adding
+ * a member here must fail the BUILD, not silently render an unstyled
+ * fallback: see {@link assertNameSourceExhaustive} for the compile-time
+ * proof, and `describeNameSource` in `@/lib/format` for the one live
+ * exhaustive consumer.
  */
 export type NameSource = "override" | "consented" | "remote" | "path" | "privacy";
 
@@ -512,10 +512,9 @@ export type TranscriptCollective = VillageTranscriptCollective;
 
 /**
  * The outcome recorded on one share event (village backend
- * `transcript_share_attempts.status`). These profile routes are deliberately
- * outside the OpenAPI spec, so there is no generated TypeScript type — this is
- * the frontend's own closed, hand-declared union, and
- * {@link assertShareEventStatusExhaustive} is its compile-time proof.
+ * `transcript_share_attempts.status`), now typed by the schema package as
+ * {@link VillageShareStatus}; {@link assertShareEventStatusExhaustive}
+ * provides a compile-time exhaustiveness check for callers.
  *
  * `retracted` (the owner withdrew) and `revoked` (the collective removed) are
  * distinct terminal states, distinct from each other AND from `rejected`.
