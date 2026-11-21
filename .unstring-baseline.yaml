@@ -507,7 +507,6 @@ rules:
     backend/internal/handler/content_preservation.go: 1
     backend/internal/handler/content_withholding_test.go: 2
     backend/internal/handler/discovery_pagination_integration_test.go: 1
-    backend/internal/handler/github_dispatcher.go: 1
     backend/internal/handler/github_install.go: 4
     backend/internal/handler/github_install_integration_test.go: 1
     backend/internal/handler/github_install_test.go: 2
