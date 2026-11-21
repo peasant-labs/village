@@ -478,9 +478,21 @@ describe("restoreGuards", () => {
       });
       if (row.event) {
         if (row.settleFirst) {
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          // A foreign scroll cancels the restore only once the stream has
+          // settled. Wait for two frames with the same offset, then fire in
+          // the frame the settle is observed, before the restore applies.
+          let previous = Number.NaN;
+          for (let i = 0; i < 10; i += 1) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            if (stream.scrollTop === previous) {
+              fireEvent(stream, new Event(row.event, { bubbles: true }));
+              break;
+            }
+            previous = stream.scrollTop;
+          }
+        } else {
+          fireEvent(stream, new Event(row.event, { bubbles: true }));
         }
-        fireEvent(stream, new Event(row.event, { bubbles: true }));
       }
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       expect(stream.scrollTop).toBe(0);
