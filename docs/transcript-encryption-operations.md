@@ -145,14 +145,8 @@ the authoritative-primary and no-in-flight proof succeeds.
 
 ## Transcript content cache
 
-Builds and locator scans in flight are limited to k = 2 per process, shared
-with cache loads. A warm `locate` can answer 503 with `Retry-After: 1` when
-both slots are busy. Refusal logs contain only the route template and refusal
-kind (`weight` or `count`), never transcript content or identifiers.
-
 Each Village process keeps a process-local cache of decrypted transcript
-content for the positioned reads (the segmented reads answer `501` until the
-release that serves them; the cache and its purges exist before that). It holds one entry per transcript, content
+content for the positioned reads. It holds one entry per transcript, content
 revision, model provider and harness. A main read and a history read of one
 generation share the entry, and two viewers who open the same generation at the
 same moment cause one object read and one decryption. The cache never decides
@@ -161,17 +155,70 @@ it asks the cache for a byte.
 
 Operating constants, all compiled into the binary:
 
-- **Byte budget: 256 MiB** of retained plaintext
-  (`transcriptContentCacheBudgetBytes`). It is strict. A read that would exceed
-  it is refused with a retryable `503` and no partial entry. A single
-  transcript larger than the whole budget is served and not retained, one such
-  load runs at a time, and a second one is refused while it runs.
+- **Memory budget: 256 MiB** per process (`transcriptContentCacheBudgetBytes`).
+  An entry is weighed at its plaintext plus an estimate of every index built
+  from it: the served rows, the cooking verdicts, the segment refs and
+  positions, the decoded native metadata, and the header and history
+  summaries. The weight grows each time a partition (the main turns or one
+  history section) is first indexed, so a transcript of many short turns or
+  many history sections is weighed by its indexes and not only by its bytes.
+  The budget is strict: the retained weight never exceeds it.
+- **Eviction: least recently read first.** When retained entries are what
+  stand between a read and the budget, the least recently read entries are
+  dropped and the read proceeds. An entry whose indexes grow past the room left
+  evicts colder entries; one that outgrows the whole budget leaves the cache,
+  and the reads already holding it finish with their copy.
+- **Heavy-work limit: k = 2** per process (`transcriptHeavyWorkLimit`). Cache
+  loads (object read, decryption, structural pass), partition index builds and
+  locator scans share these two slots. Concurrent first readers of one
+  generation share one load, and concurrent first readers of one partition
+  wait for the one build without taking a slot; a read of an entry already
+  loaded and indexed takes no slot.
+- **Oversized transcripts.** A transcript whose recorded size exceeds the whole
+  budget is served and not retained. One such load runs at a time, and a
+  second one is refused while it runs.
 - **Idle lifetime: 15 minutes** without a read
   (`transcriptContentCacheIdleLifetime`). A background ticker sweeps once a
   minute; no request sweeps.
-- The Go soft memory limit is separate from this budget. The budget bounds
-  retained plaintext; it does not bound a process's resident memory while loads
-  are in flight.
+
+### What a `503` from a positioned read means
+
+The header, directory, segment, window and locate routes answer `503` with
+`Retry-After: 1` and no partial body only when the cache cannot admit the work
+now, for one of two reasons, both of which clear when a load in flight ends:
+
+- `weight`: the loads in flight have reserved so much of the budget that this
+  load does not fit even with every retained entry evicted, or this transcript
+  is larger than the whole budget while another such transcript is loading;
+- `count`: both heavy-work slots are taken.
+
+A full cache of retained entries is never a reason to refuse: those are
+evicted. A viewer who may not read the transcript is answered `404` before
+admission, whatever the load.
+
+### Reading the refusal signal
+
+Each refusal writes one structured log line at info level with the message
+`transcript read admission refused`, `operation=transcript_read_admission`, the
+matched `route` template (for example
+`/api/v1/transcripts/{id}/segments/{index}`) and the `kind` (`weight` or
+`count`). It never holds transcript content, identifiers, query values or
+credentials. There is no in-process counter; count these lines in the log
+pipeline by route and kind. A sustained rate of `count` refusals means more
+concurrent first loads than two slots serve; a sustained rate of `weight`
+refusals means loads near the budget are running side by side.
+
+### Memory
+
+The budget bounds what the cache retains. It does not bound a process's
+resident memory while loads are in flight: a load holds its decrypted bytes,
+and a build holds the partition's parsed turns until the build ends. With two
+slots, at most two such transient copies exist at once. The design target is a
+peak resident memory within 1.5 times what `GET /content` needs for the same two
+concurrent first loads, inside the 32 GiB per-instance limit; that is checked
+with benchmarks, not by a required test. The Go soft memory limit is separate
+from this budget. An evicted entry stays in memory until the reads holding it
+finish.
 
 A process drops a transcript's entries when it publishes, rewrites, changes the
 visibility of, unshares or deletes that transcript, and drops an owner's entries
