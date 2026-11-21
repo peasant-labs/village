@@ -195,11 +195,11 @@ scrollSave:
   movedScrollTop: 50
 
 restoreGuards:
-  - {name: restore-offset-cancels-on-wheel, event: wheel, rowTopBase: 300}
-  - {name: restore-offset-cancels-on-touchstart, event: touchstart, rowTopBase: 300}
-  - {name: restore-offset-cancels-on-keydown, event: keydown, rowTopBase: 300}
-  - {name: restore-offset-cancels-on-scroll, event: scroll, rowTopBase: 300}
-  - {name: restore-offset-skips-out-of-view, rowTopBase: 900}
+  - {name: restore-offset-cancels-on-wheel, event: wheel, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-touchstart, event: touchstart, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-keydown, event: keydown, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-scroll, event: scroll, rowTopBase: 300, settleFirst: true}
+  - {name: restore-offset-skips-out-of-view, rowTopBase: 900, settleFirst: false}
 
 restoreBudget:
   name: restore-offset-stops-at-frame-budget
