@@ -366,6 +366,7 @@ func TestRouteBytes(t *testing.T) {
 			replace := func(value string) string { return strings.ReplaceAll(value, "{{state}}", state) }
 			assertRouteHeaders(t, c, w.Header(), replace)
 			assertRouteBodyOmits(t, c, w.Body.String(), replace)
+			validateSelectedContractResponse(t, c, w, c.Path)
 		})
 	}
 }

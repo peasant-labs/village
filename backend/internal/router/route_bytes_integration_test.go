@@ -170,6 +170,7 @@ func TestRouteBytesPostgres(t *testing.T) {
 			assertRouteBody(t, c, rec.Body.String(), w.replace(c.Body))
 			assertRouteHeaders(t, c, rec.Header(), w.replace)
 			assertRouteBodyOmits(t, c, rec.Body.String(), w.replace)
+			validateSelectedContractResponse(t, c, rec, w.replace(c.Path))
 		})
 	}
 }
