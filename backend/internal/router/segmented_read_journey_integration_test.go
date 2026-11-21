@@ -34,21 +34,36 @@ var segmentedReadJourneyYAML []byte
 // the handler package's canonical valid content document.
 const journeyContentFixture = "../handler/testdata/contract/current/valid/content.json"
 
+// journeyRoute names one positioned read the journey makes. The names are the
+// fixture's own vocabulary, not a wire value.
+type journeyRoute string
+
+const (
+	journeyHeader    journeyRoute = "header"
+	journeyDirectory journeyRoute = "directory"
+	journeySegment   journeyRoute = "segment"
+	journeyWindow    journeyRoute = "window"
+	journeyLocate    journeyRoute = "locate"
+)
+
+// allJourneyRoutes is the closed set the fixture must cover exactly.
+var allJourneyRoutes = []journeyRoute{journeyHeader, journeyDirectory, journeySegment, journeyWindow, journeyLocate}
+
 // journeyRoutePaths builds each journey route's path from the contract.
-var journeyRoutePaths = map[string]func(id string) (string, error){
-	"header":    schemaRoute.VillageGetTranscriptHeaderPath,
-	"directory": schemaRoute.VillageGetTranscriptSegmentsPath,
-	"segment":   func(id string) (string, error) { return schemaRoute.VillageGetTranscriptSegmentPath(id, 0) },
-	"window":    schemaRoute.VillageGetTranscriptWindowPath,
-	"locate":    schemaRoute.VillageLocateTranscriptEntryPath,
+var journeyRoutePaths = map[journeyRoute]func(id string) (string, error){
+	journeyHeader:    schemaRoute.VillageGetTranscriptHeaderPath,
+	journeyDirectory: schemaRoute.VillageGetTranscriptSegmentsPath,
+	journeySegment:   func(id string) (string, error) { return schemaRoute.VillageGetTranscriptSegmentPath(id, 0) },
+	journeyWindow:    schemaRoute.VillageGetTranscriptWindowPath,
+	journeyLocate:    schemaRoute.VillageLocateTranscriptEntryPath,
 }
 
 type segmentedJourneyFixture struct {
 	Reference string `yaml:"reference"`
 	Routes    []struct {
-		Name   string `yaml:"name"`
-		Method string `yaml:"method"`
-		Query  string `yaml:"query"`
+		Name   journeyRoute `yaml:"name"`
+		Method string       `yaml:"method"`
+		Query  string       `yaml:"query"`
 	} `yaml:"routes"`
 	Viewers []struct {
 		Name   string `yaml:"name"`
@@ -89,13 +104,17 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 	}
 	routeNames := make([]string, len(fixture.Routes))
 	for i, route := range fixture.Routes {
-		routeNames[i] = route.Name
+		routeNames[i] = string(route.Name)
 	}
 	viewerNames := make([]string, len(fixture.Viewers))
 	for i, viewer := range fixture.Viewers {
 		viewerNames[i] = viewer.Name
 	}
-	requireNames("route", routeNames, "header", "directory", "segment", "window", "locate")
+	wantRoutes := make([]string, len(allJourneyRoutes))
+	for i, route := range allJourneyRoutes {
+		wantRoutes[i] = string(route)
+	}
+	requireNames("route", routeNames, wantRoutes...)
 	requireNames("viewer", viewerNames, "owner", "stranger", "anonymous")
 
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -238,7 +257,7 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 		routes.ServeHTTP(rec, req)
 		return rec
 	}
-	path := func(name string, id uuid.UUID) string {
+	path := func(name journeyRoute, id uuid.UUID) string {
 		t.Helper()
 		build, ok := journeyRoutePaths[name]
 		if !ok {
@@ -253,7 +272,7 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 
 	// The owner's directory read supplies the identity the locator request
 	// must echo.
-	directory := serve(http.MethodGet, path("directory", transcript)+"?v=2", tokens["owner"], nil)
+	directory := serve(http.MethodGet, path(journeyDirectory, transcript)+"?v=2", tokens["owner"], nil)
 	if directory.Code != http.StatusOK {
 		t.Fatalf("the owner's directory read = %d %s", directory.Code, directory.Body.String())
 	}
@@ -271,7 +290,7 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 
 	for _, viewer := range fixture.Viewers {
 		for _, route := range fixture.Routes {
-			t.Run(viewer.Name+"/"+route.Name, func(t *testing.T) {
+			t.Run(viewer.Name+"/"+string(route.Name), func(t *testing.T) {
 				var body []byte
 				if route.Method == http.MethodPost {
 					body = locate
@@ -288,19 +307,19 @@ func TestSegmentedReadJourneyThroughProductionRouter(t *testing.T) {
 					return
 				}
 				switch route.Name {
-				case "header":
+				case journeyHeader:
 					var header schema.TranscriptContentHeader
 					if err := json.Unmarshal(got.Body.Bytes(), &header); err != nil || header.ContentHash != string(identity.Hash()) || header.Representation != listed.Context.Representation {
 						t.Fatalf("the header does not describe the published generation: %s (%v)", got.Body.String(), err)
 					}
-				case "segment":
+				case journeySegment:
 					var segment struct {
 						Rows []json.RawMessage `json:"rows"`
 					}
 					if err := json.Unmarshal(got.Body.Bytes(), &segment); err != nil || len(segment.Rows) != 2 || !bytes.Contains(got.Body.Bytes(), []byte("fix the bug")) {
 						t.Fatalf("the segment does not serve the published turns: %s (%v)", got.Body.String(), err)
 					}
-				case "locate":
+				case journeyLocate:
 					var match schema.TranscriptEntryMatch
 					if err := json.Unmarshal(got.Body.Bytes(), &match); err != nil || match.Position != 0 || match.SegmentOrdinal != 0 || match.Kind != schema.TranscriptEntryReferenceSource {
 						t.Fatalf("the locator did not find the referenced entry: %s (%v)", got.Body.String(), err)
