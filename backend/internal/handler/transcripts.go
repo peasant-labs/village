@@ -441,6 +441,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// transcript was briefly private has already withdrawn it from the digest.
 	var narrowedFrom string
 	var narrowedID pgtype.UUID
+	var narrowedRepo string
 	var audienceLeftPrivate bool
 	// republishedID is the transcript a republish may have replaced, set before
 	// its first write so every outcome, including an ambiguous commit, drops
@@ -529,6 +530,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				return currentErr
 			}
 			if current.Visibility != dbVisibilityPrivate {
+				narrowedRepo = reponame.NormalizeRemote(current.GitRemote.String)
 				// The narrowing, the replacement that restores, and the
 				// compensating restore each run detached from the request, on a
 				// deadline of their own. A client that hangs up in the middle of a
@@ -925,7 +927,11 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var completionRepo string
 	defer func() {
 		if completionRepo != "" || narrowedFrom != "" {
-			h.startPublishAttachmentWork(r.Context(), transcript.OwnerID, completionRepo, narrowedID, narrowedFrom != "")
+			repo := completionRepo
+			if repo == "" {
+				repo = narrowedRepo
+			}
+			h.startPublishAttachmentWork(r.Context(), ownerPgID, repo, completionRepo != "", narrowedID, narrowedFrom != "")
 		}
 	}()
 	if err != nil {

@@ -131,8 +131,10 @@ type Handler struct {
 	// A test injects one with a fake sender (newMailServiceWith).
 	mail *mailService
 	// notices tracks invitation emails still being sent after their response.
-	notices        sync.WaitGroup
-	attachmentWork sync.WaitGroup
+	notices               sync.WaitGroup
+	attachmentWork        sync.WaitGroup
+	attachmentWorkMu      sync.Mutex
+	attachmentWorkPending map[publishAttachmentKey]*publishAttachmentState
 }
 
 func (h *Handler) scanTranscriptContent(content []byte) []string {

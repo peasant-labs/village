@@ -295,8 +295,8 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs st
 	return shutdownErr
 }
 
-// noticeDrainTimeout also accommodates completion and refresh, each bounded
-// independently to 30 seconds, after a publish.
+// noticeDrainTimeout bounds a best-effort drain. Coalesced attachment work can
+// outlast it; a later publish or refresh retries interrupted work.
 const noticeDrainTimeout = 65 * time.Second
 
 // reportShareStateConsistency compares the derived transcript_shares projection
