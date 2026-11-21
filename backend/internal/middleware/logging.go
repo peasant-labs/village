@@ -46,8 +46,8 @@ func RequestLogger(out *log.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// RouteLabel is the one route name that logs and refusal signals record for a
-// request: the pattern chi matched, read once routing has finished. It is built
+// RouteLabel is the one route name that request and admission-refusal logs
+// record for a request: the pattern chi matched, read once routing has finished. It is built
 // only from registered patterns, so it holds no request value. A request that
 // matched no route, or that is served outside a chi router and so carries no
 // route context, is labelled "unmatched"; the raw path is never a fallback.

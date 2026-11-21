@@ -203,10 +203,12 @@ Each refusal writes one structured log line at info level with the message
 matched `route` template (for example
 `/api/v1/transcripts/{id}/segments/{index}`) and the `kind` (`weight` or
 `count`). It never holds transcript content, identifiers, query values or
-credentials. There is no in-process counter; count these lines in the log
-pipeline by route and kind. A sustained rate of `count` refusals means more
-concurrent first loads than two slots serve; a sustained rate of `weight`
-refusals means loads near the budget are running side by side.
+credentials. Admission refusals are visible only in this structured log line
+(`operation=transcript_read_admission`); there is no in-process counter or
+metrics endpoint, so count these lines in the log pipeline by `route` and
+`kind`. A sustained rate of `count` refusals means more concurrent first loads
+than two slots serve; a sustained rate of `weight` refusals means loads near the
+budget are running side by side.
 
 ### Memory
 
