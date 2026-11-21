@@ -68,7 +68,7 @@ type ScrollSaveCase = {
   name: string; search: string; rowTopBase: number; burstEvents: number; movedScrollTop: number;
 };
 type RestoreGuardCase = {
-  name: string; event?: "wheel" | "touchstart" | "keydown" | "scroll"; rowTopBase: number;
+  name: string; event?: "wheel" | "touchstart" | "keydown" | "scroll"; rowTopBase: number; settleFirst: boolean;
 };
 type RestoreBudgetCase = {
   name: string; activeTurn: number; turnOffset: number; outOfViewTop: number; inViewTop: number; expectActiveText: string;
