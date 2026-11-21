@@ -240,7 +240,7 @@ function isRowInView(stream: HTMLElement, row: HTMLElement): boolean {
 
 /** Frames a restored offset waits for the landing and the reopened history to settle before it
  *  gives up and leaves the row where the landing put it: about ten seconds at 60 frames a second. */
-const RESTORE_OFFSET_MAX_FRAMES = 600;
+export const RESTORE_OFFSET_MAX_FRAMES = 600;
 
 /** Listen to scroll on `stream` and persist at most once per animation frame. */
 function observeStreamScroll(stream: HTMLElement, persist: () => void, onScrollEvent?: () => void): () => void {

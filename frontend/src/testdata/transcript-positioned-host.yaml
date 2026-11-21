@@ -200,3 +200,11 @@ restoreGuards:
   - {name: restore-offset-cancels-on-keydown, event: keydown, rowTopBase: 300}
   - {name: restore-offset-cancels-on-scroll, event: scroll, rowTopBase: 300}
   - {name: restore-offset-skips-out-of-view, rowTopBase: 900}
+
+restoreBudget:
+  name: restore-offset-stops-at-frame-budget
+  activeTurn: 14
+  turnOffset: 100
+  outOfViewTop: 900
+  inViewTop: 300
+  expectActiveText: Now read the last segment.

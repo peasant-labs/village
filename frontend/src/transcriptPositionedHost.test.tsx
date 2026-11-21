@@ -15,7 +15,7 @@ import {
 import { readTranscriptForDownload } from "@/lib/transcriptExport";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import { TranscriptHeaderActionsLabel, TranscriptHeaderActionsTestId } from "@/components/transcript/TranscriptHeaderActions";
-import { SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
+import { RESTORE_OFFSET_MAX_FRAMES, SessionDetailV2TestId } from "@/components/session-detail/v2/SessionDetailV2";
 import { TranscriptViewMode } from "@/components/session-detail/v2/transcriptViewMode";
 import { TranscriptReadMode } from "@/lib/queries/segmentedReadCapability";
 import { emptyTranscriptReadState, readTranscriptReadState, writeTranscriptReadState } from "@/lib/transcriptReadState";
@@ -70,6 +70,9 @@ type ScrollSaveCase = {
 type RestoreGuardCase = {
   name: string; event?: "wheel" | "touchstart" | "keydown" | "scroll"; rowTopBase: number;
 };
+type RestoreBudgetCase = {
+  name: string; activeTurn: number; turnOffset: number; outOfViewTop: number; inViewTop: number; expectActiveText: string;
+};
 type Fixture = {
   transcript: Spec;
   retryActions: string[];
@@ -84,6 +87,7 @@ type Fixture = {
   restore: RestoreCase[];
   scrollSave: ScrollSaveCase;
   restoreGuards: RestoreGuardCase[];
+  restoreBudget: RestoreBudgetCase;
 };
 
 const fixture = parse(readFileSync(testdataPath("transcript-positioned-host.yaml"), "utf8")) as Fixture;
@@ -111,13 +115,14 @@ const requiredFixtureNames = [
   "restore-offset-cancels-on-wheel", "restore-offset-cancels-on-touchstart",
   "restore-offset-cancels-on-keydown", "restore-offset-cancels-on-scroll",
   "restore-offset-skips-out-of-view",
+  "restore-offset-stops-at-frame-budget",
 ];
 
 it("retains every named positioned-host case", () => {
   const names = [
     ...fixture.noFallback, ...fixture.landing, ...fixture.downloads.rows, ...fixture.graph,
     ...fixture.builderRefusals, ...fixture.requestRefusals, ...fixture.restore, fixture.scrollSave,
-    ...fixture.restoreGuards,
+    ...fixture.restoreGuards, fixture.restoreBudget,
   ].map(({ name }) => name);
   expect(names.sort()).toEqual([...requiredFixtureNames].sort());
 });
@@ -478,6 +483,59 @@ describe("restoreGuards", () => {
       expect(stream.scrollTop).toBe(0);
     });
   }
+});
+
+it(fixture.restoreBudget.name, async () => {
+  const row = fixture.restoreBudget;
+  writeTranscriptReadState(id, { ...emptyTranscriptReadState(), activeTurn: row.activeTurn, turnOffset: row.turnOffset, readMode: TranscriptReadMode.Positioned });
+  let currentTop = row.outOfViewTop;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    if (this.classList.contains("txn-stream")) {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    const stream = this.closest(".txn-stream");
+    if (stream && this.hasAttribute("data-turn")) {
+      const top = currentTop - stream.scrollTop;
+      return { top, bottom: top + 40, left: 0, right: 800, width: 800, height: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+  });
+
+  const queued = new Map<number, FrameRequestCallback>();
+  let nextId = 1;
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+    const handle = nextId++;
+    queued.set(handle, cb);
+    return handle;
+  });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => {
+    queued.delete(handle);
+  });
+
+  await mountPositioned(buildPositionedBodies(spec), "");
+  const stream = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(".txn-stream");
+    expect(el?.querySelector(".txn-turn.txn-active")).toHaveTextContent(row.expectActiveText);
+    return el!;
+  });
+
+  let frames = 0;
+  while (queued.size > 0 && frames <= RESTORE_OFFSET_MAX_FRAMES + 10) {
+    const batch = [...queued.entries()];
+    queued.clear();
+    for (const [, cb] of batch) cb(frames * 16);
+    frames += 1;
+  }
+
+  expect(frames).toBe(RESTORE_OFFSET_MAX_FRAMES);
+  expect(queued.size).toBe(0);
+  expect(stream.scrollTop).toBe(0);
+  expect(document.querySelector(".txn-turn.txn-active")).toHaveTextContent(row.expectActiveText);
+
+  // Moving the row into view after the budget is exhausted does not resume the restore.
+  currentTop = row.inViewTop;
+  expect(queued.size).toBe(0);
+  expect(stream.scrollTop).toBe(0);
 });
 
 const carried = (entry: string) => `?entry=${entry}&entryKind=before_redacted_entry&entryRevision=hash-current`;
