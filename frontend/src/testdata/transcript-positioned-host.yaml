@@ -186,3 +186,10 @@ scrollSave:
   rowTopBase: 300
   burstEvents: 5
   movedScrollTop: 50
+
+restoreGuards:
+  - {name: restore-offset-cancels-on-wheel, event: wheel, rowTopBase: 300}
+  - {name: restore-offset-cancels-on-touchstart, event: touchstart, rowTopBase: 300}
+  - {name: restore-offset-cancels-on-keydown, event: keydown, rowTopBase: 300}
+  - {name: restore-offset-cancels-on-scroll, event: scroll, rowTopBase: 300}
+  - {name: restore-offset-skips-out-of-view, rowTopBase: 900}

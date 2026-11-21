@@ -229,3 +229,19 @@ mutations:
     replacement: "    void key;\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-throttled-per-frame}
+
+  - name: restore-offset-ignores-user-scroll
+    why: an offset restore that continues and yanks the stream after the user scrolls during the restore window
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    const onUserScroll = () => cancel();\n"
+    replacement: "    const onUserScroll = () => { void cancel; };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-cancels-on-wheel}
+
+  - name: restore-offset-ignores-out-of-view
+    why: an offset restore that applies before the active row is in the stream viewport
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "        isRowInView(stream, row)\n"
+    replacement: "        (void isRowInView, true)\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-skips-out-of-view}

@@ -231,6 +231,13 @@ function rowOffset(stream: HTMLElement, row: HTMLElement): number {
   return row.getBoundingClientRect().top - stream.getBoundingClientRect().top;
 }
 
+/** Whether `row` intersects `stream`'s visible viewport. */
+function isRowInView(stream: HTMLElement, row: HTMLElement): boolean {
+  const streamRect = stream.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  return streamRect.bottom > streamRect.top && rowRect.bottom > streamRect.top && rowRect.top < streamRect.bottom;
+}
+
 /** Frames a restored offset waits for the landing and the reopened history to settle before it
  *  gives up and leaves the row where the landing put it: about ten seconds at 60 frames a second. */
 const RESTORE_OFFSET_MAX_FRAMES = 600;
@@ -532,12 +539,51 @@ function SessionDetailV2Content({
     let frames = 0;
     let previous: number | undefined;
     let handle = 0;
+    let canceled = false;
+    let listeningStream: HTMLElement | null = null;
+
+    const detach = () => {
+      if (!listeningStream) return;
+      listeningStream.removeEventListener('wheel', onUserScroll);
+      listeningStream.removeEventListener('touchstart', onUserScroll);
+      listeningStream.removeEventListener('keydown', onUserScroll);
+      listeningStream.removeEventListener('scroll', onUserScroll);
+      listeningStream = null;
+    };
+    const cancel = () => {
+      if (canceled) return;
+      canceled = true;
+      offsetRestored.current = true;
+      cancelAnimationFrame(handle);
+      detach();
+    };
+    const onUserScroll = () => cancel();
+    const attach = (stream: HTMLElement) => {
+      if (listeningStream === stream) return;
+      detach();
+      listeningStream = stream;
+      stream.addEventListener('wheel', onUserScroll, { passive: true });
+      stream.addEventListener('touchstart', onUserScroll, { passive: true });
+      stream.addEventListener('keydown', onUserScroll);
+      stream.addEventListener('scroll', onUserScroll, { passive: true });
+    };
+
     const step = () => {
+      if (canceled) return;
       const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+      if (stream) attach(stream);
       const row = stream ? mainRow(stream, position) : undefined;
-      if (stream && row && readStateRef.current.activePosition === position && !readStateRef.current.historySettling) {
+      if (
+        stream &&
+        row &&
+        readStateRef.current.activePosition === position &&
+        readStateRef.current.activeTurn === restoredReadState.activeTurn &&
+        !readStateRef.current.historySettling &&
+        isRowInView(stream, row)
+      ) {
         if (previous === stream.scrollTop) {
           offsetRestored.current = true;
+          detach();
           stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;
           return;
         }
@@ -545,10 +591,19 @@ function SessionDetailV2Content({
       }
       frames += 1;
       if (frames < RESTORE_OFFSET_MAX_FRAMES) handle = requestAnimationFrame(step);
-      else offsetRestored.current = true;
+      else {
+        offsetRestored.current = true;
+        detach();
+      }
     };
+    const initialStream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
+    if (initialStream) attach(initialStream);
     handle = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(handle);
+    return () => {
+      canceled = true;
+      cancelAnimationFrame(handle);
+      detach();
+    };
   }, [landing, restoredReadState]);
 
   // A source/starter link opens the CURRENT target, never a historical replay.
