@@ -81,7 +81,7 @@ func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) schema.VillageTran
 	}
 }
 
-// withholdIdentity removes what can name the owner of a transcript whose
+// withholdCommitIdentity removes what can name the owner of a transcript whose
 // owner is anonymous to the viewer: the git author name and email, and the
 // message, whose trailers (Co-authored-by, Signed-off-by) carry names and
 // emails. All three become null; the SHA, timestamps and order stay. A
