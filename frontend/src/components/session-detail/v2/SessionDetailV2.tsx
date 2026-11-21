@@ -22,6 +22,7 @@ import { SessionDetailV2TestId } from './readModeTestIds';
 import { WholeDocumentGraph } from './WholeDocumentGraph';
 import { useWholeDocumentGraph, type WholeDocumentReadEpoch } from './useWholeDocumentGraph';
 import { TranscriptViewMode } from './transcriptViewMode';
+import { FairtradeScrollSelector, turnRowSelector } from './fairtradeScrollSelectors';
 import type { SessionDetailPayload } from '@/types/messages';
 import type { SessionRelationshipNavigation, UnverifiedPullRequestSource, VillageTranscriptIntegrity } from '@peasant-labs/schema';
 import {
@@ -222,7 +223,7 @@ function loadedSegmentTurns(segments: LoadedSegments | undefined) {
 /** The positioned stream's row for a main-partition position. Earlier-history rows number their
  *  own positions, so a row inside a history section is never the main row. */
 function mainRow(stream: HTMLElement, position: number): HTMLElement | undefined {
-  return [...stream.querySelectorAll<HTMLElement>(`[data-turn="${position}"]`)].find((row) => !row.closest('.txn-earlier'));
+  return [...stream.querySelectorAll<HTMLElement>(turnRowSelector(position))].find((row) => !row.closest(FairtradeScrollSelector.EarlierHistory));
 }
 
 /** How far a row sits below the top of its scrolling stream, in pixels. */
@@ -443,7 +444,7 @@ function SessionDetailV2Content({
     if (isPositioned) {
       // Where the active row sits in the stream, while the stream is still
       // on the page; an unmount keeps the offset the last scroll measured.
-      const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+      const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
       const position = readStateRef.current.activePosition;
       const row = stream?.isConnected && position !== undefined ? mainRow(stream, position) : undefined;
       if (stream && row) turnOffsetRef.current = rowOffset(stream, row);
@@ -470,7 +471,7 @@ function SessionDetailV2Content({
 
   useEffect(() => {
     if (!detail) return;
-    const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+    const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
     if (!stream) return;
     // A one-time position — the `?turn=N` permalink or the carried branch
     // anchor — owns the initial scroll. Only when neither is present does the
@@ -494,7 +495,7 @@ function SessionDetailV2Content({
   const loadedSegmentCount = Array.isArray(positioned?.viewerProps.segments) ? positioned.viewerProps.segments.length : 0;
   useEffect(() => {
     if (!isPositioned) return;
-    const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+    const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
     if (!stream) return;
     const onScroll = () => persistReadState();
     stream.addEventListener('scroll', onScroll, { passive: true });
@@ -514,7 +515,7 @@ function SessionDetailV2Content({
     let previous: number | undefined;
     let handle = 0;
     const step = () => {
-      const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+      const stream = streamContainerRef.current?.querySelector<HTMLElement>(FairtradeScrollSelector.Stream);
       const row = stream ? mainRow(stream, position) : undefined;
       if (stream && row && readStateRef.current.activePosition === position && !readStateRef.current.historySettling) {
         if (previous === stream.scrollTop) {
