@@ -82,8 +82,8 @@ behavior. Update that document in the same commit whenever an invariant changes.
 The public `github.com/peasant-labs/schema` module is the source of truth for
 wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
-The current backend module pin is Schema 0.52.0; its Village API version is
-0.40.0. The mounted-byte release-asset test guards this pairing. The frontend
+The current backend module pin is Schema 0.62.0; its Village API version is
+0.44.0. The mounted-byte release-asset test guards this pairing. The frontend
 package pin remains `@peasant-labs/schema` 0.51.0: it will follow a Fairtrade
 release, and no producer emits the new Antigravity harness values yet.
 

@@ -222,14 +222,11 @@ var (
 // source. Multipart bodies (publish) have no JSON schema here.
 func loadContractBodySchemas() contractBodySchemas {
 	raw := schema.VillageAPISpecJSON()
+	// A path item holds its operations beside fields that are not operations
+	// (servers, parameters, summary, description), so each entry is decoded as
+	// an operation only when its key is an HTTP method.
 	var doc struct {
-		Paths map[string]map[string]struct {
-			RequestBody *struct {
-				Content map[string]struct {
-					Schema json.RawMessage `json:"schema"`
-				} `json:"content"`
-			} `json:"requestBody"`
-		} `json:"paths"`
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return contractBodySchemas{err: fmt.Errorf("parse the served contract: %w", err)}
@@ -239,8 +236,21 @@ func loadContractBodySchemas() contractBodySchemas {
 		return contractBodySchemas{err: fmt.Errorf("register the served contract with the compiler: %w", err)}
 	}
 	table := map[string]*jsonschema.Schema{}
-	for path, operations := range doc.Paths {
-		for method, operation := range operations {
+	for path, item := range doc.Paths {
+		for method, entry := range item {
+			if !openAPIOperationKeys[method] {
+				continue
+			}
+			var operation struct {
+				RequestBody *struct {
+					Content map[string]struct {
+						Schema json.RawMessage `json:"schema"`
+					} `json:"content"`
+				} `json:"requestBody"`
+			}
+			if err := json.Unmarshal(entry, &operation); err != nil {
+				return contractBodySchemas{err: fmt.Errorf("parse the served contract's %s %s operation: %w", strings.ToUpper(method), path, err)}
+			}
 			if operation.RequestBody == nil {
 				continue
 			}
@@ -260,6 +270,13 @@ func loadContractBodySchemas() contractBodySchemas {
 		}
 	}
 	return contractBodySchemas{byOperation: table}
+}
+
+// openAPIOperationKeys are the path-item keys that name an operation in
+// OpenAPI 3.x; every other key in a path item is not an operation.
+var openAPIOperationKeys = map[string]bool{
+	"get": true, "put": true, "post": true, "delete": true,
+	"options": true, "head": true, "patch": true, "trace": true,
 }
 
 func jsonPointerEscape(segment string) string {
