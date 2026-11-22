@@ -1,14 +1,13 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import YAML from "yaml";
+import { testdataPath } from "@/test/testdataPath";
 import { expect, it } from "vitest";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 
 import nextConfig from "../next.config";
 
-// unstring-allow: data-path-literal — named once at module scope and read only through this constant
-const FIXTURE = resolve(process.cwd(), "src/testdata/referrer-policy.yaml");
+const FIXTURE = testdataPath("referrer-policy.yaml");
 
 type Case = { name: string; path: string; noReferrer: boolean };
 const { cases } = YAML.parse(readFileSync(FIXTURE, "utf8")) as { cases: Case[] };

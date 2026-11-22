@@ -1,6 +1,7 @@
 import {
   parseSegmentedReadVersionAdvertisement,
   SegmentedReadAPIVersion,
+  type SegmentedReadVersionWindow,
 } from "@peasant-labs/schema";
 import { useQuery } from "@tanstack/react-query";
 import { API_URL_BASE } from "../api";
@@ -22,6 +23,19 @@ export type TranscriptReadMode = (typeof TranscriptReadMode)[keyof typeof Transc
 export const SEGMENTED_READ_DISCOVERY_TIMEOUT_MS = 5_000;
 
 /**
+ * Whether an advertised window serves the positioned reads this page makes,
+ * the `SegmentedReadAPIVersion` reads. Schema's contract makes the window's two
+ * members opaque tokens compared by exact membership, never by an inferred
+ * order, so the window serves those reads when either member is that token:
+ * a later server that still serves them names the token as its oldest. A
+ * window that names neither is not read as covering it, even if a semantic
+ * reading of its versions would place the token between them.
+ */
+export function servesPositionedReads(served: SegmentedReadVersionWindow): boolean {
+  return [served.current, served.min].includes(SegmentedReadAPIVersion);
+}
+
+/**
  * A failed discovery read does not establish support for positioned reads.
  * Once selected, a reader's own failures must not trigger another mode choice.
  * A read that has not answered by `deadline` (by default
@@ -37,8 +51,8 @@ export async function segmentedReadCapability(
       signal: AbortSignal.any(signal ? [signal, deadline] : [deadline]),
     });
     if (!response.ok) return TranscriptReadMode.Content;
-    const window = parseSegmentedReadVersionAdvertisement(await response.text());
-    return window?.current === SegmentedReadAPIVersion
+    const served = parseSegmentedReadVersionAdvertisement(await response.text());
+    return served !== null && servesPositionedReads(served)
       ? TranscriptReadMode.Positioned
       : TranscriptReadMode.Content;
   } catch {

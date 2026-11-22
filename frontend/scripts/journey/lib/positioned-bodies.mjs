@@ -4,20 +4,40 @@
    whole-document `/content` read for one transcript, all from the same turns. Every body is built
    once, at construction, and must pass Schema's z* parsers and the shared directory-position rule;
    the first refusal throws, so a mock built on a body a real client would discard never starts.
+   The `/content` body passes Schema's published session-detail parser the same way. The bodies'
+   `requestRefusal` answers a request a real server would refuse (no `v=2`, a missing or stale
+   revision and representation echo, an invalid locate body), so a page that stops sending them
+   fails against the mocks too.
    Window and numbering semantics are proved against the real handler in the backend; these bodies
    only have to be ones a real server could send. */
 
 import {
+  EarlierHistoryState,
   isConversationTurn,
   isPositionedDirectoryPositionsValid,
+  parseSessionDetailPayloadValue,
   TranscriptReadTransportKind,
+  TranscriptRecordedIndexState,
   TranscriptSegmentPartitionKind,
   zPositionedDirectory,
   zPositionedSegment,
   zPositionedWindow,
   zTranscriptContentHeader,
+  zTranscriptEntryLocateRequest,
   zTranscriptEntryMatch,
 } from "@peasant-labs/schema";
+
+/** The `v` selector every positioned read carries: the positioned protocol's generation. */
+const POSITIONED_READ_SELECTOR = "2";
+
+/** The positioned routes a request names, for `requestRefusal`. Closed. */
+export const PositionedRoute = Object.freeze({
+  Header: "header",
+  Directory: "directory",
+  Window: "window",
+  Segment: "segment",
+  Locate: "locate",
+});
 
 const START = Date.parse("2026-11-12T09:00:00Z");
 
@@ -29,6 +49,7 @@ const START = Date.parse("2026-11-12T09:00:00Z");
  * @property {number} rowsPerSegment
  * @property {number} [firstRecordedIndex]  the first main row's recorded index; rows count up from it (default 0)
  * @property {number[]} [numberAbsent]  main-partition positions the server sends no display number for
+ * @property {number[]} [recordedIndexAbsent]  main-partition positions the server serves with recordedIndexState "absent" and no recordedIndex
  * @property {number} [directoryPerPage]  main refs per directory page; omitted serves one page
  * @property {Array<{ turns: PositionedTurnSpec[], state?: string }>} [history]  earlier-history sections, in order
  * @property {{ project?: string, gitBranch?: string, gitRemote?: string }} [session]  the session fields the
@@ -37,15 +58,19 @@ const START = Date.parse("2026-11-12T09:00:00Z");
  * @property {string} [representation]
  */
 
+/** The refusal for a body Schema's parser refuses: which body, why, and what to fix. */
+function refusedBody(name, issues) {
+  return new TypeError(
+    `The positioned mock refused its ${name} body: it is not one Schema's parser accepts (${issues}). ` +
+      "Fix the spec passed to buildPositionedBodies (scripts/journey/lib/positioned-bodies.mjs) so every body is one a real server could send.",
+  );
+}
+
 /** Parse with the real parser or refuse, naming the body and what to fix. */
 function mustParse(parser, body, name) {
   const parsed = parser.safeParse(body);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
-    throw new TypeError(
-      `The positioned mock refused to start: its ${name} body is not one Schema's parser accepts (${issues}). ` +
-        "Fix the spec passed to buildPositionedBodies (scripts/journey/lib/positioned-bodies.mjs) so every body is one a real server could send.",
-    );
+    throw refusedBody(name, parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
   }
   return parsed.data;
 }
@@ -66,6 +91,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
   const check = (parser, body, name) => mustParse(parser, mutateBody ? mutateBody(name, body) : body, name);
   const transport = { kind: TranscriptReadTransportKind.VillageTranscript, transcriptId: spec.transcriptId };
   const absent = new Set(spec.numberAbsent ?? []);
+  const recordedAbsent = new Set(spec.recordedIndexAbsent ?? []);
   const sessionFields = spec.session ?? { project: "positioned-reader" };
 
   /** One partition's rows, segments, refs and context. History sections record their own indexes from 0. */
@@ -82,13 +108,17 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     // The display numbers are this mock's own rule (position + 1), not the server's numbering,
     // which the backend proves against the real handler. Production code never derives a number:
     // it shows the label each row is served with.
-    const rows = turns.map((turn, position) => ({
-      position,
-      recordedIndex: turn.index,
-      recordedIndexState: "present",
-      ...(partition.kind === TranscriptSegmentPartitionKind.Main && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
-      turn,
-    }));
+    const rows = turns.map((turn, position) => {
+      const noRecordedIndex = partition.kind === TranscriptSegmentPartitionKind.Main && recordedAbsent.has(position);
+      return {
+        position,
+        ...(noRecordedIndex
+          ? { recordedIndexState: TranscriptRecordedIndexState.Absent }
+          : { recordedIndex: turn.index, recordedIndexState: TranscriptRecordedIndexState.Present }),
+        ...(partition.kind === TranscriptSegmentPartitionKind.Main && absent.has(position) ? {} : { displayNumber: String(position + 1) }),
+        turn,
+      };
+    });
     const chunks = [];
     for (let start = 0; start < rows.length; start += spec.rowsPerSegment) chunks.push(rows.slice(start, start + spec.rowsPerSegment));
     let before = 0;
@@ -130,9 +160,11 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
   }
 
   const main = partitionOf(spec.turns, { kind: TranscriptSegmentPartitionKind.Main }, spec.firstRecordedIndex ?? 0, TranscriptSegmentPartitionKind.Main);
+  // Every section has a state: the stored copy requires one. A spec that names none gets the
+  // unresolved state, in the directory and the stored copy alike.
   const history = (spec.history ?? []).map((section, sectionIndex) => ({
     ...partitionOf(section.turns, { kind: TranscriptSegmentPartitionKind.History, sectionIndex }, 0, `history ${sectionIndex}`),
-    state: section.state,
+    state: section.state ?? EarlierHistoryState.UncertainUnresolved,
   }));
 
   const session = {
@@ -172,7 +204,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
           ? {
               history: history.map((section, index) => ({
                 index,
-                ...(section.state ? { state: section.state } : {}),
+                state: section.state,
                 totalTurns: section.context.totalTurns,
                 totalConversationTurns: section.context.totalConversationTurns,
                 usagePresent: "unknown",
@@ -202,7 +234,7 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
       partition: part.partition,
       anchorPosition: anchor.position,
       anchorSegment,
-      anchorTurn: anchor.recordedIndex,
+      ...(anchor.recordedIndex !== undefined ? { anchorTurn: anchor.recordedIndex } : {}),
       ...(turn === undefined ? {} : { requestedAnchor: turn, ...(requested ? { requestedPosition: requested.position } : {}) }),
       firstPosition: part.chunks[anchorSegment][0].position,
       lastPosition: part.chunks[anchorSegment].at(-1).position,
@@ -230,14 +262,53 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     }, `locate ${reference}`);
   };
 
-  /** The whole stored document the `/content` route serves, from the same turns. */
-  const content = {
+  /** The whole stored document the `/content` route serves, from the same turns. It must pass
+      Schema's session-detail parser, and is served as built. */
+  const built = {
     ...session,
     totalTokens: 0,
     tokensIn: 0,
     tokensOut: 0,
     turns: main.turns,
+    ...(history.length > 0 ? { earlierHistory: history.map((section) => ({ state: section.state, turns: section.turns })) } : {}),
   };
+  const content = mutateBody ? mutateBody("content", built) : built;
+  try {
+    parseSessionDetailPayloadValue(content);
+  } catch (error) {
+    throw refusedBody("content", error instanceof Error ? error.message : String(error));
+  }
+
+  /** A refusal a real server would send for this request, or undefined when it is one the server
+      answers. `query` is the request's URLSearchParams; `body` the parsed locate body. */
+  function requestRefusal(route, query, body) {
+    const where = `the positioned mock refused a ${route} read`;
+    const fix = "fix the request the page makes in src/lib/queries/positionedTransport.ts";
+    if (query.get("v") !== POSITIONED_READ_SELECTOR) {
+      return { status: 400, error: `${where}: it carries no v=${POSITIONED_READ_SELECTOR}, so a real server would read it as another protocol; ${fix}.` };
+    }
+    const stale = (revisionValue, representationValue) =>
+      revisionValue !== main.context.revision || representationValue !== main.context.representation;
+    if (route === PositionedRoute.Segment || route === PositionedRoute.Window) {
+      const echoed = [query.get("revision"), query.get("representation")];
+      // A window may open before the reader knows the revision; a segment never does.
+      if (route === PositionedRoute.Window && echoed.every((value) => value === null)) return undefined;
+      if (echoed.some((value) => value === null)) {
+        return { status: 400, error: `${where}: it echoes only part of the revision and representation, which a real server refuses; ${fix}.` };
+      }
+      if (stale(...echoed)) {
+        return { status: 409, error: `${where}: its revision or representation echo names another copy than the one served; the reader must reload.` };
+      }
+    }
+    if (route === PositionedRoute.Locate) {
+      const parsed = zTranscriptEntryLocateRequest.safeParse(body);
+      if (!parsed.success) return { status: 400, error: `${where}: its body is not a locate request Schema's parser accepts; ${fix}.` };
+      if (stale(parsed.data.revision, parsed.data.representation)) {
+        return { status: 409, error: `${where}: its revision or representation names another copy than the one served; the reader must reload.` };
+      }
+    }
+    return undefined;
+  }
 
   return {
     transcriptId: spec.transcriptId,
@@ -260,5 +331,6 @@ export function buildPositionedBodies(spec, { mutateBody } = {}) {
     segmentFor: (partition, index) => partitions.get(partitionKey(partition))?.segments[index],
     locate,
     content,
+    requestRefusal,
   };
 }
