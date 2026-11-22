@@ -3,17 +3,15 @@
    The real routes under capture are:
      GET /api/v1/collectives/{id}                  (the collective browse list)
      GET /api/v1/collectives/{id}?view=grouped     (the same metadata, grouped page)
-     GET /api/v1/collectives/{id}/contributable    (the contribute tree)
-     GET /api/v1/collectives/{id}/contributable?view=grouped
      GET /api/v1/collectives/{id}/pending          (the review queue)
      GET /api/v1/collectives/{id}/pending?view=grouped
      GET /api/v1/collectives/{id}/my-shares
      GET /api/v1/transcript-groups/{groupId}/members?scope=...
      GET /api/v1/auth/me
 
-   The viewer is the collective's OWNER, so the contribute page's member panel
-   and the review page's owner-only queue both render, and the same group is
-   offered on all three surfaces.
+   The viewer is the collective's OWNER, so the review page's owner-only queue
+   renders, and the same group is offered on the browse, review and
+   contributions surfaces.
 
    Every row carries a canonical UUID identity because the opt-in grouped
    payload validates the whole row; the flat lists the page already serves are
@@ -226,14 +224,6 @@ const myShareMembers = [
   { id: '22222222-2222-4222-8222-0000000000b2', local: 'ses_capturemysharehelper2', title: 'Guardian review of the unshare path' },
 ]
 
-/* The flat contribute tree: the same submission set, drawn the way it was
-   before grouping existed. An empty-flat capture serves none of it, so the
-   grouped content has no row to hang under. */
-const flatContributable = {
-  group_id: GROUP_ID,
-  transcripts: EMPTY_FLAT ? [] : [...owned, ...members].map(contributableArm),
-}
-
 const flatPending = EMPTY_FLAT ? [] : [...owned, ...members].map(pendingArm)
 
 /* The grouped pages: each owner row keeps its place with the saved helper
@@ -393,13 +383,6 @@ const server = createServer((req, res) => {
     const requestedPage = Number(url.searchParams.get('page') || 1)
     return send(res, 200, grouped ? groupedGroupDetail(requestedPage) : flatGroupDetail)
   }
-  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/contributable`) {
-    if (url.searchParams.get('view') === 'grouped') {
-      const requestedPage = Number(url.searchParams.get('page') || 1)
-      return send(res, 200, { group_id: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
-    }
-    return send(res, 200, flatContributable)
-  }
   if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/pending`) {
     if (url.searchParams.get('view') === 'grouped') {
       const requestedPage = Number(url.searchParams.get('page') || 1)
@@ -422,11 +405,9 @@ const server = createServer((req, res) => {
     const scope = url.searchParams.get('scope') ?? ''
     const known = [
       ownerGroup('collective'),
-      ownerGroup('contributable'),
       ownerGroup('pending'),
       myShareGroup(),
       contextGroup('collective'),
-      contextGroup('contributable'),
       contextGroup('pending'),
     ]
     if (!known.some((candidate) => candidate.groupId === membersMatch[1] && candidate.memberScope === scope)) {

@@ -11,10 +11,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost/api/v1";
  */
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** The machine-readable refusal code the body carried, when it carried a
+   *  string one (`VillageErrorResponse.code`). Callers branch on it where the
+   *  status alone is ambiguous, such as two different 413s. */
+  readonly code?: string;
+  /** The refusal's per-record details, unvalidated: a caller that acts on
+   *  them parses them against the contract first. */
+  readonly details?: unknown;
+  constructor(status: number, message: string, body?: { code?: unknown; details?: unknown }) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    if (typeof body?.code === "string") this.code = body.code;
+    if (body?.details !== undefined) this.details = body.details;
   }
 }
 
@@ -51,7 +60,7 @@ export async function api<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error || `API error: ${res.status}`);
+    throw new ApiError(res.status, body.error || `API error: ${res.status}`, body);
   }
 
   return res.json();

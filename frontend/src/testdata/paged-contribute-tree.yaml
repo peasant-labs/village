@@ -1,0 +1,56 @@
+# How the contribute page arranges one project's loaded families.
+#
+# A family is { root, helpers? }; a session is { id, project, branch?,
+# provider?, visibility?, start?, end? }. Every session is published
+# 2026-11-01 at noon UTC, so the dates read the same in any test timezone. "branch" left out means the session has no
+# branch. Ids are "t<n>" and projects "p<X>" tokens. Every section below lists
+# the families in the order the server sent them.
+
+branches:
+  - name: families-group-under-their-roots-branch
+    families:
+      - { root: { id: t1, project: pA, branch: main } }
+      - { root: { id: t2, project: pA, branch: feature } }
+      - { root: { id: t3, project: pA, branch: main } }
+    expect:
+      - { label: feature, families: [t2] }
+      - { label: main, families: [t1, t3] }
+  - name: the-unknown-branch-comes-last
+    families:
+      - { root: { id: t1, project: pA } }
+      - { root: { id: t2, project: pA, branch: zeta } }
+      - { root: { id: t3, project: pA, branch: alpha } }
+    expect:
+      - { label: alpha, families: [t3] }
+      - { label: zeta, families: [t2] }
+      - { label: (unknown branch), families: [t1] }
+  - name: a-helper-on-another-branch-stays-with-its-root
+    families:
+      - root: { id: t1, project: pA, branch: main }
+        helpers:
+          - { id: t2, project: pA, branch: other }
+          - { id: t3, project: pB, branch: main }
+    expect:
+      - { label: main, families: [t1], helpers: { t1: [t2, t3] }, rows: [t1, t2, t3] }
+
+meta:
+  - name: a-root-shows-its-harness-last-activity-and-visibility
+    session: { id: t1, project: pA, provider: anthropic, visibility: private, end: "2026-11-03T12:00:00Z" }
+    family: pA
+    expect: anthropic · Nov 3 · private
+  - name: a-session-without-an-end-shows-its-start
+    session: { id: t1, project: pA, provider: openai, visibility: public, start: "2026-11-04T12:00:00Z" }
+    family: pA
+    expect: openai · Nov 4 · public
+  - name: a-session-without-times-shows-its-publish-date
+    session: { id: t1, project: pA, provider: openai, visibility: public }
+    family: pA
+    expect: openai · Nov 1 · public
+  - name: a-helper-in-another-project-names-that-project
+    session: { id: t2, project: pB, provider: anthropic, visibility: private, end: "2026-11-02T12:00:00Z" }
+    family: pA
+    expect: anthropic · Nov 2 · private · in project b
+  - name: a-session-without-a-harness-says-so
+    session: { id: t1, project: pA, provider: "", visibility: shared }
+    family: pA
+    expect: unknown harness · Nov 1 · shared

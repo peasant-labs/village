@@ -1,0 +1,117 @@
+# Response-variant validation and failure classification for the contribute
+# page's paged, picker and snapshot reads.
+#
+# Tokens the test expands: "$group" and "$other_group" are collective ids,
+# "$t<n>" a transcript id, "$p<X>" a project hash, and an object
+# { $transcript: { id, project, already_shared?, visibility?, status? } } a full
+# contributable transcript. expect is "ok" or { deployment: <message part> }.
+decode:
+  - name: a-paged-body-with-families-decodes
+    read: page
+    body:
+      group_id: $group
+      has_more: true
+      next_cursor: c1
+      items:
+        - root: { transcript: { $transcript: { id: t1, project: pA } } }
+          helpers:
+            - { transcript: { $transcript: { id: t2, project: pB } }, matched: true }
+    expect: ok
+  - name: the-last-page-needs-no-cursor
+    read: page
+    body: { group_id: $group, has_more: false, items: [] }
+    expect: ok
+  - name: a-flat-body-to-the-paged-read-is-a-deployment-mismatch
+    read: page
+    body: { group_id: $group, transcripts: [] }
+    expect: { deployment: the flat list }
+  - name: a-grouped-body-to-the-paged-read-is-a-deployment-mismatch
+    read: page
+    body: { group_id: $group, transcriptList: { items: [], page: 1, limit: 20, totalItems: 0 } }
+    expect: { deployment: the grouped list }
+  - name: a-flat-body-that-also-carries-items-is-still-a-mismatch
+    read: page
+    body: { group_id: $group, has_more: false, items: [], transcripts: [] }
+    expect: { deployment: the flat list }
+  - name: a-paged-body-without-has-more-is-a-mismatch
+    read: page
+    body: { group_id: $group, items: [] }
+    expect: { deployment: without items and has_more }
+  - name: a-paged-body-for-another-collective-is-a-mismatch
+    read: page
+    body: { group_id: $other_group, has_more: false, items: [] }
+    expect: { deployment: a different collective }
+  - name: more-pages-without-a-cursor-is-a-mismatch
+    read: page
+    body: { group_id: $group, has_more: true, items: [] }
+    expect: { deployment: more pages but no cursor }
+  - name: a-paged-body-outside-the-contract-is-a-mismatch
+    read: page
+    body: { group_id: $group, has_more: false, items: [{ root: { transcript: { id: t1 } }, helpers: [] }] }
+    expect: { deployment: outside the contract }
+  - name: a-picker-body-decodes
+    read: projects
+    body:
+      has_more: false
+      matching_total: 7
+      selectable_total: 5
+      providers: [{ provider: anthropic, count: 7 }]
+      projects:
+        - { project_hash: $pA, project_display_name: alpha, project_name_source: remote, matching_count: 7, selectable_count: 5 }
+    expect: ok
+  - name: a-flat-body-to-the-picker-is-a-mismatch
+    read: projects
+    body: { group_id: $group, transcripts: [] }
+    expect: { deployment: the flat list }
+  - name: a-snapshot-body-decodes
+    read: snapshot
+    project: pA
+    body:
+      group_id: $group
+      project_hash: $pA
+      count: 2
+      records:
+        - { id: $t1, title: fix the importer, project_hash: $pA, visibility: private }
+        - { id: $t2, title: null, project_hash: $pB, visibility: shared, parent_transcript_id: $t1, latest_status: approved }
+    expect: ok
+  - name: a-snapshot-record-without-a-title-is-outside-the-contract
+    read: snapshot
+    project: pA
+    body: { group_id: $group, project_hash: $pA, count: 1, records: [{ id: $t1, project_hash: $pA, visibility: private }] }
+    expect: { deployment: outside the contract }
+  - name: a-snapshot-count-that-differs-from-its-records-is-a-mismatch
+    read: snapshot
+    project: pA
+    body: { group_id: $group, project_hash: $pA, count: 3, records: [{ id: $t1, title: null, project_hash: $pA, visibility: private }] }
+    expect: { deployment: a count that differs from its records }
+  - name: a-flat-body-to-the-snapshot-is-a-mismatch
+    read: snapshot
+    project: pA
+    body: { group_id: $group, transcripts: [] }
+    expect: { deployment: the flat list }
+  - name: a-grouped-body-to-the-snapshot-is-a-mismatch
+    read: snapshot
+    project: pA
+    body: { group_id: $group, transcriptList: { items: [] } }
+    expect: { deployment: the grouped list }
+  - name: a-snapshot-of-another-project-is-a-mismatch
+    read: snapshot
+    project: pA
+    body: { group_id: $group, project_hash: $pB, count: 0, records: [] }
+    expect: { deployment: a different project }
+
+# A thrown ApiError (status, optional code) or a network failure, and the kind
+# the page acts on.
+classify:
+  - { name: the-snapshot-size-limit-asks-to-narrow, read: snapshot, status: 413, code: snapshot_too_large, kind: too_large }
+  - { name: a-bare-413-on-the-snapshot-is-an-old-backend, read: snapshot, status: 413, kind: deployment }
+  - { name: a-413-on-the-paged-read-is-an-old-backend, read: page, status: 413, kind: deployment }
+  - { name: a-413-with-the-snapshot-code-on-the-paged-read-is-still-an-old-backend, read: page, status: 413, code: snapshot_too_large, kind: deployment }
+  - { name: a-404-from-the-picker-is-an-incomplete-deployment, read: projects, status: 404, kind: deployment }
+  - { name: a-405-from-the-picker-is-an-incomplete-deployment, read: projects, status: 405, kind: deployment }
+  - { name: a-404-from-the-paged-read-is-an-ordinary-failure, read: page, status: 404, kind: failed }
+  - { name: a-snapshot-timeout-is-busy, read: snapshot, status: 503, code: snapshot_timeout, kind: busy }
+  - { name: a-busy-snapshot-is-busy, read: snapshot, status: 503, code: snapshot_busy, kind: busy }
+  - { name: a-bare-503-is-an-ordinary-failure, read: snapshot, status: 503, kind: failed }
+  - { name: a-network-failure-is-an-ordinary-failure, read: page, network: true, kind: failed }
+  - { name: a-cancelled-snapshot-is-cancelled, read: snapshot, aborted: true, kind: cancelled }

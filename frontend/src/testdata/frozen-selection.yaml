@@ -1,0 +1,232 @@
+# The contribute page's frozen selection.
+#
+# A row is { id, project, root, family, locked? }: "project" is the
+# transcript's own project, "family" the project of its root, and "root" the
+# root's id (a row whose id is its root is the root). A selected record is
+# { id, project, family, title? }. Ids are "t<n>" and projects "p<X>" tokens.
+# A title left out defaults to "session <n>"; an expected record's title is
+# checked only when stated.
+
+live_status:
+  - { status: pending, live: true }
+  - { status: approved, live: true }
+  - { status: rejected, live: false }
+  - { status: retracted, live: false }
+  - { status: revoked, live: false }
+  - { status: null, live: false }
+
+family_toggle:
+  - name: selecting-a-family-takes-the-root-and-every-helper
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA }
+      - { id: t2, project: pB, root: t1, family: pA }
+      - { id: t3, project: pA, root: t1, family: pA }
+    selected: []
+    state_before: none
+    expect_selected: [t1, t2, t3]
+  - name: a-locked-helper-never-enters-the-set
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA }
+      - { id: t2, project: pB, root: t1, family: pA, locked: true }
+      - { id: t3, project: pA, root: t1, family: pA }
+    selected: []
+    state_before: none
+    expect_selected: [t1, t3]
+    state_after: all
+  - name: a-family-with-one-helper-deselected-is-partial-and-selects-the-rest
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA }
+      - { id: t2, project: pB, root: t1, family: pA }
+      - { id: t3, project: pA, root: t1, family: pA }
+    selected:
+      - { id: t1, project: pA, family: pA }
+      - { id: t3, project: pA, family: pA }
+    state_before: some
+    expect_selected: [t1, t2, t3]
+  - name: a-fully-selected-family-clears
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA }
+      - { id: t2, project: pB, root: t1, family: pA }
+    selected:
+      - { id: t1, project: pA, family: pA }
+      - { id: t2, project: pB, family: pA }
+      - { id: t9, project: pC, family: pC }
+    state_before: all
+    expect_selected: [t9]
+  - name: a-family-of-locked-rows-offers-nothing
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA, locked: true }
+      - { id: t2, project: pA, root: t1, family: pA, locked: true }
+    selected: []
+    state_before: none
+    expect_selected: []
+    state_after: none
+
+loaded_project_toggle:
+  - name: a-project-takes-the-cross-project-helpers-of-its-families
+    rows: &two-families
+      - { id: t1, project: pA, root: t1, family: pA }
+      - { id: t2, project: pB, root: t1, family: pA }
+      - { id: t4, project: pB, root: t4, family: pB }
+    selected: []
+    project: pA
+    state_before: none
+    expect_selected: [t1, t2]
+  - name: a-project-does-not-take-its-rows-that-ride-with-another-project
+    rows: *two-families
+    selected: []
+    project: pB
+    state_before: none
+    expect_selected: [t4]
+  - name: a-checked-project-clears-only-its-loaded-rows
+    rows: *two-families
+    selected:
+      - { id: t1, project: pA, family: pA }
+      - { id: t2, project: pB, family: pA }
+      - { id: t9, project: pA, family: pA }
+    project: pA
+    state_before: all
+    expect_selected: [t9]
+  - name: a-partly-checked-project-selects-its-loaded-rows-and-nothing-more
+    rows: *two-families
+    selected:
+      - { id: t1, project: pA, family: pA }
+    project: pA
+    state_before: some
+    expect_selected: [t1, t2]
+
+snapshot_merge:
+  - name: a-snapshot-takes-its-selectable-records-and-locks-live-ones
+    selected: []
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private }
+        - { id: t2, project: pA, visibility: shared, status: approved }
+        - { id: t3, project: pB, visibility: private, status: rejected }
+        - { id: t4, project: pA, visibility: shared, status: pending }
+    expect:
+      selected: [t1, t3]
+      selectable: [t1, t3]
+      added: 2
+      locked: 2
+      omitted: []
+      all_selected: true
+  - name: a-cross-project-helper-is-submitted-under-its-own-project
+    selected: []
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private }
+        - { id: t3, project: pB, visibility: private }
+    expect:
+      selected: [t1, t3]
+      selectable: [t1, t3]
+      added: 2
+      locked: 0
+      omitted: []
+      all_selected: true
+      records:
+        - { id: t3, project: pB, family: pA }
+  - name: a-snapshot-record-keeps-its-title-so-consent-can-name-it
+    selected: []
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private, title: fix the importer }
+        - { id: t3, project: pB, visibility: private, title: null }
+    expect:
+      selected: [t1, t3]
+      selectable: [t1, t3]
+      added: 2
+      locked: 0
+      omitted: []
+      all_selected: true
+      records:
+        - { id: t1, project: pA, family: pA, title: fix the importer }
+        - { id: t3, project: pB, family: pA, title: null }
+  - name: a-record-already-selected-keeps-the-title-it-was-selected-with
+    selected:
+      - { id: t1, project: pA, family: pA, title: loaded title }
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private, title: snapshot title }
+    expect:
+      selected: [t1]
+      selectable: [t1]
+      added: 0
+      locked: 0
+      omitted: []
+      all_selected: true
+      records:
+        - { id: t1, project: pA, family: pA, title: loaded title }
+  - name: a-previously-selected-record-the-snapshot-omits-is-kept-and-reported
+    selected:
+      - { id: t5, project: pA, family: pA }
+      - { id: t6, project: pB, family: pB }
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private }
+    expect:
+      selected: [t1, t5, t6]
+      selectable: [t1]
+      added: 1
+      locked: 0
+      omitted: [t5]
+      all_selected: true
+  - name: a-record-already-selected-is-not-counted-again
+    selected:
+      - { id: t1, project: pA, family: pA }
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: private }
+        - { id: t2, project: pA, visibility: private }
+    expect:
+      selected: [t1, t2]
+      selectable: [t1, t2]
+      added: 1
+      locked: 0
+      omitted: []
+      all_selected: true
+  - name: a-snapshot-of-only-live-records-offers-nothing
+    selected: []
+    snapshot:
+      project: pA
+      records:
+        - { id: t1, project: pA, visibility: shared, status: approved }
+    expect:
+      selected: []
+      selectable: []
+      added: 0
+      locked: 1
+      omitted: []
+      all_selected: false
+
+without_live:
+  - name: a-selected-row-that-became-live-leaves-the-set
+    rows:
+      - { id: t1, project: pA, root: t1, family: pA, locked: true }
+      - { id: t2, project: pA, root: t1, family: pA }
+      - { id: t3, project: pA, root: t3, family: pA, locked: true }
+    selected:
+      - { id: t1, project: pA, family: pA }
+      - { id: t2, project: pA, family: pA }
+    expect_became_live: [t1]
+    expect_selected: [t2]
+
+projects:
+  - name: counts-follow-the-family-and-submission-follows-the-record
+    selected:
+      - { id: t1, project: pA, family: pA }
+      - { id: t2, project: pB, family: pA }
+      - { id: t3, project: pA, family: pB }
+    expect_counted:
+      pA: 2
+      pB: 1
+      pC: 0
+    expect_submitted:
+      pA: [t1, t3]
+      pB: [t2]

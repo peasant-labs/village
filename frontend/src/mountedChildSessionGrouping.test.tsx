@@ -54,8 +54,8 @@ import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
  *              inside the project group both sessions belong to.
  *
  * The collective surfaces -- a collective's contributions read as a list and by
- * repository, the review queue of a curated collective, a member's own
- * contributions and the contribute selection tree -- are mounted in
+ * repository, the review queue of a curated collective, and a member's own
+ * contributions -- are mounted in
  * src/mountedChildSessionGroupingCollective.test.tsx, from this same corpus.
  *
  * The permutations live in src/testdata/child-session-grouping.yaml, and each

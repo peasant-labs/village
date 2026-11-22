@@ -5,8 +5,7 @@
 
    ORACLE. The live in-use demo is the fidelity oracle. It mounts NO collective
    surface that reads the grouped helper pages: its collective detail browse is a
-   flat table, its contribute tree is a flat project tree, and its review queue is
-   a flat ModerationQueue. What the demo does mount is the canonical
+   flat table and its review queue is a flat ModerationQueue. What the demo does mount is the canonical
    grouped-helper primitive demonstration, `?app=commons&helpers=<case>#inuse`
    (the named examples `src/ui/HELPER-GROUPS.md` lists). Each arm therefore pairs
    the demo's demonstration of that primitive against the village surface that
@@ -89,21 +88,6 @@ export const COLLECTIVE_ARMS = [
       'the pair judges the owner anchor, the single indent step, the count chip and the individually linked members. Two limits, stated rather than implied: the browse list is read-only, so the demo control\'s per-member checkboxes and the connector they trace have no counterpart here, and the app\'s owner row is the transcript list row it always was rather than the reference\'s generic owner row.',
   },
   {
-    surface: 'collective-grouped-contribute',
-    appMarkers: ['data-helper-group-owner'],
-    shootSurface: 'collective-contribute',
-    app: 'village-collective-contribute-grouped-helper.png',
-    appGrouped: 'village-collective-contribute-grouped-helper-panel.png',
-    demo: 'demo-collective-grouped-contribute.png',
-    demoGrouped: 'demo-collective-grouped-contribute-tree.png',
-    demoCase: 'three-independent-counts',
-    demoState: 'selected',
-    demoSelectThread: 'G2',
-    styleScope: { reference: '.helper-demo', subject: '[data-testid="contribute-member-panel"]' },
-    mapping:
-      'both sides tick exactly one member. The app states `contribute 1 transcript` on the route\'s own action bar where the demo states the selected identity in its summary line, and each side keeps its own closure, so off-primitive chrome is not comparable. Both sides also trace the canonical connector between their member checkboxes; the harness asserts it (CONNECTOR_ARMS), so its absence fails the gate.',
-  },
-  {
     surface: 'collective-grouped-review',
     appMarkers: ['data-helper-group-owner'],
     shootSurface: 'collective-review',
@@ -116,7 +100,7 @@ export const COLLECTIVE_ARMS = [
     demoSelectThread: 'G4',
     styleScope: { reference: '.helper-demo', subject: '[data-testid="review-panel"]' },
     mapping:
-      'the review queue selects one identity, never a group. The reference is the named example whose group holds two members carrying the same title and a third that does not, so a tick visibly names ONE row; the app states `1 selected` on its decision bar where the demo states the identity in its summary line. As on contribute, both sides trace the canonical connector, which the harness asserts (CONNECTOR_ARMS).',
+      'the review queue selects one identity, never a group. The reference is the named example whose group holds two members carrying the same title and a third that does not, so a tick visibly names ONE row; the app states `1 selected` on its decision bar where the demo states the identity in its summary line. Both sides trace the canonical connector, which the harness asserts (CONNECTOR_ARMS).',
   },
   {
     surface: 'collective-grouped-my-shares',
@@ -134,12 +118,11 @@ export const COLLECTIVE_ARMS = [
   },
 ]
 
-/* The four arms this gate must always carry. `git` cannot delete a case from a
+/* The three arms this gate must always carry. `git` cannot delete a case from a
    fixture file, so the required-NAME manifest in the self-check fixture pins
    them; this list is the same manifest in code. */
 export const REQUIRED_ARM_SURFACES = [
   'collective-grouped-browse',
-  'collective-grouped-contribute',
   'collective-grouped-review',
   'collective-grouped-my-shares',
 ]
@@ -213,7 +196,7 @@ export const STYLE_EXCEPTIONS = [
    the self-check pins this list by NAME like the arm manifest, so an arm cannot
    drop its assertion silently. The display-only arms are the opposite case and
    are covered by `STYLE_EXCEPTIONS` instead. */
-export const CONNECTOR_ARMS = ['collective-grouped-contribute', 'collective-grouped-review']
+export const CONNECTOR_ARMS = ['collective-grouped-review']
 
 /* Null when every connector arm mounts the canonical connector on BOTH sides,
    else the actionable reason the stitch must stop. A display-only arm is not in
@@ -361,7 +344,7 @@ export const describeWrap = (wrap) =>
 export const DEMO_MARKERS = ['data-helper-demo', 'helper-tree-rail__path']
 /* The marker the build under review introduces on EVERY collective route, and the
    one only the collective page's bundle carries. An arm requires the markers its
-   OWN route bundle has: the contribute and review routes do not load the
+   OWN route bundle has: the review route does not load the
    contributions panel's chunk, so requiring that marker there would refuse a
    perfectly attributable build. */
 export const APP_MARKERS = ['data-helper-group-owner']

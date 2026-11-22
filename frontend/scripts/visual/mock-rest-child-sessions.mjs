@@ -9,7 +9,8 @@
      collective repos view  the same response, read by repository
      pending-share queue    GET /collectives/{id}/pending
      your contributions     GET /collectives/{id}/my-shares
-     contribute tree        GET /collectives/{id}/contributable
+     contribute tree        GET /collectives/{id}/contributable/projects, then
+                            ?view=paged per project (the server's families)
 
    EVERY one of those datasets carries the same two cases, because the contrast
    is the evidence:
@@ -27,7 +28,9 @@
 import { createServer } from 'node:http'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8846)
-const GROUP_ID = process.env.MOCK_GROUP_ID || 'demo-group'
+// A UUID, because the contribute page's paged reads carry the collective id
+// under the contract's uuid format and the page checks it against its route.
+const GROUP_ID = process.env.MOCK_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 
 const OWNER_ID = 'user-demo'
 const OTHER_ID = 'member-2'
@@ -522,12 +525,14 @@ const myShares = [
 
 // ── The contribute tree ──────────────────────────────────────────────────────
 
+// Transcript ids are UUIDs and local ids follow the session-id pattern: the
+// paged read is validated against the contract before it renders.
 const contributable = {
   group_id: GROUP_ID,
   transcripts: [
     {
-      id: 'ct-parent',
-      local_id: 'sess_ct_parent',
+      id: 'c0de0000-0000-4000-8000-000000000011',
+      local_id: 'sess_ctParent',
       title: 'Carry the fold into the contribute tree',
       visibility: 'private',
       project_hash: PEASANT_HASH,
@@ -541,53 +546,53 @@ const contributable = {
       already_shared: false,
     },
     {
-      id: 'ct-child-1',
-      local_id: 'sess_ct_child_1',
+      id: 'c0de0000-0000-4000-8000-000000000012',
+      local_id: 'sess_ctChild1',
       title: 'Read the tree builder',
       visibility: 'private',
       project_hash: PEASANT_HASH,
       project_display_name: 'peasant',
       project_name_source: 'consented',
       git_branch: 'main',
-      parent_session_id: 'sess_ct_parent',
+      parent_session_id: 'sess_ctParent',
       session_origin: 'user',
       model_provider: 'claude-code',
       published_at: '2026-06-26T09:16:00Z',
       already_shared: false,
     },
     {
-      id: 'ct-child-2',
-      local_id: 'sess_ct_child_2',
+      id: 'c0de0000-0000-4000-8000-000000000013',
+      local_id: 'sess_ctChild2',
       title: 'Swap the label onto the shared control',
       visibility: 'private',
       project_hash: PEASANT_HASH,
       project_display_name: 'peasant',
       project_name_source: 'consented',
       git_branch: 'main',
-      parent_session_id: 'sess_ct_parent',
+      parent_session_id: 'sess_ctParent',
       session_origin: 'user',
       model_provider: 'claude-code',
       published_at: '2026-06-26T09:28:00Z',
       already_shared: false,
     },
     {
-      id: 'ct-unmatched',
-      local_id: 'sess_ct_unmatched',
+      id: 'c0de0000-0000-4000-8000-000000000014',
+      local_id: 'sess_ctUnmatched',
       title: 'A session whose starter was never fetched',
       visibility: 'public',
       project_hash: PEASANT_HASH,
       project_display_name: 'peasant',
       project_name_source: 'consented',
       git_branch: 'main',
-      parent_session_id: 'sess_ct_absent',
+      parent_session_id: 'sess_ctAbsent',
       session_origin: 'user',
       model_provider: 'codex',
       published_at: '2026-06-25T09:00:00Z',
       already_shared: false,
     },
     {
-      id: 'ct-village-1',
-      local_id: 'sess_ct_village_1',
+      id: 'c0de0000-0000-4000-8000-000000000015',
+      local_id: 'sess_ctVillage1',
       title: 'Serve the collective browse list from the shared list',
       visibility: 'private',
       project_hash: VILLAGE_HASH,
@@ -601,6 +606,48 @@ const contributable = {
       already_shared: false,
     },
   ],
+}
+
+/* The contribute page's paged reads, derived from the rows above the way the
+   server files them: a row whose starter is in the same response is a helper
+   of that family, and every other row is a family root of its own -- so the
+   row naming a starter nobody sent keeps its own ordinary place. */
+const contributableFamilies = (() => {
+  const rows = contributable.transcripts
+  const byLocal = new Map(rows.map((row) => [row.local_id, row]))
+  const roots = rows.filter((row) => !row.parent_session_id || !byLocal.has(row.parent_session_id))
+  return roots.map((root) => ({
+    root: { transcript: root },
+    helpers: rows
+      .filter((row) => row.parent_session_id === root.local_id)
+      .map((helper) => ({ transcript: helper, matched: true })),
+  }))
+})()
+
+const contributableProjects = () => {
+  const byProject = new Map()
+  for (const row of contributable.transcripts) {
+    const entry = byProject.get(row.project_hash) ?? {
+      project_hash: row.project_hash,
+      project_display_name: row.project_display_name,
+      project_name_source: row.project_name_source,
+      matching_count: 0,
+      selectable_count: 0,
+    }
+    entry.matching_count += 1
+    if (!row.already_shared) entry.selectable_count += 1
+    byProject.set(row.project_hash, entry)
+  }
+  const providers = new Map()
+  for (const row of contributable.transcripts) providers.set(row.model_provider, (providers.get(row.model_provider) ?? 0) + 1)
+  const projects = [...byProject.values()]
+  return {
+    has_more: false,
+    matching_total: contributable.transcripts.length,
+    selectable_total: projects.reduce((sum, entry) => sum + entry.selectable_count, 0),
+    providers: [...providers].map(([provider, count]) => ({ provider, count })),
+    projects,
+  }
 }
 
 const contributions = [
@@ -651,7 +698,15 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/transcripts`) {
     return send(res, 200, { transcripts: withResolvedParents(groupTranscripts) })
   }
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable`) return send(res, 200, contributable)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable/projects`) return send(res, 200, contributableProjects())
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable` && url.searchParams.get('view') === 'paged') {
+    const projectHash = url.searchParams.get('project_hash')
+    return send(res, 200, {
+      group_id: GROUP_ID,
+      has_more: false,
+      items: contributableFamilies.filter((family) => family.root.transcript.project_hash === projectHash),
+    })
+  }
   // No repository is linked here. Answered rather than refused, so the panel
   // renders its own empty state instead of a failure the capture would have to
   // explain away.

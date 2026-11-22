@@ -18,7 +18,7 @@
    env:
      VILLAGE_URL   app origin (default http://localhost:3000)
      CHROME_PATH   Chrome/Chromium binary (required)
-     REVIEW_GROUP  the collective id in the route (default demo-group)
+     REVIEW_GROUP  the collective id in the route (default 9a11e000-0000-4000-8000-000000000001)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
    usage: VILLAGE_URL=... CHROME_PATH=... node review-shoot.mjs <theme> <outdir>
 */
@@ -30,7 +30,7 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/review-${theme}`
 const CHROME = process.env.CHROME_PATH
-const GROUP = process.env.REVIEW_GROUP || 'demo-group'
+const GROUP = process.env.REVIEW_GROUP || '9a11e000-0000-4000-8000-000000000001'
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
 
 const die = (code, what, why, means, fix) => {
