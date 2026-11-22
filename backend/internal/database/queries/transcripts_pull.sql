@@ -19,6 +19,9 @@ WHERE content_hash IS NULL
 ORDER BY published_at ASC, id;
 
 -- name: ListPullableTranscripts :many
+-- A transcript whose stored content is unavailable is not listed: every pull
+-- read of it answers 404, so listing it would offer a row that cannot be
+-- fetched. The count and the collective queries below apply the same filter.
 -- Returns the full rows the requester may pull, encoding the
 -- canPullTranscript policy's two surviving clauses (owner OR group-shared with an
 -- APPROVED share to a group the requester is a member of). Public visibility and
@@ -51,7 +54,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT $2 OFFSET $3;
 
@@ -63,7 +67,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1;
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable';
 
 -- name: ListPullableTranscriptsInCollective :many
 -- Returns the rows the requester may pull FROM ONE OR MORE COLLECTIVES: a
@@ -96,6 +101,7 @@ JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
 WHERE ts.group_id = ANY(@collectives::uuid[])
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT @page_limit OFFSET @page_offset;
 
@@ -107,7 +113,8 @@ FROM transcripts t
 JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
-WHERE ts.group_id = ANY(@collectives::uuid[]);
+WHERE ts.group_id = ANY(@collectives::uuid[])
+  AND t.content_state <> 'unavailable';
 
 -- name: CountTranscriptAnnotations :one
 -- Counts annotations for a single transcript's PullTranscriptInfo

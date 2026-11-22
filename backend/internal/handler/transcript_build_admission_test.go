@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -53,7 +55,7 @@ func TestBuildAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	required := map[string]bool{"build-admission-refuses-503-retry-after": true, "build-admission-denied-viewer-404-before-admission": true, "build-admission-warm-read-and-waiter-take-no-slot": true, "build-admission-releases-on-failure-and-cancel": true, "build-admission-refusal-reserves-nothing": true}
+	required := map[string]bool{"build-admission-refuses-503-retry-after": true, "build-admission-denied-viewer-404-before-admission": true, "build-admission-warm-read-and-waiter-take-no-slot": true, "build-admission-releases-on-failure-and-cancel": true, "build-admission-refusal-reserves-nothing": true, "build-admission-release-is-idempotent": true}
 	for _, tc := range cases {
 		if !required[tc.Name] {
 			t.Fatalf("unexpected case %s", tc.Name)
@@ -185,6 +187,33 @@ func TestBuildAdmission(t *testing.T) {
 				second()
 			case "build-admission-releases-on-failure-and-cancel":
 				testAdmissionRelease(t, tc.Modes)
+			case "build-admission-release-is-idempotent":
+				c := newTranscriptContentCache(transcriptContentCacheConfig{})
+				a, err := c.AcquireBuild(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				b, err := c.AcquireBuild(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				a()
+				a()
+				c.mu.Lock()
+				held := c.heavyWork
+				c.mu.Unlock()
+				if held != 1 {
+					t.Fatalf("a repeated release freed another build's slot: %d slots held, want 1", held)
+				}
+				third, err := c.AcquireBuild(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := c.AcquireBuild(context.Background()); !errors.Is(err, errTranscriptReadBusy) {
+					t.Fatalf("a third concurrent build was admitted after a repeated release: %v", err)
+				}
+				b()
+				third()
 			case "build-admission-refusal-reserves-nothing":
 				c := newTranscriptContentCache(transcriptContentCacheConfig{Budget: 100})
 				c.mu.Lock()
@@ -326,20 +355,14 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 	h.contentCache.retained = 0
 	h.contentCache.reserved = h.contentCache.budget
 	h.contentCache.mu.Unlock()
-	weightLabel := transcriptRefusalLabel{route: "/transcripts/{id}/segments", kind: transcriptRefusalWeight}
-	transcriptRefusals.Lock()
-	weightBefore := transcriptRefusals.counts[weightLabel]
-	transcriptRefusals.Unlock()
+	refusals := captureRefusalLog(t)
 	baseline := httptest.NewRecorder()
 	mux.ServeHTTP(baseline, httptest.NewRequest(http.MethodGet, base+"/segments?v=2", nil))
 	if baseline.Code != 503 || baseline.Header().Get("Retry-After") != "1" {
 		t.Fatalf("cache refusal: %d %s", baseline.Code, baseline.Body.String())
 	}
-	transcriptRefusals.Lock()
-	weightAfter := transcriptRefusals.counts[weightLabel]
-	transcriptRefusals.Unlock()
-	if weightAfter != weightBefore+1 {
-		t.Fatal("weight refusal counter did not increment")
+	if got := refusals.count("/transcripts/{id}/segments", transcriptRefusalWeight); got != 1 {
+		t.Fatalf("weight refusal log lines = %d, want 1", got)
 	}
 	expected := baseline.Body.Bytes()
 	for _, route := range tc.Routes {
@@ -379,20 +402,14 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 			defer b()
 			req := httptest.NewRequest(method, base+route.Path, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
-			label := transcriptRefusalLabel{route: route.Template, kind: transcriptRefusalCount}
-			transcriptRefusals.Lock()
-			before := transcriptRefusals.counts[label]
-			transcriptRefusals.Unlock()
+			refusals := captureRefusalLog(t)
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			if w.Code != 503 || w.Header().Get("Retry-After") != "1" {
 				t.Fatalf("got %d retry %q body %s", w.Code, w.Header().Get("Retry-After"), w.Body.String())
 			}
-			transcriptRefusals.Lock()
-			after := transcriptRefusals.counts[label]
-			transcriptRefusals.Unlock()
-			if after != before+1 {
-				t.Fatalf("count refusal counter did not increment for %s", route.Template)
+			if got := refusals.count(route.Template, transcriptRefusalCount); got != 1 {
+				t.Fatalf("count refusal log lines for %s = %d, want 1", route.Template, got)
 			}
 			if expected == nil {
 				expected = append([]byte(nil), w.Body.Bytes()...)
@@ -404,4 +421,47 @@ func testAdmissionRoutes(t *testing.T, tc buildAdmissionCase) {
 	if len(required) != 0 {
 		t.Fatal(fmt.Sprintf("missing routes: %v", required))
 	}
+}
+
+// refusalLog captures the structured refusal signal, which is the only record
+// an operator reads of a refused read.
+type refusalLog struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *refusalLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func captureRefusalLog(t *testing.T) *refusalLog {
+	t.Helper()
+	logs := &refusalLog{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return logs
+}
+
+func (l *refusalLog) count(route string, kind transcriptRefusalKind) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, line := range bytes.Split(l.buf.Bytes(), []byte("\n")) {
+		var record struct {
+			Msg       string `json:"msg"`
+			Operation string `json:"operation"`
+			Route     string `json:"route"`
+			Kind      string `json:"kind"`
+		}
+		if len(line) == 0 || json.Unmarshal(line, &record) != nil {
+			continue
+		}
+		if record.Operation == "transcript_read_admission" && record.Route == route && record.Kind == string(kind) {
+			n++
+		}
+	}
+	return n
 }

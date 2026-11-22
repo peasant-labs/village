@@ -11,3 +11,4 @@
 - name: build-admission-releases-on-failure-and-cancel
   modes: [cook-failure, panic, cancel]
 - name: build-admission-refusal-reserves-nothing
+- name: build-admission-release-is-idempotent

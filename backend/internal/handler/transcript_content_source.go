@@ -10,7 +10,9 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -122,6 +124,79 @@ type partitionIndex struct {
 	UsagePresent           schema.TranscriptUsagePresence
 	// TotalTurns is the number of served rows.
 	TotalTurns int
+
+	// memory is the estimated bytes this index holds, set once when it is
+	// built. See partitionIndex.estimateMemory.
+	memory int64
+}
+
+// The per-element sizes the memory estimate counts. They are the in-memory
+// sizes of the slice elements a built index keeps, so a partition of many
+// short turns is weighed by its row count and not only by its bytes.
+const (
+	indexedTurnBytes   = int64(unsafe.Sizeof(indexedTurn{}))
+	cookedTurnBytes    = int64(unsafe.Sizeof(schema.CookedTurn{}))
+	segmentRefBytes    = int64(unsafe.Sizeof(schema.PositionedSegmentRef{}))
+	conversationBytes  = int64(unsafe.Sizeof(schema.ConversationTurnSpan{}))
+	positionRefBytes   = int64(unsafe.Sizeof(positionRef{}))
+	nativeRecordBytes  = int64(unsafe.Sizeof(schema.NativeMetadataRecord{}))
+	historySectionSize = int64(unsafe.Sizeof(schema.TranscriptHistorySection{}))
+	partitionHeadBytes = int64(unsafe.Sizeof(partitionIndex{}))
+	intBytes           = int64(unsafe.Sizeof(int(0)))
+	// smallAllocBytes is the 16-byte floor for small heap allocations so 8-byte
+	// int targets and short strings are not rounded down below the allocator's
+	// small-object size class.
+	smallAllocBytes int64 = 16
+)
+
+func allocEstimate(size int64) int64 {
+	if size <= 0 {
+		return 0
+	}
+	if size < smallAllocBytes {
+		return smallAllocBytes
+	}
+	return size
+}
+
+// estimateMemory is the bytes a built index keeps alive beyond the held
+// document: its slices at capacity, each row's display number and recorded
+// index, each segment's conversation span and FirstTurn/LastTurn targets when
+// set, and the decoded native metadata. Decoded native records are weighed at
+// twice their stored JSON, a conservative allowance for the strings and maps
+// decoding allocates.
+//
+// Calibration reference: operational peak RSS target of at most 1.5x the
+// whole-document read (GET /content) at two concurrent first loads, on a 32 GiB
+// instance. Error bound: remaining uncounted runtime overhead (map headers,
+// slice headers, and pointer-scan rounding above 16 bytes) is a few percent of
+// the retained index weight, not a multiple; strings shared between a row and
+// its verdict are counted once.
+func (p *partitionIndex) estimateMemory(nativeJSON int64) int64 {
+	n := partitionHeadBytes + allocEstimate(intBytes) // the struct and TotalConversationTurns
+	n += int64(cap(p.Rows)) * indexedTurnBytes
+	for _, row := range p.Rows {
+		n += allocEstimate(int64(len(row.DisplayNumber)))
+		if row.RecordedIndex != nil {
+			n += allocEstimate(intBytes)
+		}
+	}
+	n += int64(cap(p.Verdict)) * cookedTurnBytes
+	n += int64(cap(p.Refs)) * segmentRefBytes
+	for _, ref := range p.Refs {
+		if ref.ConversationTurns != nil {
+			n += allocEstimate(conversationBytes)
+		}
+		if ref.FirstTurn != nil {
+			n += allocEstimate(intBytes)
+		}
+		if ref.LastTurn != nil {
+			n += allocEstimate(intBytes)
+		}
+	}
+	n += int64(cap(p.Positions)) * positionRefBytes
+	n += int64(cap(p.Native))*nativeRecordBytes + 2*nativeJSON
+	return n
 }
 
 // positionRef identifies a segment's inclusive range in served order.
@@ -160,6 +235,19 @@ type transcriptIndex struct {
 
 	mu         sync.Mutex
 	Partitions map[partitionKey]*partitionIndex // built lazily per partition and section
+
+	// metadataMemory is the estimated bytes of the decoded header and history
+	// summaries, fixed when the index is made. partitionMemory is the sum of
+	// the built partitions' estimates; it only grows.
+	metadataMemory  int64
+	partitionMemory atomic.Int64
+}
+
+// retainedWeight is what the content cache weighs this generation at: the
+// held document plus every index built from it so far. It grows as partitions
+// are built and is read without the index's lock.
+func (x *transcriptIndex) retainedWeight() int64 {
+	return int64(len(x.Bytes)) + x.metadataMemory + x.partitionMemory.Load()
 }
 
 // openedTranscript pairs an index with a reader over its bytes.
@@ -254,6 +342,9 @@ func newTranscriptIndex(in transcriptIndexInput) (*transcriptIndex, error) {
 		}
 		index.History = append(index.History, schema.TranscriptHistorySection{Index: i, State: section.State, TotalTurns: section.StoredTurns, UsagePresent: section.UsagePresent})
 	}
+	// The header is a projection of the metadata view, so the view's detail
+	// span bounds its decoded strings.
+	index.metadataMemory = (viewDetail.End - viewDetail.Start) + int64(cap(index.History))*historySectionSize
 	index.Ranges = append(index.Ranges, partitionByteRange{Key: mainPartitionKey(), Start: layout.Main.Turns.Start, End: layout.Main.Turns.End})
 	for section, history := range layout.History {
 		index.Ranges = append(index.Ranges, partitionByteRange{Key: historyPartitionKey(section), Start: history.Turns.Start, End: history.Turns.End})
@@ -331,6 +422,9 @@ func (x *transcriptIndex) Partition(key partitionKey, reserve transcriptBuildRes
 	if err != nil {
 		return nil, err
 	}
+	// Counted before the reservation is released, so the release can charge
+	// the cache for this index.
+	x.partitionMemory.Add(built.memory)
 	x.Partitions[key] = built
 	return built, nil
 }
@@ -351,7 +445,9 @@ func (x *transcriptIndex) partitionLayout(key partitionKey) (partitionLayout, bo
 func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionIndex, error) {
 	if !layout.Present {
 		zero := 0
-		return &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}, Refs: []schema.PositionedSegmentRef{}, Positions: []positionRef{}, TotalConversationTurns: &zero, UsagePresent: schema.TranscriptUsageUnknown}, nil
+		empty := &partitionIndex{Rows: []indexedTurn{}, Verdict: []schema.CookedTurn{}, Refs: []schema.PositionedSegmentRef{}, Positions: []positionRef{}, TotalConversationTurns: &zero, UsagePresent: schema.TranscriptUsageUnknown}
+		empty.memory = empty.estimateMemory(0)
+		return empty, nil
 	}
 	array := x.Bytes[layout.Turns.Start:layout.Turns.End]
 	// The capture takes one session-detail-shaped object. Only the partition's
@@ -459,7 +555,9 @@ func (x *transcriptIndex) buildPartition(layout partitionLayout) (*partitionInde
 			return nil, fmt.Errorf("%w: native metadata could not be decoded", errUncookable)
 		}
 	}
-	return &partitionIndex{Rows: rows, Verdict: verdict, Refs: refs, Positions: positions, Native: native, UsagePresent: usage, TotalTurns: len(rows), TotalSegments: len(refs), TotalConversationTurns: &conversationTotal}, nil
+	built := &partitionIndex{Rows: rows, Verdict: verdict, Refs: refs, Positions: positions, Native: native, UsagePresent: usage, TotalTurns: len(rows), TotalSegments: len(refs), TotalConversationTurns: &conversationTotal}
+	built.memory = built.estimateMemory(layout.Native.End - layout.Native.Start)
+	return built, nil
 }
 
 // locateTurn finds where the next stored turn lies in the held bytes. The

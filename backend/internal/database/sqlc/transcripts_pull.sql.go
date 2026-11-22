@@ -280,7 +280,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable'
 `
 
 // Returns PullListResponse.Total, mirroring
@@ -299,6 +300,7 @@ JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
 WHERE ts.group_id = ANY($2::uuid[])
+  AND t.content_state <> 'unavailable'
 `
 
 type CountPullableTranscriptsInCollectiveParams struct {
@@ -403,7 +405,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT $2 OFFSET $3
 `
@@ -430,6 +433,9 @@ type ListPullableTranscriptsRow struct {
 	AnnotationCount int64              `db:"annotation_count" json:"annotation_count"`
 }
 
+// A transcript whose stored content is unavailable is not listed: every pull
+// read of it answers 404, so listing it would offer a row that cannot be
+// fetched. The count and the collective queries below apply the same filter.
 // Returns the full rows the requester may pull, encoding the
 // canPullTranscript policy's two surviving clauses (owner OR group-shared with an
 // APPROVED share to a group the requester is a member of). Public visibility and
@@ -545,6 +551,7 @@ JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
 WHERE ts.group_id = ANY($2::uuid[])
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT $4 OFFSET $3
 `

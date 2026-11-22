@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -30,11 +31,12 @@ import (
 // "Transcript content cache" in docs/transcript-encryption-operations.md).
 
 const (
-	// transcriptContentCacheBudgetBytes is the strict ceiling on the plaintext
-	// bytes the cache retains at once. It is a deployment constant recorded in
-	// the runbook, not a contract value. Entries are weighted by the size of the
-	// bytes they hold; the per-partition indexes built from those bytes are a
-	// small multiple of one byte per turn and are not weighed separately.
+	// transcriptContentCacheBudgetBytes is the strict ceiling on the memory the
+	// cache retains at once. It is a deployment constant recorded in the
+	// runbook, not a contract value. An entry is weighed at its held plaintext
+	// plus the estimated memory of every index built from it (rows, verdicts,
+	// segment refs, positions, decoded native metadata and the header and
+	// history summaries), and its weight grows as partitions are built.
 	transcriptContentCacheBudgetBytes int64 = 256 << 20
 
 	// transcriptContentCacheIdleLifetime is how long an entry may go without a
@@ -55,8 +57,10 @@ const (
 )
 
 // errTranscriptReadBusy is the bounded refusal for a read the cache cannot
-// admit: the retained bytes plus the bytes already reserved by loads in flight
-// leave no room for this generation. It is the whole answer; no partial entry
+// admit: the bytes already reserved by loads in flight leave no room for this
+// generation even after every retained entry is evicted, or the heavy-work
+// slots are all taken. Both clear when a load in flight ends, which is why the
+// refusal promises a short retry. It is the whole answer; no partial entry
 // is built and nothing is half-served. The read path answers 503 with a
 // Retry-After header, and the same read succeeds once room frees.
 var errTranscriptReadBusy = errors.New("transcript content could not be admitted in handler.transcriptContentCache.Acquire because the process-local content cache has no room for another load and no partial entry was built; nothing was read for this request; retry the read shortly")
@@ -123,6 +127,7 @@ const (
 	purgeGenerationMoved
 	purgeHarnessChanged
 	purgeIdle
+	purgeEvicted
 	purgeReasonCount
 )
 
@@ -144,6 +149,8 @@ func (r cachePurgeReason) String() string {
 		return "harness_changed"
 	case purgeIdle:
 		return "idle"
+	case purgeEvicted:
+		return "evicted"
 	default:
 		return fmt.Sprintf("cachePurgeReason(%d)", int(r))
 	}
@@ -155,6 +162,8 @@ type transcriptCacheEntry struct {
 	opened   *openedTranscript
 	weight   int64
 	lastRead time.Time
+	// elem is the entry's place in the cache's recency list.
+	elem *list.Element
 }
 
 // transcriptCacheFlight is one load in progress. Every reader of its key joins
@@ -186,8 +195,11 @@ type transcriptContentCache struct {
 	every  time.Duration
 	now    func() time.Time
 
-	mu        sync.Mutex
-	entries   map[transcriptCacheKey]*transcriptCacheEntry
+	mu      sync.Mutex
+	entries map[transcriptCacheKey]*transcriptCacheEntry
+	// recency orders entries from most recently read (front) to least
+	// (back); eviction takes from the back.
+	recency   *list.List
 	flights   map[transcriptCacheKey]*transcriptCacheFlight
 	retained  int64 // bytes held by entries
 	reserved  int64 // bytes reserved by in-budget loads in flight
@@ -218,6 +230,7 @@ func newTranscriptContentCache(cfg transcriptContentCacheConfig) *transcriptCont
 		every:   cfg.SweepInterval,
 		now:     cfg.Now,
 		entries: make(map[transcriptCacheKey]*transcriptCacheEntry),
+		recency: list.New(),
 		flights: make(map[transcriptCacheKey]*transcriptCacheFlight),
 	}
 	if c.budget <= 0 {
@@ -240,8 +253,10 @@ func newTranscriptContentCache(cfg transcriptContentCacheConfig) *transcriptCont
 // shares.
 //
 // Admission is by weight against the strict budget. A load whose weight fits
-// reserves it while it runs; one that does not fit is refused with
-// errTranscriptReadBusy before anything is read. A generation heavier than the
+// beside the loads in flight reserves it while it runs, evicting the least
+// recently read retained entries first when they are what stands in the way;
+// one that does not fit even with every retained entry gone is refused with
+// errTranscriptReadBusy before anything is read, and nothing is evicted for it. A generation heavier than the
 // whole budget is its own single-flight case: one such load runs at a time,
 // concurrent viewers of that same transcript share it, its result is served and
 // not retained, and a second oversized transcript is refused while one is
@@ -265,6 +280,7 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 	c.mu.Lock()
 	if entry, ok := c.entries[key]; ok {
 		entry.lastRead = c.now()
+		c.recency.MoveToFront(entry.elem)
 		opened := entry.opened
 		c.mu.Unlock()
 		if opened.Reloaded {
@@ -301,24 +317,54 @@ func (c *transcriptContentCache) Acquire(ctx context.Context, key transcriptCach
 	return c.wait(ctx, flight)
 }
 
-// admitLocked checks both limits before changing any accounting. A zero
-// weight represents a build against an already-open generation.
+// admitLocked checks both limits before changing any accounting, and evicts
+// only once both have passed, so a refused read evicts nothing. A zero weight
+// represents a build against an already-open generation.
 func (c *transcriptContentCache) admitLocked(weight int64) error {
+	evict := false
 	if weight > c.budget {
 		if c.oversized != nil {
 			return transcriptAdmissionError{kind: transcriptRefusalWeight}
 		}
 	} else if c.retained+c.reserved+weight > c.budget {
-		return transcriptAdmissionError{kind: transcriptRefusalWeight}
+		// Retained entries can be evicted; reservations of loads in flight
+		// cannot. Only the latter make a refusal.
+		if c.reserved+weight > c.budget {
+			return transcriptAdmissionError{kind: transcriptRefusalWeight}
+		}
+		evict = true
 	}
 	if c.heavyWork >= transcriptHeavyWorkLimit {
 		return transcriptAdmissionError{kind: transcriptRefusalCount}
+	}
+	if evict {
+		// Evict eagerly at admission rather than deferring until retainLocked:
+		// keeping retained + reserved <= budget prevents a load's plaintext
+		// allocation from stacking on top of a full cache (which would reach
+		// up to 2*budget). Failed loads are exceptional, so freeing cold
+		// entries before allocating is the smaller, safer choice for memory.
+		c.evictLocked(c.budget-c.reserved-weight, nil)
 	}
 	c.heavyWork++
 	return nil
 }
 
+// evictLocked drops the least recently read entries, other than keep, until
+// the retained bytes are at most limit or only keep is left.
+func (c *transcriptContentCache) evictLocked(limit int64, keep *transcriptCacheEntry) {
+	for elem := c.recency.Back(); elem != nil && c.retained > limit; {
+		entry := elem.Value.(*transcriptCacheEntry)
+		elem = elem.Prev()
+		if entry != keep {
+			c.dropLocked(entry, purgeEvicted)
+		}
+	}
+}
+
 // AcquireBuild reserves a heavy-work slot until its caller finishes building.
+// The returned release frees the slot once; a second call is a no-op, so a
+// caller that releases on both a deferred path and an early one cannot free a
+// slot another build holds.
 func (c *transcriptContentCache) AcquireBuild(ctx context.Context) (func(), error) {
 	if c == nil {
 		return func() {}, nil
@@ -332,10 +378,13 @@ func (c *transcriptContentCache) AcquireBuild(ctx context.Context) (func(), erro
 	if err != nil {
 		return nil, err
 	}
+	var once sync.Once
 	return func() {
-		c.mu.Lock()
-		c.heavyWork--
-		c.mu.Unlock()
+		once.Do(func() {
+			c.mu.Lock()
+			c.heavyWork--
+			c.mu.Unlock()
+		})
 	}, nil
 }
 
@@ -398,7 +447,8 @@ func (c *transcriptContentCache) run(flight *transcriptCacheFlight, loader trans
 
 // retainLocked decides whether a finished load is kept. It is kept when no
 // purge touched its transcript while it ran, it was cooked under the harness
-// its key names, and the bytes it really holds fit in the budget now. A load
+// its key names, and its real weight fits beside the loads still in flight,
+// evicting least recently read entries to make room. A load
 // that reports a different revision than the one it was asked for found the
 // generation moved: the entry is stored under the revision it holds, and every
 // other live entry of that transcript is dropped.
@@ -416,15 +466,45 @@ func (c *transcriptContentCache) retainLocked(flight *transcriptCacheFlight, ope
 	if index.Harness != key.Harness {
 		return
 	}
-	size := int64(len(index.Bytes))
-	if size > c.budget || c.retained+c.reserved+size > c.budget {
+	size := index.retainedWeight()
+	if c.reserved+size > c.budget {
 		return
 	}
 	if _, exists := c.entries[key]; exists {
 		return
 	}
-	c.entries[key] = &transcriptCacheEntry{key: key, owner: flight.owner, opened: opened, weight: size, lastRead: c.now()}
+	c.evictLocked(c.budget-c.reserved-size, nil)
+	entry := &transcriptCacheEntry{key: key, owner: flight.owner, opened: opened, weight: size, lastRead: c.now()}
+	entry.elem = c.recency.PushFront(entry)
+	c.entries[key] = entry
 	c.retained += size
+}
+
+// Charge brings the weight of id's retained entry for index up to date after
+// an index was built from it. When the grown entry no longer fits beside the
+// loads in flight, least recently read entries are evicted; when it does not
+// fit even alone, it is dropped itself, and the readers holding it keep their
+// copy until they finish. An index that is not retained, because it was
+// oversized, purged or already evicted, is not counted.
+func (c *transcriptContentCache) Charge(id uuid.UUID, index *transcriptIndex) {
+	if c == nil || index == nil {
+		return
+	}
+	key := transcriptCacheKey{ID: id, Revision: index.Revision, ModelProvider: index.ModelProvider, Harness: index.Harness}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok || entry.opened.Index != index {
+		return
+	}
+	weight := index.retainedWeight()
+	c.retained += weight - entry.weight
+	entry.weight = weight
+	if c.reserved+weight > c.budget {
+		c.dropLocked(entry, purgeEvicted)
+		return
+	}
+	c.evictLocked(c.budget-c.reserved, entry)
 }
 
 // Observe records the generation a read has just seen for key.ID and drops
@@ -499,6 +579,7 @@ func (c *transcriptContentCache) purge(reason cachePurgeReason, matches func(tra
 
 func (c *transcriptContentCache) dropLocked(entry *transcriptCacheEntry, reason cachePurgeReason) {
 	delete(c.entries, entry.key)
+	c.recency.Remove(entry.elem)
 	c.retained -= entry.weight
 	c.purged[reason]++
 }

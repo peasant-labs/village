@@ -1,0 +1,18 @@
+# The positioned reads of one private transcript through the production
+# router: real PostgreSQL, the encrypted RustFS store and session
+# authentication. The owner reads every route; a signed-in stranger and an
+# anonymous caller are each answered exactly as for a transcript that does not
+# exist. Each route's path comes from the contract's route builder; segment
+# reads ordinal 0. Every route name and viewer name is required by
+# TestSegmentedReadJourneyThroughProductionRouter.
+reference: journey-entry-ref
+routes:
+  - {name: header, method: GET, query: ""}
+  - {name: directory, method: GET, query: "?v=2"}
+  - {name: segment, method: GET, query: "?v=2"}
+  - {name: window, method: GET, query: "?v=2"}
+  - {name: locate, method: POST, query: ""}
+viewers:
+  - {name: owner, status: 200}
+  - {name: stranger, status: 404}
+  - {name: anonymous, status: 404}

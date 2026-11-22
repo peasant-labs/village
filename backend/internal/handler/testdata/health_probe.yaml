@@ -77,3 +77,17 @@ cases:
   - name: health-serves-sorted-and-unique
     stage: n1
     traits: [publish-revision-n, segmented-reads-v2]
+  # Each pair of the three segmented read routes, mounted without the third:
+  # the trait needs all three, so every pair must leave it absent.
+  - name: health-trait-absent-directory-and-segment-only
+    stage: n1
+    traits: [publish-revision-n]
+    mounts: [directory, segment]
+  - name: health-trait-absent-directory-and-window-only
+    stage: n1
+    traits: [publish-revision-n]
+    mounts: [directory, window]
+  - name: health-trait-absent-segment-and-window-only
+    stage: n1
+    traits: [publish-revision-n]
+    mounts: [segment, window]

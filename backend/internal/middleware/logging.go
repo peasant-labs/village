@@ -41,19 +41,25 @@ func RequestLogger(out *log.Logger) func(http.Handler) http.Handler {
 			start := time.Now()
 			ww := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(ww, r)
-			out.Printf("%s %s %d %s", loggedMethod(r.Method), routeTemplate(r), ww.status, time.Since(start))
+			out.Printf("%s %s %d %s", loggedMethod(r.Method), RouteLabel(r), ww.status, time.Since(start))
 		})
 	}
 }
 
-// routeTemplate reads the pattern chi matched once routing has finished. It is
-// built only from registered patterns, so it holds no request value.
-func routeTemplate(r *http.Request) string {
-	pattern := chi.RouteContext(r.Context()).RoutePattern()
-	if pattern == "" {
+// RouteLabel is the one route name that request and admission-refusal logs
+// record for a request: the pattern chi matched, read once routing has finished. It is built
+// only from registered patterns, so it holds no request value. A request that
+// matched no route, or that is served outside a chi router and so carries no
+// route context, is labelled "unmatched"; the raw path is never a fallback.
+func RouteLabel(r *http.Request) string {
+	routeContext := chi.RouteContext(r.Context())
+	if routeContext == nil {
 		return unmatchedRoute
 	}
-	return pattern
+	if pattern := routeContext.RoutePattern(); pattern != "" {
+		return pattern
+	}
+	return unmatchedRoute
 }
 
 func loggedMethod(method string) string {
