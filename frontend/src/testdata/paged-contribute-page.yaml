@@ -1,0 +1,175 @@
+# The mounted /collectives/{id}/contribute route over the paged reads.
+#
+# Each case describes one member's library as the server would serve it:
+#
+#   projects:  the project list for an empty search, in the server's order.
+#              { project, matching, selectable }.
+#   searches:  the project list for a search text, by that text.
+#   families:  the families each project's paged read returns, by project.
+#              A family is { root, helpers? }; a session is { id, project,
+#              branch?, visibility?, title?, already_shared? }. A helper may
+#              be filed under another project than its root.
+#   snapshot:  what "select all" reads for a project: a list of session ids,
+#              or { status, code } for a refusal.
+#   picker_failures: statuses the project list answers with, in order, before
+#              it succeeds.
+#
+# Ids are "t<n>" and projects "p<X>" tokens. Sessions default to the branch
+# "main", the visibility "public", and the title "session <n>". "expect"
+# carries what that case's test asserts; each test names the fields it reads.
+
+cases:
+  - name: sections-state-their-counts-before-any-session-loads
+    projects:
+      - { project: pA, matching: 3, selectable: 2 }
+      - { project: pB, matching: 1, selectable: 1 }
+    expect:
+      tally: 0 selected · 3 selectable sessions · 1 already contributed
+      counts:
+        pA: 3 sessions · 1 already contributed
+        pB: 1 session
+      select_all:
+        pA: select all 2
+        pB: select all 1
+
+  - name: opening-a-section-reads-only-that-project
+    projects:
+      - { project: pA, matching: 3, selectable: 2 }
+      - { project: pB, matching: 1, selectable: 1 }
+    families:
+      pA:
+        - { root: { id: t1, project: pA, branch: main } }
+        - { root: { id: t2, project: pA, branch: feature } }
+        - { root: { id: t3, project: pA, branch: main, already_shared: true } }
+      pB:
+        - { root: { id: t4, project: pB } }
+    expect:
+      open: pA
+      branches: [feature, main]
+      loaded: loaded 3 of 3 sessions
+      locked: t3
+
+  - name: select-all-takes-the-snapshot-and-submits-it
+    projects:
+      - { project: pA, matching: 3, selectable: 2 }
+    families:
+      pA:
+        - { root: { id: t1, project: pA } }
+        - { root: { id: t2, project: pA } }
+        - { root: { id: t3, project: pA, already_shared: true } }
+    snapshot:
+      pA: [t1, t2]
+    expect:
+      tally_after_select_all: 2 selected · 2 selectable sessions · 1 already contributed
+      counts_after_select_all: 3 sessions · 1 already contributed · 2 selected
+      tally_after_deselect_all: 0 selected · 2 selectable sessions · 1 already contributed
+      requests_by_project:
+        pA: [t1, t2]
+
+  - name: a-snapshot-over-the-size-limit-asks-to-narrow
+    projects:
+      - { project: pA, matching: 9000, selectable: 9000 }
+    snapshot:
+      pA: { status: 413, code: snapshot_too_large }
+    expect:
+      notice: "could not select every session in this project: this project has too many matching sessions to read at once. narrow the search and try again."
+      tally: 0 selected · 9000 selectable sessions
+
+  - name: a-busy-snapshot-asks-to-retry
+    projects:
+      - { project: pA, matching: 2, selectable: 2 }
+    snapshot:
+      pA: { status: 503, code: snapshot_busy }
+    expect:
+      notice: "could not select every session in this project: the server is busy. try again in a moment."
+      tally: 0 selected · 2 selectable sessions
+
+  - name: a-private-selection-opens-the-consent-dialog
+    projects:
+      - { project: pA, matching: 2, selectable: 2 }
+    families:
+      pA:
+        - { root: { id: t1, project: pA, visibility: private } }
+        - { root: { id: t2, project: pA } }
+    expect:
+      tick: t1
+      dialog: make 1 transcript visible
+      request:
+        project: pA
+        ids: [t1]
+        visibility_confirmed: true
+
+  - name: a-helper-in-another-project-is-submitted-under-its-own-project
+    projects:
+      - { project: pA, matching: 2, selectable: 2 }
+    families:
+      pA:
+        - root: { id: t1, project: pA }
+          helpers:
+            - { id: t2, project: pB }
+    expect:
+      root: t1
+      helper: t2
+      disclosure_label: 1 child session
+      tally_after_tick: 2 selected · 2 selectable sessions
+      requests_by_project:
+        pA: [t1]
+        pB: [t2]
+
+  - name: a-single-helper-can-be-contributed-alone
+    projects:
+      - { project: pA, matching: 3, selectable: 3 }
+    families:
+      pA:
+        - root: { id: t1, project: pA }
+          helpers:
+            - { id: t2, project: pA }
+            - { id: t3, project: pA }
+    expect:
+      root: t1
+      helper: t2
+      tally_after_tick: 1 selected · 3 selectable sessions
+      requests_by_project:
+        pA: [t2]
+
+  - name: a-selection-outside-the-search-stays-and-is-named
+    projects:
+      - { project: pA, matching: 2, selectable: 2 }
+      - { project: pB, matching: 1, selectable: 1 }
+    searches:
+      beta:
+        - { project: pB, matching: 1, selectable: 1 }
+    snapshot:
+      pA: [t1, t2]
+    families:
+      pA:
+        - { root: { id: t1, project: pA } }
+        - { root: { id: t2, project: pA } }
+      pB:
+        - { root: { id: t3, project: pB } }
+    expect:
+      search: beta
+      notice: 2 selected sessions are in projects this search does not list. they stay selected.
+      tally_while_searching: 2 selected · 1 selectable session
+      tally_after_deselect: 0 selected · 1 selectable session
+
+  - name: a-search-without-matches-says-so
+    projects:
+      - { project: pA, matching: 1, selectable: 1 }
+    searches:
+      nothing: []
+    expect:
+      search: nothing
+      empty: no contributable sessions match this search.
+
+  - name: the-project-list-failing-offers-a-retry
+    projects:
+      - { project: pA, matching: 1, selectable: 1 }
+    picker_failures: [500, 502]
+    expect:
+      projects: [pA]
+
+  - name: nothing-to-contribute-says-so
+    projects: []
+    expect:
+      title: no transcripts to contribute

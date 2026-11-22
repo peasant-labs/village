@@ -143,11 +143,11 @@ func TestBatchShareSelectionAnswersALedgerRefusal(t *testing.T) {
 					"after the first succeeded, so the answer is about rolling a partial write back", inserted, first, second)
 			}
 
-			var resp schema.VillageErrorResponse
+			var resp schema.VillageContributionErrorResponse
 			decoder := json.NewDecoder(strings.NewReader(rec.Body.String()))
 			decoder.DisallowUnknownFields()
 			if err := decoder.Decode(&resp); err != nil {
-				t.Fatalf("the refusal does not decode into the contract's VillageErrorResponse: %v\nbody: %s", err, rec.Body.String())
+				t.Fatalf("the refusal does not decode into the contract's VillageContributionErrorResponse: %v\nbody: %s", err, rec.Body.String())
 			}
 			if c.ExpectCode == "" {
 				if resp.Code != nil || len(resp.Details) != 0 {

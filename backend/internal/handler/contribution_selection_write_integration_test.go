@@ -696,11 +696,11 @@ func (w *selectionWriteWorld) assertReceipt(t *testing.T, rec *httptest.Response
 func (w *selectionWriteWorld) assertRefusal(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	e := w.spec.Expect
-	var resp schema.VillageErrorResponse
+	var resp schema.VillageContributionErrorResponse
 	decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&resp); err != nil {
-		t.Fatalf("the refusal does not decode into the contract's VillageErrorResponse: %v\nbody: %s", err, rec.Body.String())
+		t.Fatalf("the refusal does not decode into the contract's VillageContributionErrorResponse: %v\nbody: %s", err, rec.Body.String())
 	}
 	if strings.TrimSpace(resp.Error) == "" {
 		t.Fatalf("the refusal carries no message; a person cannot act on a bare status\nbody: %s", rec.Body.String())

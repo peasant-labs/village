@@ -7,7 +7,6 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
 import { ordinaryOwnerUUID } from "@/test/groupedHelperSurfaceFixtures";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
-import type { ContributableTranscript } from "@/lib/contribute/types";
 import type { PendingShare } from "@/lib/review/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
 
@@ -24,7 +23,7 @@ import { profileOwner } from "@/test/publicOwnerFixture";
 
 export const GROUP_KEYS = ["owner", "other", "context"] as const;
 export type GroupKey = (typeof GROUP_KEYS)[number];
-export type ActionSurface = "browse" | "contribute" | "review";
+export type ActionSurface = "browse" | "review";
 
 export interface MemberSpec {
   name: string;
@@ -110,14 +109,11 @@ export interface CollectiveGroupedActionFixtures {
 
 const REQUIRED_CASES = [
   "browse-renders-the-group-under-its-owner-row",
-  "contribute-selects-one-helper-only",
-  "contribute-context-container-is-not-selectable",
   "review-selects-one-helper-only",
   "review-other-owner-group-remains-independent",
 ];
 
 const REQUIRED_OVERLAP_CASES = [
-  "contribute-overlapping-identity-counts-once",
   "review-overlapping-identity-counts-once",
 ];
 
@@ -125,9 +121,6 @@ const REQUIRED_FALLBACK_CASES = [
   "browse-empty-flat-mounts-helper-only-context",
   "browse-grouped-owner-absent-from-flat-mounts-its-group",
   "browse-grouped-owner-in-flat-mounts-its-group-once",
-  "contribute-empty-flat-mounts-helper-only-context",
-  "contribute-grouped-owner-absent-from-flat-mounts-its-group",
-  "contribute-grouped-owner-in-tree-mounts-its-group-once",
   "review-empty-flat-mounts-helper-only-context",
   "review-grouped-owner-absent-from-flat-mounts-its-group",
   "review-grouped-owner-in-tree-mounts-its-group-once",
@@ -135,12 +128,10 @@ const REQUIRED_FALLBACK_CASES = [
 
 const REQUIRED_CONTINUATION_CASES = [
   "browse-continuation-reaches-later-owner-group",
-  "contribute-continuation-reaches-later-owner-group",
   "review-continuation-reaches-later-owner-group",
 ];
 
 const REQUIRED_CONNECTOR_CASES = [
-  "contribute-disclosure-mounts-the-canonical-tree",
   "review-disclosure-mounts-the-canonical-tree",
 ];
 
@@ -229,7 +220,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!allowedFields.has(field)) fail(`${where} "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
+    if (value.surface !== "review" && value.surface !== "browse") {
       fail(`${where} "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`${where} "${name}"`, "states no reason it exists");
@@ -280,7 +271,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!FALLBACK_FIELDS.has(field)) fail(`fallback case "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
+    if (value.surface !== "review" && value.surface !== "browse") {
       fail(`fallback case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`fallback case "${name}"`, "states no reason it exists");
@@ -317,7 +308,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!CONTINUATION_FIELDS.has(field)) fail(`continuation case "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
+    if (value.surface !== "review" && value.surface !== "browse") {
       fail(`continuation case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`continuation case "${name}"`, "states no reason it exists");
@@ -446,30 +437,6 @@ export function memberItem(label: string, title: string, surface: ActionSurface,
   if (surface === "browse") {
     return { kind: "transcript", transcript: { owner, session } } as VillageSessionListItem;
   }
-  if (surface === "contribute") {
-    return {
-      kind: "transcript",
-      transcript: {
-        owner,
-        session,
-        contributable: {
-          id,
-          local_id: localID,
-          title,
-          visibility: session.visibility,
-          project_hash: session.project_hash,
-          project_display_name: session.project_display_name,
-          project_name_source: session.project_name_source,
-          git_branch: session.git_branch,
-          parent_session_id: session.parent_session_id,
-          session_origin: session.session_origin,
-          model_provider: session.model_provider,
-          published_at: session.published_at,
-          already_shared: false,
-        },
-      },
-    } as VillageSessionListItem;
-  }
   return {
     kind: "transcript",
     transcript: {
@@ -505,45 +472,6 @@ function rowSpec(fixtures: CollectiveGroupedActionFixtures, name: string): RowSp
   const row = fixtures.rows.find((candidate) => candidate.name === name);
   if (row == null) throw new Error(`collective grouped action fixture: no declared row "${name}"`);
   return row;
-}
-
-/** One flat contributable row for a declared row identity. */
-function contributableRow(
-  fixtures: CollectiveGroupedActionFixtures,
-  row: RowSpec,
-): ContributableTranscript {
-  return {
-    id: row.id,
-    local_id: row.local_id,
-    title: row.title,
-    visibility: "public",
-    project_hash: fixtures.projectHash,
-    project_display_name: fixtures.projectName,
-    project_name_source: "consented",
-    git_branch: "main",
-    parent_session_id: null,
-    session_origin: "user",
-    model_provider: "claude-code",
-    published_at: "2026-09-01T10:00:00Z",
-    already_shared: false,
-  };
-}
-
-/** The flat tree rows the route renders under its project/branch fold.
- *
- * The flat route is the SAME submission set the grouped view nests, so the
- * helper members appear here too — as ordinary rows, exactly as they did before
- * the grouping existed. The grouped read only adds the disclosure that hangs
- * them off their owner. */
-export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): ContributableTranscript[] {
-  const owned = fixtures.rows.map((row) => contributableRow(fixtures, row));
-  const members = GROUP_KEYS.flatMap((key) =>
-    fixtures.members[key].map((member) => {
-      const item = memberItem(member.name, member.title, "contribute", key);
-      return item.transcript!.contributable as ContributableTranscript;
-    }),
-  );
-  return [...owned, ...members];
 }
 
 /** One flat collective browse row for a declared row identity. */
@@ -608,13 +536,6 @@ export function flatPendingRows(fixtures: CollectiveGroupedActionFixtures): Pend
  * is what decides whether the grouped content has a row to hang under, so a case
  * states exactly which of the two it is.
  */
-export function fallbackFlatContributeRows(
-  fixtures: CollectiveGroupedActionFixtures,
-  testCase: CollectiveFallbackCase,
-): ContributableTranscript[] {
-  return testCase.flat === "empty" ? [] : [contributableRow(fixtures, rowSpec(fixtures, testCase.row))];
-}
-
 export function fallbackFlatPendingRows(
   fixtures: CollectiveGroupedActionFixtures,
   testCase: CollectiveFallbackCase,

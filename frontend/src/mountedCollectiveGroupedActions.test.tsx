@@ -1,14 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import GroupDetailPage from "@/app/collectives/[id]/page";
 import GroupReviewPage from "@/app/collectives/[id]/review/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { Group, User } from "@/lib/types";
 import {
   flatBrowseRows,
-  flatContributeRows,
   flatPendingRows,
   groupedDetailPayload,
   groupedItems,
@@ -20,10 +18,10 @@ import { memberUUID } from "@/test/groupedHelperMountFixtures";
 import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
- * Mounted evidence for the collective grouped-helper contribution and review
+ * Mounted evidence for the collective grouped-helper browse and review
  * actions, driven by `src/testdata/collective-grouped-actions.yaml`.
  *
- * The REAL `/collectives/{id}/contribute` and `/collectives/{id}/review` routes render,
+ * The REAL `/collectives/{id}` and `/collectives/{id}/review` routes render,
  * each through its REAL grouped query hook and REAL mutation hook; only HTTP is
  * controlled. The flat list stays the authority for its own rows; the grouped
  * read attaches the server's saved helper groups to those rows. A person
@@ -89,7 +87,7 @@ interface Calls {
   mutations: MutationCall[];
 }
 
-function installREST(surface: "browse" | "contribute" | "review", testCase: CollectiveActionCase): Calls {
+function installREST(surface: "browse" | "review", testCase: CollectiveActionCase): Calls {
   const calls: Calls = { grouped: [], members: [], mutations: [] };
   const items = groupedItems(fixtures, testCase);
   vi.stubGlobal(
@@ -119,23 +117,6 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
           pending_members: [],
         });
       }
-      if (path === `/api/v1/collectives/${GROUP_ID}/contributable`) {
-        if (grouped) {
-          calls.grouped.push(url.search);
-          return json({
-            group_id: GROUP_ID,
-            transcriptList: {
-              items,
-              page: 1,
-              limit: 100,
-              totalItems: items.length,
-              ordinarySessionTotal: fixtures.rows.length,
-              helperThreadTotal: 2,
-            },
-          });
-        }
-        return json({ group_id: GROUP_ID, transcripts: flatContributeRows(fixtures) });
-      }
       if (path === `/api/v1/collectives/${GROUP_ID}/pending`) {
         if (grouped) {
           calls.grouped.push(url.search);
@@ -161,15 +142,6 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
         if (key == null) return json({ error: "unknown scope" }, 409);
         return json(memberPage(fixtures, key, surface));
       }
-      if (path === `/api/v1/collectives/${GROUP_ID}/shares` && method === "POST") {
-        const body = JSON.parse(String(init?.body));
-        calls.mutations.push({ method, path, body });
-        return json({
-          project_hash: body.project_hash,
-          shared: (body.transcript_ids as string[]).map((id) => ({ transcript_id: id, status: "pending" })),
-          already_shared: [],
-        });
-      }
       if (path === `/api/v1/collectives/${GROUP_ID}/shares` && method === "PATCH") {
         const body = JSON.parse(String(init?.body));
         calls.mutations.push({ method, path, body });
@@ -181,16 +153,14 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
   return calls;
 }
 
-function renderRoute(surface: "browse" | "contribute" | "review") {
+function renderRoute(surface: "browse" | "review") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        {surface === "contribute" ? (
-          <GroupContributePage params={Promise.resolve({ id: GROUP_ID })} />
-        ) : surface === "review" ? (
+        {surface === "review" ? (
           <GroupReviewPage params={Promise.resolve({ id: GROUP_ID })} />
         ) : (
           <GroupDetailPage params={Promise.resolve({ id: GROUP_ID })} />
@@ -228,7 +198,7 @@ function memberCheckbox(label: string): HTMLInputElement {
   return box;
 }
 
-/** The ordinary flat tree checkbox drawn for one transcript identity. */
+/** The ordinary flat queue checkbox drawn for one transcript identity. */
 function flatRowCheckbox(transcriptID: string): HTMLInputElement {
   const row = document.querySelector<HTMLElement>(`[data-testid="contribute-session-row-${transcriptID}"]`);
   if (row == null) throw new Error(`row ${transcriptID} is not drawn by the flat tree`);
@@ -281,29 +251,12 @@ for (const testCase of fixtures.cases) {
       return;
     }
 
-    // The flat tree row is still the row on screen; the grouped read only
+    // The flat queue row is still the row on screen; the grouped read only
     // supplements it.
     await waitFor(() =>
       expect(screen.getByTestId(`contribute-session-row-${row.id}`)).toBeInTheDocument(),
     );
     await waitFor(() => expect(calls.grouped).toHaveLength(1));
-
-    if (testCase.context) {
-      // The helper-only context container states the authorized owner status and
-      // carries no selectable row, so nothing in it can enter a mutation.
-      await waitFor(() =>
-        expect(document.body.textContent).toContain("owner is unavailable"),
-      );
-      const contextRoot = document.querySelector(
-        `.helper-group[data-group-id="${fixtures.groups.context.groupId}"]`,
-      )!;
-      expect(contextRoot.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
-      expect(contextRoot.querySelectorAll("a.helper-thread-open")).toHaveLength(0);
-      // Nothing is selected, so the action is unavailable and no request fires.
-      expect(screen.getByRole("button", { name: /contribute 0 transcripts/ })).toBeDisabled();
-      expect(calls.mutations).toHaveLength(0);
-      return;
-    }
 
     const selectedMember = fixtures.members[testCase.group].find((m) => m.name === testCase.select)!;
     await expandGroupUnder(row.id, selectedMember.title);
@@ -312,37 +265,20 @@ for (const testCase of fixtures.cases) {
       fireEvent.click(box);
     });
 
-    if (testCase.surface === "contribute") {
-      // The group is attached to the row the server grouped it under, and the
-      // member's own explicit id is the only one the batch can name.
-      expect(calls.mutations).toHaveLength(0);
-      const button = screen.getByRole("button", { name: /contribute 1 transcript/ });
-      await act(async () => {
-        fireEvent.click(button);
-      });
-      await waitFor(() => expect(calls.mutations).toHaveLength(1));
-      expect(calls.mutations[0].method).toBe("POST");
-      expect(calls.mutations[0].body.transcript_ids).toEqual(
-        testCase.expected_ids.map((label) => memberUUID(label)),
-      );
-      // The mutation names explicit transcript ids and this collective's
-      // project, never a group id.
-      expect(JSON.stringify(calls.mutations[0].body)).not.toContain("GroupID");
-      expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
-    } else {
-      expect(calls.mutations).toHaveLength(0);
-      const approve = screen.getByRole("button", { name: /approve selected/ });
-      await act(async () => {
-        fireEvent.click(approve);
-      });
-      await waitFor(() => expect(calls.mutations).toHaveLength(1));
-      expect(calls.mutations[0].method).toBe("PATCH");
-      expect(calls.mutations[0].body.transcript_ids).toEqual(
-        testCase.expected_ids.map((label) => memberUUID(label)),
-      );
-      expect(calls.mutations[0].body.status).toBe("approved");
-      expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
-    }
+    // The group is attached to the row the server grouped it under, and the
+    // member's own explicit id is the only one the decision can name.
+    expect(calls.mutations).toHaveLength(0);
+    const approve = screen.getByRole("button", { name: /approve selected/ });
+    await act(async () => {
+      fireEvent.click(approve);
+    });
+    await waitFor(() => expect(calls.mutations).toHaveLength(1));
+    expect(calls.mutations[0].method).toBe("PATCH");
+    expect(calls.mutations[0].body.transcript_ids).toEqual(
+      testCase.expected_ids.map((label) => memberUUID(label)),
+    );
+    expect(calls.mutations[0].body.status).toBe("approved");
+    expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
   });
 }
 
@@ -377,10 +313,7 @@ for (const testCase of fixtures.overlapCases) {
 
     const helperBox = () => memberCheckbox(selectedMember.title);
     const flatBox = () => flatRowCheckbox(memberID);
-    const tally = () =>
-      screen.getByTestId(
-        testCase.surface === "contribute" ? "contribute-selection-count" : "review-selection-count",
-      );
+    const tally = () => screen.getByTestId("review-selection-count");
 
     expect(flatBox().checked).toBe(false);
     expect(helperBox().checked).toBe(false);
@@ -412,10 +345,7 @@ for (const testCase of fixtures.overlapCases) {
     expect(tally().textContent).toBe("1 selected");
 
     // The submitted batch is the deduplicated set: this identity, once.
-    const action =
-      testCase.surface === "contribute"
-        ? screen.getByRole("button", { name: /contribute 1 transcript/ })
-        : screen.getByRole("button", { name: /approve selected/ });
+    const action = screen.getByRole("button", { name: /approve selected/ });
     await act(async () => {
       fireEvent.click(action);
     });
@@ -510,10 +440,7 @@ for (const testCase of fixtures.connectorCases) {
       fireEvent.click(box);
     });
 
-    const action =
-      testCase.surface === "contribute"
-        ? screen.getByRole("button", { name: /contribute 1 transcript/ })
-        : screen.getByRole("button", { name: /approve selected/ });
+    const action = screen.getByRole("button", { name: /approve selected/ });
     await act(async () => {
       fireEvent.click(action);
     });

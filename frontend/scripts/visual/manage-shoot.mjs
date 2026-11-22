@@ -6,8 +6,8 @@
                              captured as manage-detail for an OWNER viewer and as
                              manage-detail-member for a MEMBER viewer, so both header
                              contribute actions are on the record
-      - manage-contribute:  /collectives/:id/contribute -- the project > branch > session tree +
-                             preview column (village#66), at a wide (two-column) and a narrow
+      - manage-contribute:  /collectives/:id/contribute -- the paged project > branch > session
+                             tree + preview column, at a wide (two-column) and a narrow
                              (single-column, below the 880px container breakpoint) viewport,
                              plus a progress/receipt-state capture of one project's run
       - manage-settings:    /collectives/:id/settings settings form
@@ -27,7 +27,7 @@ const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
 const THEME = process.argv[2] || 'dark'
 const OUT = process.argv[3] || `/tmp/manage-village-${THEME}`
-const GROUP_ID = process.env.VILLAGE_GROUP_ID || 'demo-group'
+const GROUP_ID = process.env.VILLAGE_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 const VIEWER_ROLES = ['owner', 'member']
 const VIEWER_ROLE = process.env.MOCK_ROLE || 'owner'
 
@@ -69,6 +69,8 @@ const waitFor = async (sel, timeoutMs = 12000) => {
   }
   throw new Error(`selector "${sel}" never mounted`)
 }
+// The contribute page's mounted body: the tree + preview workspace.
+const PANEL = '[data-testid="contribute-member-panel"]'
 const shot = async (name, sel, { fullPage = false } = {}) => {
   const el = await waitFor(sel)
   const box = await el.boundingBox()
@@ -122,18 +124,25 @@ await shot(VIEWER_ROLE === 'member' ? 'manage-detail-member' : 'manage-detail', 
 
 await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
 await pause(900)
-await shot('manage-contribute', '.cmg-root')
+await shot('manage-contribute', PANEL)
 
-// Click a session's title to drive the preview column, and tick a project's
-// checkbox so the sticky footer's "N selected" + contribute button have real
-// state -- otherwise the wide capture would only ever show the tree's own
-// empty preview state.
-const previewRow = await page.$('[data-testid^="contribute-session-row-"] button')
-if (previewRow) await previewRow.click()
-const projectCheckbox = await page.$('[data-testid^="contribute-group-row-"] input[type="checkbox"]')
-if (projectCheckbox) await projectCheckbox.click()
+// Project sections start closed, so open the first one, click a session's
+// title to drive the preview column, and take the project's "select all" so
+// the sticky footer's "N selected" + contribute button have real state --
+// otherwise the wide capture would only ever show the closed sections and
+// the preview's own empty state.
+const openProject = await page.$('section[aria-label^="project "] button[aria-expanded="false"]')
+if (!openProject) {
+  console.error('ERROR [manage-shoot.mjs] no closed project section on the contribute page -- the mock served no projects.')
+  process.exit(1)
+}
+await openProject.click()
+const previewRow = await waitFor('.contribute-session-heading button')
+await previewRow.click()
+const selectAll = await page.$('section[aria-label^="project "] button[aria-label^="select all "]')
+if (selectAll) await selectAll.click()
 await pause(400)
-await shot('manage-contribute-preview', '.cmg-root')
+await shot('manage-contribute-preview', PANEL)
 
 // Fire the run and capture the progress bar mid-flight, then the settled
 // receipt -- the mock's /shares handler answers immediately, so the
@@ -166,9 +175,9 @@ if (contributeBtn) {
   if (confirmBtn) {
     await confirmBtn.click()
     await pause(300)
-    await shot('manage-contribute-progress', '.cmg-root')
+    await shot('manage-contribute-progress', PANEL)
     await pause(1600)
-    await shot('manage-contribute-receipt', '.cmg-root')
+    await shot('manage-contribute-receipt', PANEL)
   } else {
     console.warn('manage-contribute-progress/receipt skipped: confirm dialog button not found')
   }
@@ -180,7 +189,7 @@ if (contributeBtn) {
 await page.setViewport({ width: 700, height: 1000, deviceScaleFactor: 1 })
 await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
 await pause(900)
-await shot('manage-contribute-narrow', '.cmg-root')
+await shot('manage-contribute-narrow', PANEL)
 await page.setViewport({ width: 1460, height: 1000, deviceScaleFactor: 1 })
 
 // full page: the settings route's DangerZone sits below the form as a sibling (not nested inside

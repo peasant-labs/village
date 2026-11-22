@@ -65,7 +65,7 @@ func (e *selectionRefusal) Error() string { return e.message }
 
 func writeSelectionRefusal(w http.ResponseWriter, e *selectionRefusal) {
 	code := e.code
-	writeJSON(w, e.status, schema.VillageErrorResponse{Error: e.message, Code: &code, Details: e.details})
+	writeJSON(w, e.status, schema.VillageContributionErrorResponse{Error: e.message, Code: &code, Details: e.details})
 }
 
 // requestLevelRefusal is a refusal about the caller and the collective rather

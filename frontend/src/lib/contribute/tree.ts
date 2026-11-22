@@ -103,7 +103,7 @@ export type ContributeNode<Row extends TreeRowFacts = ContributableTranscript> =
   | SessionNode<Row>
   | OrphansNode<Row>;
 
-const UNKNOWN_BRANCH_LABEL = "(unknown branch)";
+export const UNKNOWN_BRANCH_LABEL = "(unknown branch)";
 
 function branchSortKey(label: string): string {
   // Unknown branch sorts after every named branch, regardless of its literal

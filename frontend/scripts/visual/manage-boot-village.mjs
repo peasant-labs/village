@@ -16,7 +16,7 @@ import { applyDeterminism } from './determinism.mjs'
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_REAL_ORIGIN || 'http://localhost:3000').replace(/\/$/, '')
-const GROUP_ID = process.env.VILLAGE_GROUP_ID || 'demo-group'
+const GROUP_ID = process.env.VILLAGE_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 const THEME = process.argv[2] || 'dark'
 
 if (!CHROME) {

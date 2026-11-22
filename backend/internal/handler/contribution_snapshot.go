@@ -327,32 +327,52 @@ func (in *textInterner) intern(b []byte) uint32 {
 	return i
 }
 
-// snapshotRecord is one session in 48 bytes: two ids and three indexes into the
-// interned text. A status index of 0 means no attempt; otherwise it is the
-// interned index plus one.
+// snapshotRecord is one session in 56 bytes: two ids, three indexes into the
+// interned text and the span of its title in the title arena. A status index of
+// 0 means no attempt; otherwise it is the interned index plus one. A title
+// length of 0 means the session has no title: an encoded title is never empty,
+// since it carries its quotes.
 type snapshotRecord struct {
 	id        [16]byte
 	parent    [16]byte
 	project   uint32
 	visible   uint32
 	status    uint32
+	titleAt   uint32
+	titleLen  uint32
 	hasParent bool
 }
 
 // contributionSnapshotSet is the whole answer, held compactly until it is
-// encoded. The zero value is empty and ready.
+// encoded. The zero value is empty, unbounded and ready.
+//
+// Titles are the one part of a record whose size the session decides, so they
+// are kept once, already JSON-encoded, in one arena. When titleLimit is
+// positive and the arena passes it, the encoded body must pass it too: the set
+// stops keeping records and only counts them, so an oversized snapshot costs
+// at most the limit in titles and is still refused with its true session count.
 type contributionSnapshotSet struct {
 	records      []snapshotRecord
 	projects     textInterner
 	visibilities textInterner
 	statuses     textInterner
+	titles       []byte
+	titleLimit   int
+	count        int
+	overflowed   bool
 }
 
-func (s *contributionSnapshotSet) Len() int { return len(s.records) }
+// Len is the number of sessions read, including any read after the set
+// overflowed.
+func (s *contributionSnapshotSet) Len() int { return s.count }
 
 // addRecord appends one session. A nil status means the session has no attempt
-// in the collective.
-func (s *contributionSnapshotSet) addRecord(id, parent [16]byte, hasParent bool, project, visibility, status []byte) {
+// in the collective, and a nil title that it has none.
+func (s *contributionSnapshotSet) addRecord(id, parent [16]byte, hasParent bool, project, visibility, status, title []byte) {
+	s.count++
+	if s.overflowed {
+		return
+	}
 	record := snapshotRecord{
 		id:        id,
 		parent:    parent,
@@ -362,6 +382,19 @@ func (s *contributionSnapshotSet) addRecord(id, parent [16]byte, hasParent bool,
 	}
 	if status != nil {
 		record.status = s.statuses.intern(status) + 1
+	}
+	if title != nil {
+		// A title is not repeated across sessions, so it is quoted once here,
+		// not per encoding, and never interned.
+		quoted, _ := json.Marshal(string(title)) // a string always marshals
+		at := len(s.titles)
+		s.titles = append(s.titles, quoted...)
+		if s.titleLimit > 0 && len(s.titles) > s.titleLimit {
+			s.overflowed = true
+			s.records, s.titles = nil, nil
+			return
+		}
+		record.titleAt, record.titleLen = uint32(at), uint32(len(s.titles)-at)
 	}
 	s.records = append(s.records, record)
 }
@@ -388,6 +421,9 @@ func quotedStrings(values []string) [][]byte {
 // writeJSON streams the snapshot response, sorted by session id, through a small
 // buffer: nothing proportional to the answer is built besides the compact set.
 func (s *contributionSnapshotSet) writeJSON(w io.Writer, groupID, projectHash string) error {
+	if s.overflowed {
+		return errSnapshotTooLarge
+	}
 	slices.SortFunc(s.records, func(a, b snapshotRecord) int { return bytes.Compare(a.id[:], b.id[:]) })
 	projects := quotedStrings(s.projects.values)
 	visibilities := quotedStrings(s.visibilities.values)
@@ -417,7 +453,13 @@ func (s *contributionSnapshotSet) writeJSON(w io.Writer, groupID, projectHash st
 		}
 		line = append(line, `{"id":"`...)
 		line = appendUUID(line, r.id)
-		line = append(line, `","visibility":`...)
+		line = append(line, `","title":`...)
+		if r.titleLen == 0 {
+			line = append(line, `null`...)
+		} else {
+			line = append(line, s.titles[r.titleAt:r.titleAt+r.titleLen]...)
+		}
+		line = append(line, `,"visibility":`...)
 		line = append(line, visibilities[r.visible]...)
 		if r.status != 0 {
 			line = append(line, `,"latest_status":`...)
@@ -605,16 +647,16 @@ func contributionSnapshotSQL(filter contributionFamilyFilter, owner, group pgtyp
 
 	var b strings.Builder
 	b.WriteString(`WITH RECURSIVE fam AS (
-  SELECT r.id AS root_id, r.id, NULL::uuid AS parent_id, r.local_id, r.visibility, r.project_hash` + matchRoot + `
+  SELECT r.id AS root_id, r.id, NULL::uuid AS parent_id, r.local_id, r.visibility, r.project_hash, r.title` + matchRoot + `
   FROM transcripts r
   WHERE r.owner_id = $1 AND r.project_hash = $2 AND ` + contributionRootCondition("r") + `
   UNION ALL
-  SELECT f.root_id, c.id, f.id, c.local_id, c.visibility, c.project_hash` + matchChild + `
+  SELECT f.root_id, c.id, f.id, c.local_id, c.visibility, c.project_hash, c.title` + matchChild + `
   FROM fam f
   JOIN transcripts c ON c.owner_id = $1 AND c.parent_session_id = f.local_id
   WHERE ` + contributionDescentSQL("f", "c") + `
 )
-SELECT f.id, f.parent_id, f.visibility, f.project_hash, a.status
+SELECT f.id, f.parent_id, f.visibility, f.project_hash, a.status, f.title
 FROM fam f
 `)
 	if fam.Having != "" {
@@ -678,7 +720,7 @@ func (h *Handler) readContributionSnapshot(ctx context.Context, limit time.Durat
 	}
 	defer rows.Close()
 
-	set := &contributionSnapshotSet{}
+	set := &contributionSnapshotSet{titleLimit: control.byteLimit()}
 	for rows.Next() {
 		v := rows.RawValues()
 		id, okID := rawUUID(v[0])
@@ -693,7 +735,7 @@ func (h *Handler) readContributionSnapshot(ctx context.Context, limit time.Durat
 				return nil, errors.New("read the snapshot: a row had an unreadable parent id")
 			}
 		}
-		set.addRecord(id, parent, hasParent, v[3], v[2], v[4])
+		set.addRecord(id, parent, hasParent, v[3], v[2], v[4], v[5])
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read the snapshot: %w", err)

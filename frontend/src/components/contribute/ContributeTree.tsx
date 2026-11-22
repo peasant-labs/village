@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "@/lib/contribute/tree";
-import { leafIds, nodeState, type NodeState, type Selection } from "@/lib/contribute/selection";
+import { leafIds, nodeState, type Selection } from "@/lib/contribute/selection";
 import type { ContributeFilters } from "@/lib/contribute/filter";
 import { Button, Input, Select, Tag } from "@/lib/ft-ui";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
+import TriStateCheckbox from "./TriStateCheckbox";
+import { TreeRail, useTreeRail, type RailRow } from "./treeRail";
 
 interface ContributeTreeProps {
   tree: ProjectNode<TreeRowFacts>[];
@@ -49,97 +51,6 @@ interface ContributeTreeProps {
  *  the synthetic orphans grouping) 1, session 2, a session's own child 3, and
  *  so on for deeper descendants. */
 const RAIL_DEPTH = { project: 0, group: 1, session: 2 } as const;
-
-/** Length of the single start/end terminal cap of the connector, in the same
- *  measured pixel space as the anchors it joins. */
-const RAIL_CAP = 6;
-
-interface RailRow {
-  key: string;
-  depth: number;
-}
-
-interface RailAnchor {
-  x: number;
-  y: number;
-  depth: number;
-}
-
-/**
- * Composes ONE continuous path through the ordered checkbox anchors. Between
- * adjacent rows the lone horizontal step sits at the DEEPER row's y (always an
- * indentation gutter, never across a row's label), and the vertical changes
- * column exactly once, so at any y there is exactly one vertical segment. The
- * path opens and closes with a single cap collinear with the first/last
- * segment.
- */
-function buildRailPath(anchors: RailAnchor[]): string {
-  if (anchors.length === 0) return "";
-  const first = anchors[0];
-  const parts = [`M ${first.x} ${first.y - RAIL_CAP}`, `L ${first.x} ${first.y}`];
-  for (let i = 1; i < anchors.length; i++) {
-    const prev = anchors[i - 1];
-    const cur = anchors[i];
-    if (cur.x === prev.x) {
-      parts.push(`L ${cur.x} ${cur.y}`);
-    } else if (cur.depth > prev.depth) {
-      // Descending: fall at the parent column to the child row, then step in.
-      parts.push(`L ${prev.x} ${cur.y}`, `L ${cur.x} ${cur.y}`);
-    } else {
-      // Ascending: step out at the deeper (previous) row, then fall to the row.
-      parts.push(`L ${cur.x} ${prev.y}`, `L ${cur.x} ${cur.y}`);
-    }
-  }
-  const last = anchors[anchors.length - 1];
-  parts.push(`L ${last.x} ${last.y + RAIL_CAP}`);
-  return parts.join(" ");
-}
-
-/**
- * A parent row's checkbox carries three states: none, some, or all of its
- * selectable descendants. "some" is drawn as the filled square with a dash
- * (the native indeterminate face styled in `globals.css`), so partial
- * selection reads as a distinct SHAPE and never rides on colour alone.
- */
-function TriStateCheckbox({
-  state,
-  disabled = false,
-  onChange,
-  label,
-  inputRef,
-}: {
-  state: NodeState;
-  disabled?: boolean;
-  onChange: () => void;
-  label: string;
-  inputRef?: (element: HTMLInputElement | null) => void;
-}) {
-  const ref = useRef<HTMLInputElement | null>(null);
-  const mixed = state === "some";
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = mixed;
-  }, [mixed]);
-  return (
-    <label className="check contribute-check">
-      <input
-        ref={(element) => {
-          ref.current = element;
-          inputRef?.(element);
-        }}
-        type="checkbox"
-        className="check-box"
-        data-state={state}
-        data-indeterminate={mixed || undefined}
-        aria-checked={mixed ? "mixed" : state === "all"}
-        checked={state === "all"}
-        disabled={disabled}
-        onChange={onChange}
-        aria-label={label}
-      />
-      {mixed && <span className="contribute-check__mixed" aria-hidden="true" />}
-    </label>
-  );
-}
 
 function SessionRow({
   session,
@@ -471,15 +382,6 @@ export default function ContributeTree({
 }: ContributeTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(new Set());
   const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rowRefs = useRef(new Map<string, HTMLElement>());
-  const [railPath, setRailPath] = useState("");
-
-  const setRowElement = useCallback((key: string, element: HTMLElement | null) => {
-    if (element) rowRefs.current.set(key, element);
-    else rowRefs.current.delete(key);
-  }, []);
-
   // Every selectable leaf currently visible, and how much of it is selected -
   // the header's counts and the select-all control read from this one place so
   // they can never disagree with the rows.
@@ -512,61 +414,7 @@ export default function ContributeTree({
     return rows;
   }, [collapsedProjects, openChildren, tree, layout]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    let frame = 0;
-    const measure = () => {
-      const containerRect = container.getBoundingClientRect();
-      const anchors: RailAnchor[] = [];
-      for (const row of orderedRows) {
-        const element = rowRefs.current.get(row.key);
-        const input = element?.querySelector('input[type="checkbox"]') as HTMLElement | null;
-        if (!input) return; // not laid out yet - a later observer tick retries
-        const rect = input.getBoundingClientRect();
-        anchors.push({
-          x: rect.left + rect.width / 2 - containerRect.left,
-          y: rect.top + rect.height / 2 - containerRect.top,
-          depth: row.depth,
-        });
-      }
-      if (anchors.length === 0) {
-        setRailPath("");
-        return;
-      }
-      // Snap each depth to ONE column (its median x) so every vertical at a
-      // given depth is exactly aligned - provably a single line per column.
-      const byDepth = new Map<number, number[]>();
-      for (const anchor of anchors) {
-        const list = byDepth.get(anchor.depth) ?? [];
-        list.push(anchor.x);
-        byDepth.set(anchor.depth, list);
-      }
-      const column = new Map<number, number>();
-      for (const [depth, xs] of byDepth) {
-        const sorted = xs.slice().sort((a, b) => a - b);
-        column.set(depth, sorted[Math.floor(sorted.length / 2)]);
-      }
-      for (const anchor of anchors) anchor.x = column.get(anchor.depth)!;
-      setRailPath(buildRailPath(anchors));
-    };
-    const schedule = () => {
-      if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
-      frame = typeof requestAnimationFrame === "function" ? requestAnimationFrame(measure) : (measure(), 0);
-    };
-    schedule();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
-    if (observer) {
-      observer.observe(container);
-      for (const element of rowRefs.current.values()) observer.observe(element);
-    }
-    window.addEventListener("resize", schedule);
-    return () => {
-      if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
-      observer?.disconnect();
-      window.removeEventListener("resize", schedule);
-    };
-  }, [orderedRows, selection, previewId]);
+  const { containerRef, setRowElement, path: railPath } = useTreeRail(orderedRows, [selection, previewId]);
 
   return (
     <div className="on-contribute-tree">
@@ -626,18 +474,7 @@ export default function ContributeTree({
             ))}
           </div>
         ) : (
-          <div ref={containerRef} className="relative">
-            <svg className="contribute-rail" aria-hidden="true">
-              {railPath && (
-                <path
-                  className="contribute-rail__path"
-                  d={railPath}
-                  shapeRendering="crispEdges"
-                  strokeLinecap="square"
-                />
-              )}
-            </svg>
-            <div className="contribute-rail-rows">
+          <TreeRail containerRef={containerRef} path={railPath}>
               {tree.map((project) => (
                 <ProjectRow
                   key={project.id}
@@ -668,8 +505,7 @@ export default function ContributeTree({
                   helperGroupSlot={helperGroupSlot}
                 />
               ))}
-            </div>
-          </div>
+          </TreeRail>
         )}
       </div>
     </div>

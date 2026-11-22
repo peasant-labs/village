@@ -35,7 +35,6 @@ export type ChildSessionSurface =
   | "home"
   | "project"
   | "profile"
-  | "contribute"
   | "collective-browse"
   | "collective-repos"
   | "my-contributions";
@@ -45,7 +44,6 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
   "profile",
-  "contribute",
   "collective-browse",
   "collective-repos",
   "my-contributions",
@@ -55,7 +53,7 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
  * The surfaces whose list is scoped to one person, and so cannot carry rows
  * from two owners or the discovery-only agent scope.
  *
- * A person's library, their home list and the contribute listing all answer
+ * A person's library and their home list answer
  * with the caller's OWN transcripts. Discovery holds everybody's, which is
  * exactly where a session id from one publisher must be proven unable to
  * capture another publisher's row.
@@ -64,7 +62,6 @@ const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
   "profile",
-  "contribute",
   "my-contributions",
 ];
 
@@ -136,8 +133,6 @@ const requiredCaseNames = [
   "a-started-session-is-listed-inside-its-parents-chip",
   "a-row-whose-parent-is-not-in-the-list-keeps-its-place",
   "home-shows-the-group-holding-the-newest-session",
-  "the-contribute-tree-nests-a-started-session-under-its-starter",
-  "a-contributable-row-naming-an-unlisted-parent-keeps-its-own-place",
   "a-collectives-contributions-read-a-started-session-under-its-starter",
   "a-collective-row-naming-a-session-this-page-omits-keeps-its-row",
   "your-contributions-read-a-started-contribution-under-its-starter",

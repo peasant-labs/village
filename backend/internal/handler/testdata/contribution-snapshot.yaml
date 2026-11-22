@@ -17,14 +17,15 @@
     project whose root is elsewhere is out; a child whose parent is not among
     the owner's transcripts is its own root; another owner's session in the same
     project is never in. Each latest status, including absence, is reported, and
-    another collective's attempts are ignored.
+    another collective's attempts are ignored. Every record states its title,
+    null for an untitled session, and a title that needs escaping round-trips.
   transcripts:
     - {key: a1, project: alpha, visibility: shared, attempts: [rejected, approved]}
     - {key: a1h1, project: alpha, visibility: public, parent: a1, attempts: [rejected, pending]}
     - {key: a1h2, project: beta, visibility: shared, parent: a1, attempts: [approved, revoked]}
     - {key: a1h2g, project: alpha, visibility: private, parent: a1h2, attempts: [rejected]}
-    - {key: a2, project: alpha, visibility: private, other_attempts: [pending]}
-    - {key: a3, project: alpha, visibility: shared, orphan_parent: true, attempts: [retracted]}
+    - {key: a2, project: alpha, visibility: private, untitled: true, other_attempts: [pending]}
+    - {key: a3, project: alpha, visibility: shared, title: 'say "hi" <b>\u2028', orphan_parent: true, attempts: [retracted]}
     - {key: b1, project: beta, visibility: shared}
     - {key: b1h, project: alpha, visibility: shared, parent: b1}
     - {key: x1, project: alpha, visibility: shared, owner: other}

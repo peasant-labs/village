@@ -201,9 +201,9 @@ func TestContributionSnapshotSetWritesCompactSortedJSON(t *testing.T) {
 	other := strings.Repeat("b", 64)
 	root, helper, bare := snapshotID(0x20), snapshotID(0x10), snapshotID(0x30)
 	// Added out of order on purpose: the output must be sorted by id.
-	set.addRecord(root, [16]byte{}, false, []byte(project), []byte("shared"), []byte("approved"))
-	set.addRecord(helper, root, true, []byte(other), []byte("public"), []byte("pending"))
-	set.addRecord(bare, [16]byte{}, false, []byte(project), []byte("private"), nil)
+	set.addRecord(root, [16]byte{}, false, []byte(project), []byte("shared"), []byte("approved"), []byte("fix the importer"))
+	set.addRecord(helper, root, true, []byte(other), []byte("public"), []byte("pending"), []byte("helper"))
+	set.addRecord(bare, [16]byte{}, false, []byte(project), []byte("private"), nil, nil)
 	if set.Len() != 3 {
 		t.Fatalf("Len = %d, want 3", set.Len())
 	}
@@ -243,20 +243,25 @@ func TestContributionSnapshotSetWritesCompactSortedJSON(t *testing.T) {
 		}
 	}
 	h := got.Records[0]
-	if h["visibility"] != "public" || h["latest_status"] != "pending" || h["project_hash"] != other ||
-		h["parent_transcript_id"] != uuid.UUID(root).String() || len(h) != 5 {
+	if h["title"] != "helper" || h["visibility"] != "public" || h["latest_status"] != "pending" || h["project_hash"] != other ||
+		h["parent_transcript_id"] != uuid.UUID(root).String() || len(h) != 6 {
 		t.Errorf("helper record = %v", h)
 	}
 	r := got.Records[1]
-	if _, has := r["parent_transcript_id"]; has || len(r) != 4 {
-		t.Errorf("a root must omit parent_transcript_id and carry exactly four fields: %v", r)
+	if _, has := r["parent_transcript_id"]; has || r["title"] != "fix the importer" || len(r) != 5 {
+		t.Errorf("a root must omit parent_transcript_id and carry exactly five fields: %v", r)
 	}
 	b := got.Records[2]
-	if _, has := b["latest_status"]; has || len(b) != 3 {
-		t.Errorf("a record with no attempt must omit latest_status and carry exactly three fields: %v", b)
+	if _, has := b["latest_status"]; has || len(b) != 4 {
+		t.Errorf("a record with no attempt must omit latest_status and carry exactly four fields: %v", b)
 	}
-	if bytes.Contains(raw, []byte("null")) {
-		t.Errorf("the compact form never writes null: %s", raw)
+	// An untitled session still states its title, as null: the contract
+	// requires the field so a client can always name what it asks consent for.
+	if title, has := b["title"]; !has || title != nil {
+		t.Errorf("an untitled record must write title as null: %v", b)
+	}
+	if n := bytes.Count(raw, []byte("null")); n != 1 {
+		t.Errorf("the compact form writes null only for a missing title, got %d nulls: %s", n, raw)
 	}
 }
 
@@ -271,13 +276,14 @@ func TestContributionSnapshotSetEmptyAndEscaping(t *testing.T) {
 	}
 
 	var odd contributionSnapshotSet
-	odd.addRecord(snapshotID(1), [16]byte{}, false, []byte(`p"q`), []byte("sh\\ared"), []byte("ap\"proved\n"))
+	odd.addRecord(snapshotID(1), [16]byte{}, false, []byte(`p"q`), []byte("sh\\ared"), []byte("ap\"proved\n"), []byte("say \"hi\"\n<b>\u2028\\"))
 	out.Reset()
 	if err := odd.writeJSON(&out, "g", "p"); err != nil {
 		t.Fatal(err)
 	}
 	var decoded struct {
 		Records []struct {
+			Title        string `json:"title"`
 			Visibility   string `json:"visibility"`
 			LatestStatus string `json:"latest_status"`
 			ProjectHash  string `json:"project_hash"`
@@ -286,7 +292,7 @@ func TestContributionSnapshotSetEmptyAndEscaping(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
 		t.Fatalf("unsafe text broke the JSON: %v\n%s", err, out.String())
 	}
-	if r := decoded.Records[0]; r.Visibility != "sh\\ared" || r.LatestStatus != "ap\"proved\n" || r.ProjectHash != `p"q` {
+	if r := decoded.Records[0]; r.Title != "say \"hi\"\n<b>\u2028\\" || r.Visibility != "sh\\ared" || r.LatestStatus != "ap\"proved\n" || r.ProjectHash != `p"q` {
 		t.Errorf("round trip = %+v", r)
 	}
 }
@@ -298,8 +304,8 @@ func TestContributionSnapshotSetFitsIsExactAtTheLimit(t *testing.T) {
 	var set contributionSnapshotSet
 	project := strings.Repeat("e", 64)
 	root := snapshotID(0x40)
-	set.addRecord(root, [16]byte{}, false, []byte(project), []byte("shared"), []byte("approved"))
-	set.addRecord(snapshotID(0x41), root, true, []byte(project), []byte("private"), nil)
+	set.addRecord(root, [16]byte{}, false, []byte(project), []byte("shared"), []byte("approved"), []byte("a title"))
+	set.addRecord(snapshotID(0x41), root, true, []byte(project), []byte("private"), nil, nil)
 	group := uuid.NewString()
 
 	var out bytes.Buffer
@@ -319,6 +325,35 @@ func TestContributionSnapshotSetFitsIsExactAtTheLimit(t *testing.T) {
 	}
 }
 
+// Titles are the part of a record a session sizes, so a set bounded by the byte
+// limit stops keeping records once its titles alone pass it: such a body cannot
+// fit, the set is refused whole, and it still reports every session it read.
+func TestContributionSnapshotSetStopsKeepingTitlesPastTheLimit(t *testing.T) {
+	project := []byte(strings.Repeat("f", 64))
+	title := []byte(strings.Repeat("x", 100))
+	set := contributionSnapshotSet{titleLimit: 250}
+	for i := 0; i < 5; i++ {
+		set.addRecord(snapshotID(byte(0x50+i)), [16]byte{}, false, project, []byte("private"), nil, title)
+	}
+	if set.Len() != 5 {
+		t.Errorf("Len = %d, want every session read, 5", set.Len())
+	}
+	if !set.overflowed || len(set.records) != 0 || len(set.titles) != 0 {
+		t.Errorf("an overflowed set must hold nothing: overflowed = %v, records = %d, title bytes = %d",
+			set.overflowed, len(set.records), len(set.titles))
+	}
+	if ok, err := set.fits("g", string(project), 1<<20); err != nil || ok {
+		t.Errorf("an overflowed set must never fit: fits = %v, err = %v", ok, err)
+	}
+
+	under := contributionSnapshotSet{titleLimit: 250}
+	under.addRecord(snapshotID(0x60), [16]byte{}, false, project, []byte("private"), nil, title)
+	under.addRecord(snapshotID(0x61), [16]byte{}, false, project, []byte("private"), nil, title)
+	if under.overflowed || len(under.records) != 2 {
+		t.Errorf("titles within the limit must be kept: overflowed = %v, records = %d", under.overflowed, len(under.records))
+	}
+}
+
 func TestFormatByteLimitNamesTheContractLimit(t *testing.T) {
 	if got := formatByteLimit(schema.VillageContributionSnapshotMaxBytes); got != "8 MiB" {
 		t.Errorf("formatByteLimit(contract limit) = %q, want %q", got, "8 MiB")
@@ -333,7 +368,7 @@ func TestContributionSnapshotSetInternsRepeatedText(t *testing.T) {
 	project := []byte(strings.Repeat("d", 64))
 	for i := 0; i < 1000; i++ {
 		id := [16]byte{byte(i), byte(i >> 8)}
-		set.addRecord(id, [16]byte{}, false, project, []byte("shared"), []byte("approved"))
+		set.addRecord(id, [16]byte{}, false, project, []byte("shared"), []byte("approved"), nil)
 	}
 	if n := len(set.projects.values); n != 1 {
 		t.Errorf("1000 records of one project hold %d distinct project strings, want 1", n)
