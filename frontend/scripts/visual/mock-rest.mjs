@@ -73,7 +73,9 @@ const user = {
 const profile = (id, username, display_name = null) => ({ kind: 'profile', id, username, display_name, avatar_url: null })
 const viewerProfile = profile(user.id, user.github_username, user.display_name)
 
-const groupId = process.env.MOCK_GROUP_ID || 'demo-group'
+// A UUID, because the contribute page's paged reads carry the collective id
+// under the contract's uuid format and the page checks it against its route.
+const groupId = process.env.MOCK_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 
 // The viewer's role in the collective. Closed set: an unrecognised value is a
 // typo that would otherwise be captured as a silently different surface.
@@ -371,14 +373,16 @@ const shareableTranscriptListResponse = {
 // The one submission the batch endpoint reports as already decided, so a
 // capture shows the stale mark and the disabled row rather than only the
 // happy path.
-const ALREADY_DECIDED_ID = 'ct-village-1'
+const ALREADY_DECIDED_ID = 'c0de0000-0000-4000-8000-000000000005'
 
+// Transcript ids are UUIDs and local ids follow the session-id pattern: the
+// paged and snapshot reads are validated against the contract before they render.
 const contributableResponse = {
   group_id: groupId,
   transcripts: [
     {
-      id: 'ct-main-1',
-      local_id: 'sess_ct_0001',
+      id: 'c0de0000-0000-4000-8000-000000000001',
+      local_id: 'sess_ct0001',
       title: 'fix the redaction rule ordering',
       visibility: 'public',
       project_hash: 'b'.repeat(64),
@@ -392,8 +396,8 @@ const contributableResponse = {
       already_shared: false,
     },
     {
-      id: 'ct-feature-1',
-      local_id: 'sess_ct_0002',
+      id: 'c0de0000-0000-4000-8000-000000000002',
+      local_id: 'sess_ct0002',
       title: 'draft the contribute tree page',
       visibility: 'private',
       project_hash: 'b'.repeat(64),
@@ -407,23 +411,23 @@ const contributableResponse = {
       already_shared: false,
     },
     {
-      id: 'ct-orphan-1',
-      local_id: 'sess_ct_0003',
+      id: 'c0de0000-0000-4000-8000-000000000003',
+      local_id: 'sess_ct0003',
       title: 'a session whose parent was never fetched',
       visibility: 'public',
       project_hash: 'b'.repeat(64),
       project_display_name: 'peasant',
       project_name_source: 'consented',
       git_branch: 'main',
-      parent_session_id: 'sess_ct_missing',
+      parent_session_id: 'sess_ctMissing',
       session_origin: 'user',
       model_provider: 'codex',
       published_at: '2026-06-22T09:00:00Z',
       already_shared: false,
     },
     {
-      id: 'ct-shared-1',
-      local_id: 'sess_ct_0004',
+      id: 'c0de0000-0000-4000-8000-000000000004',
+      local_id: 'sess_ct0004',
       title: 'already shared with this collective',
       visibility: 'shared',
       project_hash: 'c'.repeat(64),
@@ -462,7 +466,7 @@ const previewTranscriptDetail = (id) => ({
 })
 
 const previewTranscriptContent = {
-  id: 'sess_ct_preview',
+  id: 'sess_ctPreview',
   harness: 'gemini-cli',
   startTime: ts(10),
   endTime: ts(16),
@@ -738,11 +742,11 @@ const send = (res, code, body) => {
 // disclosure, and a queue that is not one person's work.
 const pendingShares = [
   {
-    transcript_id: 'ct-main-1',
+    transcript_id: 'c0de0000-0000-4000-8000-000000000001',
     title: 'fix the redaction rule ordering',
     model_provider: 'claude-code',
     owner: profile('user-pat', 'pat-reviewer'),
-    local_id: 'sess_ct_0001',
+    local_id: 'sess_ct0001',
     parent_session_id: null,
     parent_transcript_id: null,
     project_hash: 'b'.repeat(64),
@@ -751,24 +755,24 @@ const pendingShares = [
     shared_at: '2026-06-22T09:00:00Z',
   },
   {
-    transcript_id: 'ct-main-child',
+    transcript_id: 'c0de0000-0000-4000-8000-000000000006',
     title: 'run the redaction fixtures again',
     model_provider: 'claude-code',
     owner: profile('user-pat', 'pat-reviewer'),
-    local_id: 'sess_ct_0001_child',
-    parent_session_id: 'sess_ct_0001',
-    parent_transcript_id: 'ct-main-1',
+    local_id: 'sess_ct0001Child',
+    parent_session_id: 'sess_ct0001',
+    parent_transcript_id: 'c0de0000-0000-4000-8000-000000000001',
     project_hash: 'b'.repeat(64),
     project_name: 'peasant',
     branch: 'main',
     shared_at: '2026-06-22T10:00:00Z',
   },
   {
-    transcript_id: 'ct-feature-1',
+    transcript_id: 'c0de0000-0000-4000-8000-000000000002',
     title: 'draft the contribute tree page',
     model_provider: 'gemini-cli',
     owner: profile('user-pat', 'pat-reviewer'),
-    local_id: 'sess_ct_0002',
+    local_id: 'sess_ct0002',
     parent_session_id: null,
     parent_transcript_id: null,
     project_hash: 'b'.repeat(64),
@@ -777,11 +781,11 @@ const pendingShares = [
     shared_at: '2026-06-23T09:00:00Z',
   },
   {
-    transcript_id: 'ct-village-1',
+    transcript_id: 'c0de0000-0000-4000-8000-000000000005',
     title: 'widen the pending queue wire',
     model_provider: 'claude-code',
     owner: profile('user-sam', 'sam-contributor'),
-    local_id: 'sess_ct_0003',
+    local_id: 'sess_ct0003',
     parent_session_id: null,
     parent_transcript_id: null,
     project_hash: 'c'.repeat(64),
@@ -814,7 +818,7 @@ const server = createServer((req, res) => {
   // The contribute tree's own fixture ids (contributableResponse, above):
   // real turns + a tool call + a saved label, so the preview column's
   // capture shows actual content instead of a loading/not-found state.
-  const ctMatch = /^\/transcripts\/(ct-[a-z0-9-]+)(\/content|\/annotations)?$/.exec(p)
+  const ctMatch = /^\/transcripts\/(c0de0000-[0-9a-f-]+)(\/content|\/annotations)?$/.exec(p)
   if (req.method === 'GET' && ctMatch) {
     const [, ctId, suffix] = ctMatch
     if (suffix === '/content') return send(res, 200, previewTranscriptContent)

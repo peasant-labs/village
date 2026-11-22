@@ -70,7 +70,7 @@
                          it must keep an ordinary row on every surface, never be
                          folded away (default per surface)
      PROJECT_PATH    the project route to shoot (project surface only)
-     MOCK_GROUP_ID   the collective the fixture mock serves (default demo-group)
+     MOCK_GROUP_ID   the collective the fixture mock serves (default 9a11e000-0000-4000-8000-000000000001)
      MOCK_USERNAME   the profile to shoot (default alice-dev)
    usage: VILLAGE_URL=... CHROME_PATH=... node child-session-shoot.mjs <surface> <theme> <outdir>
 */
@@ -80,7 +80,7 @@ import { applyDeterminism } from './determinism.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 // The collective the fixture mock serves. Every collective surface reads it.
-const GROUP_ID = process.env.MOCK_GROUP_ID || 'demo-group'
+const GROUP_ID = process.env.MOCK_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 
 const SURFACES = {
   explore: {
@@ -185,8 +185,8 @@ const SURFACES = {
     path: `/collectives/${GROUP_ID}/contribute`,
     prefix: 'village-contribute-child',
     openProject: 'section[aria-label="project peasant"] button[aria-expanded="false"]',
-    mountSelector: '[data-parent-transcript-id="ct-parent"]',
-    parentID: 'ct-parent',
+    mountSelector: '[data-parent-transcript-id="c0de0000-0000-4000-8000-000000000011"]',
+    parentID: 'c0de0000-0000-4000-8000-000000000011',
     revealed: ['Read the tree builder', 'Swap the label onto the shared control'],
     unmatchedText: 'A session whose starter was never fetched',
   },

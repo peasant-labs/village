@@ -27,7 +27,7 @@ const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
 const THEME = process.argv[2] || 'dark'
 const OUT = process.argv[3] || `/tmp/manage-village-${THEME}`
-const GROUP_ID = process.env.VILLAGE_GROUP_ID || 'demo-group'
+const GROUP_ID = process.env.VILLAGE_GROUP_ID || '9a11e000-0000-4000-8000-000000000001'
 const VIEWER_ROLES = ['owner', 'member']
 const VIEWER_ROLE = process.env.MOCK_ROLE || 'owner'
 
