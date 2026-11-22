@@ -1,5 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
-import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageTranscriptListResponse } from "@peasant-labs/schema";
+import type { License, SessionOutcome, SourceFormat, VillageResolvedProject, VillageTranscript, VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -13,12 +13,8 @@ import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageT
  * arrives as `""`, never `null` — a project with no git remote is a normal
  * state, and the subtitle is simply omitted for it.
  */
-export interface ResolvedProject {
-  project_hash: string;
-  project_display_name: string;
-  project_name_source: NameSource;
-  project_remote_label: string;
-}
+/** @deprecated Import VillageResolvedProject from "@peasant-labs/schema". Alias kept for one release. */
+export type ResolvedProject = AsPlainString<VillageResolvedProject, "project_hash">;
 
 /**
  * One collective in a project page's roll-up.
