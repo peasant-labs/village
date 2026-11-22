@@ -1,6 +1,6 @@
 import {
   zVillageBatchShareSelectionRequest,
-  zVillageErrorResponse,
+  zVillageContributionErrorResponse,
   type VillageBatchShareResponse,
   type VillageBatchShareSelectionRequest,
   type VillageContributionErrorDetail,
@@ -216,7 +216,7 @@ export function classifyRefusal(err: unknown, signal?: AbortSignal): Refusal {
     case 501:
       return { kind: "stop", reason: "deployment" };
     case 409: {
-      const body = zVillageErrorResponse.safeParse({ error: err.message, code: err.code, details: err.details });
+      const body = zVillageContributionErrorResponse.safeParse({ error: err.message, code: err.code, details: err.details });
       const details = body.success ? (body.data.details ?? []) : [];
       if (details.some((detail) => detail.code === "stale_selection")) {
         return { kind: "stop", reason: "stale_selection", message };

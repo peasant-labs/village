@@ -12,7 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost/api/v1";
 export class ApiError extends Error {
   readonly status: number;
   /** The machine-readable refusal code the body carried, when it carried a
-   *  string one (`VillageErrorResponse.code`). Callers branch on it where the
+   *  string one (`VillageContributionErrorResponse.code`). Callers branch on it where the
    *  status alone is ambiguous, such as two different 413s. */
   readonly code?: string;
   /** The refusal's per-record details, unvalidated: a caller that acts on
