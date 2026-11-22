@@ -2,6 +2,7 @@
 
 import { use, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { VillageProjectNameSource } from "@peasant-labs/schema";
 import {
   EyeOff,
   Library,
@@ -150,7 +151,7 @@ export default function UserProjectPage({
   const project = data.project;
   const resolvedName = project.project_display_name;
   const remoteLabel = project.project_remote_label;
-  const hasOverride = project.project_name_source === "override";
+  const hasOverride = project.project_name_source === VillageProjectNameSource.Override;
   const nameValue = draft ?? resolvedName;
   const trimmedName = nameValue.trim();
   const pending = setName.isPending || clearName.isPending;

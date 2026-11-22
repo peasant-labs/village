@@ -65,6 +65,7 @@ import type {
   VillageCollectiveTranscriptStats,
   VillageLinkedRepositoriesResponse,
   VillageLinkedRepository,
+  VillageProjectNameSource,
   VillagePullRequestsSummary,
   VillageRepositoryCommit,
   VillageRepositoryCommitsResponse,
@@ -101,15 +102,16 @@ export interface User {
 
 /**
  * The tier a project's resolved display name came from (village backend
- * `internal/projectname.NameSource`). The schema package does not yet emit
- * this union as a standalone TypeScript type — this is the frontend's own
- * closed, hand-declared union. Widening the server-side enum without adding
- * a member here must fail the BUILD, not silently render an unstyled
- * fallback: see {@link assertNameSourceExhaustive} for the compile-time
- * proof, and `describeNameSource` in `@/lib/format` for the one live
- * exhaustive consumer.
+ * `internal/projectname.NameSource`), re-exported from `@peasant-labs/schema`.
+ * Widening the contract enum without adding a member in `describeNameSource`
+ * must fail the BUILD, not silently render an unstyled fallback: see
+ * {@link assertNameSourceExhaustive} for the compile-time proof, and
+ * `describeNameSource` in `@/lib/format` for the one live exhaustive
+ * consumer.
+ *
+ * @deprecated Import `VillageProjectNameSource` from `"@peasant-labs/schema"`. Alias kept for one release.
  */
-export type NameSource = "override" | "consented" | "remote" | "path" | "privacy";
+export type NameSource = VillageProjectNameSource;
 
 /**
  * Compile-time exhaustiveness proof for {@link NameSource}. A `switch` over
