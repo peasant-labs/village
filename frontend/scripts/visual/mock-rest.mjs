@@ -957,6 +957,55 @@ const server = createServer((req, res) => {
   }
   if (req.method === 'GET' && p === `/collectives/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
   if (req.method === 'GET' && p === `/collectives/${groupId}/settings`) return send(res, 200, groupDetail)
+  // The contribute page's paged reads, all derived from contributableResponse:
+  // the project list, one project's families (every row a root here), and
+  // the "select all" snapshot of a project's selectable rows.
+  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable/projects`) {
+    const q = (url.searchParams.get('q') || '').toLowerCase()
+    const rows = contributableResponse.transcripts.filter((t) => !q || t.title.toLowerCase().includes(q))
+    const byProject = new Map()
+    for (const t of rows) {
+      const entry = byProject.get(t.project_hash) ?? {
+        project_hash: t.project_hash,
+        project_display_name: t.project_display_name,
+        project_name_source: t.project_name_source,
+        matching_count: 0,
+        selectable_count: 0,
+      }
+      entry.matching_count += 1
+      if (!t.already_shared) entry.selectable_count += 1
+      byProject.set(t.project_hash, entry)
+    }
+    const providers = new Map()
+    for (const t of rows) providers.set(t.model_provider, (providers.get(t.model_provider) ?? 0) + 1)
+    const projects = [...byProject.values()]
+    return send(res, 200, {
+      has_more: false,
+      matching_total: rows.length,
+      selectable_total: projects.reduce((sum, entry) => sum + entry.selectable_count, 0),
+      providers: [...providers].map(([provider, count]) => ({ provider, count })),
+      projects,
+    })
+  }
+  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'paged') {
+    const projectHash = url.searchParams.get('project_hash')
+    const q = (url.searchParams.get('q') || '').toLowerCase()
+    const rows = contributableResponse.transcripts.filter(
+      (t) => t.project_hash === projectHash && (!q || t.title.toLowerCase().includes(q)),
+    )
+    return send(res, 200, {
+      group_id: groupId,
+      has_more: false,
+      items: rows.map((t) => ({ root: { transcript: t }, helpers: [] })),
+    })
+  }
+  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'snapshot') {
+    const projectHash = url.searchParams.get('project_hash')
+    const records = contributableResponse.transcripts
+      .filter((t) => t.project_hash === projectHash && !t.already_shared)
+      .map(({ id, title, project_hash, visibility }) => ({ id, title, project_hash, visibility }))
+    return send(res, 200, { group_id: groupId, project_hash: projectHash, count: records.length, records })
+  }
   if (req.method === 'GET' && p === `/collectives/${groupId}/contributable`) return send(res, 200, contributableResponse)
   if (req.method === 'POST' && p === `/collectives/${groupId}/shares`) {
     let body = ''

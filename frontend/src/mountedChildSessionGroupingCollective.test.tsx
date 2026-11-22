@@ -5,21 +5,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatCount } from "@/lib/ft-ui";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { GroupTranscript, UserGroupShare } from "@/lib/types";
-import type { ContributableTranscript } from "@/lib/contribute/types";
 import {
   installGroupRouteREST,
-  renderGroupContributeRoute,
   renderGroupDetailRoute,
   type RecordedGroupRequest,
 } from "@/test/mountedGroupRoute";
 import {
   assertDisclosures,
-  chippedParentIDs,
   disclosureFor,
   expandDisclosure,
   flush,
   linkedIDs,
-  rowFor,
 } from "@/test/childSessionDom";
 import {
   loadChildSessionGroupingFixtures,
@@ -38,12 +34,10 @@ import { resolvedParentTranscriptIDs } from "@/test/parentTranscriptFixture";
  *                             read by repository; the owner's review queue of a
  *                             curated collective; and a member's own
  *                             contributions to it.
- *   /collectives/{id}/contribute   the project > branch > session selection tree.
  *
- * These four lists do not agree on what a row IS -- a transcript list draws an
+ * These lists do not agree on what a row IS -- a transcript list draws an
  * anchor, a review queue draws a queue item with its own approve and reject
- * actions, a person's contributions draw an unshare action, a selection tree
- * draws a checkbox -- so each is read here through its own row reader while the
+ * actions, a person's contributions draw an unshare action -- so each is read here through its own row reader while the
  * expectations, the labels and the fold itself come from the ONE corpus in
  * src/testdata/child-session-grouping.yaml, shared with the discovery, home,
  * project and library surfaces in src/mountedChildSessionGrouping.test.tsx.
@@ -197,26 +191,6 @@ function myShare(row: ChildSessionRow, index: number, rows: readonly ChildSessio
     tokens_out: null,
     status: "approved",
     shared_at: publishedAt(index),
-  };
-}
-
-function contributableRow(row: ChildSessionRow, index: number): ContributableTranscript {
-  return {
-    id: row.name,
-    local_id: row.localID,
-    title: ROW_TITLE(row),
-    visibility: "private",
-    // ONE project across every row: the contribute tree folds per project,
-    // because a session id is a per-project value there.
-    project_hash: "commons-project",
-    project_display_name: "commons",
-    project_name_source: "consented",
-    git_branch: ROW_BRANCH,
-    parent_session_id: row.parentSessionID,
-    session_origin: "user",
-    model_provider: ROW_PROVIDER,
-    published_at: publishedAt(index),
-    already_shared: false,
   };
 }
 
@@ -471,43 +445,6 @@ describe("your contributions read a started contribution under the one that star
     await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual([`/api/v1/transcripts/${group.children[0]}/share/${GROUP_ID}`]));
     await waitFor(() => expect(linkedIDs(library())).not.toContain(group.children[0]));
   });
-});
-
-// ── the contribute selection tree ────────────────────────────────────────────
-
-/** Every session the tree currently draws, in document order. The tree draws a
- *  checkbox row rather than a link, so its rows are read by the test id each
- *  row carries. */
-function treeRowIDs(root: ParentNode = document): string[] {
-  return [...root.querySelectorAll<HTMLElement>('[data-testid^="contribute-session-row-"]')].map(
-    (row) => row.getAttribute("data-testid")!.replace("contribute-session-row-", ""),
-  );
-}
-
-describe("the contribute tree nests a started session under the session that started it", () => {
-  for (const testCase of casesFor("contribute")) {
-    it(testCase.name, async () => {
-      installGroupRouteREST({
-        viewer: VIEWER,
-        groupId: GROUP_ID,
-        groupName: "commons",
-        role: "member",
-        contributable: testCase.rows.map(contributableRow),
-      });
-      await renderGroupContributeRoute(GROUP_ID);
-      await flush();
-      await waitFor(() => expect(treeRowIDs().length).toBeGreaterThan(0));
-
-      await assertDisclosures(testCase, document.body, testCase.expectedRootRows, treeRowIDs);
-      // The tree is the one surface here that draws no transcript link, so its
-      // controls are also proven to be the shared ones rather than a second
-      // control of its own.
-      expect(
-        chippedParentIDs(),
-        `${testCase.name}: the controls the tree draws`,
-      ).toEqual(testCase.expectedGroups.map((group) => group.parent).sort());
-    });
-  }
 });
 
 // ── the transcript groups' toolbar ───────────────────────────────────────────

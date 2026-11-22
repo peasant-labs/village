@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import GroupDetailPage from "@/app/collectives/[id]/page";
 import GroupReviewPage from "@/app/collectives/[id]/review/page";
 import { AuthProvider } from "@/providers/AuthProvider";
@@ -9,7 +8,6 @@ import type { Group, User } from "@/lib/types";
 import {
   continuationPage,
   fallbackFlatBrowseRows,
-  fallbackFlatContributeRows,
   fallbackFlatPendingRows,
   fallbackGroupedItems,
   groupedDetailPage,
@@ -26,9 +24,8 @@ import { profileOwner } from "@/test/publicOwnerFixture";
  * Mounted evidence for the grouped exits a collective's flat rendering does not
  * carry, driven by `src/testdata/collective-grouped-actions.yaml`.
  *
- * The REAL `/collectives/{id}`, `/collectives/{id}/contribute` and `/collectives/{id}/review`
- * routes render, each through its REAL grouped query hook; only HTTP is
- * controlled. Two states are proved here:
+ * The REAL `/collectives/{id}` and `/collectives/{id}/review` routes render,
+ * each through its REAL grouped query hook; only HTTP is controlled. Two states are proved here:
  *
  *  • a flat result that is empty, or does not carry the grouped owner, still
  *    mounts the grouped disclosure (the helper-only context, or the owner row
@@ -94,8 +91,6 @@ interface Calls {
 interface FlatPayloads {
   /** `transcripts` on the collective detail response. */
   browse: unknown[];
-  /** The flat contributable response body. */
-  contribute: unknown;
   /** The flat pending queue. */
   review: unknown;
 }
@@ -103,7 +98,6 @@ interface FlatPayloads {
 /** The grouped response body for one route's own decoder. */
 function groupedResponse(surface: ActionSurface, page: GroupedPageShape): unknown {
   if (surface === "browse") return groupedDetailPage(fixtures, page);
-  if (surface === "contribute") return { group_id: GROUP_ID, transcriptList: page };
   return page;
 }
 
@@ -141,13 +135,6 @@ function installREST(
           pending_members: [],
         });
       }
-      if (path === `/api/v1/collectives/${GROUP_ID}/contributable`) {
-        if (grouped) {
-          calls.grouped.push(url.search);
-          return json(groupedResponse(surface, groupedPage(page)));
-        }
-        return json(flat.contribute);
-      }
       if (path === `/api/v1/collectives/${GROUP_ID}/pending`) {
         if (grouped) {
           calls.grouped.push(url.search);
@@ -173,24 +160,14 @@ function installREST(
 }
 
 function flatPayloads(surface: ActionSurface, rows: unknown[]): FlatPayloads {
-  if (surface === "browse") {
-    return { browse: rows, contribute: { group_id: GROUP_ID, transcripts: [] }, review: [] };
-  }
-  if (surface === "contribute") {
-    return { browse: [], contribute: { group_id: GROUP_ID, transcripts: rows }, review: [] };
-  }
-  return { browse: [], contribute: { group_id: GROUP_ID, transcripts: [] }, review: rows };
+  if (surface === "browse") return { browse: rows, review: [] };
+  return { browse: [], review: rows };
 }
 
 function fallbackFlat(surface: ActionSurface, testCase: CollectiveFallbackCase): FlatPayloads {
-  switch (surface) {
-    case "browse":
-      return flatPayloads(surface, fallbackFlatBrowseRows(fixtures, testCase));
-    case "contribute":
-      return flatPayloads(surface, fallbackFlatContributeRows(fixtures, testCase));
-    default:
-      return flatPayloads(surface, fallbackFlatPendingRows(fixtures, testCase));
-  }
+  return surface === "browse"
+    ? flatPayloads(surface, fallbackFlatBrowseRows(fixtures, testCase))
+    : flatPayloads(surface, fallbackFlatPendingRows(fixtures, testCase));
 }
 
 function renderRoute(surface: ActionSurface) {
@@ -200,9 +177,7 @@ function renderRoute(surface: ActionSurface) {
   return render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        {surface === "contribute" ? (
-          <GroupContributePage params={Promise.resolve({ id: GROUP_ID })} />
-        ) : surface === "review" ? (
+        {surface === "review" ? (
           <GroupReviewPage params={Promise.resolve({ id: GROUP_ID })} />
         ) : (
           <GroupDetailPage params={Promise.resolve({ id: GROUP_ID })} />
@@ -313,8 +288,6 @@ for (const testCase of fixtures.fallbackCases) {
 function expectEmptyStateConsideringGrouped(surface: ActionSurface): void {
   if (surface === "browse") {
     expect(screen.queryByText("No transcripts shared yet.")).toBeNull();
-  } else if (surface === "contribute") {
-    expect(screen.queryByTestId("contribute-member-panel")).toBeNull();
   } else {
     expect(screen.queryByTestId("review-empty-queue")).toBeNull();
   }

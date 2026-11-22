@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
   zVillageContributionPageResponse,
@@ -209,9 +210,12 @@ export function useContributionPages(groupId: string, filters: ContributionPageF
     retry: false,
     staleTime: 0,
   });
+  // One array per loaded set of pages, not per render: the page reports these
+  // rows upward in an effect, and a fresh array each render would loop.
+  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   return {
     ...query,
-    items: query.data?.pages.flatMap((page) => page.items) ?? [],
+    items,
     failure: query.error ? classifyContributionReadError(query.error, "page") : null,
     refresh: () => client.invalidateQueries({ queryKey, exact: true }),
   };
@@ -234,9 +238,10 @@ export function useContributionProjects(groupId: string, filters: ContributionFi
     staleTime: 0,
   });
   const first = query.data?.pages[0];
+  const projects = useMemo(() => query.data?.pages.flatMap((page) => page.projects) ?? [], [query.data]);
   return {
     ...query,
-    projects: query.data?.pages.flatMap((page) => page.projects) ?? [],
+    projects,
     // The totals and facets describe the whole filtered library, so they come
     // from the first page and do not grow as later pages load.
     matchingTotal: first?.matching_total ?? 0,
