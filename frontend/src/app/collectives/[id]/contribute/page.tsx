@@ -375,7 +375,9 @@ export default function GroupContributePage({
 
       <div className="on-contribute-footer">
         <div className="on-contribute-footer-inner">
-        <div className="flex flex-col gap-1 min-w-0">
+        {/* The status side takes the free width, so an open receipt grows
+            downward and the contribute button holds its place. */}
+        <div className="flex min-w-0 flex-[1_1_20rem] flex-col gap-1">
           <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
           {run.state.phase === "running" && (
             <div className="flex items-center gap-3">

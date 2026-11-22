@@ -58,7 +58,9 @@ function Bucket({ testId, label, count, children }: BucketProps) {
   const listId = useId();
   if (count === 0) return null;
   return (
-    <li data-testid={testId}>
+    // An open bucket takes its own row, so its names never sit beside another
+    // bucket's.
+    <li data-testid={testId} className={open ? "basis-full" : undefined}>
       <button
         type="button"
         className="inline-flex items-center gap-1 tabular-nums text-ink-2 hover:text-ink"
@@ -70,14 +72,7 @@ function Bucket({ testId, label, count, children }: BucketProps) {
         {count} {label}
       </button>
       {open && (
-        <ul
-          id={listId}
-          // A long run can name hundreds of sessions; the list scrolls inside
-          // the footer instead of pushing the page.
-          className="ml-5 mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto"
-          tabIndex={0}
-          aria-label={`${label} sessions`}
-        >
+        <ul id={listId} className="ml-5 mt-1 flex flex-col gap-1" aria-label={`${label} sessions`}>
           {children}
         </ul>
       )}
@@ -102,7 +97,14 @@ export default function ContributionReceipt({ receipt, projectLabel, onRetry, re
   const retryable = receipt.failed.filter((failure) => isRetryableFailure(failure.reason)).map((failure) => failure.record);
   return (
     <div className="flex flex-col gap-1 text-[length:var(--fs-body)] text-ink-3" data-testid="contribute-run-receipt">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label="contribution receipt">
+      <ul
+        // A long run can name hundreds of sessions. The receipt scrolls as a
+        // whole inside the sticky footer, so open buckets never take over the
+        // tree above it; the stop reason and retry below stay in view.
+        className="flex max-h-[40vh] flex-wrap gap-x-4 gap-y-1 overflow-y-auto"
+        tabIndex={0}
+        aria-label="contribution receipt"
+      >
         <Bucket testId="contribute-receipt-contributed" label="contributed" count={receipt.contributed.length}>
           {receipt.contributed.map(({ record, status }) => (
             <li key={record.id}>
