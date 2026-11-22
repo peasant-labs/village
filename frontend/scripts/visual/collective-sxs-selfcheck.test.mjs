@@ -183,7 +183,7 @@ describe('collective grouped side-by-side arms', () => {
   })
 
   it.each(fixture.styleCases.map((entry) => [entry.name, entry]))('style comparison: %s', (_name, entry) => {
-    const arm = entry.arm ?? 'collective-grouped-contribute'
+    const arm = entry.arm ?? 'collective-grouped-review'
     const reference = sideFromBase(fixture.styleBase, entry.referencePatch, entry.referenceRemove ?? [])
     const subject = sideFromBase(fixture.styleBase, entry.subjectPatch, entry.subjectRemove ?? [])
     const result = compareStyleRecords({ arm, reference, subject })
@@ -215,14 +215,14 @@ describe('collective grouped side-by-side arms', () => {
       markers: ['panel-marker'],
       arms: [
         { surface: 'collective-grouped-browse', asset: { file: 'page.js', sha256: 'aaaa' }, markers: ['mount'] },
-        { surface: 'collective-grouped-contribute', asset: { file: 'contribute.js', sha256: 'bbbb' }, markers: ['mount'] },
+        { surface: 'collective-grouped-review', asset: { file: 'review.js', sha256: 'bbbb' }, markers: ['mount'] },
       ],
     }
     expect(provenanceForArm(record, 'collective-grouped-browse').asset.file).toBe('page.js')
-    expect(provenanceForArm(record, 'collective-grouped-contribute').asset.file).toBe('contribute.js')
-    expect(provenanceForArm(record, 'collective-grouped-contribute').markers).toEqual(['mount'])
+    expect(provenanceForArm(record, 'collective-grouped-review').asset.file).toBe('review.js')
+    expect(provenanceForArm(record, 'collective-grouped-review').markers).toEqual(['mount'])
     // an arm the record does not name has NO attribution — never another arm's
-    expect(provenanceForArm(record, 'collective-grouped-review')).toBeNull()
+    expect(provenanceForArm(record, 'collective-grouped-my-shares')).toBeNull()
   })
 
   it('normalizes only the font-family alias it names', () => {

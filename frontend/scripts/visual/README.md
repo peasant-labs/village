@@ -321,12 +321,9 @@ read hangs a saved helper group under its owner row:
   the server's saved helper group under the owner row it was grouped with, and
   the group expands to individually linked members. The browse list is
   read-only: it offers no per-member selection.
-- `collective-contribute` — `/collectives/{id}/contribute`. Expanding the group and
-  ticking ONE member arms the contribution bar with exactly one transcript, and
-  the SAME transcript's flat tree row reads checked: one identity, one selection.
-- `collective-review` — `/collectives/{id}/review`. The same explicit per-member
-  selection and the same one-identity rule on the owner's review queue; one tick
-  arms the decision bar.
+- `collective-review` — `/collectives/{id}/review`. Expanding the group and
+  ticking ONE member arms the decision bar with exactly one transcript, and the
+  SAME transcript's flat tree row reads checked: one identity, one selection.
 - `collective-my-shares` — `/collectives/{id}`. The "your contributions" panel keeps
   every contribution state it always stated (its count, its link, its pending
   badge and its unshare control) while the saved helper group the server grouped
@@ -336,15 +333,17 @@ read hangs a saved helper group under its owner row:
 Each arm asserts build provenance and capture geometry before writing a PNG:
 exactly one group, inside the owner row the server grouped it with, with no
 member request until the disclosure opens; the expanded group mounts
-individually linked members; and (on the two action surfaces) ticking one member
+individually linked members; and (on the review surface) ticking one member
 arms the route's own action — never a group id, never an unticked sibling. The
 computed helper-group count style is probed too, because a scaled PNG cannot
 tell the design system's square radius and mono chrome apart from close values.
 
 `mock-rest-grouped-collective.mjs` serves the collective routes, the opt-in
 grouped pages, the registered member endpoints (with the route's own row arm
-per scope), and `/auth/me` as the collective's owner, so the contribute and
-review surfaces both render their action bars. It refuses a busy port.
+per scope), and `/auth/me` as the collective's owner, so the review surface
+renders its action bar. It refuses a busy port. The contribute page reads the
+server's families rather than helper groups, so it is not an arm here; its
+captures come from `mock-rest.mjs`, which serves the paged contribute reads.
 
 The `collective-my-shares` arm's state is `MOCK_COLLECTIVE_MY_SHARES=1` — the
 signed-in owner's own contributions carry a saved helper group, so the panel's
@@ -352,21 +351,17 @@ grouped disclosure mounts under the contribution row the server grouped it
 with. Without that flag the panel serves no contributions and does not mount,
 which is what keeps every other arm's capture unchanged.
 
-Two capture states prove the grouped content no longer depends on the flat list:
+A capture state proves the grouped content no longer depends on the flat list:
 
 - `MOCK_COLLECTIVE_EMPTY_FLAT=1` — every flat list is empty while the grouped
-  pages still carry their saved helper groups. The arms
-  `collective-browse-empty-flat` and `collective-contribute-empty-flat` require
-  the grouped owner row and the helper-only context to mount WITHOUT the flat
-  list, and require the flat empty state NOT to replace them. The contribute arm
-  also ticks one disclosure member and requires the action bar to arm.
-- `MOCK_COLLECTIVE_LATER_PAGE=1` (with `MOCK_COLLECTIVE_EMPTY_FLAT=1`) — the
-  grouped reads page: a full first page of ordinary owners carrying no saved
-  helpers, then the grouped content on page two. The
-  `collective-contribute-later` arm requires the continuation to state the
-  server's remaining count, requires the later group to be absent until the
-  continuation is used, then requires it to mount exactly once when page two is
-  read.
+  pages still carry their saved helper groups. The `collective-browse-empty-flat`
+  arm requires the grouped owner row and the helper-only context to mount
+  WITHOUT the flat list, and requires the flat empty state NOT to replace them.
+
+The mock also serves `MOCK_COLLECTIVE_LATER_PAGE=1` (with
+`MOCK_COLLECTIVE_EMPTY_FLAT=1`): the grouped reads page, a full first page of
+ordinary owners carrying no saved helpers and then the grouped content on page
+two. No arm drives it at present.
 
 ```sh
 CHROME=/path/to/google-chrome
@@ -377,21 +372,9 @@ until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; do
 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm build
 PORT=3100 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm start &
 
-for surface in collective-browse-empty-flat collective-contribute-empty-flat; do
-  for theme in dark light; do
-    GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:3100 \
-      CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/$surface/$theme
-  done
-done
-
-# Restart the mock with the later page so page one carries no grouped content.
-kill %1; wait %1 2>/dev/null
-MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 MOCK_COLLECTIVE_LATER_PAGE=1 \
-  node scripts/visual/mock-rest-grouped-collective.mjs &
-until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
 for theme in dark light; do
-  GROUPED_SHOOT_SURFACE=collective-contribute-later VILLAGE_ORIGIN=http://localhost:3100 \
-    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/collective-contribute-later/$theme
+  GROUPED_SHOOT_SURFACE=collective-browse-empty-flat VILLAGE_ORIGIN=http://localhost:3100 \
+    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/collective-browse-empty-flat/$theme
 done
 ```
 
@@ -400,12 +383,12 @@ committed.
 
 ### Collective grouped surfaces — fairtrade demo left, village app right
 
-The four collective grouped arms (the group browse list, contribute, review, and
-the grouped "your contributions" panel) are judged against the **canonical
+The three collective grouped arms (the group browse list, review, and the
+grouped "your contributions" panel) are judged against the **canonical
 Fairtrade grouped-helper demonstration** rather than a demo collective surface:
 the in-use demo mounts no collective read of the grouped pages at all (its
-collective browse is a flat table, its contribute view is a flat project tree,
-its review queue is a flat `ModerationQueue`). What it does mount is
+collective browse is a flat table and its review queue is a flat
+`ModerationQueue`). What it does mount is
 `?app=commons&helpers=<case>#inuse`, the demonstration `HELPER-GROUPS.md` names,
 so that is the reference pane for every arm. `collective-sxs.mjs` carries the
 mapping, and each arm records what its pair can and cannot compare:
@@ -413,8 +396,7 @@ mapping, and each arm records what its pair can and cannot compare:
 | arm | demo reference (case · state) | what the pair compares |
 |---|---|---|
 | `collective-grouped-browse` | `three-independent-counts` · expanded | the owner anchor, the single indent step, the count chip and the individually linked members. Two limits, stated rather than implied: the browse list is read-only, so the demo's per-member checkboxes AND the connector they trace have no counterpart (the app crop carries no connector), and the app's owner row is the transcript list row it always was rather than the reference's generic owner row. |
-| `collective-grouped-contribute` | `three-independent-counts` · one member ticked | the per-member selection: the app arms its own bar (`contribute 1 transcript`) where the demo states the selected identity in its summary line. Both sides trace the canonical connector between their member checkboxes, which the harness asserts (`CONNECTOR_ARMS`); its absence fails the gate. |
-| `collective-grouped-review` | `trunk-replacement` · one member ticked | a tick names ONE identity, never a group: the reference group holds two members with the same title plus a third that differs, and the app states `1 selected` on its decision bar. As on contribute, both sides trace the canonical connector, asserted by `CONNECTOR_ARMS`. |
+| `collective-grouped-review` | `trunk-replacement` · one member ticked | a tick names ONE identity, never a group: the reference group holds two members with the same title plus a third that differs, and the app states `1 selected` on its decision bar. Both sides trace the canonical connector, asserted by `CONNECTOR_ARMS`. |
 | `collective-grouped-my-shares` | `ordinary-child-exit` · expanded | the host row keeps its own exits (the contribution link, pending state and unshare control) with the grouped disclosure hanging beneath it, which is what that reference example demonstrates. The panel's grouped read is display-only: its members are individually linked, with no per-member tick and no traced connector. |
 
 #### What the reference proof does and does not establish
@@ -445,7 +427,7 @@ The app side records its own proof in `grouped-helper-shoot.mjs`: the loaded
 bundle carrying the markers **that arm's own route must carry** — the
 `data-helper-group-owner` mount marker on every collective route, plus
 `my-contributions-panel` on the two arms whose route loads the contributions
-panel (the contribute and review routes do not load that chunk, so requiring it
+panel (the review route does not load that chunk, so requiring it
 there would refuse an attributable build) — together with that bundle's sha256,
 and a refusal when the served build changes between arms of one theme.
 
@@ -469,15 +451,15 @@ closed on everything else rather than lumping them into one allowance:
   checkbox, so no connector is drawn — the browse list and the contributions
   panel;
 - **asserted present** (`CONNECTOR_ARMS`/`connectorProblem`): the arms that DO
-  mount per-member checkboxes — contribute and review — must compose the
+  mount per-member checkboxes — review — must compose the
   design system's helper tree, which owns the traced connector. The connector is
   asserted POSITIVELY on both sides: a missing connector on either side of one of
   those arms aborts the stitch with an actionable reason, and the self-check pins
   the arm list by NAME, so it cannot silently stop being asserted;
 - **unexplained**, which fails the stitch closed.
 
-The measured wrap readings below are on the same artifacts: the contribute and
-review panels keep their closed chip label on ONE line at 248px and wrap their
+The measured wrap readings below are on the same artifacts: the review panel
+keeps its closed chip label on ONE line at 248px and wraps its
 facts line to two lines at 317px, where the reference reads one line at 248px and
 1302px respectively — measured per arm on both sides (`WRAP_ELEMENTS`), reported
 and never gated, because the two containers are legitimately different widths.
@@ -526,8 +508,8 @@ PORT=$APP_PORT NEXT_PUBLIC_API_URL=http://localhost:$MOCK_REST_PORT/api/v1 pnpm 
 # 2. the app shoot itself refuses unless a loaded bundle carries the markers its
 #    route must have and records that bundle's sha256; this loop is the same check
 #    by hand for the collective page (both markers), failing closed when no chunk
-#    carries them (a stale build, another worktree, or dev). The contribute and
-#    review routes load only the mount marker: check that one there.
+#    carries them (a stale build, another worktree, or dev). The review route
+#    loads only the mount marker: check that one there.
 curl -s "http://localhost:$APP_PORT/collectives/$GROUP" \
   | grep -oE 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | sort -u > /tmp/village-chunks.txt
 proven=0
@@ -549,7 +531,7 @@ done
 
 # 4. app subject, both themes
 for theme in dark light; do
-  for surface in collective-browse collective-contribute collective-review; do
+  for surface in collective-browse collective-review; do
     GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:$APP_PORT \
       CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/village/collective/$theme
   done

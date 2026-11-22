@@ -42,7 +42,8 @@
                                Captures: village-collective-contributions-child-*.
      contribute-tree           /collectives/{id}/contribute. The label is a bare
                                count here now; it read "+ N child sessions"
-                               before.
+                               before. The page lists projects closed, so the
+                               parent's project is opened first.
                                Captures: village-contribute-child-*.
 
    The three collective entries share one route. `collective-data` and
@@ -183,6 +184,7 @@ const SURFACES = {
   'contribute-tree': {
     path: `/collectives/${GROUP_ID}/contribute`,
     prefix: 'village-contribute-child',
+    openProject: 'section[aria-label="project peasant"] button[aria-expanded="false"]',
     mountSelector: '[data-parent-transcript-id="ct-parent"]',
     parentID: 'ct-parent',
     revealed: ['Read the tree builder', 'Swap the label onto the shared control'],
@@ -538,6 +540,17 @@ if (surface === 'collective-pending') {
 if (config.parentID) {
   const chipSelector = `[data-parent-transcript-id="${config.parentID}"]`
   const rowsSelector = `${chipSelector} [data-testid="child-session-disclosure-rows"]`
+
+  if (config.openProject) {
+    const toggle = await waitFor(config.openProject)
+    if (!toggle) {
+      await stop(2, `the ${surface} surface lists no closed project to open (${config.openProject} is absent).`,
+        'the served build does not read the project list, or the mock served no projects.',
+        'the capture would show no sessions at all.',
+        'start mock-rest-child-sessions.mjs, point NEXT_PUBLIC_API_URL at it, rebuild, and retry.')
+    }
+    await toggle.click()
+  }
 
   if (!(await waitFor(config.mountSelector))) {
     await stop(2, `the ${surface} surface never mounted (${config.mountSelector} is absent).`,

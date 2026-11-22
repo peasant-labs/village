@@ -3,8 +3,8 @@
    Close-value layouts (a single grid column vs. two) are indistinguishable in a
    scaled PNG, so this probe reads `getComputedStyle` directly at both sides of
    the page's 880px @container breakpoint and asserts the grid ACTUALLY
-   switches from a single implicit column to the two explicit
-   `minmax(20rem, 2fr) 3fr` columns, rather than trusting the screenshot alone.
+   switches from a single column to two, rather than trusting the screenshot
+   alone.
 
    usage:
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
@@ -34,7 +34,7 @@ async function readGrid(width) {
   await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
   await pause(900)
   return page.evaluate(() => {
-    const grid = document.querySelector('.cmg-root .grid')
+    const grid = document.querySelector('.on-contribute-columns')
     if (!grid) return null
     const style = getComputedStyle(grid)
     return {
@@ -52,7 +52,7 @@ console.log('narrow (700px):', JSON.stringify(narrow))
 console.log('wide (1000px):', JSON.stringify(wide))
 
 if (!narrow || !wide) {
-  console.error('ERROR [probe-contribute-narrow.mjs] the contribute grid never mounted (".cmg-root .grid" not found).')
+  console.error('ERROR [probe-contribute-narrow.mjs] the contribute grid never mounted (".on-contribute-columns" not found).')
   process.exit(1)
 }
 if (narrow.columnCount !== 1) {

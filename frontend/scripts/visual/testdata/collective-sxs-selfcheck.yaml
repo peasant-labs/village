@@ -12,7 +12,6 @@
 # REQUIRED_ARM_SURFACES in collective-sxs.mjs.
 requiredArms:
   - collective-grouped-browse
-  - collective-grouped-contribute
   - collective-grouped-review
   - collective-grouped-my-shares
 
@@ -155,7 +154,7 @@ styleCases:
     expectedMismatches: [trigger.borderRadius]
     expectedExceptions: []
   - name: an-unexplained-missing-element-fails
-    arm: collective-grouped-contribute
+    arm: collective-grouped-review
     subjectRemove: [facts]
     expectedMismatches: [facts.(element not mounted)]
     expectedExceptions: []
@@ -169,14 +168,9 @@ styleCases:
     subjectRemove: [facts]
     expectedMismatches: [facts.(element not mounted)]
     expectedExceptions: []
-  # The member-selecting arms mount per-member checkboxes, so their connector is
+  # The member-selecting arm mounts per-member checkboxes, so its connector is
   # asserted: dropping it on either side is an unexplained absence and fails the
   # stitch closed. There is no recorded-but-allowed category.
-  - name: the-connector-is-asserted-on-contribute
-    arm: collective-grouped-contribute
-    subjectRemove: [rail]
-    expectedMismatches: [rail.(element not mounted)]
-    expectedExceptions: []
   - name: the-connector-is-asserted-on-review
     arm: collective-grouped-review
     subjectRemove: [rail]
@@ -188,14 +182,13 @@ styleCases:
 # mount the canonical connector on both sides. A display-only arm is not in that
 # list and is never failed here; its absence is the STYLE_EXCEPTIONS case above.
 connectorArms:
-  - collective-grouped-contribute
   - collective-grouped-review
 connectorCases:
   - name: both-sides-mount-the-connector
-    arm: collective-grouped-contribute
+    arm: collective-grouped-review
     expected: null
   - name: the-subject-drops-the-connector
-    arm: collective-grouped-contribute
+    arm: collective-grouped-review
     subjectRemove: [rail]
     expected: is absent on the subject side
   - name: the-reference-drops-the-connector
@@ -213,15 +206,13 @@ connectorCases:
     expected: null
 
 # ── the markers each arm's OWN route bundle must carry ────────────────────────
-# The contribute and review routes do not load the contributions panel's chunk, so
+# The review route does not load the contributions panel's chunk, so
 # requiring the panel marker there would refuse an attributable build; the two
 # arms whose route does load it must require it. Pinned by name so a route that
 # starts (or stops) loading a chunk cannot silently weaken the check.
 armMarkers:
   - arm: collective-grouped-browse
     markers: [data-helper-group-owner, my-contributions-panel]
-  - arm: collective-grouped-contribute
-    markers: [data-helper-group-owner]
   - arm: collective-grouped-review
     markers: [data-helper-group-owner]
   - arm: collective-grouped-my-shares

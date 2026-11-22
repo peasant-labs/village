@@ -9,7 +9,8 @@
      collective repos view  the same response, read by repository
      pending-share queue    GET /collectives/{id}/pending
      your contributions     GET /collectives/{id}/my-shares
-     contribute tree        GET /collectives/{id}/contributable
+     contribute tree        GET /collectives/{id}/contributable/projects, then
+                            ?view=paged per project (the server's families)
 
    EVERY one of those datasets carries the same two cases, because the contrast
    is the evidence:
@@ -603,6 +604,48 @@ const contributable = {
   ],
 }
 
+/* The contribute page's paged reads, derived from the rows above the way the
+   server files them: a row whose starter is in the same response is a helper
+   of that family, and every other row is a family root of its own -- so the
+   row naming a starter nobody sent keeps its own ordinary place. */
+const contributableFamilies = (() => {
+  const rows = contributable.transcripts
+  const byLocal = new Map(rows.map((row) => [row.local_id, row]))
+  const roots = rows.filter((row) => !row.parent_session_id || !byLocal.has(row.parent_session_id))
+  return roots.map((root) => ({
+    root: { transcript: root },
+    helpers: rows
+      .filter((row) => row.parent_session_id === root.local_id)
+      .map((helper) => ({ transcript: helper, matched: true })),
+  }))
+})()
+
+const contributableProjects = () => {
+  const byProject = new Map()
+  for (const row of contributable.transcripts) {
+    const entry = byProject.get(row.project_hash) ?? {
+      project_hash: row.project_hash,
+      project_display_name: row.project_display_name,
+      project_name_source: row.project_name_source,
+      matching_count: 0,
+      selectable_count: 0,
+    }
+    entry.matching_count += 1
+    if (!row.already_shared) entry.selectable_count += 1
+    byProject.set(row.project_hash, entry)
+  }
+  const providers = new Map()
+  for (const row of contributable.transcripts) providers.set(row.model_provider, (providers.get(row.model_provider) ?? 0) + 1)
+  const projects = [...byProject.values()]
+  return {
+    has_more: false,
+    matching_total: contributable.transcripts.length,
+    selectable_total: projects.reduce((sum, entry) => sum + entry.selectable_count, 0),
+    providers: [...providers].map(([provider, count]) => ({ provider, count })),
+    projects,
+  }
+}
+
 const contributions = [
   {
     id: GROUP_ID,
@@ -651,7 +694,15 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/transcripts`) {
     return send(res, 200, { transcripts: withResolvedParents(groupTranscripts) })
   }
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable`) return send(res, 200, contributable)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable/projects`) return send(res, 200, contributableProjects())
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable` && url.searchParams.get('view') === 'paged') {
+    const projectHash = url.searchParams.get('project_hash')
+    return send(res, 200, {
+      group_id: GROUP_ID,
+      has_more: false,
+      items: contributableFamilies.filter((family) => family.root.transcript.project_hash === projectHash),
+    })
+  }
   // No repository is linked here. Answered rather than refused, so the panel
   // renders its own empty state instead of a failure the capture would have to
   // explain away.
