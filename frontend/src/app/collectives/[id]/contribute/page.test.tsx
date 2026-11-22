@@ -33,6 +33,11 @@ interface ProjectToken {
 
 type SnapshotToken = string[] | { status: number; code: string };
 
+type SubmitAnswer =
+  | "hold"
+  | { shared: Record<string, string>; already?: string[] }
+  | { status: number; code?: string; details?: { code: string; id?: string }[] };
+
 interface PageCase {
   name: string;
   projects: ProjectToken[];
@@ -40,6 +45,7 @@ interface PageCase {
   families?: Record<string, FamilyToken[]>;
   snapshot?: Record<string, SnapshotToken>;
   picker_failures?: number[];
+  submit_answers?: SubmitAnswer[];
   expect: Record<string, unknown>;
 }
 
@@ -60,6 +66,9 @@ const REQUIRED_CASES = [
   "a-search-without-matches-says-so",
   "the-project-list-failing-offers-a-retry",
   "nothing-to-contribute-says-so",
+  "the-receipt-counts-every-bucket-and-a-retry-sends-the-failures",
+  "stopping-a-run-leaves-the-rest-unattempted",
+  "a-session-that-turned-private-is-asked-about-again",
 ];
 
 {
@@ -128,7 +137,7 @@ const json = (body: unknown, status = 200) =>
 /**
  * Stubs `fetch` for the real mounted route with the library the case
  * describes: the project list (by search text), each project's paged read,
- * each project's snapshot, and the batch-share POST. Every request is
+ * each project's snapshot, and the selection write. Every request is
  * recorded, so a test asserts what was asked for, not only how often.
  */
 function installLibrary(testCase: PageCase): RecordedRequest[] {
@@ -138,6 +147,7 @@ function installLibrary(testCase: PageCase): RecordedRequest[] {
     for (const family of families) for (const session of [family.root, ...(family.helpers ?? [])]) sessions.set(session.id, session);
   }
   const pickerFailures = [...(testCase.picker_failures ?? [])];
+  const submitAnswers = [...(testCase.submit_answers ?? [])];
   const base = `/collectives/${GROUP_ID}`;
 
   vi.stubGlobal(
@@ -205,11 +215,32 @@ function installLibrary(testCase: PageCase): RecordedRequest[] {
           your_role: "member",
         });
       }
-      if (path.endsWith(`${base}/shares`) && method === "POST") {
+      if (path.endsWith(`${base}/shares/selection`) && method === "POST") {
+        const answer = submitAnswers.shift();
+        if (answer === "hold") {
+          return new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          });
+        }
+        if (answer && "status" in answer) {
+          return json(
+            {
+              error: "the selection was refused",
+              ...(answer.code ? { code: answer.code } : {}),
+              ...(answer.details
+                ? { details: answer.details.map((d) => ({ code: d.code, ...(d.id ? { transcript_id: transcriptIdOf(d.id) } : {}) })) }
+                : {}),
+            },
+            answer.status,
+          );
+        }
+        const shared = answer
+          ? Object.entries(answer.shared).map(([id, status]) => ({ transcript_id: transcriptIdOf(id), status }))
+          : (body.transcript_ids as string[]).map((id) => ({ transcript_id: id, status: "approved" }));
         return json({
           project_hash: body.project_hash,
-          shared: (body.transcript_ids as string[]).map((id) => ({ transcript_id: id, status: "approved" })),
-          already_shared: [],
+          shared,
+          already_shared: (answer?.already ?? []).map(transcriptIdOf),
         });
       }
       throw new Error(`paged contribute fixture received an unexpected ${method} request to ${url.toString()}`);
@@ -240,8 +271,26 @@ const checkboxOf = (row: HTMLElement) => row.querySelector<HTMLInputElement>('in
 const pagedReads = (requests: RecordedRequest[]) => requests.filter((r) => r.params.get("view") === "paged");
 const shareBodies = (requests: RecordedRequest[]) =>
   requests
-    .filter((r) => r.path.endsWith("/shares"))
-    .map((r) => r.body as { project_hash: string; transcript_ids: string[]; visibility_confirmed: boolean });
+    .filter((r) => r.path.endsWith("/shares/selection"))
+    .map((r) => r.body as { project_hash: string; transcript_ids: string[]; private_approvals: string[] });
+/** The receipt's count line, one bucket per item. */
+const receiptText = () =>
+  within(within(screen.getByTestId("contribute-run-receipt")).getByRole("list", { name: "contribution receipt" }))
+    .getAllByRole("button")
+    .map(textOf)
+    .join(" · ");
+async function openBucket(testId: string): Promise<HTMLElement> {
+  const bucket = screen.getByTestId(testId);
+  act(() => {
+    fireEvent.click(within(bucket).getByRole("button"));
+  });
+  return within(bucket).getByRole("list");
+}
+function expectRequest(body: { project_hash: string; transcript_ids: string[]; private_approvals: string[] }, expected: { project: string; ids: string[]; private_approvals?: string[] }) {
+  expect(body.project_hash).toBe(projectHashOf(expected.project));
+  expect(body.transcript_ids).toEqual(expected.ids.map(transcriptIdOf).sort());
+  expect(body.private_approvals).toEqual((expected.private_approvals ?? []).map(transcriptIdOf));
+}
 
 async function openSection(project: string) {
   await waitFor(() => expect(section(project)).toBeInTheDocument());
@@ -360,7 +409,7 @@ describe("the paged contribute route", () => {
     const c = caseNamed("a-private-selection-opens-the-consent-dialog");
     const requests = installLibrary(c);
     await renderRoute();
-    const expected = c.expect.request as { project: string; ids: string[]; visibility_confirmed: boolean };
+    const expected = c.expect.request as { project: string; ids: string[]; private_approvals: string[] };
 
     await openSection(expected.project);
     await waitFor(() => expect(sessionRow(c.expect.tick as string)).toBeInTheDocument());
@@ -382,11 +431,7 @@ describe("the paged contribute route", () => {
       fireEvent.click(screen.getByRole("button", { name: /contribute & make visible/i }));
     });
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(1));
-    expect(shareBodies(requests)[0]).toEqual({
-      project_hash: projectHashOf(expected.project),
-      transcript_ids: expected.ids.map(transcriptIdOf),
-      visibility_confirmed: expected.visibility_confirmed,
-    });
+    expectRequest(shareBodies(requests)[0], expected);
   });
 
   it("a-helper-in-another-project-is-submitted-under-its-own-project", async () => {
@@ -530,5 +575,96 @@ describe("the paged contribute route", () => {
     expect(await screen.findByText(c.expect.title as string)).toBeInTheDocument();
     expect(screen.queryByTestId("contribute-selection-tally")).toBeNull();
     expect(screen.getByRole("button", { name: /contribute 0 transcripts/ })).toBeDisabled();
+  });
+
+  it("the-receipt-counts-every-bucket-and-a-retry-sends-the-failures", async () => {
+    const c = caseNamed("the-receipt-counts-every-bucket-and-a-retry-sends-the-failures");
+    const requests = installLibrary(c);
+    await renderRoute();
+
+    await selectAll("pA");
+    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 3 transcripts/ })).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /contribute 3 transcripts/ }));
+    });
+    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    expect(receiptText()).toBe(c.expect.receipt);
+    expect(textOf(await openBucket("contribute-receipt-contributed"))).toBe(c.expect.contributed_named);
+    expect(textOf(await openBucket("contribute-receipt-failed"))).toBe(c.expect.failed_named);
+    // The retryable failure stays selected; what the run settled leaves.
+    expect(tallyText()).toBe(c.expect.tally_after_run);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: c.expect.retry as string }));
+    });
+    await waitFor(() => expect(shareBodies(requests)).toHaveLength(2));
+    expectRequest(shareBodies(requests)[1], c.expect.retry_request as { project: string; ids: string[] });
+    await waitFor(() => expect(receiptText()).toBe(c.expect.receipt_after_retry));
+  });
+
+  it("stopping-a-run-leaves-the-rest-unattempted", async () => {
+    const c = caseNamed("stopping-a-run-leaves-the-rest-unattempted");
+    const requests = installLibrary(c);
+    await renderRoute();
+
+    await selectAll("pA");
+    await selectAll("pB");
+    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 2 transcripts/ })).toBeEnabled());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+    });
+    expect(await screen.findByTestId("contribute-run-progress")).toBeInTheDocument();
+    await waitFor(() => expect(shareBodies(requests)).toHaveLength(1));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "stop" }));
+    });
+    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    expect(receiptText()).toBe(c.expect.receipt);
+    expect(textOf(screen.getByTestId("contribute-receipt-stopped"))).toBe(c.expect.stopped);
+    expect(tallyText()).toBe(c.expect.tally_after_stop);
+    // Nothing is sent after the stop.
+    expect(shareBodies(requests)).toHaveLength(1);
+  });
+
+  it.each(["approve", "decline"] as const)("a-session-that-turned-private-is-asked-about-again (%s)", async (answer) => {
+    const c = caseNamed("a-session-that-turned-private-is-asked-about-again");
+    const outcome = c.expect[answer] as {
+      resent: { project: string; ids: string[]; private_approvals: string[] };
+      receipt: string;
+      failed_named?: string;
+      tally_after_run?: string;
+    };
+    const requests = installLibrary(c);
+    await renderRoute();
+
+    await selectAll("pA");
+    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 2 transcripts/ })).toBeEnabled());
+    // Every session was public when selected, so the run starts without asking.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+    });
+    expect(await screen.findByText(new RegExp(c.expect.dialog as string))).toBeInTheDocument();
+    expect(shareBodies(requests)).toHaveLength(1);
+
+    if (answer === "approve") {
+      act(() => {
+        fireEvent.click(screen.getByRole("checkbox", { name: /i understand and consent/i }));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /contribute & make visible/i }));
+      });
+    } else {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+      });
+    }
+    await waitFor(() => expect(shareBodies(requests)).toHaveLength(2));
+    expectRequest(shareBodies(requests)[1], outcome.resent);
+    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    expect(receiptText()).toBe(outcome.receipt);
+    if (outcome.failed_named) expect(textOf(await openBucket("contribute-receipt-failed"))).toBe(outcome.failed_named);
+    if (outcome.tally_after_run) expect(tallyText()).toBe(outcome.tally_after_run);
+    // A declined session is not a failure a retry can fix.
+    expect(screen.queryByRole("button", { name: /^retry / })).toBeNull();
   });
 });

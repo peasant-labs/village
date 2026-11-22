@@ -16,7 +16,9 @@
 
    env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`), MOCK_TITLE_HERO_DIAGNOSTIC
    (default off; set `1` for the title-hero + breadcrumb evidence case — see below), MOCK_ROLE
-   (`owner` | `member`, default `owner`). Runs until killed.
+   (`owner` | `member`, default `owner`), MOCK_SELECTION_ANSWER (`approved` | `mixed`, default
+   `approved`: how the contribute page's selection write answers, see its handler). Runs until
+   killed.
 
    MOCK_ROLE decides what the signed-in viewer is IN THE COLLECTIVE, so a capture can show either
    header-action path. It rewrites every role-derived field of the group payload together — the
@@ -81,6 +83,12 @@ const groupId = process.env.MOCK_GROUP_ID || '9a11e000-0000-4000-8000-0000000000
 // typo that would otherwise be captured as a silently different surface.
 const VIEWER_ROLES = ['owner', 'member']
 const viewerRole = process.env.MOCK_ROLE || 'owner'
+const SELECTION_ANSWER = process.env.MOCK_SELECTION_ANSWER || 'approved'
+let selectionAnswered = false
+if (SELECTION_ANSWER !== 'approved' && SELECTION_ANSWER !== 'mixed') {
+  console.error(`ERROR [mock-rest.mjs] MOCK_SELECTION_ANSWER must be "approved" or "mixed", got "${SELECTION_ANSWER}".`)
+  process.exit(1)
+}
 if (!VIEWER_ROLES.includes(viewerRole)) {
   console.error(
     `ERROR [mock-rest.mjs] MOCK_ROLE="${viewerRole}" is not a role this mock can serve. ` +
@@ -1024,6 +1032,36 @@ const server = createServer((req, res) => {
         send(res, 200, {
           project_hash,
           shared: (transcript_ids || []).map((id) => ({ transcript_id: id, status: 'approved' })),
+          already_shared: [],
+        })
+      }, 1200)
+    })
+    return
+  }
+  if (req.method === 'POST' && p === `/collectives/${groupId}/shares/selection`) {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      const { project_hash, transcript_ids = [] } = JSON.parse(body || '{}')
+      // The same in-flight window as the project write above, so the
+      // progress bar and its stop control can be captured mid-run.
+      setTimeout(() => {
+        // MOCK_SELECTION_ANSWER=mixed answers the run's first request with one
+        // of each outcome: the first session contributed and awaiting
+        // approval, the second already contributed, the rest left unnamed (so
+        // the page reports them unconfirmed and offers a retry). Every later
+        // request, the retry included, contributes everything it sends.
+        if (SELECTION_ANSWER === 'mixed' && !selectionAnswered) {
+          selectionAnswered = true
+          return send(res, 200, {
+            project_hash,
+            shared: transcript_ids.slice(0, 1).map((id) => ({ transcript_id: id, status: 'pending' })),
+            already_shared: transcript_ids.slice(1, 2),
+          })
+        }
+        send(res, 200, {
+          project_hash,
+          shared: transcript_ids.map((id) => ({ transcript_id: id, status: 'approved' })),
           already_shared: [],
         })
       }, 1200)
