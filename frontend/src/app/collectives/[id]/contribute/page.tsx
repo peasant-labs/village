@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { FileText, Lock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,21 +8,32 @@ import { useAuth } from "@/providers/AuthProvider";
 import { loginHref } from "@/lib/signIn";
 import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import { useGroup } from "@/lib/queries/groups";
-import { useContributeRun, partitionRunOutcome } from "@/lib/queries/groupShares";
+import { useContributionRun } from "@/lib/queries/contributionSubmit";
+import { isRetryableFailure, privateRecords, type PrivateApproval } from "@/lib/contribute/chunkedSubmit";
 import { useContributionProjects, type ContributionFilters } from "@/lib/queries/contributionReads";
 import {
-  bySubmissionProject,
   deselectIds,
   EMPTY_SELECTION,
   withoutLive,
   type FrozenSelection,
   type LoadedRow,
+  type SelectedRecord,
 } from "@/lib/contribute/frozenSelection";
 import PagedContributeTree, { type SelectionUpdate } from "@/components/contribute/PagedContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
+import ContributionReceipt from "@/components/contribute/ContributionReceipt";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button, Input, Select } from "@/lib/ft-ui";
 import RequestFailureState from "@/components/RequestFailureState";
+
+/**
+ * The consent step. Before a run it lists every private session of the
+ * selection; during a run it lists the sessions that turned private after
+ * they were selected, and its answer settles the run's question.
+ */
+type ConsentStep =
+  | { kind: "before_run"; selection: FrozenSelection; records: SelectedRecord[] }
+  | { kind: "during_run"; records: SelectedRecord[] };
 
 /** How long the search waits after the last keystroke before it reads. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -49,7 +60,8 @@ export default function GroupContributePage({
   const queryClient = useQueryClient();
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
-  const run = useContributeRun(id);
+  const run = useContributionRun(id);
+  const running = run.state.phase === "running";
 
   const [searchText, setSearchText] = useState("");
   const [query, setQuery] = useState("");
@@ -68,7 +80,10 @@ export default function GroupContributePage({
   const [rawSelection, setSelection] = useState<FrozenSelection>(EMPTY_SELECTION);
   const updateSelection = useCallback<SelectionUpdate>((update) => setSelection(update), []);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [consent, setConsent] = useState<ConsentStep | null>(null);
+  // The run's open question about sessions that turned private, answered by
+  // the consent step.
+  const pendingApproval = useRef<((answer: PrivateApproval) => void) | null>(null);
 
   // Every row an open project has loaded, by project. A row loaded once stays
   // known after its section closes, so its project can still be named.
@@ -82,7 +97,7 @@ export default function GroupContributePage({
   // elsewhere or by a run still in flight. It no longer counts as selected,
   // and the page says so until the person dismisses the notice.
   const { selection, becameLive } = useMemo(() => withoutLive(rawSelection, loadedFlat), [rawSelection, loadedFlat]);
-  const contributedMeanwhile = run.state.running ? 0 : becameLive.length;
+  const contributedMeanwhile = running ? 0 : becameLive.length;
 
   const yourRole = group?.your_role;
   const isMember = yourRole === "contributor" || yourRole === "member" || yourRole === "owner";
@@ -157,30 +172,46 @@ export default function GroupContributePage({
     );
   }
 
-  async function startRun(visibilityConfirmed: boolean) {
-    // One submission per project the sessions are filed under, each naming
-    // its sessions explicitly.
-    const batches = new Map(
-      [...bySubmissionProject(selection)].map(([projectHash, records]) => [projectHash, records.map((record) => record.id)]),
-    );
-    if (batches.size === 0) return;
-    const results = await run.run(batches, visibilityConfirmed);
-    const { clearedIds } = partitionRunOutcome(batches, results);
-    setSelection((previous) => deselectIds(previous, clearedIds));
-    setConfirmOpen(false);
+  const approvePrivate = (records: SelectedRecord[]) =>
+    new Promise<PrivateApproval>((resolve) => {
+      pendingApproval.current = resolve;
+      setConsent({ kind: "during_run", records });
+    });
+
+  function answerApproval(answer: PrivateApproval) {
+    pendingApproval.current?.(answer);
+    pendingApproval.current = null;
+    setConsent(null);
   }
 
-  const privateSelected = [...selection.values()]
-    .filter((record) => record.visibility === "private")
-    .map((record) => ({ id: record.id, title: record.title ?? "untitled session" }));
+  async function startRun(runSelection: FrozenSelection, approved: ReadonlySet<string>) {
+    setConsent(null);
+    const receipt = await run.start({ selection: runSelection, approved, approvePrivate });
+    if (!receipt) return;
+    // What the run settled leaves the selection. A failure a retry can fix
+    // stays, and so does every session the run never reached.
+    const settled = [
+      ...receipt.contributed.map(({ record }) => record.id),
+      ...receipt.already.map((record) => record.id),
+      ...receipt.failed.filter((failure) => !isRetryableFailure(failure.reason)).map((failure) => failure.record.id),
+    ];
+    setSelection((previous) => deselectIds(previous, settled));
+  }
 
-  function handleContributeClick() {
-    if (selectedCount === 0) return;
-    if (privateSelected.length > 0) {
-      setConfirmOpen(true);
+  /** Consent is asked once per run, up front, for every private session the
+   *  run would make visible, including ones the page never loaded. */
+  function contribute(runSelection: FrozenSelection) {
+    if (runSelection.size === 0 || running) return;
+    const records = privateRecords(runSelection);
+    if (records.length > 0) {
+      setConsent({ kind: "before_run", selection: runSelection, records });
       return;
     }
-    void startRun(false);
+    void startRun(runSelection, new Set());
+  }
+
+  function retry(records: SelectedRecord[]) {
+    contribute(new Map(records.map((record) => [record.id, record])));
   }
 
   const pickerFailure = picker.failure && picker.failure.kind !== "cancelled" ? picker.failure : null;
@@ -344,44 +375,53 @@ export default function GroupContributePage({
 
       <div className="on-contribute-footer">
         <div className="on-contribute-footer-inner">
-        <div className="flex flex-col gap-1 min-w-0">
+        {/* The status side takes the free width, so an open receipt grows
+            downward and the contribute button holds its place. */}
+        <div className="flex min-w-0 flex-[1_1_20rem] flex-col gap-1">
           <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
-          {run.state.running && (
-            <div
-              className="w-64 max-w-full h-1 bg-rule overflow-hidden"
-              role="progressbar"
-              aria-label="contribution progress"
-              aria-valuemin={0}
-              aria-valuemax={run.state.total}
-              aria-valuenow={run.state.done}
-              data-testid="contribute-run-progress"
-            >
+          {run.state.phase === "running" && (
+            <div className="flex items-center gap-3">
               <div
-                className="h-full bg-mark transition-[width]"
-                style={{ width: `${run.state.total === 0 ? 0 : (run.state.done / run.state.total) * 100}%` }}
-              />
+                className="w-64 max-w-full h-1 bg-rule overflow-hidden"
+                role="progressbar"
+                aria-label="contribution progress"
+                aria-valuemin={0}
+                aria-valuemax={run.state.progress?.total ?? selectedCount}
+                aria-valuenow={run.state.progress?.settled ?? 0}
+                data-testid="contribute-run-progress"
+              >
+                <div
+                  className="h-full bg-mark transition-[width]"
+                  style={{
+                    width: `${run.state.progress && run.state.progress.total > 0 ? (run.state.progress.settled / run.state.progress.total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              {run.state.progress && (
+                <span className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums">
+                  {run.state.progress.settled} of {run.state.progress.total}
+                </span>
+              )}
+              <Button size="sm" variant="ghost" onClick={run.cancel}>
+                stop
+              </Button>
             </div>
           )}
-          {!run.state.running && run.state.results.size > 0 && (
-            <ul className="flex flex-col gap-1 text-[length:var(--fs-body)] text-ink-3" data-testid="contribute-run-receipt">
-              {[...run.state.results.entries()].map(([projectHash, outcome]) => (
-                <li key={projectHash} className="tabular-nums">
-                  <span className="normal-case">{projectLabelByHash.get(projectHash) ?? "a project"}</span>:{" "}
-                  {"shared" in outcome
-                    ? `${outcome.shared.length} shared, ${outcome.already_shared.length} already shared`
-                    : outcome.message}
-                </li>
-              ))}
-            </ul>
+          {run.state.phase === "done" && (
+            <ContributionReceipt
+              receipt={run.state.receipt}
+              projectLabel={(hash) => projectLabelByHash.get(hash)}
+              onRetry={retry}
+            />
           )}
         </div>
         <Button
           variant="primary"
-          loading={run.state.running}
-          disabled={selectedCount === 0 || run.state.running}
-          onClick={handleContributeClick}
+          loading={running}
+          disabled={selectedCount === 0 || running}
+          onClick={() => contribute(selection)}
         >
-          {run.state.running ? "sharing…" : `contribute ${plural(selectedCount, "transcript")}`}
+          {running ? "contributing…" : `contribute ${plural(selectedCount, "transcript")}`}
         </Button>
         </div>
       </div>
@@ -389,10 +429,13 @@ export default function GroupContributePage({
     </OnPage>
 
       <ConfirmContributeDialog
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => startRun(true)}
-        transcripts={privateSelected}
+        open={consent !== null}
+        onClose={() => (consent?.kind === "during_run" ? answerApproval("decline") : setConsent(null))}
+        onConfirm={() => {
+          if (consent?.kind === "during_run") answerApproval("approve");
+          else if (consent) void startRun(consent.selection, new Set(consent.records.map((record) => record.id)));
+        }}
+        transcripts={(consent?.records ?? []).map((record) => ({ id: record.id, title: record.title ?? "untitled session" }))}
         collectives={[
           {
             id: group.group.id,
@@ -400,7 +443,6 @@ export default function GroupContributePage({
             memberCount: group.members.length,
           },
         ]}
-        isSubmitting={run.state.running}
       />
     </>
   );

@@ -13,6 +13,15 @@
 #              or { status, code } for a refusal.
 #   picker_failures: statuses the project list answers with, in order, before
 #              it succeeds.
+#   submit_answers: what the selection write answers, request by request. Past
+#              the end of the list, every sent session is contributed as
+#              approved. An answer is one of:
+#                hold                             never answers; only the run's
+#                                                 stop ends it
+#                { shared: { t1: pending }, already: [t2] }
+#                                                 a 200 naming those sessions
+#                { status, code?, details? }      a refusal; a detail is
+#                                                 { code, id? }
 #
 # Ids are "t<n>" and projects "p<X>" tokens. Sessions default to the branch
 # "main", the visibility "public", and the title "session <n>". "expect"
@@ -97,7 +106,7 @@ cases:
       request:
         project: pA
         ids: [t1]
-        visibility_confirmed: true
+        private_approvals: [t1]
 
   - name: a-helper-in-another-project-is-submitted-under-its-own-project
     projects:
@@ -173,3 +182,73 @@ cases:
     projects: []
     expect:
       title: no transcripts to contribute
+
+  - name: the-receipt-counts-every-bucket-and-a-retry-sends-the-failures
+    projects:
+      - { project: pA, matching: 3, selectable: 3 }
+    families:
+      pA:
+        - root: { id: t1, project: pA }
+        - root: { id: t2, project: pA }
+        - root: { id: t3, project: pA }
+    snapshot:
+      pA: [t1, t2, t3]
+    submit_answers:
+      - { shared: { t1: pending }, already: [t2] }
+    expect:
+      receipt: 1 contributed · 1 already contributed · 1 not contributed
+      contributed_named: session 1 · awaiting approval
+      failed_named: "session 3: the server did not confirm it; retry"
+      retry: retry 1 failed
+      tally_after_run: 1 selected · 3 selectable sessions
+      retry_request:
+        project: pA
+        ids: [t3]
+      receipt_after_retry: 1 contributed
+
+  - name: stopping-a-run-leaves-the-rest-unattempted
+    projects:
+      - { project: pA, matching: 1, selectable: 1 }
+      - { project: pB, matching: 1, selectable: 1 }
+    snapshot:
+      pA: [t1]
+      pB: [t2]
+    families:
+      pA:
+        - root: { id: t1, project: pA }
+      pB:
+        - root: { id: t2, project: pB }
+    submit_answers:
+      - hold
+    expect:
+      receipt: 2 not attempted
+      stopped: you stopped the run. 2 sessions stay selected.
+      tally_after_stop: 2 selected · 2 selectable sessions
+
+  - name: a-session-that-turned-private-is-asked-about-again
+    projects:
+      - { project: pA, matching: 2, selectable: 2 }
+    families:
+      pA:
+        - root: { id: t1, project: pA }
+        - root: { id: t2, project: pA }
+    snapshot:
+      pA: [t1, t2]
+    submit_answers:
+      - { status: 409, details: [{ code: private_unapproved, id: t1 }] }
+    expect:
+      dialog: make 1 transcript visible
+      approve:
+        resent:
+          project: pA
+          ids: [t1, t2]
+          private_approvals: [t1]
+        receipt: 2 contributed
+      decline:
+        resent:
+          project: pA
+          ids: [t2]
+          private_approvals: []
+        receipt: 1 contributed · 1 not contributed
+        failed_named: "session 1: private, and you kept it private"
+        tally_after_run: 0 selected · 2 selectable sessions
