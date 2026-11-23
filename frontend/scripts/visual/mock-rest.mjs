@@ -172,6 +172,7 @@ const groupDetail = {
       diagnostics_warnings: [],
       diagnostics_partial: false,
       owner: profile('member-1', 'alice-dev', 'Alice Developer'),
+      pull_requests: { count: 0, recent: [] },
     },
     {
       id: 'gt-2',
@@ -213,6 +214,7 @@ const groupDetail = {
       diagnostics_warnings: [],
       diagnostics_partial: false,
       owner: profile('member-2', 'bob-ai', 'Bob AI'),
+      pull_requests: { count: 0, recent: [] },
     },
   ],
   stats: {
