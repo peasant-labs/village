@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
@@ -18,7 +19,9 @@ import (
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/village/backend/internal/backfill"
 	"github.com/peasant-labs/village/backend/internal/config"
+	"github.com/peasant-labs/village/backend/internal/contentrepair"
 	"github.com/peasant-labs/village/backend/internal/database"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/handler"
 	"github.com/peasant-labs/village/backend/internal/router"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -74,8 +77,15 @@ func run(ctx context.Context, args []string) error {
 	if err = pool.Ping(connectCtx); err != nil {
 		return fmt.Errorf("runtime startup failed because PostgreSQL did not answer in run before migration; no job or listener started; restore database connectivity and retry: %w", err)
 	}
-	if err = database.RunMigrations(pool); err != nil {
-		return fmt.Errorf("runtime startup failed because database migration failed in run before mode dispatch; no job or listener started; repair the migration precondition and retry: %w", err)
+	// Repair must never create its own audit destination. A missing ledger or
+	// state migration is a precondition failure, not permission to migrate
+	// immediately before an operator action.
+	// The paged-read check is read-only and is run against a deployed
+	// database, so it applies no migration either.
+	if selection.Mode() != runtimeModeContentRepair && selection.Mode() != runtimeModePagedReadCheck {
+		if err = database.RunMigrations(pool); err != nil {
+			return fmt.Errorf("runtime startup failed because database migration failed in run before mode dispatch; no job or listener started; repair the migration precondition and retry: %w", err)
+		}
 	}
 	if selection.Mode() == runtimeModeMigrateOnly {
 		return nil
@@ -84,6 +94,9 @@ func run(ctx context.Context, args []string) error {
 		// Handled here, beside migrate-only, so it never constructs blob storage
 		// or a key authority it has no use for.
 		return reportShareStateConsistency(ctx, pool)
+	}
+	if selection.Mode() == runtimeModePagedReadCheck && !selection.PagedReadCheckOptions().Mode.ReadsContent() {
+		return handler.RunPagedReadCensus(ctx, pool, os.Stdout)
 	}
 	titles, err := constructTitlePipeline()
 	if err != nil {
@@ -138,6 +151,10 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 		return nil
 	case runtimeModeSeedCore, runtimeModeSeedPrivacy:
 		return runSeedWithCreator(ctx, selection.Mode(), pool, blobs, handler.NewWithTitlePipeline(cfg, pool, blobs, titles))
+	case runtimeModeContentRepair:
+		return runContentRepair(ctx, os.Stdout, pool, blobs, selection.RepairOptions())
+	case runtimeModePagedReadCheck:
+		return handler.NewWithTitlePipeline(cfg, pool, blobs, titles).RunPagedReadCheck(ctx, os.Stdout, selection.PagedReadCheckOptions())
 	case runtimeModeServe:
 		logTranscriptEncryptionAuthorityReady(keyring)
 		evaluateAndLogPreservationProofs()
@@ -145,6 +162,50 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 	default:
 		return errors.New("runtime dispatch failed because parsed mode is unknown in run after authority loading; no job or listener started; use a documented mode")
 	}
+}
+
+// runContentRepair runs one operator content repair and reports its outcome as
+// stable key=value lines on w. An applied repair exits zero. A refusal prints
+// the same keys and then fails, so a script or an operator cannot mistake it
+// for a repair.
+func runContentRepair(ctx context.Context, w io.Writer, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, opts contentrepair.Options) error {
+	deps := contentrepair.Deps{Pool: pool, Queries: sqlc.New(pool), Blobs: blobs, Now: time.Now}
+	var outcome contentrepair.Outcome
+	var err error
+	switch opts.Action {
+	case contentrepair.ClearMalformedIdentity:
+		outcome, err = contentrepair.Clear(ctx, deps, opts)
+	case contentrepair.DeclareUnavailable:
+		outcome, err = contentrepair.Declare(ctx, deps, opts)
+	case contentrepair.ReplaceThirdValue:
+		outcome, err = contentrepair.ReplaceThird(ctx, deps, opts)
+	case contentrepair.RestoreAttestedGeneration:
+		outcome, err = contentrepair.Restore(ctx, deps, opts)
+	default:
+		return fmt.Errorf("operator content repair refused action %q in runContentRepair before any database or storage access; no repair was attempted; select one of the documented repair actions", opts.Action)
+	}
+	return reportContentRepair(w, opts, outcome, err)
+}
+
+// reportContentRepair prints the keys of a finished repair and returns the
+// error the run ends with. A transcript deleted mid-repair prints
+// outcome=transcript_deleted without a phase or failure class, because no
+// ledger row exists for it, and still fails.
+func reportContentRepair(w io.Writer, opts contentrepair.Options, outcome contentrepair.Outcome, err error) error {
+	if errors.Is(err, contentrepair.ErrTranscriptDeleted) {
+		fmt.Fprintf(w, "repair_id=%s\ntranscript_id=%s\naction=%s\noutcome=transcript_deleted\n", opts.RepairID, opts.TranscriptID, opts.Action)
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "repair_id=%s\ntranscript_id=%s\naction=%s\nphase=%s\ncontent_revision=%d\n",
+		outcome.RepairID, outcome.TranscriptID, outcome.Action, outcome.Phase, outcome.ContentRevision)
+	if outcome.Phase == contentrepair.Refused {
+		fmt.Fprintf(w, "failure_class=%s\n", outcome.FailureClass)
+		return fmt.Errorf("operator content repair was refused with %s in runContentRepair; the transcript is unchanged and the refusal is recorded under repair ID %s; read the Operator content repair runbook for this failure class", outcome.FailureClass, outcome.RepairID)
+	}
+	return nil
 }
 
 func logTranscriptEncryptionAuthorityReady(keyring *config.TranscriptKeyring) {

@@ -1,8 +1,11 @@
 "use client";
 
+import { VillageCollectiveViewerRole, VillageShareStatus } from "@peasant-labs/schema";
+
 import { use, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
+import { TranscriptReadMode, useSegmentedReadCapability } from "@/lib/queries/segmentedReadCapability";
 import { useGroup, useGroups } from "@/lib/queries/groups";
 import { CONTEXT_PARAM, inferTranscriptContext, parseTranscriptContext, withTranscriptContext } from "@/lib/transcriptContext";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
@@ -33,8 +36,17 @@ export default function TranscriptDetailPage({
   const metadata = useTranscript(id);
   const { data, isLoading, error: metadataError } = metadata;
   const [retryingMetadata, setRetryingMetadata] = useState(false);
+  // The reader is chosen once, before either mounts: the positioned reader
+  // when the server advertises it, otherwise the whole document. A failure of
+  // the positioned reader after it mounts is shown there, never answered by
+  // reading the whole document instead.
+  const capability = useSegmentedReadCapability();
+  const readMode = capability.data;
   const { data: contentRead, isLoading: contentLoading, error: contentError } =
-    useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
+    useTranscriptContent(id, {
+      knownHarness: data?.transcript.model_provider,
+      enabled: !!data && readMode === TranscriptReadMode.Content,
+    });
   const content = contentRead?.content;
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   // The person's own collectives need a session; nobody signed out has any.
@@ -76,10 +88,10 @@ export default function TranscriptDetailPage({
   const pendingReviews = useMemo<PendingReview[]>(() => {
     if (!data || !myGroups) return [];
     const ownedGroupIds = new Set(
-      myGroups.filter((g) => g.role === "owner").map((g) => g.id)
+      myGroups.filter((g) => g.role === VillageCollectiveViewerRole.Owner).map((g) => g.id)
     );
     return (data.enriched_shares ?? [])
-      .filter((s) => s.status === "pending" && ownedGroupIds.has(s.group_id))
+      .filter((s) => s.status === VillageShareStatus.Pending && ownedGroupIds.has(s.group_id))
       .map((s) => ({ groupId: s.group_id, groupName: s.group_name }));
   }, [data, myGroups]);
 
@@ -101,9 +113,9 @@ export default function TranscriptDetailPage({
     );
   }
 
-  // Transcript metadata still loading.
+  // Transcript metadata still loading, or the reader not yet chosen.
   // The title's place shimmers until the read names it.
-  if (isLoading) {
+  if (isLoading || (data && readMode === undefined)) {
     return (
       <OnPage>
         <OnHead title={null} loadingLabel="loading the transcript" />
@@ -147,7 +159,7 @@ export default function TranscriptDetailPage({
 
   // Content blob loaded, but it is not a SessionDetailPayload — the v2 viewer
   // needs structured turns. Render a graceful fallback instead of crashing.
-  if (!contentLoading && content != null && !isSessionDetailPayload(content)) {
+  if (readMode === TranscriptReadMode.Content && !contentLoading && content != null && !isSessionDetailPayload(content)) {
     return (
       <OnPage>
         <OnEmpty
@@ -172,6 +184,8 @@ export default function TranscriptDetailPage({
     <>
       <SessionDetailV2
         key={t.id}
+        readMode={readMode}
+        knownHarness={t.model_provider}
         sessionId={t.local_id || id}
         transcriptId={t.id}
         transcriptVisibility={t.visibility}

@@ -1,0 +1,16 @@
+cases:
+  - name: consumer-reload-triggers-on-absent-and-uncertain
+    outcome: absent
+    want_reload: true
+  - name: consumer-reload-triggers-on-uncertain
+    outcome: lookup
+    want_reload: true
+  - name: consumer-reload-not-on-integrity
+    outcome: integrity
+    want_reload: false
+  - name: consumer-reload-not-on-key-loss
+    outcome: key
+    want_reload: false
+  - name: consumer-pull-404-unchanged
+    outcome: missing-row
+    want_status: 404

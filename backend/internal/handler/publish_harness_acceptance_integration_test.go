@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,10 +13,11 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 )
 
-// TestPublishHarnessAcceptanceRealPostgres verifies what the mounted handler
-// commits, not just what it passes to its database dependency. Blob storage is
-// the existing in-memory fake; database transactions, constraints and triggers
-// are real. Each case has its own owner and the same request identity.
+// TestPublishHarnessAcceptanceRealPostgres verifies what the mounted publish
+// routes commit for a signed-in owner, not just what the handler passes to its
+// database dependency. Blob storage is the existing in-memory fake; database
+// transactions, constraints and triggers are real. Each case has its own owner
+// and the same request identity, and the stored row is read back by that owner.
 func TestPublishHarnessAcceptanceRealPostgres(t *testing.T) {
 	ctx := context.Background()
 	pool := govTestPool(t)
@@ -29,10 +29,9 @@ func TestPublishHarnessAcceptanceRealPostgres(t *testing.T) {
 			owner := pullInsertUser(t, ctx, pool, 7_100_000_000+int64(id.ID()), "harness-publish-"+id.String()[:8])
 			t.Cleanup(func() { cleanupOwners(t, ctx, pool, owner) })
 			blobs := &mockTranscriptBlobStore{}
-			h := New(&config.Config{FrontendURL: "https://example.test"}, pool, blobs)
+			h := New(&config.Config{FrontendURL: "https://example.test", JWTSecret: "publish-harness-integration"}, pool, blobs)
 			user := &AuthUser{ID: uuidFromPg(owner), Username: "fixture-owner"}
-			w := httptest.NewRecorder()
-			mountPublishHarnessHandler(h, user).ServeHTTP(w, publishHarnessRequest(t, fixture, c.Harness))
+			w := servePublishHarness(t, h, user, fixture, c.Harness)
 			assertPublishHarnessResponse(t, c, w)
 
 			var storedHarness string

@@ -1,0 +1,14 @@
+- name: build-admission-refuses-503-retry-after
+  routes:
+    - {name: header, path: '/header', template: '/transcripts/{id}/header'}
+    - {name: directory, path: '/segments?v=2', template: '/transcripts/{id}/segments'}
+    - {name: segment, path: '/segments/0?v=2', template: '/transcripts/{id}/segments/{index}'}
+    - {name: window, path: '/window?v=2', template: '/transcripts/{id}/window'}
+    - {name: locate, path: '/segments/locate', template: '/transcripts/{id}/segments/locate'}
+    - {name: history, path: '/segments?v=2&partition=history&section=0', template: '/transcripts/{id}/segments'}
+- name: build-admission-denied-viewer-404-before-admission
+- name: build-admission-warm-read-and-waiter-take-no-slot
+- name: build-admission-releases-on-failure-and-cancel
+  modes: [cook-failure, panic, cancel]
+- name: build-admission-refusal-reserves-nothing
+- name: build-admission-release-is-idempotent

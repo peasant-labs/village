@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/thinking_level_preservation/negative.yaml
@@ -233,19 +231,6 @@ func requireThinkingLevelPreservationCase(t *testing.T, name string) thinkingLev
 	return thinkingLevelPreservationCase{}
 }
 
-func decodeStrictSingleDocument(data []byte, target any) error {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return fmt.Errorf("fixture must contain exactly one YAML document: %v", err)
-	}
-	return nil
-}
-
 func requireExactNames(kind string, got []string, want []string) error {
 	seen := map[string]bool{}
 	for _, name := range got {
@@ -263,9 +248,9 @@ func requireExactNames(kind string, got []string, want []string) error {
 }
 
 func decodeThinkingLevelNegativeFixtures(data []byte) ([]thinkingLevelNegativeCase, error) {
-	var fixture thinkingLevelNegativeFixture
-	if err := decodeStrictSingleDocument(data, &fixture); err != nil {
-		return nil, err
+	fixture, err := decodeFixtureDocument[thinkingLevelNegativeFixture](data)
+	if err != nil {
+		return nil, fmt.Errorf("decode the thinking-level negative fixture: %w", err)
 	}
 	names := []string{}
 	for _, c := range fixture.Cases {
@@ -308,9 +293,9 @@ func loadThinkingLevelNegative(t *testing.T, name string) thinkingLevelNegativeC
 }
 
 func decodeThinkingLevelPublishGateFixtures(data []byte) ([]thinkingLevelPublishGateCase, error) {
-	var fixture thinkingLevelPublishGateFixture
-	if err := decodeStrictSingleDocument(data, &fixture); err != nil {
-		return nil, err
+	fixture, err := decodeFixtureDocument[thinkingLevelPublishGateFixture](data)
+	if err != nil {
+		return nil, fmt.Errorf("decode the thinking-level publish gate fixture: %w", err)
 	}
 	names := []string{}
 	for _, c := range fixture.Cases {
@@ -320,9 +305,9 @@ func decodeThinkingLevelPublishGateFixtures(data []byte) ([]thinkingLevelPublish
 }
 
 func decodeThinkingLevelReadEvidenceFixtures(data []byte) (thinkingLevelReadEvidenceFixture, error) {
-	var fixture thinkingLevelReadEvidenceFixture
-	if err := decodeStrictSingleDocument(data, &fixture); err != nil {
-		return fixture, err
+	fixture, err := decodeFixtureDocument[thinkingLevelReadEvidenceFixture](data)
+	if err != nil {
+		return fixture, fmt.Errorf("decode the thinking-level read evidence fixture: %w", err)
 	}
 	reads, rewrites := []string{}, []string{}
 	for _, c := range fixture.Reads {

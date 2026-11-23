@@ -12,8 +12,8 @@ import (
 //go:embed testdata/published_schema.yaml
 var publishedSchemaYAML []byte
 
-// The digest is from the v0.62.0 GitHub release asset
-// (village-api-0.44.0.json), not calculated from the server under test.
+// The digest is from the Schema release job's asset, not calculated from the
+// server under test; see the fixture for its provenance.
 func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	fixture, err := decodeSingleYAMLDocument[struct {
 		Name    string `yaml:"name"`

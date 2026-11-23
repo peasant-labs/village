@@ -1,0 +1,31 @@
+retracted_copy: "This transcript was retracted by its publisher. Its content has been deleted and cannot be shown."
+unavailable_copy: "This transcript's stored content has been lost and cannot be loaded. Village operators recorded the loss; there is no copy to restore."
+cases:
+  - name: read-unavailable-410-after-access
+  - name: read-unavailable-denied-404
+  - name: read-unavailable-metadata-unchanged
+  - name: cache-not-served-for-unavailable
+  - name: read-retracted-public-410
+  - name: read-retracted-shared-member-410
+  # The deleted owner's token is refused at the session check and the read is served anonymously, which answers the byte-identical 404.
+  - name: read-retracted-shared-owner-account-deleted
+  - name: read-retracted-shared-nonmember-404
+  - name: read-retracted-shared-role-denied-404
+  - name: read-retracted-shared-departed-member-404
+  - name: read-retracted-private-stranger-404
+  - name: read-retracted-content-routes-404
+  - name: pull-retracted-stays-404
+  - name: pull-unavailable-stays-404
+  - name: pull-list-omits-unavailable
+content_routes:
+  - {method: GET, suffix: /content}
+  - {method: GET, suffix: "/segments?v=2"}
+  - {method: GET, suffix: "/segments/0?v=2"}
+  - {method: GET, suffix: "/window?v=2"}
+  - {method: GET, suffix: /header}
+  - {method: POST, suffix: /segments/locate}
+pull_routes:
+  - {method: GET, suffix: ""}
+  - {method: GET, suffix: /content}
+  - {method: GET, suffix: /annotations}
+  - {method: GET, suffix: /publish-metadata}

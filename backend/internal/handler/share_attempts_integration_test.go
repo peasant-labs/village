@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -51,6 +52,8 @@ type shareAttemptStep struct {
 	// makes the attempt ledger refuse any write for this transcript.
 	Inject string `yaml:"inject"`
 }
+
+const shareAttemptFixtureRefused = "refused"
 
 type shareAttemptCase struct {
 	Name                string             `yaml:"name"`
@@ -117,7 +120,7 @@ func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
 		if c.Why == "" {
 			t.Fatalf("case %q states no reason it exists; a case nobody can justify cannot be maintained", c.Name)
 		}
-		if c.Acceptance != "open" && c.Acceptance != "curated" {
+		if !slices.Contains([]schema.VillageGroupAcceptanceMode{schema.VillageGroupAcceptanceOpen, schema.VillageGroupAcceptanceCurated}, schema.VillageGroupAcceptanceMode(c.Acceptance)) {
 			t.Fatalf("case %q uses acceptance %q; the fixture drives open and curated collectives", c.Name, c.Acceptance)
 		}
 		if len(c.Steps) == 0 {
@@ -328,7 +331,7 @@ func (w *shareWorld) expectStatus(t *testing.T, index int, step shareAttemptStep
 		if status != http.StatusOK {
 			t.Fatalf("step %d (%s) returned %d, want 200", index, step.Do, status)
 		}
-	case "refused":
+	case shareAttemptFixtureRefused:
 		if status != http.StatusConflict {
 			t.Fatalf("step %d (%s) returned %d, want 409: a duplicate submission must be refused with an answer the "+
 				"person can act on, not silently discarded", index, step.Do, status)
@@ -540,7 +543,7 @@ func (w *shareWorld) leaveCollective(t *testing.T, h *Handler) int {
 // must refuse whatever route reaches it.
 func (w *shareWorld) rewriteTerminalAttempt(t *testing.T, ctx context.Context, index int, step shareAttemptStep) {
 	t.Helper()
-	if step.Expect != "refused" {
+	if step.Expect != shareAttemptFixtureRefused {
 		t.Fatalf("step %d rewrites decided history and can only be expected to be refused", index)
 	}
 	_, err := w.pool.Exec(ctx, `

@@ -1,11 +1,8 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
-	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -21,7 +18,6 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/title_writes.yaml
@@ -40,15 +36,9 @@ type titleWriteFixture struct {
 
 func loadTitleWriteFixtures(t *testing.T) []titleWriteFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(titleWriteFixtureBytes))
-	decoder.KnownFields(true)
-	var fixtures []titleWriteFixture
-	if err := decoder.Decode(&fixtures); err != nil {
+	fixtures, err := decodeFixtureRows[titleWriteFixture](titleWriteFixtureBytes)
+	if err != nil {
 		t.Fatalf("decode strict title-write fixtures: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		t.Fatalf("title-write fixtures contain a trailing document: %v", err)
 	}
 	seen := make(map[string]struct{}, len(fixtures))
 	for _, fixture := range fixtures {

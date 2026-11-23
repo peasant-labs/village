@@ -1,0 +1,8 @@
+- name: number-stable-across-evict-refetch
+  scenario: evict
+  before: ["1", "1a"]
+  after: ["1", "1a"]
+- name: number-stable-across-revision-change
+  scenario: republish
+  before: ["1", "1a"]
+  after: ["1", "1a", "2"]

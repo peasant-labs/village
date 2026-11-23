@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -19,7 +19,6 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/negative.yaml
@@ -109,7 +108,11 @@ type fixedPreservationEvaluator struct{ err error }
 func (e fixedPreservationEvaluator) Evaluate() error { return e.err }
 
 type descriptorCheckingStore struct {
-	delegate   *fakeBlobStore
+	delegate    *fakeBlobStore
+	mu          sync.Mutex
+	descriptors map[storage.ObjectKey]checkedDescriptor
+}
+type checkedDescriptor struct {
 	id         uuid.UUID
 	descriptor storage.BlobDescriptor
 }
@@ -127,20 +130,39 @@ var observedOperationRegistry = map[observedOperation]operationEntry{
 
 func (s *descriptorCheckingStore) Write(ctx context.Context, id uuid.UUID, body []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
 	d, identity, err := s.delegate.Write(ctx, id, body)
-	s.id, s.descriptor = id, d
+	if err == nil {
+		s.mu.Lock()
+		if s.descriptors == nil {
+			s.descriptors = make(map[storage.ObjectKey]checkedDescriptor)
+		}
+		s.descriptors[d.ObjectKey()] = checkedDescriptor{id: id, descriptor: d}
+		s.mu.Unlock()
+	}
 	return d, identity, err
 }
 func (s *descriptorCheckingStore) Read(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error) {
-	if id != s.id || !d.Equal(s.descriptor) {
+	s.mu.Lock()
+	check, ok := s.descriptors[d.ObjectKey()]
+	s.mu.Unlock()
+	if !ok || id != check.id || !d.Equal(check.descriptor) {
 		return nil, storage.ContentIdentity{}, errors.New("published descriptor association mismatch")
 	}
 	return s.delegate.Read(ctx, id, d, loaded)
+}
+func (s *descriptorCheckingStore) ReadBounded(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity, limit int64) ([]byte, storage.ContentIdentity, error) {
+	return boundedFakeRead(ctx, id, d, loaded, limit, s.Read)
 }
 func (s *descriptorCheckingStore) Rewrap(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor) (storage.BlobDescriptor, error) {
 	return s.delegate.Rewrap(ctx, id, d)
 }
 func (s *descriptorCheckingStore) Delete(ctx context.Context, d storage.BlobDescriptor) error {
-	return s.delegate.Delete(ctx, d)
+	if err := s.delegate.Delete(ctx, d); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	delete(s.descriptors, d.ObjectKey())
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *descriptorCheckingStore) WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (storage.BlobDescriptor, storage.ContentIdentity, *storage.MetadataObject, error) {
@@ -494,15 +516,9 @@ func loadObservedModelPublishGateFixtures(t *testing.T) observedModelPublishGate
 }
 
 func decodeObservedModelPublishGateFixtures(data []byte) (observedModelPublishGateFixture, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var fixture observedModelPublishGateFixture
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[observedModelPublishGateFixture](data)
+	if err != nil {
 		return fixture, fmt.Errorf("decode observed-model publish fixtures: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return fixture, fmt.Errorf("observed-model publish fixtures require exactly one YAML document: %w", err)
 	}
 	if len(fixture.Cases) != observedModelPublishGateCaseCount {
 		return fixture, fmt.Errorf("observed-model publish fixture count=%d, want %d", len(fixture.Cases), observedModelPublishGateCaseCount)
@@ -757,15 +773,9 @@ func loadObservedModelNegativeFixtures(t *testing.T) []observedModelNegativeCase
 }
 
 func decodeObservedModelNegativeFixtures(data []byte) ([]observedModelNegativeCase, error) {
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	var fixture observedModelNegativeFixture
-	if err := decoder.Decode(&fixture); err != nil {
-		return nil, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return nil, errors.New("observed-model negative fixtures must contain exactly one document")
+	fixture, err := decodeFixtureDocument[observedModelNegativeFixture](data)
+	if err != nil {
+		return nil, fmt.Errorf("decode observed-model negative fixtures: %w", err)
 	}
 	if len(fixture.Cases) != observedModelNegativeCaseCount {
 		return nil, fmt.Errorf("observed-model negative fixture count=%d, want exactly %d", len(fixture.Cases), observedModelNegativeCaseCount)

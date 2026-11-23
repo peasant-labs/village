@@ -45,6 +45,9 @@ type Querier interface {
 	// Transcript methods
 	CreateTranscript(ctx context.Context, arg sqlc.CreateTranscriptParams) (sqlc.Transcript, error)
 	GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error)
+	GetLatestRetractionVisibility(ctx context.Context, id pgtype.UUID) (string, error)
+	ListRetractionAudiences(ctx context.Context, id pgtype.UUID) ([]pgtype.UUID, error)
+	GetTranscriptByIDForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error)
 	GetOwnerTranscriptTotals(ctx context.Context, ownerID pgtype.UUID) (sqlc.GetOwnerTranscriptTotalsRow, error)
 	GetTranscriptGovernanceForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.GetTranscriptGovernanceForUpdateRow, error)
 	GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error)

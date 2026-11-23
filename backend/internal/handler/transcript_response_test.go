@@ -6,8 +6,6 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/peasant-labs/schema"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
@@ -112,15 +110,9 @@ type conditionalValidatorFixture struct {
 
 func loadTranscriptResponseContract(t *testing.T) transcriptResponseContract {
 	t.Helper()
-	var fixture transcriptResponseContract
-	decoder := yaml.NewDecoder(bytes.NewReader(transcriptResponseContractYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[transcriptResponseContract](transcriptResponseContractYAML)
+	if err != nil {
 		t.Fatalf("decode transcript response contract fixture: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("transcript response contract must contain exactly one YAML document; got %v", err)
 	}
 	if len(fixture.AllowedFields) != 63 || len(fixture.DeniedFields) != 5 || len(fixture.FutureInternalFields) != 3 || len(fixture.MountedPaths) != 5 || len(fixture.OwnerFields) != 2 || len(fixture.ConditionalValidators) != 4 || len(fixture.JSONColumnFields) != 2 {
 		t.Fatalf("transcript response contract counts = allowed %d, denied %d, paths %d, owner %d, validators %d; want 63/5/5/2/4", len(fixture.AllowedFields), len(fixture.DeniedFields), len(fixture.MountedPaths), len(fixture.OwnerFields), len(fixture.ConditionalValidators))

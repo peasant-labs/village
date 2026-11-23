@@ -21,12 +21,10 @@ package handler
 // of the three.
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,7 +35,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
@@ -118,15 +115,9 @@ var (
 
 func loadProjectNameViewersFixture(t *testing.T) projectNameViewersFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(projectNameViewersYAML))
-	decoder.KnownFields(true)
-	var fixture projectNameViewersFixture
-	if err := decoder.Decode(&fixture); err != nil {
+	fixture, err := decodeFixtureDocument[projectNameViewersFixture](projectNameViewersYAML)
+	if err != nil {
 		t.Fatalf("decode the strict project-name-viewers fixture: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("the project-name-viewers fixture must contain exactly one YAML document: %v", err)
 	}
 
 	viewers := map[string]struct{}{}

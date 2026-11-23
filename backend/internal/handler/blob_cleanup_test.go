@@ -5,13 +5,11 @@ import (
 	"context"
 	_ "embed"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -38,17 +36,11 @@ func cleanupOperationFromFixture(value string) (blobCleanupOperation, bool) {
 
 func loadCleanupFailureCases(t *testing.T) []cleanupFailureCase {
 	t.Helper()
-	var fixture struct {
+	fixture, err := decodeFixtureDocument[struct {
 		Cases []cleanupFailureCase `yaml:"cases"`
-	}
-	decoder := yaml.NewDecoder(bytes.NewReader(cleanupFailureCasesYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
+	}](cleanupFailureCasesYAML)
+	if err != nil {
 		t.Fatalf("decode cleanup failure fixtures: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("cleanup failure fixture must contain exactly one YAML document: %v", err)
 	}
 	if len(fixture.Cases) != 6 {
 		t.Fatalf("cleanup failure fixture count=%d, want 6", len(fixture.Cases))

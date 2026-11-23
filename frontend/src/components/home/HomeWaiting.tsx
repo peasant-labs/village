@@ -1,5 +1,7 @@
 "use client";
 
+import { VillageCollectiveViewerRole } from "@peasant-labs/schema";
+
 import Link from "next/link";
 import RetryButton from "@/components/RetryButton";
 import { useAuth } from "@/providers/AuthProvider";
@@ -33,7 +35,7 @@ export default function HomeWaiting({ contributions }: { contributions: Read<Con
   // A pending contribution alone never grants permission to decide it.
   const memberships = useGroups({ enabled: isLoggedIn });
   const owned = new Set(!memberships.isError
-    ? (memberships.data ?? []).filter((c) => c.role === "owner").map((c) => c.id)
+    ? (memberships.data ?? []).filter((c) => c.role === VillageCollectiveViewerRole.Owner).map((c) => c.id)
     : []);
   const waiting = (contributions.data ?? []).filter((c) => c.pending_count > 0);
 

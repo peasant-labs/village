@@ -1,15 +1,12 @@
 package handler
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"testing"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/transcript-response-json-columns.yaml
@@ -26,17 +23,11 @@ type transcriptResponseJSONColumnsCase struct {
 
 func loadTranscriptResponseJSONColumnsCases(t *testing.T) []transcriptResponseJSONColumnsCase {
 	t.Helper()
-	d := yaml.NewDecoder(bytes.NewReader(transcriptResponseJSONColumnsYAML))
-	d.KnownFields(true)
-	var f struct {
+	f, err := decodeFixtureDocument[struct {
 		Cases []transcriptResponseJSONColumnsCase `yaml:"cases"`
-	}
-	if err := d.Decode(&f); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		t.Fatalf("expected one fixture document, got %v", err)
+	}](transcriptResponseJSONColumnsYAML)
+	if err != nil {
+		t.Fatalf("decode the transcript response JSON columns fixture: %v", err)
 	}
 	required := map[string]bool{
 		"populated-columns-serve-arrays": false, "empty-arrays-serve-empty-arrays": false,

@@ -1,0 +1,210 @@
+# The transcript page over the positioned reader: the mounted route with the
+# REST API mocked and every positioned body built by the one shared builder
+# (scripts/journey/lib/positioned-bodies.mjs), so each passes Schema's parsers.
+#
+# The required case names are listed in transcriptPositionedHost.test.tsx;
+# removing a case here fails that manifest.
+
+transcript:
+  transcriptId: 0b9a3e7c-5d41-4c1f-9a7e-2f6b8c1d4e50
+  title: reading the positioned transcript
+  rowsPerSegment: 2
+  firstRecordedIndex: 10
+  turns:
+    - {role: user, content: Open the reader at the deep link., sourceEntryRef: entry-open}
+    - {role: assistant, content: The window names its own run.}
+    - {role: user, content: Check the second segment.}
+    - {role: assistant, content: The second segment holds the middle rows., sourceEntryRef: entry-middle}
+    - {role: user, content: Now read the last segment.}
+    - {role: assistant, content: The last segment closes the transcript.}
+
+# Every action a positioned failure state can offer; a kind with none shows
+# none of them.
+retryActions: [try again, reload transcript, try now]
+
+# A positioned read that fails after the page mounts shows the reader's own
+# failure state and never reads the whole document instead. Every positioned
+# route answers the row's way; `retry` is the failure state's own action, or
+# absent when the kind offers none.
+noFallback:
+  - {name: v2-failure-409-stale, status: 409, kind: stale, retry: reload transcript}
+  - {name: v2-failure-503-busy, status: 503, retryAfter: '30', kind: busy, retry: try now}
+  - {name: v2-failure-410-unavailable, status: 410, kind: unavailable}
+  - {name: v2-failure-404-denied, status: 404, kind: denied}
+  - {name: v2-failure-network, network: true, kind: network, retry: try again}
+  - {name: v2-failure-malformed, malformed: true, kind: malformed, retry: try again}
+
+landing:
+  - name: turn-param-lands-requested-position
+    why: a served recorded index is asked for as the window anchor and lands exactly, with no status line
+    search: '?turn=14'
+    expectWindowAnchor: '14'
+    expectSegments: ['2', '0']
+    expectText: Now read the last segment.
+  # The opened row's recorded index is 10 and the server labels it 1, so a line
+  # that printed the recorded index, or a number the host derived from it
+  # (11), would not match the row the reader sees.
+  - name: turn-param-snapped-status-copy
+    why: a recorded index the transcript does not serve opens the window's anchor turn and names it by the row's own label
+    search: '?turn=99'
+    expectWindowAnchor: '99'
+    expectSegments: ['0']
+    expectOpenedLabel: '#1'
+    expectSnapped: "?turn=99 is not in this transcript's served view, so the viewer opened #1."
+  - name: turn-param-snapped-unnumbered-row
+    why: an opened row the server sends no number for is named without one
+    search: '?turn=99'
+    numberAbsent: [0]
+    expectWindowAnchor: '99'
+    expectSegments: ['0']
+    expectSnapped: "?turn=99 is not in this transcript's served view, so the viewer opened the nearest available turn."
+
+# Downloads read the whole stored copy once per action, while two of the
+# three segments are loaded. The files are compared byte for byte.
+downloads:
+  search: '?turn=14'
+  loadedSegments: ['2', '0']
+  # The stale failure state's own action, which the mounted revision-change
+  # case clicks to move the reader onto the next revision.
+  staleReloadAction: reload transcript
+  # What the page says when that revision change stopped a download.
+  stoppedLine: the transcript changed while it was downloading, so no file was saved. download it again to save the current version.
+  rows:
+    - {name: download-json-bytes-partial-load, label: download json, file: positioned-download/expected.json, type: application/json}
+    - {name: download-jsonl-bytes-partial-load, label: download jsonl, file: positioned-download/expected.jsonl, type: application/x-ndjson}
+    - {name: download-markdown-bytes-partial-load, label: download markdown, file: positioned-download/expected.md, type: text/markdown}
+
+# The trajectory graph on the positioned page: the list never reads the whole
+# document; opening the graph reads it once, as a reader action, and a refused
+# read shows the graph's failure state while the list stays positioned.
+# `views` are the view toggles clicked in order, by their names in
+# `viewButtons`; `contentStatus` is the /content answer.
+viewButtons: {list: list, graph: graph}
+graphFailureTitle: the trajectory graph could not load
+graph:
+  - {name: graph-open-reads-content-once, views: [graph, list, graph], contentStatus: 200, expectContentReads: 1, expect: graph}
+  - {name: list-mode-never-reads-content, views: [], contentStatus: 200, expectContentReads: 0, expect: list}
+  - {name: graph-content-failure-keeps-list, views: [graph], contentStatus: 403, expectContentReads: 1, expect: failure}
+
+# The shared builder refuses every body Schema's parser refuses, one row per
+# body type, so no mock built on it can start or answer with it. `body` is the
+# builder's name for the body, `field` and `value` the edit that breaks it, and
+# `call` the read that builds a body made on demand (a window at a recorded
+# index, a locator answer).
+builderRefusals:
+  - {name: mock-refuses-header-body, body: header, field: revision, value: 3}
+  - {name: mock-refuses-directory-body, body: directory page 1, field: segments, value: none}
+  - {name: mock-refuses-default-window-body, body: window default, field: anchorPosition, value: first}
+  - {name: mock-refuses-anchored-window-body, body: window 14, field: anchorPosition, value: first, call: {window: 14}}
+  - {name: mock-refuses-segment-body, body: segment 1, field: rows, value: []}
+  - {name: mock-refuses-locate-body, body: locate entry-open, field: position, value: first, call: {locate: entry-open}}
+  - {name: mock-refuses-content-body, body: content, field: turns, value: none}
+
+# The mocks refuse a request a real server would refuse, so a page that stops
+# sending the positioned protocol's selector, or the revision and
+# representation echo, fails against them. `query` is the request's query;
+# `echo: served` fills in the served revision and representation; `status`
+# is the refusal, or absent for a request the mock answers.
+requestRefusals:
+  - {name: mock-refuses-read-without-selector, route: header, query: {}, status: 400}
+  - {name: mock-refuses-read-with-other-selector, route: directory, query: {v: '1', partition: main, page: '1'}, status: 400}
+  - {name: mock-refuses-segment-without-echo, route: segment, query: {v: '2', partition: main}, status: 400}
+  - {name: mock-refuses-segment-stale-revision, route: segment, query: {v: '2', partition: main, revision: '2', representation: r1}, status: 409}
+  - {name: mock-refuses-segment-stale-representation, route: segment, query: {v: '2', partition: main, revision: '3', representation: r0}, status: 409}
+  - {name: mock-refuses-window-partial-echo, route: window, query: {v: '2', partition: main, revision: '3'}, status: 400}
+  - {name: mock-answers-window-before-echo, route: window, query: {v: '2', partition: main}}
+  - {name: mock-answers-segment-with-echo, route: segment, query: {v: '2', partition: main, revision: '3', representation: r1}}
+  - {name: mock-refuses-invalid-locate-body, route: locate, query: {v: '2'}, body: {reference: entry-open}, status: 400}
+  - {name: mock-refuses-stale-locate, route: locate, query: {v: '2'}, body: {reference: entry-open, revision: '2', representation: r1, contentHash: ''}, status: 409}
+
+# Returning to a transcript restores where the last visit was reading. Each
+# row mounts the page once per visit, in order, unmounting between them; a
+# visit reads `positioned` (the advertisement served) or `content` (the whole
+# document). Both reads save the active turn by its recorded index (this
+# transcript's start at 10, its positions at 0) and the earlier-history
+# disclosure by section, so either read restores what the other saved. The
+# positioned page asks for a saved turn as its window's target, as for a deep
+# link, and a `?turn=N` on the return wins over the saved turn.
+# A visit's `activeText` is the row it waits to see active before leaving.
+# `servedTurns` keeps only that many of the transcript's turns on the visit,
+# and `history` gives the transcript an earlier-history section.
+restore:
+  - name: restore-positioned-lands-saved-turn
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment.}
+      - {mode: positioned, search: ''}
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
+  - name: restore-deep-link-wins-over-saved-turn
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment.}
+      - {mode: positioned, search: '?turn=12'}
+    expectWindowAnchor: '12'
+    expectNoWindowAnchor: '14'
+    expectActiveText: Check the second segment.
+  - name: restore-saved-turn-not-served-snaps
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment.}
+      - {mode: positioned, search: '', servedTurns: 4}
+    expectWindowAnchor: '14'
+    expectSnapped: "the turn you were reading is no longer in this transcript's served view, so the viewer opened #1."
+  - name: restore-content-after-positioned-same-turn
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment.}
+      - {mode: content, search: ''}
+    expectActiveText: Now read the last segment.
+  - name: restore-positioned-after-content-same-turn
+    visits:
+      - {mode: content, search: '?turn=14', activeText: Now read the last segment.}
+      - {mode: positioned, search: ''}
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
+  - name: restore-positioned-earlier-history-open
+    history: [{role: user, content: Start from the plan made before the resume.}, {role: assistant, content: The earlier plan stays in its own section.}]
+    visits:
+      - {mode: positioned, search: '', openHistory: true}
+      - {mode: positioned, search: ''}
+    expectHistoryText: The earlier plan stays in its own section.
+  - name: restore-content-earlier-history-after-positioned
+    history: [{role: user, content: Start from the plan made before the resume.}, {role: assistant, content: The earlier plan stays in its own section.}]
+    visits:
+      - {mode: positioned, search: '', openHistory: true}
+      - {mode: content, search: ''}
+    expectHistoryText: The earlier plan stays in its own section.
+  - name: restore-positioned-restores-offset
+    seed: {activeTurn: 14, turnOffset: 100, readMode: positioned}
+    visits:
+      - {mode: positioned, search: ''}
+    rowTopBase: 300
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
+    expectScrollTop: 200
+  - name: restore-absent-recorded-index-keeps-previous
+    recordedIndexAbsent: [5]
+    visits:
+      - {mode: positioned, search: '?turn=14', activeText: Now read the last segment., clickText: The last segment closes the transcript.}
+      - {mode: positioned, search: ''}
+    expectWindowAnchor: '14'
+    expectActiveText: Now read the last segment.
+
+scrollSave:
+  name: scroll-save-throttled-per-frame
+  search: '?turn=14'
+  rowTopBase: 300
+  burstEvents: 5
+  movedScrollTop: 50
+
+restoreGuards:
+  - {name: restore-offset-cancels-on-wheel, event: wheel, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-touchstart, event: touchstart, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-keydown, event: keydown, rowTopBase: 300, settleFirst: false}
+  - {name: restore-offset-cancels-on-scroll, event: scroll, rowTopBase: 300, settleFirst: true}
+  - {name: restore-offset-skips-out-of-view, rowTopBase: 900, settleFirst: false}
+
+restoreBudget:
+  name: restore-offset-stops-at-frame-budget
+  activeTurn: 14
+  turnOffset: 100
+  outOfViewTop: 900
+  inViewTop: 300
+  expectActiveText: Now read the last segment.

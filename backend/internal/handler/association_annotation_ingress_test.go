@@ -5,14 +5,12 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -40,7 +38,7 @@ type associationAnnotationPushFixture struct {
 
 func loadAssociationAnnotationPushFixture(t *testing.T) associationAnnotationPushFixture {
 	t.Helper()
-	fixture, err := decodeAssociationAnnotationPushFixture(associationAnnotationPushCasesYAML)
+	fixture, err := decodeFixtureDocument[associationAnnotationPushFixture](associationAnnotationPushCasesYAML)
 	if err != nil {
 		t.Fatalf("decode association annotation push fixture: %v", err)
 	}
@@ -65,25 +63,8 @@ func loadAssociationAnnotationPushFixture(t *testing.T) associationAnnotationPus
 	return fixture
 }
 
-func decodeAssociationAnnotationPushFixture(data []byte) (associationAnnotationPushFixture, error) {
-	var fixture associationAnnotationPushFixture
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return associationAnnotationPushFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return associationAnnotationPushFixture{}, errors.New("fixture contains a trailing YAML document")
-		}
-		return associationAnnotationPushFixture{}, err
-	}
-	return fixture, nil
-}
-
 func TestAssociationAnnotationPushFixtureRejectsTrailingDocument(t *testing.T) {
-	_, err := decodeAssociationAnnotationPushFixture(append(append([]byte{}, associationAnnotationPushCasesYAML...), []byte("\n---\nunexpected: document\n")...))
+	_, err := decodeFixtureDocument[associationAnnotationPushFixture](append(append([]byte{}, associationAnnotationPushCasesYAML...), []byte("\n---\nunexpected: document\n")...))
 	if err == nil || !strings.Contains(err.Error(), "trailing YAML document") {
 		t.Fatalf("trailing fixture document error = %v, want explicit rejection", err)
 	}

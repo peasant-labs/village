@@ -4,12 +4,9 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"reflect"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observed_model_preservation/legacy_rendered.yaml
@@ -18,21 +15,15 @@ var legacyRenderedYAML []byte
 // These exact mounted responses are also consumed by the frontend fetch-hook
 // tests. Source JSONL alone is not the representation browsers receive.
 func TestLegacyRenderedResponseFixtures(t *testing.T) {
-	var corpus struct {
+	corpus, err := decodeFixtureDocument[struct {
 		Cases []struct {
 			Name     string `yaml:"name"`
 			Content  string `yaml:"content"`
 			Rendered string `yaml:"rendered"`
 		} `yaml:"cases"`
-	}
-	d := yaml.NewDecoder(bytes.NewReader(legacyRenderedYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected one rendered fixture document")
+	}](legacyRenderedYAML)
+	if err != nil {
+		t.Fatalf("decode the legacy rendered fixture: %v", err)
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {

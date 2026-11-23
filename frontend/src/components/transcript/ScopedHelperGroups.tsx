@@ -1,5 +1,7 @@
 "use client";
 
+import { SessionListItemKind } from "@peasant-labs/schema";
+
 import { useCallback, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import {
@@ -7,10 +9,7 @@ import {
   HelperGroupListItem,
   HelperThreadRow,
 } from "@peasant-labs/fairtrade/ui";
-import type {
-  HelperGroupSummary,
-  VillageSessionListItem,
-} from "@peasant-labs/schema";
+import type { HelperGroupSummary, VillageSessionListItem } from "@peasant-labs/schema";
 import { useHelperGroupMembers } from "@/lib/queries/helperGroups";
 
 /**
@@ -137,7 +136,7 @@ export function helperGroupsByTranscript(
 export function contextContainers(
   items: readonly VillageSessionListItem[],
 ): VillageSessionListItem[] {
-  return items.filter((item) => item.kind === "context_container" && item.context != null);
+  return items.filter((item) => item.kind === SessionListItemKind.ContextContainer && item.context != null);
 }
 
 /**
@@ -516,7 +515,7 @@ export function ScopedGroupedHelperRows({
   // group summary, so it is kept in the list either way; an ordinary row with no
   // saved helpers has nothing to disclose and is skipped.
   const disclosed = items.filter(
-    (item) => item.kind === "context_container" || (item.helperGroups ?? []).length > 0,
+    (item) => item.kind === SessionListItemKind.ContextContainer || (item.helperGroups ?? []).length > 0,
   );
   if (disclosed.length === 0) return null;
   return (
@@ -553,7 +552,7 @@ export function unownedGroupedItems(
   representedOwnerIds: ReadonlySet<string>,
 ): VillageSessionListItem[] {
   return items.filter((item) => {
-    if (item.kind === "context_container") return true;
+    if (item.kind === SessionListItemKind.ContextContainer) return true;
     const id = itemSession(item)?.id;
     return id != null && !representedOwnerIds.has(id) && (item.helperGroups ?? []).length > 0;
   });

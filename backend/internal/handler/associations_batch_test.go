@@ -4,13 +4,10 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -37,7 +34,7 @@ type associationBatchFixture struct {
 
 func loadAssociationBatchFixture(t *testing.T) associationBatchFixture {
 	t.Helper()
-	fixture, err := decodeAssociationBatchFixture(associationBatchCasesYAML)
+	fixture, err := decodeFixtureDocument[associationBatchFixture](associationBatchCasesYAML)
 	if err != nil {
 		t.Fatalf("decode association batch fixture: %v", err)
 	}
@@ -62,25 +59,8 @@ func loadAssociationBatchFixture(t *testing.T) associationBatchFixture {
 	return fixture
 }
 
-func decodeAssociationBatchFixture(data []byte) (associationBatchFixture, error) {
-	var fixture associationBatchFixture
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return associationBatchFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return associationBatchFixture{}, errors.New("fixture contains a trailing YAML document")
-		}
-		return associationBatchFixture{}, err
-	}
-	return fixture, nil
-}
-
 func TestAssociationBatchFixtureRejectsTrailingDocument(t *testing.T) {
-	_, err := decodeAssociationBatchFixture(append(append([]byte{}, associationBatchCasesYAML...), []byte("\n---\nunexpected: document\n")...))
+	_, err := decodeFixtureDocument[associationBatchFixture](append(append([]byte{}, associationBatchCasesYAML...), []byte("\n---\nunexpected: document\n")...))
 	if err == nil || !strings.Contains(err.Error(), "trailing YAML document") {
 		t.Fatalf("trailing fixture document error = %v, want explicit rejection", err)
 	}

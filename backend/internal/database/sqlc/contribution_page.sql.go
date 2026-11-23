@@ -257,7 +257,7 @@ type ListContributionPageRow struct {
 // The unfiltered path stays a bounded read: the family-wide filter expansion is
 // seeded only when q or provider is present, so with neither the root query is
 // ordered and cut at root_limit before any family is expanded. The cut reads
-// idx_transcripts_owner_last_activity (migration 052) in order, which holds
+// idx_transcripts_owner_last_activity (migration 056) in order, which holds
 // only while that index's key and all_roots.sort_time are the same expression,
 // character for character; the migration's integration test plans this query. The descent is
 // written set-at-a-time (one recursive join per level over the whole working

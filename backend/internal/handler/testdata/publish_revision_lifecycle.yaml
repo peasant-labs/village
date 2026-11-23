@@ -1,0 +1,18 @@
+# Writers that are not a republish must leave a transcript's content revision
+# and identity alone, and a deleted transcript's session must start over. The
+# mounted handlers run against real PostgreSQL and real encrypted S3-compatible
+# storage; every case first republishes changed content, so the row sits at
+# revision two and a writer that moved or reset the revision shows.
+#
+# scenario owner-patch      each entry of patches is sent as an owner PATCH in order
+# scenario delete-recreate  the owner deletes the transcript and publishes the session again
+- name: metadata-visibility-license-keeps
+  scenario: owner-patch
+  why: an owner edit of metadata, visibility or license is not a content replacement
+  patches:
+    - '{"title":"renamed after republish","description":"an owner edit","tags":["revision"]}'
+    - '{"visibility":"private"}'
+    - '{"visibility":"public","license":"CC-BY-4.0"}'
+- name: delete-recreate-new-uuid-one
+  scenario: delete-recreate
+  why: a recreated session is a new transcript that starts at revision one

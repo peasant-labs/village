@@ -15,6 +15,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/contentstate"
 )
 
 // Pull surface: a distinct, AuthRequired set of routes for the peasant
@@ -555,7 +556,7 @@ func (h *Handler) lookupPullable(w http.ResponseWriter, r *http.Request, user *A
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return sqlc.Transcript{}, false
 	}
-	if !h.canPullTranscript(r.Context(), user, t) {
+	if t.ContentState == contentstate.Unavailable.String() || !h.canPullTranscript(r.Context(), user, t) {
 		// 404, NOT 403: do not reveal that a transcript the caller cannot pull
 		// exists (public-but-unshared, pending share, collective-preview, etc.).
 		writeError(w, http.StatusNotFound, "Transcript not found")

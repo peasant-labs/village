@@ -26,13 +26,25 @@ if [[ "$url_template" != *'{database}'* || "${url_template#*'{database}'}" == *'
   exit 2
 fi
 
+# required_test_groups names the groups in scripts/gate-required-tests.yaml whose
+# tests live in a package. The package's one go test -json stream is checked
+# against each, so a deleted or renamed required test fails the gate instead of
+# silently shrinking it. The schema group names a test in the schema module and
+# is not checked here.
+required_test_groups() {
+  case "$1" in
+    */internal/handler) echo "io parity" ;;
+  esac
+}
+
 run_package() {
   local package="$1"
   local database="$2"
   local migrate_first="$3"
   local database_url="${url_template/'{database}'/$database}"
-  local output
+  local output events
   output="$(mktemp)"
+  events="$(mktemp)"
 
   printf '%s\n' "=== ISOLATED DATABASE: $database ($package)"
   (
@@ -63,7 +75,7 @@ run_package() {
     # the race detector into a no-race pass, parallelize the rest, then bring this
     # budget back down. Peasant followed the same order (peasant#389) and carried a
     # raised cap (#940) while #941 brought the suite back under it.
-    TEST_DATABASE_URL="$database_url" go test -timeout=45m -json -tags=integration $( [ "${RACE:-0}" = "1" ] && echo -race ) -count=1 "$package"
+    TEST_DATABASE_URL="$database_url" go test -timeout=45m -json -tags=integration $( [ "${RACE:-0}" = "1" ] && echo -race ) -count=1 "$package" | tee "$events"
   ) 2>&1 | (
     cd "$repo_root/backend"
     go run ../scripts/check-go-test-events.go "$package"
@@ -75,13 +87,23 @@ run_package() {
 
   if [[ "$test_status" -ne 0 || "$event_status" -ne 0 ]]; then
     printf >&2 '%s\n' "scripts/run-integration-gates.sh: $package failed or emitted a Go skip event against isolated database $database. Its database is retained for diagnosis; inspect the visible RUN/PASS/error evidence and repair the failing production path or unavailable service without weakening the writer fence or accepting a skipped test."
-    rm -f "$output"
+    rm -f "$output" "$events"
     if [[ "$test_status" -ne 0 ]]; then
       return "$test_status"
     fi
     return "$event_status"
   fi
   rm -f "$output"
+
+  local group
+  for group in $(required_test_groups "$package"); do
+    if ! "$repo_root/scripts/require-tests.sh" "$group" <"$events"; then
+      printf >&2 '%s\n' "scripts/run-integration-gates.sh: $package passed but a test in the required group '$group' of scripts/gate-required-tests.yaml did not run and pass. Restore the test, or update the manifest in the same change that deliberately renames or removes it."
+      rm -f "$events"
+      return 1
+    fi
+  done
+  rm -f "$events"
 
   (
     cd "$repo_root/backend"

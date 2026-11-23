@@ -1,0 +1,28 @@
+# Declared statuses no route-byte golden pins, each with the reason it cannot
+# be reached against a healthy PostgreSQL database. A row leaves this file
+# when a golden pins its status; the test refuses a row a golden already pins.
+deferred_statuses:
+- {name: list-api-keys-500, method: GET, route: /api/v1/auth/api-keys, status: 500, reason: "The key list fails only when PostgreSQL fails."}
+- {name: create-api-key-500, method: POST, route: /api/v1/auth/api-keys, status: 500, reason: "Key creation fails only when the random source or PostgreSQL fails."}
+- {name: revoke-api-key-500, method: DELETE, route: "/api/v1/auth/api-keys/{id}", status: 500, reason: "Revocation fails only when PostgreSQL fails."}
+- {name: cli-exchange-500, method: POST, route: /api/v1/auth/cli/exchange, status: 500, reason: "The exchange fails only when the random source or the API key insert in PostgreSQL fails."}
+- {name: cli-login-500, method: GET, route: /api/v1/auth/cli/login, status: 500, reason: "The CLI login fails only when the CLI session insert in PostgreSQL fails."}
+- {name: delete-account-500, method: DELETE, route: /api/v1/auth/me, status: 500, reason: "Account deletion fails only when the audited delete in PostgreSQL fails."}
+- {name: update-discoverability-500, method: PATCH, route: /api/v1/auth/me/settings, status: 500, reason: "The settings update fails only when PostgreSQL fails."}
+- {name: set-username-500, method: PATCH, route: /api/v1/auth/me/username, status: 500, reason: "The handle update fails only on a PostgreSQL error other than a unique violation, which answers 409."}
+- {name: organization-visibility-500, method: PATCH, route: "/api/v1/auth/orgs/{orgLogin}/visibility", status: 500, reason: "The visibility update fails only when PostgreSQL fails."}
+- {name: github-install-callback-500, method: GET, route: /api/v1/integrations/github/callback, status: 500, reason: "The callback fails only when recording the installation, listing collectives or reading the caller's identity fails in PostgreSQL, or when the collective's ownership or the account's control changes between the read and the binding transaction."}
+- {name: github-install-500, method: GET, route: /api/v1/integrations/github/install, status: 500, reason: "The install start fails only when signing the HMAC install state fails, which a configured secret cannot cause."}
+- {name: organization-search-500, method: GET, route: /api/v1/orgs/search, status: 500, reason: "A non-empty search fails only when PostgreSQL fails."}
+- {name: list-tags-500, method: GET, route: /api/v1/tags, status: 500, reason: "The tag list fails only when PostgreSQL fails."}
+- {name: popular-tags-500, method: GET, route: /api/v1/tags/popular, status: 500, reason: "The popular tag list fails only when PostgreSQL fails."}
+- {name: list-annotations-500, method: GET, route: "/api/v1/transcripts/{id}/annotations", status: 500, reason: "The annotation list fails only when reading annotations or their authors in PostgreSQL fails."}
+- {name: create-annotation-500, method: POST, route: "/api/v1/transcripts/{id}/annotations", status: 500, reason: "The annotation insert fails only when PostgreSQL fails."}
+- {name: list-attestations-500, method: GET, route: "/api/v1/transcripts/{id}/attestations", status: 500, reason: "The attestation list fails only when reading attestations or their attesters in PostgreSQL fails."}
+- {name: create-attestation-500, method: POST, route: "/api/v1/transcripts/{id}/attestations", status: 500, reason: "The attestation insert answers 500 only on a PostgreSQL error that names neither a constraint violation nor a duplicate, and when the attester read after the insert fails."}
+- {name: delete-attestation-500, method: DELETE, route: "/api/v1/transcripts/{id}/attestations/{attestationID}", status: 500, reason: "Attestation deletion fails only when PostgreSQL fails."}
+- {name: list-commits-500, method: GET, route: "/api/v1/transcripts/{id}/commits", status: 500, reason: "The commit list fails only when PostgreSQL fails."}
+- {name: set-project-name-500, method: PATCH, route: "/api/v1/users/me/projects/{projectHash}", status: 500, reason: "The rename fails only when the ownership count or the override write in PostgreSQL fails."}
+- {name: clear-project-name-500, method: DELETE, route: "/api/v1/users/me/projects/{projectHash}/display-name", status: 500, reason: "Clearing the name fails only when PostgreSQL fails."}
+- {name: public-organizations-500, method: GET, route: "/api/v1/users/{username}/orgs", status: 500, reason: "The organization list fails only when PostgreSQL fails after the profile read succeeded."}
+- {name: project-page-500, method: GET, route: "/api/v1/users/{username}/projects/{projectHash}", status: 500, reason: "The project page fails only when the ownership count, the transcript list, the collective roll-up or the parent lookup in PostgreSQL fails."}

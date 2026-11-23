@@ -11,12 +11,17 @@ UPDATE transcripts SET content_hash = $2 WHERE id = $1;
 -- name: ListTranscriptsMissingContentHash :many
 -- Returns the complete immutable descriptor and nullable prior plaintext size
 -- needed by a descriptor-conditional identity backfill.
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version, blob_size_bytes
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm,
+       key_version, blob_size_bytes, content_hash, content_revision,
+       segmented_identity_hash, segmented_identity_size
 FROM transcripts
 WHERE content_hash IS NULL
 ORDER BY published_at ASC, id;
 
 -- name: ListPullableTranscripts :many
+-- A transcript whose stored content is unavailable is not listed: every pull
+-- read of it answers 404, so listing it would offer a row that cannot be
+-- fetched. The count and the collective queries below apply the same filter.
 -- Returns the full rows the requester may pull, encoding the
 -- canPullTranscript policy's two surviving clauses (owner OR group-shared with an
 -- APPROVED share to a group the requester is a member of). Public visibility and
@@ -49,7 +54,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT $2 OFFSET $3;
 
@@ -61,7 +67,8 @@ FROM transcripts t
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
-WHERE t.owner_id = $1 OR gm.user_id = $1;
+WHERE (t.owner_id = $1 OR gm.user_id = $1)
+  AND t.content_state <> 'unavailable';
 
 -- name: ListPullableTranscriptsInCollective :many
 -- Returns the rows the requester may pull FROM ONE OR MORE COLLECTIVES: a
@@ -94,6 +101,7 @@ JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
 WHERE ts.group_id = ANY(@collectives::uuid[])
+  AND t.content_state <> 'unavailable'
 ORDER BY t.published_at DESC, t.id
 LIMIT @page_limit OFFSET @page_offset;
 
@@ -105,7 +113,8 @@ FROM transcripts t
 JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
-WHERE ts.group_id = ANY(@collectives::uuid[]);
+WHERE ts.group_id = ANY(@collectives::uuid[])
+  AND t.content_state <> 'unavailable';
 
 -- name: CountTranscriptAnnotations :one
 -- Counts annotations for a single transcript's PullTranscriptInfo
@@ -148,14 +157,19 @@ WHERE (t.owner_id = @user_id OR gm.user_id = @user_id) AND t.id = ANY(@transcrip
 -- name: CompareAndSwapContentIdentity :execrows
 UPDATE transcripts
 SET content_hash = @content_hash,
-    blob_size_bytes = @plaintext_size
+    blob_size_bytes = @plaintext_size,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL
 WHERE id = @id
   AND blob_key = @expected_blob_key
   AND wrapped_data_key = @expected_wrapped_data_key
   AND encryption_algorithm = @expected_encryption_algorithm
   AND key_version = @expected_key_version
-  AND content_hash IS NULL
-  AND blob_size_bytes IS NOT DISTINCT FROM @expected_prior_blob_size_bytes;
+  AND content_hash IS NOT DISTINCT FROM sqlc.narg(expected_prior_content_hash)::text
+  AND blob_size_bytes IS NOT DISTINCT FROM sqlc.narg(expected_prior_blob_size_bytes)::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_hash)::text
+  AND segmented_identity_size IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_size)::bigint
+  AND content_revision = @expected_content_revision;
 
 -- name: CompareAndSwapTranscriptBlob :one
 UPDATE transcripts
@@ -165,12 +179,20 @@ SET blob_key = @blob_key,
     key_version = @key_version,
     content_hash = @content_hash,
     blob_size_bytes = @plaintext_size,
+    content_revision = @content_revision,
+    segmented_identity_hash = NULL,
+    segmented_identity_size = NULL,
     updated_at = now()
 WHERE id = @id
   AND blob_key = @expected_blob_key
   AND wrapped_data_key = @expected_wrapped_data_key
   AND encryption_algorithm = @expected_encryption_algorithm
   AND key_version = @expected_key_version
+  AND content_revision = @expected_content_revision
+  AND content_hash IS NOT DISTINCT FROM sqlc.narg(expected_content_hash)::text
+  AND blob_size_bytes IS NOT DISTINCT FROM sqlc.narg(expected_blob_size_bytes)::bigint
+  AND segmented_identity_hash IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_hash)::text
+  AND segmented_identity_size IS NOT DISTINCT FROM sqlc.narg(expected_segmented_identity_size)::bigint
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -187,10 +209,11 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
     input_submission_count, root_session_id, session_purpose, session_relationships,
     publish_metadata_key, publish_metadata_hash, publish_metadata_size,
-    conversation_turn_count, displayed_turn_count;
+    conversation_turn_count, displayed_turn_count,
+    content_revision, segmented_identity_hash, segmented_identity_size, content_state;
 
 -- name: ListTranscriptDescriptorsForRewrap :many
-SELECT id, blob_key, wrapped_data_key, encryption_algorithm, key_version
+SELECT id, owner_id, local_id, blob_key, wrapped_data_key, encryption_algorithm, key_version
 FROM transcripts
 WHERE key_version < @active_key_version
   AND (key_version > @after_key_version

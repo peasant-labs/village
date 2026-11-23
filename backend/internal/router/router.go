@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/redact"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/handler"
 	"github.com/peasant-labs/village/backend/internal/middleware"
@@ -35,23 +37,30 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 }
 
 // NewWithDrain is New plus the background integrity check, started when it
-// is configured, and the work a shutdown waits for after the server stops:
-// the invitation emails still being sent after their responses, and an
-// integrity check still in flight.
+// is configured, the content cache's idle-lifetime ticker, and the work a
+// shutdown waits for after the server stops: the invitation emails still being
+// sent after their responses, an integrity check still in flight, and a cache
+// sweep still running.
 func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	routes, h := build(cfg, pool, blobs, titles)
 	h.StartIntegrityWorker()
+	h.StartContentCacheSweeper()
 	return routes, func(ctx context.Context) error {
-		// Both drains share the shutdown's one deadline.
-		var integrityErr error
-		done := make(chan struct{})
+		// The drains share the shutdown's one deadline.
+		var integrityErr, cacheErr error
+		var drains sync.WaitGroup
+		drains.Add(2)
 		go func() {
-			defer close(done)
+			defer drains.Done()
 			integrityErr = h.DrainIntegrity(ctx)
 		}()
+		go func() {
+			defer drains.Done()
+			cacheErr = h.DrainContentCache(ctx)
+		}()
 		noticesErr := h.DrainNotices(ctx)
-		<-done
-		return errors.Join(noticesErr, integrityErr)
+		drains.Wait()
+		return errors.Join(noticesErr, integrityErr, cacheErr)
 	}
 }
 
@@ -75,7 +84,13 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 
 	r.Get("/health", h.Health)
 
-	r.Route("/api/v1", func(r chi.Router) {
+	// Routes mounted through handler.MountPattern are declared by the schema
+	// contract and take their pattern from its route member. A route mounted
+	// from a literal has no contract declaration yet; each one is listed, with
+	// its reason, in testdata/undocumented_routes.yaml. Move a literal to a
+	// schema member once the contract declares it; do not add a local route
+	// registry, which would be a second definition of the contract's routes.
+	r.Route(handler.APIPrefix, func(r chi.Router) {
 		// Village API OpenAPI spec, served from the contract module
 		// (schema.VillageAPISpecJSON) for client/tooling discovery; the publish path
 		// enforces the same module's PublishRequest schema.
@@ -91,10 +106,10 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.Get("/auth/codeberg/callback", h.CodebergCallback)
 		r.With(authLimiter).Get("/auth/sourcehut", h.SourceHutLogin)
 		r.Get("/auth/sourcehut/callback", h.SourceHutCallback)
-		r.With(authLimiter).Get("/auth/cli/login", h.CLILogin)
-		r.With(authLimiter).Post("/auth/cli/exchange", h.CLIExchange)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageCliLogin), h.CLILogin)
+		r.With(authLimiter).Post(handler.MountPattern(schemaRoute.VillageCliExchangeCode), h.CLIExchange)
 		r.Post("/auth/logout", h.Logout)
-		r.With(h.AuthRequired).Get("/auth/me", h.Me)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetAuthenticatedVillageUser), h.Me)
 		r.With(h.AuthRequired).Delete("/auth/me", h.DeleteAccount)
 		r.With(h.AuthRequired).Patch("/auth/me/settings", h.UpdateMySettings)
 		r.With(h.AuthRequired).Patch("/auth/me/username", h.SetMyUsername)
@@ -119,35 +134,32 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Delete("/users/me/projects/{projectHash}/display-name", h.ClearProjectDisplayName)
 
 		// Authenticated user org management
-		r.With(h.AuthRequired).Get("/auth/orgs", h.ListMyOrgs)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListAuthenticatedVillageOrganizations), h.ListMyOrgs)
 		r.With(h.AuthRequired).Patch("/auth/orgs/{orgLogin}/visibility", h.SetOrgVisibility)
 
 		// Organizations (aggregated GitHub org affiliations)
 		r.With(h.AuthOptional).Get("/orgs/search", h.SearchOrgs)
-		r.With(h.AuthOptional).Get("/orgs/{login}", h.GetOrg)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetVillageOrganizationCollectives), h.GetOrg)
 
 		// Transcripts
-		r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
-		r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
+		h.RegisterPublishRoutes(r)
 		h.RegisterTranscriptBrowseRoutes(r)
-		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
-		// Segmented reads. The served contract declares these three routes; each
-		// answers 501 until its handler lands, so contract and server agree now.
-		// They carry the access rule of the content read above, so auth is
-		// optional. Pinned in testdata/declared_stub_routes.yaml.
-		r.With(h.AuthOptional).Get("/transcripts/{id}/segments", h.TranscriptSegmentedReadNotImplemented)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/segments/{index}", h.TranscriptSegmentedReadNotImplemented)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/window", h.TranscriptSegmentedReadNotImplemented)
-		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptMetadata), h.GetTranscript)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptContent), h.GetTranscriptContent)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptSegments), h.GetTranscriptSegments)
+		r.With(h.AuthOptional).Post(handler.MountPattern(schemaRoute.VillageLocateTranscriptEntry), h.LocateTranscriptEntry)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptSegment), h.GetTranscriptSegment)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptWindow), h.GetTranscriptWindow)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptHeader), h.GetTranscriptHeader)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateTranscript), h.UpdateTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
-		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)
-		r.With(h.AuthRequired).Delete("/transcripts/{id}/share/{groupID}", h.UnshareTranscript)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageShareTranscriptWithGroups), h.ShareTranscript)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageUnshareTranscriptFromGroup), h.UnshareTranscript)
 		// Owner-only share-event history for one (transcript, collective) pair.
 		// Deliberately no username parameter anywhere on this path: owner-only
 		// is enforced by the ROUTE, not merely a predicate a caller could bypass
 		// with someone else's identifier.
-		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/transcripts/{transcriptId}/events", h.ListShareEventHistory)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListShareEventHistory), h.ListShareEventHistory)
 
 		// Every (transcript, collective) pair the caller has offered to one
 		// collective, read from the attempt ledger rather than the derived
@@ -155,7 +167,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		// withdrawal is still listed and its history is still reachable.
 		// Owner-only by the same route discipline: no username segment exists,
 		// and a caller with no pair here is answered 404, never 403.
-		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/submissions", h.ListMyCollectiveSubmissions)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyCollectiveSubmissions), h.ListMyCollectiveSubmissions)
 
 		// Attestations
 		r.With(h.AuthOptional).Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)
@@ -172,8 +184,8 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		// Collectives a transcript belongs to, and the caller's own contributions.
 		// The contributions route takes the caller's id and has deliberately no
 		// username variant: pending and refused counts are the contributor's alone.
-		r.With(h.AuthOptional).Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
-		r.With(h.AuthRequired).Get("/users/me/collectives/contributions", h.ListMyCollectiveContributions)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptCollectives), h.ListTranscriptCollectives)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyCollectiveContributions), h.ListMyCollectiveContributions)
 
 		// Both resource families share handlers and auth through the complete
 		// released compatibility window. Helper-group routes are unrelated.
@@ -227,14 +239,14 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.Get("/tags/popular", h.PopularTags)
 
 		// Annotations
-		r.With(h.AuthRequired).Post("/annotations", h.UploadAnnotations)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillagePushAnnotations), h.UploadAnnotations)
 		// Server-authoritative skip-gate manifest: the set of content hashes the
 		// village holds for the caller, so a push can skip
 		// already-stored annotations. Additive, owner-scoped.
-		r.With(h.AuthRequired).Get("/annotations/manifest", h.GetAnnotationManifest)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetAnnotationManifest), h.GetAnnotationManifest)
 
 		// Schema
-		r.Get("/schema/version", h.GetSchemaVersion)
+		r.Get(handler.MountPattern(schemaRoute.VillageGetSchemaVersion), h.GetSchemaVersion)
 
 		// Authenticated pull routes let the peasant CLI retrieve transcripts it
 		// owns or that are group-shared with it. Deliberately separate from the web
@@ -243,17 +255,17 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		// (canPullTranscript — own + group-shared; public + collective-preview
 		// EXCLUDED) can diverge. AuthRequired on ALL four routes; every
 		// not-pullable outcome is 404 (never 403) so existence never leaks.
-		r.With(h.AuthRequired).Get("/pull/transcripts", h.ListPullableTranscripts)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListPullableTranscripts), h.ListPullableTranscripts)
 		// Batch currency probe (skip-gate): transcript_id-keyed, pull-scoped
 		// (non-pullable ids withheld by omission), owner-scoped annotation currency.
 		// A static segment, so chi resolves it ahead of /pull/transcripts/{id}.
-		r.With(h.AuthRequired).Post("/pull/transcripts/skip-gate", h.PullSkipGate)
-		r.With(h.AuthRequired).Get("/pull/transcripts/{id}", h.GetPullTranscript)
-		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/content", h.GetPullTranscriptContent)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillagePullSkipGate), h.PullSkipGate)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetPullTranscript), h.GetPullTranscript)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetPullTranscriptContent), h.GetPullTranscriptContent)
 		// The stored publish metadata: the owner and the owners of collectives
 		// reviewing or holding the transcript only; every other caller gets 404.
-		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/publish-metadata", h.GetPullTranscriptPublishMetadata)
-		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/annotations", h.GetPullTranscriptAnnotations)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetPullTranscriptPublishMetadata), h.GetPullTranscriptPublishMetadata)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetPullTranscriptAnnotations), h.GetPullTranscriptAnnotations)
 
 		// Pull request prompt attachment. The served contract declares these
 		// seven routes; each answers 501 until its handler lands, so the route
@@ -261,31 +273,31 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		// authenticated by GitHub's HMAC over the raw body, not by a session,
 		// so it carries no auth middleware. The attachment read is open to
 		// anonymous readers of a public repository, so auth is optional there.
-		r.Post("/integrations/github/webhook", h.ReceiveGitHubWebhook)
-		r.With(h.AuthOptional).Get("/pulls/{owner}/{name}/{number}", h.GetPullRequestAttachment)
-		r.With(h.AuthRequired).Post("/pulls/{owner}/{name}/{number}/confirm", h.ConfirmPullRequestAttachment)
-		r.With(h.AuthRequired).Delete("/pulls/{owner}/{name}/{number}", h.DetachPullRequestAttachment)
-		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
-		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
-		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
+		r.Post(handler.MountPattern(schemaRoute.VillageReceiveGitHubWebhook), h.ReceiveGitHubWebhook)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetPullRequestAttachment), h.GetPullRequestAttachment)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageConfirmPullRequestAttachment), h.ConfirmPullRequestAttachment)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDetachPullRequestAttachment), h.DetachPullRequestAttachment)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyPromptRequests), h.ListMyPromptRequests)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetMySettings), h.GetUserSettings)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateMySettings), h.UpdateUserSettings)
 
 		// The caller's own invitations, and their notification address. The
 		// address is returned only in the caller's own settings.
-		r.With(h.AuthRequired).Get("/users/me/invitations", h.ListMyInvitations)
-		r.With(h.AuthRequired).Post("/users/me/invitations/{invitationID}/accept", h.AcceptMyInvitation)
-		r.With(h.AuthRequired).Post("/users/me/invitations/{invitationID}/decline", h.DeclineMyInvitation)
-		r.With(h.AuthRequired).Put("/users/me/email", h.SetMyNotificationEmail)
-		r.With(h.AuthRequired).Delete("/users/me/email", h.RemoveMyNotificationEmail)
-		r.With(h.AuthRequired).Post("/users/me/email/verify", h.VerifyMyNotificationEmail)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyInvitations), h.ListMyInvitations)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageAcceptMyInvitation), h.AcceptMyInvitation)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageDeclineMyInvitation), h.DeclineMyInvitation)
+		r.With(h.AuthRequired).Put(handler.MountPattern(schemaRoute.VillageSetMyNotificationEmail), h.SetMyNotificationEmail)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRemoveMyNotificationEmail), h.RemoveMyNotificationEmail)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageVerifyMyNotificationEmail), h.VerifyMyNotificationEmail)
 		// The one-click unsubscribe target works signed out: the signed token
 		// it carries is the authority, and it can only turn invitation emails
 		// off. Rate-limited per IP.
-		r.With(unsubscribeLimiter).Post("/email/unsubscribe", h.UnsubscribeInvitationEmails)
+		r.With(unsubscribeLimiter).Post(handler.MountPattern(schemaRoute.VillageUnsubscribeInvitationEmails), h.UnsubscribeInvitationEmails)
 		// A transcript's pull requests follow the transcript's own read: open to
 		// an anonymous reader of a public transcript, 404 for anyone who may not
 		// read it. The caller's totals are their own, so they need a session.
-		r.With(h.AuthOptional).Get("/transcripts/{id}/pulls", h.ListTranscriptPullRequests)
-		r.With(h.AuthRequired).Get("/users/me/stats", h.GetMyStats)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptPullRequests), h.ListTranscriptPullRequests)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetMyStats), h.GetMyStats)
 
 		// GitHub App install handshake. Both routes are redirects, like the OAuth
 		// entry points, so neither is declared by the JSON contract; the install
@@ -295,5 +307,27 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
+	ConfigureHealthRoutes(r, h)
 	return r, h
+}
+
+// ConfigureHealthRoutes derives health capabilities from the completed router.
+// Call during composition, before serving requests.
+func ConfigureHealthRoutes(routes chi.Routes, h *handler.Handler) {
+	directory, segment, window := false, false, false
+	_ = chi.Walk(routes, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method != http.MethodGet {
+			return nil
+		}
+		switch pattern {
+		case schemaRoute.VillageGetTranscriptSegments.Pattern():
+			directory = true
+		case schemaRoute.VillageGetTranscriptSegment.Pattern():
+			segment = true
+		case schemaRoute.VillageGetTranscriptWindow.Pattern():
+			window = true
+		}
+		return nil
+	})
+	h.SetSegmentedReadsMounted(directory && segment && window)
 }

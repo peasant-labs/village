@@ -77,6 +77,12 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 	tsRejectedA := pullInsertTranscript(t, ctx, pool, owner, "rejected-A", dbVisibilityShared)
 	tsPublic := pullInsertTranscript(t, ctx, pool, stranger, "public", dbVisibilityPublic)
 	tsMultiAB := pullInsertTranscript(t, ctx, pool, owner, "multi-A-B", dbVisibilityShared)
+	// An approved share whose stored content is lost: every pull read of it
+	// answers 404, so neither the list nor its count may offer it.
+	tsUnavailableA := pullInsertTranscript(t, ctx, pool, owner, "unavailable-A", dbVisibilityShared)
+	if _, err := pool.Exec(ctx, "UPDATE transcripts SET content_state = 'unavailable' WHERE id = $1", tsUnavailableA); err != nil {
+		t.Fatalf("mark transcript unavailable: %v", err)
+	}
 
 	pullShare(t, ctx, pool, tsOwnedInA, collectiveA, "approved")
 	pullShare(t, ctx, pool, tsApprovedA, collectiveA, "approved")
@@ -86,6 +92,7 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 	pullShare(t, ctx, pool, tsRejectedA, collectiveA, "rejected")
 	pullShare(t, ctx, pool, tsMultiAB, collectiveA, "approved")
 	pullShare(t, ctx, pool, tsMultiAB, collectiveB, "approved")
+	pullShare(t, ctx, pool, tsUnavailableA, collectiveA, "approved")
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
@@ -163,6 +170,7 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 		{"rejected share", tsRejectedA},
 		{"public visibility", tsPublic},
 		{"collective the member is not in", tsApprovedH},
+		{"unavailable content", tsUnavailableA},
 	} {
 		if union[uuid.UUID(excluded.id.Bytes)] {
 			t.Errorf("%s leaked into collectives=[A,B]", excluded.name)

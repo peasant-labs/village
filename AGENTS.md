@@ -56,6 +56,25 @@ real PostgreSQL and RustFS aggregate. It rejects skipped integration tests.
 
 See `TESTING.md` for fixtures, database setup, teardown, and worked examples.
 
+## Static guard
+
+`make check-unstring` runs `unstring`, at the version pinned in the `Makefile`,
+over the frontend and backend. It
+needs Go 1.26+ and ast-grep 0.51.2 on `PATH`; the dev shell provides both.
+A cold cache downloads the pinned module through the Go module proxy.
+`.unstring-baseline.yaml` is generated and can only shrink; run
+`make unstring-update` to lower it. A deliberate exception uses
+`// unstring-allow: <rule-id> — <reason>` with at least three words, and the two
+closed-set rules accept no marker. CI runs the guard in the `frontend` job.
+
+The catalog's closed sets come from the schema module each root pins, so a
+schema pin change moves the counts; run `make unstring-update` in the same
+commit and say why in the commit message.
+
+The config lists `backend/internal/router/*.go`. The tool accepts globs there.
+The control asserts every production file in that package matches a mount entry,
+so a file that mounts a group-relative route and matches no entry fails the test.
+
 ## Database and migration safety
 
 Read `docs/database-invariants.md` before changing migrations, SQL, transcript
@@ -82,10 +101,12 @@ behavior. Update that document in the same commit whenever an invariant changes.
 The public `github.com/peasant-labs/schema` module is the source of truth for
 wire types, the Village OpenAPI document, publish validation, and the license ID
 menu. Village serves and validates the module's same embedded bytes.
-The current backend module pin is Schema 0.62.0; its Village API version is
-0.44.0. The mounted-byte release-asset test guards this pairing. The frontend
-package pin remains `@peasant-labs/schema` 0.51.0: it will follow a Fairtrade
-release, and no producer emits the new Antigravity harness values yet.
+The backend pins the module in `backend/go.mod`; the mounted-byte release-asset
+test guards that pin's Village API version. The frontend pins
+`@peasant-labs/schema` and `@peasant-labs/fairtrade` in `frontend/package.json`.
+The backend pin may lag the npm pin: a re-pin that only changes TypeScript types
+leaves the Go routes and the Village API version unchanged, so the backend moves
+on the next tag that changes something it serves or validates.
 
 Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an

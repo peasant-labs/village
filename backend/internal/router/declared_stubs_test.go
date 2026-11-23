@@ -32,11 +32,7 @@ type declaredStubRoutesFile struct {
 // requiredDeclaredStubRoutes names the rows that must exist. It lives here so
 // deleting a fixture row cannot delete the check with it; landing a real
 // handler removes the row and its name together.
-var requiredDeclaredStubRoutes = []string{
-	"the segment directory is declared and not served yet",
-	"one segment is declared and not served yet",
-	"the window around an anchor is declared and not served yet",
-}
+var requiredDeclaredStubRoutes = []string{}
 
 func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 	t.Helper()
@@ -50,6 +46,16 @@ func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 			t.Fatalf("the declared stub routes fixture has an empty or repeated name %q", r.Name)
 		}
 		present[r.Name] = true
+		// With no database a session cannot be confirmed: an optional-auth stub
+		// serves the signed-in caller anonymously, and an auth-required stub
+		// refuses it as unconfirmed. The fixture states that answer.
+		wantSignedIn := r.Anonymous
+		if r.Anonymous == http.StatusUnauthorized {
+			wantSignedIn = http.StatusServiceUnavailable
+		}
+		if r.SignedIn != wantSignedIn {
+			t.Fatalf("row %q pins signed_in %d with anonymous %d; with no database signed_in must equal anonymous on an optional-auth stub and be 503 on an auth-required one", r.Name, r.SignedIn, r.Anonymous)
+		}
 		// A request for the row must be a request for its route: same path with
 		// the parameters filled in, so a row cannot pin one route and probe another.
 		requestPath, _, _ := strings.Cut(r.Path, "?")
@@ -76,7 +82,9 @@ func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 // TestDeclaredStubRoutes_AnswerNotImplemented drives every stub through the
 // production router with no database or object store: a stub that read
 // anything would fail instead of answering 501. It pins each route's status
-// without and with a session.
+// without and with a session. With no database the session's account cannot be
+// confirmed, so an optional-auth stub serves the signed-in caller anonymously
+// and an auth-required stub would answer 503 instead of reaching the stub.
 func TestDeclaredStubRoutes_AnswerNotImplemented(t *testing.T) {
 	cfg := &config.Config{JWTSecret: "declared-stub-test-only-secret", FrontendURL: "https://example.test"}
 	routes := New(cfg, nil, nil, nil)

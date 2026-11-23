@@ -13,7 +13,7 @@ here is an estimate.
 | Part | Repository | What it adds |
 |---|---|---|
 | Contract | `peasant-labs/schema` | The `paged` and `snapshot` views of `listContributableTranscripts`, `listContributionProjects`, `batchShareSelection`, and the contribution error codes |
-| Backend | `peasant-labs/village` | The handlers for those operations, and migrations 051 and 052 |
+| Backend | `peasant-labs/village` | The handlers for those operations, and migrations 055 and 056 |
 | Frontend | `peasant-labs/village` | The paged contribute page, the project picker, the per-project snapshot, and the chunked submit of 250 sessions per request |
 
 The migrations add two indexes on `transcripts` and nothing else: no table, no
@@ -22,8 +22,8 @@ selection state, so a rollback has no selection data to migrate back.
 
 | Migration | Index | Key |
 |---|---|---|
-| `051_contribution_family_index` | `idx_transcripts_owner_parent_session` | `(owner_id, parent_session_id)` |
-| `052_contribution_activity_index` | `idx_transcripts_owner_last_activity` | `(owner_id, COALESCE(session_end, session_start, published_at, 'epoch') DESC, id)` |
+| `055_contribution_family_index` | `idx_transcripts_owner_parent_session` | `(owner_id, parent_session_id)` |
+| `056_contribution_activity_index` | `idx_transcripts_owner_last_activity` | `(owner_id, COALESCE(session_end, session_start, published_at, 'epoch') DESC, id)` |
 
 ## How the index builds behave
 
@@ -39,7 +39,7 @@ The backend applies pending migrations at startup, before it serves, and the
    the version, and commits. A failure or a timeout rolls back the body and the
    registry row together.
 
-Migrations 051 and 052 are separate transactions. Each runs a plain
+Migrations 055 and 056 are separate transactions. Each runs a plain
 `CREATE INDEX`, not `CONCURRENTLY`, because `CONCURRENTLY` cannot run inside a
 transaction. A plain build takes a `SHARE` lock on `transcripts`:
 
@@ -57,13 +57,13 @@ each build.
 
 | Index | Rows | Build | Index size | Write pause |
 |---|---:|---:|---:|---|
-| 051 | 12,148 | 38.8 ms | 262,144 bytes | whole build |
-| 051 | 1,000,000 | 658.7 ms | 20,242,432 bytes | whole build |
-| 052 | 1,000,000 | 0.75 s | not measured | whole build |
+| 055 | 12,148 | 38.8 ms | 262,144 bytes | whole build |
+| 055 | 1,000,000 | 658.7 ms | 20,242,432 bytes | whole build |
+| 056 | 1,000,000 | 0.75 s | not measured | whole build |
 
 Notes on the table:
 
-- The 052 row comes from the follow-up measurement of the last-activity key.
+- The 056 row comes from the follow-up measurement of the last-activity key.
   That measurement recorded the build time only. It did not record the size or
   a 12,148-row build.
 - The earlier root-order candidate had the same column shape on a different
@@ -130,7 +130,7 @@ migration design, and that design was rejected.
 3. backend reads and selection write
 4. frontend browse and selection
 5. frontend submit
-6. index migrations 051 and 052
+6. index migrations 055 and 056
 7. legacy inventory and this note
 ```
 
@@ -147,7 +147,7 @@ order constrains how that build is deployed:
   and says so. It does not fall back to the legacy read.
 - **The migrations run when the new backend starts,** before it serves. The new
   reads work without the indexes, but at a large library they are slow. A
-  1,000,000-row library's first page took about 3.5 s without 052 and 26 ms with
+  1,000,000-row library's first page took about 3.5 s without 056 and 26 ms with
   it.
 
 ## Compatibility window
@@ -181,8 +181,8 @@ Deploy the previous build of the backend and the frontend. The new views, the
 project picker and the selection write disappear. The previous contribute page
 works again, because the legacy reads and the legacy write never changed.
 
-The previous build does not refuse a database that carries migrations 051 and
-052. It skips versions it does not know, and it never uses the indexes. You
+The previous build does not refuse a database that carries migrations 055 and
+056. It skips versions it does not know, and it never uses the indexes. You
 can leave the indexes in place after an application rollback.
 
 ### Contract pin
@@ -234,7 +234,7 @@ previous page and the review page read them like any other contribution.
 
 ## How this relates to the migration invariants
 
-Migrations 051 and 052 follow the rules in
+Migrations 055 and 056 follow the rules in
 [`database-invariants.md`](database-invariants.md) §1 and add no exception to
 them:
 
@@ -244,7 +244,7 @@ them:
 - Their registry rows are pinned by the registry test.
 
 The section on the paged contribution view in that document states what each
-index serves. It also states the invariant that 052's key must stay identical,
+index serves. It also states the invariant that 056's key must stay identical,
 character for character, to the page query's sort expression. A difference
 leaves the index usable for the owner range but not for the order, and the
 query falls back to a full sort without any error. An integration test plans

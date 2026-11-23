@@ -1,3 +1,5 @@
+import { TranscriptReadMode } from "./queries/segmentedReadCapability";
+
 /**
  * Per-transcript read state the host restores after a navigation round trip.
  *
@@ -14,15 +16,27 @@
  */
 export interface TranscriptReadState {
   search: string;
+  /** The active turn's recorded index: the index both reads share. The
+   *  whole-document page's turn index is the recorded index; the positioned
+   *  page saves its active row's recorded index, never its served position. */
   activeTurn: number | null;
+  /** Keyed by history section (`earlier-N`), the same keys in both reads. */
   earlierHistoryOpen: Record<string, boolean>;
+  /** The whole-document stream's scroll offset. A positioned page holds only
+   *  some segments, so its offset means nothing to another read; it saves 0. */
   scrollTop: number;
+  /** The positioned page only: how far the active row sat below the top of
+   *  the stream, so a return can put it back in the same place. */
+  turnOffset: number;
+  /** Which read wrote the state; null for a state saved before reads were
+   *  recorded, which only the whole-document page wrote. */
+  readMode: TranscriptReadMode | null;
 }
 
 const STORAGE_PREFIX = "village:transcript-read-state:";
 
 export function emptyTranscriptReadState(): TranscriptReadState {
-  return { search: "", activeTurn: null, earlierHistoryOpen: {}, scrollTop: 0 };
+  return { search: "", activeTurn: null, earlierHistoryOpen: {}, scrollTop: 0, turnOffset: 0, readMode: null };
 }
 
 function normalize(value: unknown): TranscriptReadState {
@@ -48,6 +62,8 @@ function normalize(value: unknown): TranscriptReadState {
       typeof record.scrollTop === "number" && Number.isFinite(record.scrollTop) && record.scrollTop >= 0
         ? record.scrollTop
         : 0,
+    turnOffset: typeof record.turnOffset === "number" && Number.isFinite(record.turnOffset) ? record.turnOffset : 0,
+    readMode: Object.values(TranscriptReadMode).find((mode) => mode === record.readMode) ?? null,
   };
 }
 

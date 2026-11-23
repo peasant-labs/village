@@ -1,0 +1,441 @@
+# Cases for the transcript revision transition guard (migration 054).
+#
+# Every trial seeds one real transcripts row and runs a statement against it:
+# either a production statement through the generated sqlc method (`writer`),
+# the historical pre-revision statement (`writer: legacy`), or the exact SQL
+# shape a writer would send (`sql`). It then asserts the outcome (the commit, the
+# guard's refusal, or a compare-and-swap that matched no row) and the revision.
+# `stage: n1` marks a case whose subject is the guard, which first exists in the
+# release that carries migration 054.
+#
+# Tokens in `sql`, `legacy_replace_sql` and `row`:
+#   {id}        the transcript id
+#   {blob_key}  the stored object key the row was seeded with
+#   {new_key}   a fresh object key, for a statement that moves the object
+#   {hash}      repeat('<letter>', 64) of the step's `hash`
+#   {size}      the step's `size`
+#
+# Seed values are SQL expressions; an omitted column is NULL, and an omitted
+# revision is 1. A seed is inserted directly, so any state the migration 051
+# CHECKs allow can be seeded, including the states an older binary left behind.
+
+# The statement the last release without revisions sent to replace a stored
+# object: the generated CompareAndSwapTranscriptBlob of the commit before the
+# revision columns existed (backend/internal/database/queries/transcripts_pull.sql
+# at 9137d351), with its named arguments bound to literals. It names neither
+# content_revision nor either segmented column.
+legacy_replace_sql: |
+  UPDATE transcripts
+  SET blob_key = '{new_key}',
+      wrapped_data_key = decode('02', 'hex'),
+      encryption_algorithm = 'aes-256-gcm-random-nonce-v1',
+      key_version = 1,
+      content_hash = {hash},
+      blob_size_bytes = {size},
+      updated_at = now()
+  WHERE id = '{id}'
+    AND blob_key = '{blob_key}'
+    AND wrapped_data_key = decode('01', 'hex')
+    AND encryption_algorithm = 'aes-256-gcm-random-nonce-v1'
+    AND key_version = 1
+
+# The compare-and-swap a first positioned read sends: it authenticated the object
+# at the descriptor it read, so it installs the segmented identity only while the
+# row still names that object and holds no identity.
+first_read_install_sql: |
+  UPDATE transcripts
+  SET segmented_identity_hash = repeat('b', 64),
+      segmented_identity_size = 3
+  WHERE id = '{id}'
+    AND blob_key = '{blob_key}'
+    AND content_hash IS NULL
+    AND segmented_identity_hash IS NULL
+    AND content_revision = 1
+
+cases:
+  - name: old-binary-pending-replacement-refused
+    stage: n1
+    trials:
+      - name: identity-free-row-replaced-by-pre-revision-update
+        seed: {}
+        steps:
+          - {writer: legacy, hash: b, size: 3, expect: refused, rule: "rule 3"}
+        final:
+          revision: 1
+          row: "content_hash IS NULL AND blob_size_bytes IS NULL AND blob_key = '{blob_key}'"
+      # A revision-aware statement earlier in the same transaction must not vouch
+      # for an older writer's statement that follows it.
+      - name: earlier-revision-aware-update-does-not-vouch-for-the-older-writer
+        seed: {}
+        single_transaction: true
+        steps:
+          - {sql: "UPDATE transcripts SET content_revision = 1 WHERE id = '{id}'", expect: commit}
+          - {writer: legacy, hash: b, size: 3, expect: refused, rule: "rule 3"}
+        final:
+          revision: 1
+          row: "content_hash IS NULL AND blob_size_bytes IS NULL AND blob_key = '{blob_key}'"
+
+  - name: old-binary-known-replacement-counts
+    stage: n1
+    trials:
+      - name: changed-known-replacement-counts
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - {writer: legacy, hash: b, size: 3, expect: commit}
+        final:
+          revision: 2
+          row: "content_hash = repeat('b', 64) AND blob_key = '{new_key}'"
+      - name: identical-known-replacement-keeps
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - {writer: legacy, hash: a, size: 3, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_key = '{new_key}'"
+      - name: count-at-the-maximum-refused
+        seed: {hash: "repeat('a', 64)", size: "3", revision: 9223372036854775807}
+        steps:
+          - {writer: legacy, hash: b, size: 3, expect: refused, rule: "rule 6"}
+        final:
+          revision: 9223372036854775807
+          row: "content_hash = repeat('a', 64) AND blob_key = '{blob_key}'"
+
+  - name: current-writer-pending-replacement-commits-under-guard
+    stage: n1
+    trials:
+      - name: pending-row-republished-with-equal-content-keeps-one
+        seed: {}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+          - {writer: replace, hash: a, size: 3, supplies: 1, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_key = '{new_key}'"
+      - name: pending-row-republished-with-changed-content-advances-to-two
+        seed: {}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+          - {writer: replace, hash: b, size: 3, supplies: 2, expect: commit}
+        final:
+          revision: 2
+          row: "content_hash = repeat('b', 64) AND blob_key = '{new_key}'"
+      - name: changed-content-supplying-the-old-revision-refused
+        seed: {}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+          - {writer: replace, hash: b, size: 3, supplies: 1, expect: refused, rule: "rule 1a/1b"}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_key = '{blob_key}'"
+      - name: definite-absence-baseline-keeps-one
+        seed: {}
+        steps:
+          - {writer: replace, hash: b, size: 3, supplies: 1, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('b', 64) AND blob_key = '{new_key}'"
+      - name: baseline-supplying-an-advance-refused
+        seed: {}
+        steps:
+          - {writer: replace, hash: b, size: 3, supplies: 2, expect: refused, rule: "rule 3"}
+        final:
+          revision: 1
+          row: "content_hash IS NULL AND blob_key = '{blob_key}'"
+
+  - name: install-a-hash-only-completes-same-revision
+    stage: n1
+    trials:
+      - name: hash-only-row-completes-on-the-same-object
+        seed: {hash: "repeat('a', 64)"}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes = 3 AND blob_key = '{blob_key}'"
+      - name: negative-size-row-completes-on-the-same-object
+        seed: {hash: "repeat('a', 64)", size: "-1"}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes = 3 AND blob_key = '{blob_key}'"
+      - name: completion-with-a-revision-change-refused
+        seed: {hash: "repeat('a', 64)"}
+        steps:
+          - sql: "UPDATE transcripts SET blob_size_bytes = 3, content_revision = 2 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 2c"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes IS NULL"
+      - name: completion-with-a-different-hash-refused
+        seed: {hash: "repeat('a', 64)"}
+        steps:
+          - {writer: install, hash: b, size: 3, expect: refused, rule: "rule 2c"}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes IS NULL"
+      - name: completion-that-moves-the-object-refused
+        seed: {hash: "repeat('a', 64)"}
+        steps:
+          - sql: "UPDATE transcripts SET blob_key = '{new_key}', blob_size_bytes = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 2c"
+        final:
+          revision: 1
+          row: "blob_key = '{blob_key}' AND blob_size_bytes IS NULL"
+      - name: identity-free-install-with-a-revision-change-refused
+        seed: {}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = repeat('a', 64), blob_size_bytes = 3, content_revision = 2 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 2a"
+        final:
+          revision: 1
+          row: "content_hash IS NULL AND blob_size_bytes IS NULL"
+      - name: malformed-hash-is-replaced-on-the-same-object
+        seed: {hash: "'not-a-digest'"}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes = 3 AND blob_key = '{blob_key}'"
+
+  - name: install-b-same-descriptor-keeps
+    stage: n1
+    trials:
+      - name: first-read-installs-the-segmented-identity
+        seed: {}
+        steps:
+          - {sql: "{first_read_install_sql}", expect: commit}
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64) AND segmented_identity_size = 3 AND content_hash IS NULL AND blob_key = '{blob_key}'"
+      - name: install-with-a-revision-change-refused
+        seed: {}
+        steps:
+          - sql: "UPDATE transcripts SET segmented_identity_hash = repeat('b', 64), segmented_identity_size = 3, content_revision = 2 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 2b"
+        final:
+          revision: 1
+          row: "segmented_identity_hash IS NULL"
+
+  - name: install-b-new-descriptor-refused
+    stage: n1
+    trials:
+      - name: segmented-install-that-moves-the-object-refused
+        seed: {}
+        steps:
+          - sql: "UPDATE transcripts SET blob_key = '{new_key}', segmented_identity_hash = repeat('b', 64), segmented_identity_size = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 2b"
+        final:
+          revision: 1
+          row: "segmented_identity_hash IS NULL AND blob_key = '{blob_key}'"
+
+  - name: b-move-without-a-refused
+    stage: n1
+    trials:
+      - name: segmented-row-moved-to-a-new-object-refused
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET blob_key = '{new_key}' WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1d"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64) AND blob_key = '{blob_key}'"
+      - name: segmented-row-advanced-with-no-identity-change-refused
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET content_revision = 2 WHERE id = '{id}'"
+            expect: refused
+            rule: "revision"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64)"
+
+  - name: a-cleared-b-install-refused
+    stage: n1
+    trials:
+      - name: same-value-move-from-primary-to-segmented-refused
+        seed: {hash: "repeat('a', 64)", size: "3", revision: 2}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = NULL, blob_size_bytes = NULL, segmented_identity_hash = repeat('a', 64), segmented_identity_size = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1c"
+        final:
+          revision: 2
+          row: "content_hash = repeat('a', 64) AND segmented_identity_hash IS NULL"
+      - name: different-value-move-from-primary-to-segmented-refused
+        seed: {hash: "repeat('a', 64)", size: "3", revision: 2}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = NULL, blob_size_bytes = NULL, segmented_identity_hash = repeat('b', 64), segmented_identity_size = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1c"
+        final:
+          revision: 2
+          row: "content_hash = repeat('a', 64) AND segmented_identity_hash IS NULL"
+
+  - name: b-b-different-refused
+    stage: n1
+    trials:
+      - name: different-segmented-identity-refused
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET segmented_identity_hash = repeat('c', 64) WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1d"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64)"
+      - name: different-segmented-identity-with-an-advance-refused
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET segmented_identity_hash = repeat('c', 64), content_revision = 2 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1d"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64)"
+      - name: equal-segmented-identity-is-a-keep
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET segmented_identity_hash = repeat('b', 64), segmented_identity_size = 3, content_revision = 1 WHERE id = '{id}'"
+            expect: commit
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64)"
+
+  - name: usable-hash-clear-refused
+    stage: n1
+    trials:
+      - name: complete-identity-cleared-refused
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = NULL, blob_size_bytes = NULL WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 5"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes = 3"
+      - name: complete-identity-reduced-to-hash-only-refused
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET blob_size_bytes = NULL WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 5"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND blob_size_bytes = 3"
+      - name: segmented-identity-cleared-refused
+        seed: {segmented_hash: "repeat('b', 64)", segmented_size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET segmented_identity_hash = NULL, segmented_identity_size = NULL WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 5"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64)"
+      - name: malformed-hash-cleared-by-the-operator-repair-keeps-the-revision
+        seed: {hash: "'zz'"}
+        steps:
+          - {writer: repair, supplies: 1, expect: commit}
+        final:
+          revision: 1
+          row: "content_hash IS NULL AND blob_size_bytes IS NULL AND segmented_identity_hash IS NULL"
+
+  - name: same-object-hash-change-refused
+    stage: n1
+    trials:
+      - name: in-place-change-naming-the-revision-refused
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = repeat('b', 64), content_revision = 1 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1a/1b"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64)"
+      - name: in-place-change-not-naming-the-revision-refused
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - sql: "UPDATE transcripts SET content_hash = repeat('b', 64) WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1a/1b"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64)"
+      - name: operator-replacement-of-the-same-object-advances-by-one
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - {writer: repair, hash: b, size: 3, supplies: 2, expect: commit}
+        final:
+          revision: 2
+          row: "content_hash = repeat('b', 64) AND blob_key = '{blob_key}'"
+
+  - name: concurrent-first-read-wins
+    stage: n1
+    trials:
+      - name: publish-install-waits-for-the-first-read-and-matches-no-row
+        seed: {}
+        concurrent:
+          first: {sql: "{first_read_install_sql}", expect: commit}
+          second: {writer: install, hash: a, size: 3, expect: unmatched}
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64) AND content_hash IS NULL"
+      - name: unconditional-install-after-the-first-read-refused
+        seed: {}
+        concurrent:
+          first: {sql: "{first_read_install_sql}", expect: commit}
+          second:
+            sql: "UPDATE transcripts SET content_hash = repeat('a', 64), blob_size_bytes = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1b"
+        final:
+          revision: 1
+          row: "segmented_identity_hash = repeat('b', 64) AND content_hash IS NULL"
+
+  - name: publish-wins-before-first-read
+    stage: n1
+    trials:
+      - name: first-read-waits-for-the-publish-install-and-matches-no-row
+        seed: {}
+        concurrent:
+          first: {writer: install, hash: a, size: 3, expect: commit}
+          second: {sql: "{first_read_install_sql}", expect: unmatched}
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND segmented_identity_hash IS NULL"
+      - name: unconditional-first-read-after-the-publish-refused
+        seed: {}
+        steps:
+          - {writer: install, hash: a, size: 3, expect: commit}
+          - sql: "UPDATE transcripts SET segmented_identity_hash = repeat('b', 64), segmented_identity_size = 3 WHERE id = '{id}'"
+            expect: refused
+            rule: "rule 1c"
+        final:
+          revision: 1
+          row: "content_hash = repeat('a', 64) AND segmented_identity_hash IS NULL"
+
+  - name: changed-descriptor-invalidates-preread
+    stage: n1
+    trials:
+      - name: replaced-pending-row-leaves-the-first-read-no-row-to-match
+        seed: {}
+        steps:
+          - {writer: replace, hash: b, size: 3, supplies: 1, expect: commit}
+          - {sql: "{first_read_install_sql}", expect: unmatched}
+        final:
+          revision: 1
+          row: "content_hash = repeat('b', 64) AND segmented_identity_hash IS NULL AND blob_key = '{new_key}'"
+      - name: replaced-known-row-leaves-the-first-read-no-row-to-match
+        seed: {hash: "repeat('a', 64)", size: "3"}
+        steps:
+          - {writer: replace, hash: b, size: 3, supplies: 2, expect: commit}
+          - {sql: "{first_read_install_sql}", expect: unmatched}
+        final:
+          revision: 2
+          row: "content_hash = repeat('b', 64) AND segmented_identity_hash IS NULL AND blob_key = '{new_key}'"

@@ -20,3 +20,14 @@ Thanks for helping improve Village.
 
 By participating, you agree to follow the
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+## How changes land
+
+`develop` is protected by a merge queue. Add a pull request to the queue with
+**Merge when ready**; the queue builds the combined changes on top of the
+current `develop` and runs the required checks there: `journey`, `merge-gate`,
+and `title-guard`. Never push to `develop` directly.
+
+Pull request titles use the release-intent grammar `type(scope): subject`, for
+example `fix(publish): refuse a stale cursor`. Village does not cut releases, so
+a title never carries a `[level]` bracket or a `!` mark.

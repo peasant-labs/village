@@ -6,13 +6,13 @@ mutations:
     testFile: src/finalContractCompatibility.test.tsx
     testName: rejected-unknown-harness
   - name: nullable-turns-fallback
-    file: ../src/components/session-detail/v2/SessionDetailV2.tsx
-    original: 'const turns = useMemo(() => detail?.turns ?? [], [detail]);'
-    replacement: 'const turns = useMemo(() => detail!.turns!, [detail]);'
+    file: ../src/lib/transcriptExport.ts
+    original: 'computeAnalytics((detail.turns ?? []) as'
+    replacement: 'computeAnalytics((detail.turns!) as'
     testFile: src/finalContractCompatibility.test.tsx
     testName: null-turns
   - name: observed-model-pass-through
-    file: ../src/components/session-detail/v2/SessionDetailV2.tsx
+    file: ../src/lib/transcriptExport.ts
     original: 'detail as Parameters<typeof adaptTranscript>[0],'
     replacement: |-
       {

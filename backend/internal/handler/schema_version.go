@@ -52,9 +52,11 @@ func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
 		// default is what a request without the Peasant-Pull-Contract header
 		// receives, so released CLIs preflight against the envelope they get;
 		// the max is the newest envelope a client may ask for.
-		PullContractVersion:    pullContractVersion,
-		MinPullContractVersion: minPullContractVersion,
-		MaxPullContractVersion: maxPullContractVersion,
+		PullContractVersion:     pullContractVersion,
+		MinPullContractVersion:  minPullContractVersion,
+		MaxPullContractVersion:  maxPullContractVersion,
+		SegmentedReadVersion:    schema.SegmentedReadAPIVersion,
+		MinSegmentedReadVersion: schema.SegmentedReadMinVersion,
 	}
 	resp.ContentCapabilities = advertisedContentCapabilitiesWithEvaluators(h.preservationProof(), h.provenanceProof(), h.thinkingLevelProof())
 	if err := schema.ValidateContentCapabilityAdvertisements(resp.ContentCapabilities); err != nil {

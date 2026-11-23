@@ -1,5 +1,7 @@
 "use client";
 
+import { SessionListItemKind } from "@peasant-labs/schema";
+
 import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
 import { ScopedGroupedHelperRows } from "./ScopedHelperGroups";
 
@@ -29,7 +31,7 @@ export default function ScopedGroupedHelperSection({
   const grouped = useGroupedTranscripts(params);
   const items = grouped.data?.items ?? [];
   const hasDisclosures = items.some(
-    (item) => item.kind === "context_container" || (item.helperGroups ?? []).length > 0,
+    (item) => item.kind === SessionListItemKind.ContextContainer || (item.helperGroups ?? []).length > 0,
   );
   if (grouped.isError || !hasDisclosures) return null;
 

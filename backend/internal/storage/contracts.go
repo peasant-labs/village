@@ -15,12 +15,31 @@ type EncryptionAlgorithm string
 
 const EncryptionAES256GCMRandomNonceV1 EncryptionAlgorithm = "aes-256-gcm-random-nonce-v1"
 
+// CiphertextOverheadBytes is the random 96-bit nonce plus the 128-bit
+// authentication tag prepended by AES-GCM with a random nonce.
+const CiphertextOverheadBytes int64 = 28
+
 type KeyVersion = config.KeyVersion
 type ObjectKey string
 type ContentHash string
 
-var canonicalContentHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
+// CanonicalContentHashPattern is the stored content hash syntax: lowercase
+// hexadecimal SHA3-256. It is valid both as a Go regexp and as a PostgreSQL
+// POSIX regular expression, so a content-free SQL census can classify rows by
+// the same pattern NewContentIdentity enforces.
+const CanonicalContentHashPattern = `^[0-9a-f]{64}$`
+
+var canonicalContentHash = regexp.MustCompile(CanonicalContentHashPattern)
 var opaqueObjectKey = regexp.MustCompile(`^transcripts/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.bin$`)
+
+// NewObjectKey validates the same opaque-generation form as a blob descriptor.
+// It deliberately omits the supplied key from errors.
+func NewObjectKey(value string) (ObjectKey, error) {
+	if !opaqueObjectKey.MatchString(value) {
+		return "", errors.New("object key validation failed before object access; no object was read or written; provide an opaque transcript generation key")
+	}
+	return ObjectKey(value), nil
+}
 
 type BlobDescriptor struct {
 	objectKey  ObjectKey
@@ -139,7 +158,50 @@ func (i LoadedContentIdentity) validate() error {
 	}
 }
 
-var ErrObjectNotFound = errors.New("object not found")
+// ErrObjectAbsentProvider is the definite-absence evidence that a deployment
+// verification of the provider's exact-key not-found behavior must establish
+// before a missing object may be treated as absent. Nothing produces it today:
+// the S3 adapter does not claim it, and even NoSuchKey is uncertain until the
+// provider's exact-key semantics are verified. Once verified, it is produced in
+// one place, the exact-key not-found branch of S3ObjectStore.Get and
+// S3ObjectStore.GetBounded in s3.go. The publish path and the operator repair
+// branch on it already (handler predecessor classification, contentrepair
+// restore); until the adapter returns it, only tests inject it, and those
+// branches are unreachable in production.
+var ErrObjectAbsentProvider = errors.New("object provider absence established")
+
+// ErrObjectLookupUncertain includes masked or unverified absence, timeouts,
+// provider errors and incomplete responses. It is never evidence of absence by
+// itself. A publish therefore treats it as retryable and answers 503. The one
+// caller that proceeds on it is the operator declare of unavailable content:
+// there the operator's recorded authorization reference and reason are the
+// evidence that the object is lost, and the lookup only has to fail to show that
+// the object exists. No request path may do the same.
+var ErrObjectLookupUncertain = errors.New("object lookup outcome uncertain")
+
+// ErrObjectIntegrityUncertain means a returned object could not authenticate.
+var ErrObjectIntegrityUncertain = errors.New("object integrity outcome uncertain")
+
+// ErrKeyPermanentlyUnavailable is the explicit custodian result for a key that
+// is gone for good, the second piece of the same deployment verification.
+// Nothing produces it today: the transcript keyring does not claim permanent
+// key loss, and every unwrap failure is uncertain. Once a custodian reports it, it is
+// produced by the KeyCustodian implementation (config.TranscriptKeyring.Unwrap
+// or its successor) and nowhere else. The publish path already branches on it,
+// and until then only tests inject it.
+var ErrKeyPermanentlyUnavailable = errors.New("key permanently unavailable")
+
+// objectLookupError exposes the cause for cancellation and diagnostics without
+// putting provider error text, which may include object keys, into logs.
+type objectLookupError struct{ cause error }
+
+func (e *objectLookupError) Error() string {
+	return "object lookup could not establish the requested generation in storage during retrieval; no plaintext was returned; restore provider access and retry"
+}
+
+func (e *objectLookupError) Unwrap() []error {
+	return []error{ErrObjectLookupUncertain, e.cause}
+}
 
 // UncommittedObjectCleanupError reports an uploaded generation that no
 // descriptor references and that could not be deleted after a later step of the
@@ -165,6 +227,9 @@ type KeyCustodian interface {
 type ObjectStore interface {
 	Put(context.Context, ObjectKey, []byte, string) error
 	Get(context.Context, ObjectKey) ([]byte, string, error)
+	// GetBounded refuses an unknown, incomplete or oversized object. It never
+	// reads more than the provider's stated size plus one sentinel byte.
+	GetBounded(context.Context, ObjectKey, int64) ([]byte, string, error)
 	Delete(context.Context, ObjectKey) error
 }
 type TranscriptBlobStore interface {
@@ -174,6 +239,9 @@ type TranscriptBlobStore interface {
 	// metadata writes one object and returns a nil MetadataObject.
 	WriteGeneration(ctx context.Context, id uuid.UUID, body []byte, metadata []byte) (BlobDescriptor, ContentIdentity, *MetadataObject, error)
 	Read(context.Context, uuid.UUID, BlobDescriptor, LoadedContentIdentity) ([]byte, ContentIdentity, error)
+	// ReadBounded authenticates a generation through a bounded ciphertext
+	// read; maxBytes is a ciphertext limit, including the nonce and tag.
+	ReadBounded(context.Context, uuid.UUID, BlobDescriptor, LoadedContentIdentity, int64) ([]byte, ContentIdentity, error)
 	// ReadMetadata unwraps the data key from the content descriptor and returns
 	// the metadata only after authentication and hash and size validation.
 	ReadMetadata(ctx context.Context, id uuid.UUID, d BlobDescriptor, m MetadataObject) ([]byte, error)

@@ -1,0 +1,80 @@
+# Who receives a commit's author from GET /api/v1/transcripts/{id}/commits.
+#
+# A git author name or email can identify the transcript's owner, and so can
+# the message: trailers such as Co-authored-by and Signed-off-by carry names
+# and emails. The route serves all three only to a caller who may see the
+# owner's public profile (the rule the publish metadata route applies to the
+# same commits); every other caller receives null for all three. The SHA,
+# timestamps and order are served to every caller.
+#
+# The test seeds two public transcripts carrying the commits below: one whose
+# owner is discoverable, one whose owner is not. A collective owner holds an
+# approved submission of each, which is what lets them see a hidden owner. A
+# signed-in stranger has no relation to either owner.
+#
+# Every case asserts the exact response bytes: served_body when the caller may
+# see the owner (the bytes the route has always sent), withheld_body when not.
+# A withheld case also asserts that no commit's author name, author email or
+# message text appears anywhere in the response.
+
+commits:
+  - sha: 4f1c2a9e8b7d6c5a4f3e2d1c0b9a8f7e6d5c4b3a
+    message: "fix: retry the upload once\n\nCo-authored-by: Trailer Coauthor Fixture <trailer-coauthor-fixture@example.invalid>"
+    author_name: Commit Author Fixture
+    author_email: commit-author-fixture@example.invalid
+    authored_at_ms: 1700000000000
+    committed_at_ms: 1700000060000
+  - sha: 0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d
+    message: null
+    author_name: null
+    author_email: null
+    authored_at_ms: null
+    committed_at_ms: null
+
+served_body: >-
+  {"commits":[{"sha":"4f1c2a9e8b7d6c5a4f3e2d1c0b9a8f7e6d5c4b3a","message":"fix: retry the upload once\n\nCo-authored-by: Trailer Coauthor Fixture \u003ctrailer-coauthor-fixture@example.invalid\u003e","authorName":"Commit Author Fixture","authorEmail":"commit-author-fixture@example.invalid","authoredAt":1700000000000,"committedAt":1700000060000,"order":0},{"sha":"0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d","message":null,"authorName":null,"authorEmail":null,"authoredAt":null,"committedAt":null,"order":1}]}
+
+withheld_body: >-
+  {"commits":[{"sha":"4f1c2a9e8b7d6c5a4f3e2d1c0b9a8f7e6d5c4b3a","message":null,"authorName":null,"authorEmail":null,"authoredAt":1700000000000,"committedAt":1700000060000,"order":0},{"sha":"0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d","message":null,"authorName":null,"authorEmail":null,"authoredAt":null,"committedAt":null,"order":1}]}
+
+cases:
+  - name: hidden_owner_to_owner
+    owner_discoverable: false
+    viewer: owner
+    author: served
+    why: the owner always sees their own commits
+  - name: hidden_owner_to_collective_owner
+    owner_discoverable: false
+    viewer: collective_owner
+    author: served
+    why: an approved submission to their collective lets its owner see the transcript's owner
+  - name: hidden_owner_to_signed_in_stranger
+    owner_discoverable: false
+    viewer: stranger
+    author: withheld
+    why: the owner is anonymous to a signed-in caller with no relation to them
+  - name: hidden_owner_to_anonymous_caller
+    owner_discoverable: false
+    viewer: anonymous
+    author: withheld
+    why: a signed-out caller sees discoverable people only
+  - name: discoverable_owner_to_owner
+    owner_discoverable: true
+    viewer: owner
+    author: served
+    why: the owner always sees their own commits
+  - name: discoverable_owner_to_collective_owner
+    owner_discoverable: true
+    viewer: collective_owner
+    author: served
+    why: a discoverable owner is visible to everyone
+  - name: discoverable_owner_to_signed_in_stranger
+    owner_discoverable: true
+    viewer: stranger
+    author: served
+    why: a discoverable owner is visible to everyone
+  - name: discoverable_owner_to_anonymous_caller
+    owner_discoverable: true
+    viewer: anonymous
+    author: served
+    why: a discoverable owner is visible to signed-out callers too

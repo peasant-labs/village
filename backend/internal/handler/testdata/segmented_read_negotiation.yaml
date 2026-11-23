@@ -1,0 +1,6 @@
+- {name: omitted, query: "", status: 200, supported: true}
+- {name: refused, query: "?v=3", status: 400}
+- {name: malformed, query: "?v=bad", status: 400}
+- {name: empty, query: "?v=", status: 400}
+- {name: duplicate-same, query: "?v=1&v=1", status: 400}
+- {name: duplicate-mixed, query: "?v=0&v=2", status: 400}

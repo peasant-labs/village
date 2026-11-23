@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -35,6 +36,13 @@ type transcriptCommitResponse struct {
 // a repo's cached commits. Visibility follows the transcript's own rules — if
 // the caller cannot view the transcript, they get 404 (not 403, to avoid
 // leaking existence), exactly like the annotations GET handler.
+//
+// A commit's author name and email can identify the transcript's owner, and so
+// can its message (trailers such as Co-authored-by and Signed-off-by carry a
+// name and an email), so when the owner is anonymous to the caller
+// (resolvePublicOwner, the rule the publish metadata route applies to the same
+// commits) all three are sent as null. A caller who may see the owner gets
+// every field as stored.
 func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -54,6 +62,12 @@ func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	owner, err := h.resolvePublicOwner(r.Context(), user, transcript.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner; no commits were served; retry the request")
+		return
+	}
+
 	rows, err := h.queries.ListTranscriptCommits(r.Context(), transcript.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch commits")
@@ -62,7 +76,7 @@ func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) 
 
 	commits := make([]transcriptCommitResponse, 0, len(rows))
 	for _, row := range rows {
-		commits = append(commits, transcriptCommitRowToResponse(row))
+		commits = append(commits, transcriptCommitRowToResponse(row).withholdIdentity(owner))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"commits": commits})
@@ -80,6 +94,19 @@ func transcriptCommitRowToResponse(row sqlc.TranscriptCommit) transcriptCommitRe
 		CommittedAt: pgTimestamptzToMillisPtr(row.CommittedAt),
 		Order:       row.CommitOrder,
 	}
+}
+
+// withholdIdentity removes what can name the owner of a transcript whose
+// owner is anonymous to the viewer: the git author name and email, and the
+// message, whose trailers (Co-authored-by, Signed-off-by) carry names and
+// emails. All three become null; the SHA, timestamps and order stay. A
+// profile owner keeps every field.
+func (c transcriptCommitResponse) withholdIdentity(owner schema.VillagePublicOwner) transcriptCommitResponse {
+	if owner.IsProfile() {
+		return c
+	}
+	c.Message, c.AuthorName, c.AuthorEmail = nil, nil, nil
+	return c
 }
 
 // pgTimestamptzToMillisPtr renders a nullable timestamptz as a Unix-millis

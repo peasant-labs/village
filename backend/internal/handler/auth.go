@@ -520,6 +520,7 @@ func (h *Handler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to delete account")
 		return
 	}
+	h.purgeOwnerContent(user.PgID(), purgeDelete)
 	auth.ClearCookie(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

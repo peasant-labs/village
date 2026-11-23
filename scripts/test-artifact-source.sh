@@ -3,20 +3,23 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source_script="$script_dir/check-artifact-source.sh"
-# Fail closed unless both explicit trigger path lists cover the sourced build helper.
+# Fail closed unless the workflow runs on every PR and merge group, the
+# gated-path filter covers the sourced build helper, and the push trigger
+# still covers it.
 awk '
   /^  pull_request:$/ { event = "pull_request"; in_paths = 0; next }
+  /^  merge_group:$/ { event = "merge_group"; merge_group = 1; in_paths = 0; next }
   /^  push:$/ { event = "push"; in_paths = 0; next }
   /^[^[:space:]#]/ && $0 != "on:" { event = ""; in_paths = 0 }
-  /^    paths:$/ { in_paths = 1; next }
-  /^    [[:alnum:]_]+:/ && $0 != "    paths:" { in_paths = 0 }
-  in_paths && /^      - "scripts\/production-image-build\.sh"$/ {
-    if (event == "pull_request") pull_request = 1
-    if (event == "push") push = 1
-  }
+  /^    paths:$/ { if (event == "pull_request" || event == "merge_group") bad_paths = 1; in_paths = 1; next }
+  /^    [[:alnum:]_-]+:/ && $0 != "    paths:" { in_paths = 0 }
+  in_paths && event == "push" && /^      - "scripts\/production-image-build\.sh"$/ { push = 1 }
+  /^  changes:$/ { changes_job = 1 }
+  /^  merge-gate:$/ { gate = 1 }
+  /^          if grep -Eq / && /scripts\// { filter = 1 }
   END {
-    if (!pull_request || !push) {
-      print "backend-tests.yml must trigger on scripts/production-image-build.sh for both pull_request and push" > "/dev/stderr"
+    if (!merge_group || bad_paths || !changes_job || !filter || !push || !gate) {
+      print "backend-tests.yml must run unfiltered on pull_request and merge_group, keep scripts/production-image-build.sh on the push trigger, include scripts/ in the changes filter, and report merge-gate" > "/dev/stderr"
       exit 1
     }
   }

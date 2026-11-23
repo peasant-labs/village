@@ -104,7 +104,9 @@ func TestSchemaToCommitRecords_NilWhenNoCommits(t *testing.T) {
 
 func publishWithCommits(t *testing.T, mq *mockQuerier, commits []schema.CommitInfo) *httptest.ResponseRecorder {
 	t.Helper()
-	h := newTestHandler(mq, &mockTranscriptBlobStore{})
+	blobs := &mockTranscriptBlobStore{}
+	blobs.seedBody("transcripts/20000000-0000-4000-8000-000000000002.bin", []byte(`[{"role":"user","content":"hi"}]`))
+	h := newTestHandler(mq, blobs)
 
 	metadata := schema.PublishRequest{
 		Identity: schema.SessionIdentity{
@@ -373,6 +375,12 @@ func TestHandlerListTranscriptCommits_MapsRows(t *testing.T) {
 		listTranscriptCommits: func(_ context.Context, transcriptID pgtype.UUID) ([]sqlc.TranscriptCommit, error) {
 			gotTranscriptID = transcriptID
 			return []sqlc.TranscriptCommit{commitRow, nullRow}, nil
+		},
+		// The owner is discoverable, so the commit author is served as stored.
+		// The withheld author of an anonymous owner is covered against
+		// PostgreSQL in the router package.
+		getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) {
+			return sqlc.User{ID: id, GithubUsername: "commit-owner", IsDiscoverable: true}, nil
 		},
 	}
 	h := newTestHandler(q, nil)

@@ -1,0 +1,5 @@
+- {name: strict-visible, validation: published_strict, withheld: false, hash: abc, want: abc}
+- {name: legacy-visible, validation: served_legacy, withheld: false, hash: abc, want: abc}
+- {name: migrated-hidden, validation: migrated, withheld: false, hash: abc, want: ""}
+- {name: strict-withheld, validation: published_strict, withheld: true, hash: abc, want: ""}
+- {name: pending-hash, validation: published_strict, withheld: false, hash: "", want: ""}

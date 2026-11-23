@@ -1,0 +1,6 @@
+prefix_pattern: '(?m)^[ \t]*prefix="\$RUNNER_TEMP/[^"\n]+"[ \t]*$'
+install_pattern: '(?m)^[ \t]*npm\s+(install|i|add|in|ins)\b[^\n]*--prefix[= \t]+"\$prefix"[^\n]*@ast-grep/cli@0\.51\.2(?:[ \t]|$)'
+path_pattern: '(?m)^[ \t]*echo[ \t]+"\$prefix/node_modules/\.bin"[ \t]*>>[ \t]*"\$GITHUB_PATH"[ \t]*$'
+workflow: backend-tests.yml
+job: frontend
+step: Install ast-grep

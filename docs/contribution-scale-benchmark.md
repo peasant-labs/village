@@ -338,16 +338,16 @@ over two.
   only the timeout refusal is an owner decision; this data states the cost.
 - **Index set recommended for adoption now: H1 alone**, with the 1,000,000 first-page
   decision on R1 left open. No index helps the picker enough to pass the rule alone
-  at 1,000,000. Migration 051 adds that index.
+  at 1,000,000. Migration 055 adds that index.
 
-### Follow-up: the last-activity root index (migration 052)
+### Follow-up: the last-activity root index (migration 056)
 
 The paged view later changed its root order from session start to last
 activity, `COALESCE(session_end, session_start, published_at, 'epoch')`. R1 was
 measured on the earlier key, so its numbers above do not describe the new order.
 The open R1 decision was taken again on the new key, with the production
 statement instead of the harness's approximation, and the owner adopted the
-index for scale. Migration 052 adds it:
+index for scale. Migration 056 adds it:
 `(owner_id, COALESCE(session_end, session_start, published_at, 'epoch') DESC, id)`.
 
 Method. The generated `ListContributionPage` statement was prepared verbatim

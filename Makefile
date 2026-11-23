@@ -1,6 +1,11 @@
-.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check contribution-bench
+.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build build-backend up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check contribution-bench check-unstring unstring-update
 
 export PATH := $(PATH):$(shell go env GOPATH)/bin
+
+# Static guard against stringly-typed values, pinned to the published tool.
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.3.0
+BUILD_REVISION ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null)
+BACKEND_REVISION_LDFLAGS = -X github.com/peasant-labs/village/backend/internal/handler.buildRevision=$(BUILD_REVISION)
 
 # Local development (infra + app in Docker). All @peasant-labs/* packages
 # resolve from the registry via the pnpm workspace (see pnpm-workspace.yaml);
@@ -37,6 +42,12 @@ seed:
 test:
 	@echo "Running tests..."
 	cd backend && go test ./...
+
+check-unstring:
+	$(UNSTRING) check
+
+unstring-update:
+	$(UNSTRING) update
 
 # Dependency license notices shipped in the backend image (backend/Dockerfile).
 third-party-notices:
@@ -84,7 +95,9 @@ up:
 down:
 	docker compose down
 
-build:
+build-backend:
+	cd backend && go build -ldflags '$(BACKEND_REVISION_LDFLAGS)' -o ./bin/server ./cmd/server
+
+build: build-backend
 	@echo "Building production binaries..."
-	cd backend && go build -o ./bin/server ./cmd/server
 	cd frontend && pnpm build

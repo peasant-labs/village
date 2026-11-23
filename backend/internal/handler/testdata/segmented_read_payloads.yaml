@@ -1,0 +1,53 @@
+# Serialized payloads of the segmented reads at the HTTP boundary. Each case is
+# served by the production handler on a mounted route, and the response body is
+# decoded as JSON members, so a member the contract requires to be absent is
+# checked as absent and not only as empty. Every name is required by
+# TestSegmentedReadPayloads.
+directory:
+  # A directory at the cap is served whole and carries no page members.
+  - {name: directory-at-cap-unpaged, total: 10000, query: "", status: 200, count: 10000, first: 0, last: 9999}
+  - {name: directory-above-cap-first-page, total: 10001, query: "&page=1", status: 200, page: 1, per_page: 10000, count: 10000, first: 0, last: 9999}
+  - {name: directory-above-cap-last-page, total: 10001, query: "&page=2", status: 200, page: 2, per_page: 10000, count: 1, first: 10000, last: 10000}
+  # The two refusals that name counts: the page asked for and the pages there are.
+  - {name: directory-page-beyond-last, total: 10001, query: "&page=3", status: 404, error: "Directory page 3 is outside the 2 available pages."}
+  - {name: directory-page-two-at-cap, total: 10000, query: "&page=2", status: 404, error: "Directory page 2 is outside the 1 available pages."}
+  - {name: directory-page-zero, total: 10001, query: "&page=0", status: 400, error: "Cannot read the directory page; provide a positive page number."}
+header:
+  # Stored row 1 is removed by the codex cooking class, so its mark is
+  # dropped, and stored row 2 is served at position 1.
+  - name: header-mark-remapped-and-removed-row-dropped
+    document: '{"sessionDetail":{"harness":"codex","turns":[{"index":10,"role":"user","content":"first"},{"index":20,"role":"system","content":"short"},{"index":30,"role":"assistant","content":"answer"}]}}'
+    model_provider: codex
+    flagged: [1, 2]
+    marks: [{position: 1, turn: 30}]
+    present: [contentHash, flaggedTurns, retainedEvidence]
+  - name: header-marks-sorted-and-deduplicated
+    document: '{"sessionDetail":{"harness":"pi","turns":[{"index":10,"role":"user","content":"first"},{"index":30,"role":"assistant","content":"answer"}]}}'
+    model_provider: pi
+    flagged: [1, 0, 1]
+    marks: [{position: 0, turn: 10}, {position: 1, turn: 30}]
+    present: [contentHash, flaggedTurns]
+  # Every flagged row is removed or outside the partition, so no mark is left
+  # and the member is absent, not an empty array.
+  - name: header-every-mark-dropped-omits-member
+    document: '{"sessionDetail":{"harness":"codex","turns":[{"index":10,"role":"user","content":"first"},{"index":20,"role":"system","content":"short"},{"index":30,"role":"assistant","content":"answer"}]}}'
+    model_provider: codex
+    flagged: [1, 7, -1]
+    present: [contentHash]
+    absent: [flaggedTurns]
+  # Omitted images are counted in main and in history alike; an image with no
+  # omission reason is not counted.
+  - name: header-omitted-images-main-and-history
+    document: '{"sessionDetail":{"harness":"pi","turns":[{"index":0,"role":"user","content":"look","contentParts":[{"type":"image","image":{"omittedReason":"too_large"}},{"type":"image","image":{"mediaType":"image/png"}}]}],"earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"role":"user","content":"older","contentParts":[{"type":"image","image":{"omittedReason":"too_large"}}]}]}]}}'
+    model_provider: pi
+    omitted_images: 2
+    present: [contentHash]
+    absent: [flaggedTurns]
+  # An owner whose profile is not visible has the content identity and the
+  # retained evidence withheld; with no content hash, no mark is placed.
+  - name: header-withheld-owner-omits-identity-and-marks
+    document: '{"sessionDetail":{"harness":"pi","turns":[{"index":10,"role":"user","content":"first"},{"index":30,"role":"assistant","content":"answer"}]}}'
+    model_provider: pi
+    flagged: [0]
+    withheld: true
+    absent: [contentHash, retainedEvidence, flaggedTurns]

@@ -16,6 +16,7 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v5"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 )
 
 // maxContractBodyBytes caps a JSON request body on the enforced operations.
@@ -127,6 +128,7 @@ var (
 	opBatchReviewShares     = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares"}
 	opReviewShare           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares/{transcriptID}"}
 	opShareTranscript       = ContractOperation{Method: "POST", Path: "/api/v1/transcripts/{id}/share"}
+	opLocateTranscriptEntry = ContractOperation{Method: http.MethodPost, Path: schemaRoute.VillageLocateTranscriptEntry.Pattern()}
 	opUpdateUserSettings    = ContractOperation{Method: "PATCH", Path: "/api/v1/users/me/settings"}
 
 	opSetNotificationEmail    = ContractOperation{Method: "PUT", Path: "/api/v1/users/me/email"}
@@ -149,6 +151,7 @@ func ContractEnforcedOperations() []ContractOperation {
 		opBatchReviewShares,
 		opReviewShare,
 		opShareTranscript,
+		opLocateTranscriptEntry,
 		opUpdateUserSettings,
 		opSetNotificationEmail,
 		opVerifyNotificationEmail,

@@ -1,0 +1,255 @@
+# Source mutations of the positioned transcript page, each with the named cases
+# that must fail under it. scripts/test-positioned-host-mutations.mjs applies
+# one mutation at a time, runs its killers, requires a named killer to be among
+# the failing cases, and restores the file.
+#
+# `occurrences` is how many times `original` appears in `file` (default 1); the
+# mutation replaces every one of them. A killer of kind `journey` runs only with
+# POSITIONED_MUTATIONS_JOURNEYS=1, since it needs the journey mock and a dev
+# server; the vitest killer of the same row always runs.
+#
+# Exit condition. Each row guards a decision this page makes on top of
+# Fairtrade's reader: which reader to mount, that a positioned failure never
+# reads /content, how a download is read and when it is saved, what the
+# transport sends, and what the host's own status line names. A row is removed
+# when that decision moves out of Village into a package whose own tests kill
+# the same mutation (Fairtrade's reader, or Schema's discovery helpers), and
+# its killer case moves or goes with it. The runner, its entry in
+# `test:mutation` and this fixture are deleted when no row is left. A row is
+# never removed only because its killer is slow or because it has not failed
+# in a while.
+mutations:
+  - name: v2-error-reads-content
+    why: a positioned failure that reads the whole document instead
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const positionedRevision = positioned?.controls.header?.revision;\n"
+    replacement: |
+      const positionedRevision = positioned?.controls.header?.revision;
+      useEffect(() => {
+        if (!positioned?.viewerProps.positionedRead?.failure) return;
+        void readTranscriptForDownload(
+          { transcriptId, format: 'json', url: transcriptUrl, storedTitle: transcriptTitle },
+          { signal: new AbortController().signal, isCurrent: () => false },
+        );
+      });
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: v2-failure-never-requests-content}
+      - {kind: journey, file: scripts/journey/positioned-transcript.journey.mjs, name: journey-v2-failure-no-content-request}
+
+  - name: version-token-substring
+    why: a version token matched by substring instead of exact membership
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
+    replacement: "  return [served.current, served.min].some((token) => token.includes(SegmentedReadAPIVersion));\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused}
+
+  - name: version-current-member-only
+    why: a window served only when its current member is the token, so a later server that still serves the reads gets the whole document
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
+    replacement: "  return served.current === SegmentedReadAPIVersion;\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-later-serving-0.2.0-mounts-positioned}
+
+  - name: decide-on-min-alone
+    why: the mode decided from minSegmentedReadVersion alone
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "    const served = parseSegmentedReadVersionAdvertisement(await response.text());\n    return served !== null && servesPositionedReads(served)\n"
+    replacement: "    const served = JSON.parse((await response.text()) || \"{}\");\n    return served?.minSegmentedReadVersion === SegmentedReadAPIVersion\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-min-only-uses-content}
+
+  - name: decide-on-health-trait
+    why: the mode decided from the health route's serves trait
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "    const served = parseSegmentedReadVersionAdvertisement(await response.text());\n    return served !== null && servesPositionedReads(served)\n"
+    replacement: "    const served = JSON.parse((await response.text()) || \"{}\");\n    return (served?.serves ?? []).includes(\"segmented-reads-v2\")\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-ignores-health-trait}
+
+  - name: export-from-loaded-segments
+    why: a download written from the segments in hand instead of one /content read
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (positioned) {\n      const { id, abort } = downloadEpoch.current;\n"
+    replacement: |2
+          if (positioned) {
+            const loaded = (positioned.viewerProps.segments ?? []).flatMap((segment) => segment.turns);
+            const viewModel = { ...positioned.viewerProps.viewModel!, turns: loaded };
+            saveTranscriptFile(transcriptFile(format, { viewModel, detail: { ...viewModel.session, turns: loaded } as unknown as SessionDetailPayload, url: transcriptUrl, transcriptId }));
+            return;
+          }
+          if (positioned) {
+            const { id, abort } = downloadEpoch.current;
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-json-bytes-partial-load}
+
+  - name: json-indent-dropped
+    why: the JSON download without its two-space indent
+    file: ../../src/lib/transcriptExport.ts
+    original: "JSON.stringify(source.detail, null, 2)"
+    replacement: "JSON.stringify(source.detail)"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-json-bytes-partial-load}
+
+  - name: json-trailing-newline-dropped
+    why: the JSON download without its trailing newline
+    file: ../../src/lib/transcriptExport.ts
+    original: "text: `${JSON.stringify(source.detail, null, 2)}\\n` }"
+    replacement: "text: JSON.stringify(source.detail, null, 2) }"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-json-bytes-partial-load}
+
+  - name: epoch-ignored
+    why: a download saved after the page moved to another revision
+    file: ../../src/lib/transcriptExport.ts
+    original: "!epoch.isCurrent()"
+    replacement: "false"
+    occurrences: 2
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-no-partial-file-on-epoch-change}
+
+  - name: revision-echo-dropped
+    why: a segment or window read that no longer echoes the revision
+    file: ../../src/lib/queries/positionedTransport.ts
+    original: "[\"revision\", \"representation\"] as const"
+    replacement: "[\"representation\"] as const"
+    killers:
+      - {kind: vitest, file: src/lib/queries/positionedTransport.test.ts, name: transport-sends-v2-and-echo}
+
+  - name: representation-echo-dropped
+    why: a segment or window read that no longer echoes the representation
+    file: ../../src/lib/queries/positionedTransport.ts
+    original: "[\"revision\", \"representation\"] as const"
+    replacement: "[\"revision\"] as const"
+    killers:
+      - {kind: vitest, file: src/lib/queries/positionedTransport.test.ts, name: transport-sends-v2-and-echo}
+
+  - name: http-date-read-as-seconds
+    why: an HTTP-date Retry-After read as a number of seconds
+    file: ../../src/lib/queries/positionedTransport.ts
+    original: "  const date = httpDate(trimmed, at);\n"
+    replacement: "  const date = at + Number.parseFloat(trimmed) * 1000;\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/positionedTransport.test.ts, name: transport-retry-after-parse}
+
+  - name: graph-reads-content-on-mount
+    why: the graph reading the whole document every time it mounts, instead of once per revision
+    file: ../../src/components/session-detail/v2/useWholeDocumentGraph.tsx
+    original: "    if (!graphWanted || graphCurrent.status !== GraphReadStatus.Idle) return;\n    if (graphRequested.current && graphRequested.current.revision === revision) return;\n"
+    replacement: "    if (!graphWanted) return;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: graph-open-reads-content-once}
+
+  - name: list-reads-content
+    why: the list reading the whole document though the graph was never opened
+    file: ../../src/components/session-detail/v2/useWholeDocumentGraph.tsx
+    original: "  const graphWanted = positioned && viewMode === TranscriptViewMode.Graph;\n"
+    replacement: "  const graphWanted = positioned;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: list-mode-never-reads-content}
+
+  - name: snapped-line-prints-recorded-index
+    why: the snapped-turn line naming the opened row by its recorded index instead of the label the row shows
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "openedRow.numberAbsent ? undefined : openedRow.label"
+    replacement: "String(landing.anchorTurn)"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: turn-param-snapped-status-copy}
+
+  - name: discovery-timeout-removed
+    why: a version read with no deadline, so a stalled answer holds the page before either reader mounts
+    file: ../../src/lib/queries/segmentedReadCapability.ts
+    original: "      signal: AbortSignal.any(signal ? [signal, deadline] : [deadline]),\n"
+    replacement: "      signal,\n"
+    killers:
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-timeout-uses-content}
+
+  - name: download-epoch-never-ends
+    why: a revision change that neither aborts the download in flight nor ends its epoch, so the old revision's file is saved
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    return () => {\n      epoch.abort.abort();\n      downloadEpoch.current = { id: epoch.id + 1, abort: new AbortController() };\n    };\n"
+    replacement: "    return () => { void epoch; };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}
+
+  - name: saved-turn-by-position
+    why: the positioned page saving its active row's served position, which a whole-document visit reads as another turn
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;\n"
+    replacement: "  const savedActiveTurn = activeTurn ?? null; void activeRow;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-content-after-positioned-same-turn}
+
+  - name: absent-recorded-index-clears-saved
+    why: a loaded row with no recorded index overwriting the saved position with null
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const savedActiveTurn = positioned ? (activeRow?.recordedIndex ?? activeRecordedIndex) : activeTurn ?? null;\n"
+    replacement: "  const savedActiveTurn = positioned ? (activeRow ? activeRow.recordedIndex ?? null : activeRecordedIndex) : activeTurn ?? null;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-absent-recorded-index-keeps-previous}
+
+  - name: saved-turn-not-targeted
+    why: a return to the positioned page that opens at the start instead of the saved reading position
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "deepLink.entry === undefined && saved !== null"
+    replacement: "deepLink.entry === undefined && saved !== null && false"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-lands-saved-turn}
+
+  - name: saved-history-not-reopened
+    why: a return to the positioned page that leaves the earlier history it had open closed
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (Object.keys(open).length > 0) positioned.viewerProps.onEarlierHistoryOpenChange?.(open);\n"
+    replacement: "    void open;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-earlier-history-open}
+
+  - name: stopped-download-silent
+    why: a download the revision change stopped that saves nothing and says nothing
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "        if (!saved && mounted.current) setDownloadStopped(true);\n"
+    replacement: "        void saved;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: download-revision-change-mounted-aborts}
+
+  - name: restored-offset-dropped
+    why: a return that lands on the saved row but not where it sat in the stream
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "          stream.scrollTop += rowOffset(stream, row) - restoredReadState.turnOffset;\n"
+    replacement: "          void row;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-positioned-restores-offset}
+      - {kind: journey, file: scripts/journey/positioned-transcript.journey.mjs, name: journey-restore-reading-position}
+
+  - name: scroll-save-unthrottled
+    why: a scroll listener that reads layout and writes storage on every scroll event instead of once per frame
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (frame) return;\n    frame = requestAnimationFrame(() => {\n      frame = 0;\n      persist();\n    });\n"
+    replacement: "    persist();\n    void frame;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-throttled-per-frame}
+
+  - name: scroll-save-writes-unchanged
+    why: a reading-position save that writes storage even when the saved value has not changed
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    if (lastSavedStateRef.current === key) return;\n"
+    replacement: "    void key;\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-throttled-per-frame}
+
+  - name: restore-offset-ignores-user-scroll
+    why: an offset restore that continues and yanks the stream after the user scrolls during the restore window
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "    const onUserScroll = () => cancel();\n"
+    replacement: "    const onUserScroll = () => { void cancel; };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-cancels-on-wheel}
+
+  - name: restore-offset-ignores-out-of-view
+    why: an offset restore that applies before the active row is in the stream viewport
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "        isRowInView(stream, row)\n"
+    replacement: "        (void isRowInView, true)\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-skips-out-of-view}

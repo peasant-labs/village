@@ -3,21 +3,18 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	_ "embed"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -150,15 +147,9 @@ type confirmOwnHandleCorpus struct {
 
 func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
 	t.Helper()
-	var corpus confirmOwnHandleCorpus
-	d := yaml.NewDecoder(bytes.NewReader(confirmOwnHandleFixtures))
-	d.KnownFields(true)
-	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("confirm-own-handle fixtures must contain one YAML document")
+	corpus, err := decodeFixtureDocument[confirmOwnHandleCorpus](confirmOwnHandleFixtures)
+	if err != nil {
+		t.Fatalf("decode the confirm-own-handle fixture: %v", err)
 	}
 	names := map[string]bool{}
 	var sawConfirmed, sawRefused bool

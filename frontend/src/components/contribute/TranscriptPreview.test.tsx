@@ -44,6 +44,13 @@ vi.mock("@peasant-labs/fairtrade/ui", async () => {
   };
 });
 
+// These cases are about the whole-document preview; the reader choice is
+// made by the capability read, answered here as "no positioned reads".
+vi.mock("@/lib/queries/segmentedReadCapability", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/queries/segmentedReadCapability")>("@/lib/queries/segmentedReadCapability");
+  return { ...actual, useSegmentedReadCapability: () => ({ data: actual.TranscriptReadMode.Content }) };
+});
+
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({ user: null, isLoading: false, isLoggedIn: false }),
 }));

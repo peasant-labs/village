@@ -17,7 +17,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -57,15 +55,11 @@ func callSkipGate(t *testing.T, h *Handler, caller uuid.UUID, req schema.PullSki
 	return resp
 }
 
-// setServerContentHash records the served-plaintext hash through the fixed
-// system writer transaction required for storage identity mutations.
+// setServerContentHash records the served-plaintext hash on the row as a
+// fixture, including values that are not canonical hashes.
 func setServerContentHash(t *testing.T, ctx context.Context, h *Handler, id pgtype.UUID, hash string) {
 	t.Helper()
-	if err := h.inTxAsSystem(ctx, func(q Querier) error {
-		return q.SetTranscriptContentHash(ctx, sqlc.SetTranscriptContentHashParams{ID: id, ContentHash: pgtype.Text{String: hash, Valid: true}})
-	}); err != nil {
-		t.Fatalf("set server content hash: %v", err)
-	}
+	execFixtureIdentity(t, ctx, h.pool, `UPDATE transcripts SET content_hash = $2 WHERE id = $1`, id, hash)
 }
 
 // pushSessionAnnotations pushes owner-scoped session-target annotations linking to
@@ -104,27 +98,13 @@ type skipGateCurrencyFixture struct {
 	Cases []skipGateCurrencyCase `yaml:"cases"`
 }
 
-func decodeSkipGateCurrencyFixture(data []byte) (skipGateCurrencyFixture, error) {
-	var fixture skipGateCurrencyFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return skipGateCurrencyFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return skipGateCurrencyFixture{}, fmt.Errorf("currency fixture must contain exactly one YAML document")
-	}
-	return fixture, nil
-}
-
 func TestPullSkipGateCurrencyFixtureRejectsUnknownFields(t *testing.T) {
 	unknown := append([]byte("unexpected_fixture_field: true\n"), skipGateCurrencyYAML...)
-	if _, err := decodeSkipGateCurrencyFixture(unknown); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
+	if _, err := decodeFixtureDocument[skipGateCurrencyFixture](unknown); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
 		t.Fatalf("unknown field error = %v, want strict rejection", err)
 	}
 	trailing := append(append([]byte{}, skipGateCurrencyYAML...), []byte("\n---\nunexpected: document\n")...)
-	if _, err := decodeSkipGateCurrencyFixture(trailing); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
+	if _, err := decodeFixtureDocument[skipGateCurrencyFixture](trailing); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
 		t.Fatalf("trailing document error = %v, want single-document rejection", err)
 	}
 }
@@ -138,7 +118,7 @@ func TestPullSkipGate_CurrencyMatrix(t *testing.T) {
 	ctx := context.Background()
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	f, err := decodeSkipGateCurrencyFixture(skipGateCurrencyYAML)
+	f, err := decodeFixtureDocument[skipGateCurrencyFixture](skipGateCurrencyYAML)
 	if err != nil {
 		t.Fatalf("load currency cases: %v", err)
 	}

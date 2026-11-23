@@ -7,8 +7,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -43,7 +40,7 @@ type manualAnnotationTargetCase struct {
 
 func loadManualAnnotationTargetFixture(t *testing.T) map[string]manualAnnotationTargetCase {
 	t.Helper()
-	fixture, err := decodeManualAnnotationTargetFixture(manualAnnotationTargetCasesYAML)
+	fixture, err := decodeFixtureDocument[manualAnnotationTargetFixture](manualAnnotationTargetCasesYAML)
 	if err != nil {
 		t.Fatalf("decode manual annotation target fixture: %v", err)
 	}
@@ -71,25 +68,8 @@ func loadManualAnnotationTargetFixture(t *testing.T) map[string]manualAnnotation
 	return cases
 }
 
-func decodeManualAnnotationTargetFixture(data []byte) (manualAnnotationTargetFixture, error) {
-	var fixture manualAnnotationTargetFixture
-	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return manualAnnotationTargetFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return manualAnnotationTargetFixture{}, errors.New("fixture contains a trailing YAML document")
-		}
-		return manualAnnotationTargetFixture{}, err
-	}
-	return fixture, nil
-}
-
 func TestManualAnnotationTargetFixtureRejectsTrailingDocument(t *testing.T) {
-	_, err := decodeManualAnnotationTargetFixture(append(append([]byte{}, manualAnnotationTargetCasesYAML...), []byte("\n---\nunexpected: document\n")...))
+	_, err := decodeFixtureDocument[manualAnnotationTargetFixture](append(append([]byte{}, manualAnnotationTargetCasesYAML...), []byte("\n---\nunexpected: document\n")...))
 	if err == nil || !strings.Contains(err.Error(), "trailing YAML document") {
 		t.Fatalf("trailing fixture document error = %v, want explicit rejection", err)
 	}

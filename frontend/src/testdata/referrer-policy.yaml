@@ -1,0 +1,10 @@
+# Which page addresses carry `Referrer-Policy: no-referrer`. The required case
+# names are listed in nextConfigReferrerPolicy.test.ts.
+cases:
+  - {name: transcript-page, path: /transcripts/0b9a3e7c-5d41-4c1f-9a7e-2f6b8c1d4e50, noReferrer: true}
+  - {name: transcript-share-image, path: /transcripts/0b9a3e7c-5d41-4c1f-9a7e-2f6b8c1d4e50/opengraph-image, noReferrer: true}
+  - {name: home-page-unchanged, path: /, noReferrer: false}
+  # The contribute and review pages render transcript content in a preview column.
+  - {name: contribute-preview-page, path: /collectives/c-1/contribute, noReferrer: true}
+  - {name: review-preview-page, path: /collectives/c-1/review, noReferrer: true}
+  - {name: collective-page-unchanged, path: /collectives/c-1, noReferrer: false}

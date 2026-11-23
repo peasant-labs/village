@@ -1,0 +1,65 @@
+# Request-log privacy cases. Each request carries synthetic identifiers in its
+# path, query, headers and body; the logged line must name the matched route
+# template and none of those values. Every case name is required by
+# TestRequestLoggerRecordsRouteTemplates.
+routes:
+  - /health
+  - /api/v1/transcripts/{id}
+  - /api/v1/transcripts/{id}/segments/{index}
+  - /api/v1/transcripts/{id}/window
+  - /api/v1/users/{username}/projects/{projectHash}
+  - /api/v1/transcripts/{id}/segments/locate
+cases:
+  - name: log-template-transcript-id
+    method: GET
+    target: /api/v1/transcripts/5e1f0c3a-0000-4000-8000-00000000d1d1
+    want: GET /api/v1/transcripts/{id} 200
+  - name: log-template-segment-id-and-ordinal
+    method: GET
+    target: /api/v1/transcripts/5e1f0c3a-0000-4000-8000-00000000d1d2/segments/731?v=2&revision=9&representation=r1.synthetic-representation-marker
+    want: GET /api/v1/transcripts/{id}/segments/{index} 200
+  - name: log-template-window-query-values
+    method: GET
+    target: /api/v1/transcripts/5e1f0c3a-0000-4000-8000-00000000d1d3/window?anchor=4242&entry=synthetic-entry-ref-marker
+    want: GET /api/v1/transcripts/{id}/window 200
+  - name: log-template-username-and-hash
+    method: GET
+    target: /api/v1/users/synthetic-username-marker/projects/synthetic-project-hash-marker
+    want: GET /api/v1/users/{username}/projects/{projectHash} 200
+  - name: log-template-locator-body-and-credential
+    method: POST
+    target: /api/v1/transcripts/5e1f0c3a-0000-4000-8000-00000000d1d4/segments/locate
+    body: '{"ref":"synthetic-locator-ref-marker"}'
+    authorization: Bearer synthetic-credential-marker
+    want: POST /api/v1/transcripts/{id}/segments/locate 200
+  - name: log-template-unmatched-root
+    method: GET
+    target: /synthetic-unmatched-path-marker/5e1f0c3a-0000-4000-8000-00000000d1d5
+    want: GET unmatched 404
+  - name: log-template-unknown-method
+    method: SYNTHETICVERB
+    target: /health
+    want: OTHER unmatched 405
+  - name: log-template-health
+    method: GET
+    target: /health
+    want: GET /health 200
+  - name: log-outside-router-no-route-context
+    method: GET
+    target: /synthetic-unmatched-path-marker/5e1f0c3a-0000-4000-8000-00000000d1d6
+    outside_router: true
+    want: GET unmatched 200
+forbidden:
+  - 5e1f0c3a
+  - d1d1
+  - "731"
+  - synthetic-representation-marker
+  - "4242"
+  - synthetic-entry-ref-marker
+  - synthetic-username-marker
+  - synthetic-project-hash-marker
+  - synthetic-locator-ref-marker
+  - synthetic-credential-marker
+  - synthetic-unmatched-path-marker
+  - SYNTHETICVERB
+  - "?"

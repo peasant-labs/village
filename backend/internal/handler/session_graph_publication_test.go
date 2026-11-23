@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,7 +12,6 @@ import (
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/session_graph_publication.yaml
@@ -60,15 +57,9 @@ type graphPublicationFixture struct {
 
 func loadGraphPublicationFixtures(t *testing.T) graphPublicationFixture {
 	t.Helper()
-	var f graphPublicationFixture
-	d := yaml.NewDecoder(bytes.NewReader(graphPublicationYAML))
-	d.KnownFields(true)
-	if err := d.Decode(&f); err != nil {
-		t.Fatal(err)
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		t.Fatalf("trailing fixture document: %v", err)
+	f, err := decodeFixtureDocument[graphPublicationFixture](graphPublicationYAML)
+	if err != nil {
+		t.Fatalf("decode the session graph publication fixture: %v", err)
 	}
 	if f.LongRepetitions <= 0 || len(f.LongText)*f.LongRepetitions < 8192 {
 		t.Fatal("long-content fixture must exceed preview boundaries")

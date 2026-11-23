@@ -1,0 +1,53 @@
+# Column facts -> stored row state, as classifyTranscriptRowState decides them
+# for the census and the parity corpus. `size` is null | negative | usable.
+# `state` is a member of the closed set, or `unexplained` for a combination
+# the set does not explain. Every member of the set must be the state of at
+# least one case, so a member added to the set fails until it has one.
+- name: row-state-new-known-identity-with-metadata
+  facts: {hash: canonical, size: usable, revision: 1, metadata: true}
+  state: n
+- name: row-state-new-at-a-later-revision
+  facts: {hash: canonical, size: usable, revision: 2, metadata: true}
+  state: n
+- name: row-state-legacy-known-without-metadata
+  facts: {hash: canonical, size: usable, revision: 1}
+  state: l3
+- name: row-state-hash-with-null-size
+  facts: {hash: canonical, size: "null", revision: 1}
+  state: n2-l4
+- name: row-state-hash-with-negative-size
+  facts: {hash: canonical, size: negative, revision: 1}
+  state: n2-l4
+- name: row-state-no-hash-with-negative-size
+  facts: {hash: "null", size: negative, revision: 1}
+  state: n2-l4
+- name: row-state-untracked
+  facts: {hash: "null", size: "null", revision: 1}
+  state: l1
+- name: row-state-untracked-with-recorded-size
+  facts: {hash: "null", size: usable, revision: 1}
+  state: l1
+- name: row-state-exposed-legacy
+  facts: {hash: "null", size: usable, segmented_hash: true, segmented_size: true, revision: 3}
+  state: l2
+- name: row-state-malformed-hash
+  facts: {hash: malformed, size: usable, revision: 1}
+  state: l1m
+- name: row-state-divergent
+  facts: {hash: "null", size: "null", revision: 2}
+  state: l1d
+- name: row-state-both-identities-unexplained
+  facts: {hash: canonical, size: usable, segmented_hash: true, segmented_size: true, revision: 1}
+  state: unexplained
+- name: row-state-half-segmented-identity-unexplained
+  facts: {hash: "null", size: usable, segmented_hash: true, revision: 1}
+  state: unexplained
+- name: row-state-malformed-hash-past-first-revision-unexplained
+  facts: {hash: malformed, size: usable, revision: 2}
+  state: unexplained
+- name: row-state-hash-only-past-first-revision-unexplained
+  facts: {hash: canonical, size: "null", revision: 2}
+  state: unexplained
+- name: row-state-zero-revision-unexplained
+  facts: {hash: canonical, size: usable, revision: 0, metadata: true}
+  state: unexplained

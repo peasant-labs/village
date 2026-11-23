@@ -1,0 +1,44 @@
+# Which account the production auth middleware attaches to a request, observed
+# directly. A probe handler that echoes the attached viewer is mounted behind the
+# handler's AuthOptional and AuthRequired, the same middleware functions the
+# router mounts, over PostgreSQL.
+#
+# Every case starts with two accounts: `deleted`, which is deleted through the
+# production DELETE /api/v1/auth/me before the requests run, and `live`, which
+# stays. Before the deletion, the test asserts that the deleted account's cookie
+# and bearer session each reach both probes as that account. Each request below
+# then runs after the deletion.
+#
+# `cookie` is the session cookie sent: `none`, or the `deleted` account's.
+# `bearer` is the Authorization credential sent: `none`, the deleted account's
+# session (`deleted_session`), or the live account's session (`live_session`)
+# or API key (`live_api_key`).
+# `viewer` is the account the AuthOptional probe sees (`anonymous` for none).
+# `required_status` is the AuthRequired probe's answer; on 200 it sees `viewer`.
+#
+# A cookie whose account no longer exists is treated like an invalid cookie: the
+# request falls through to the Authorization header, so a live credential there
+# still signs the caller in.
+cases:
+  - name: session-optional-auth-anonymous-after-account-deletion
+    requests:
+      - cookie: deleted
+        bearer: none
+        viewer: anonymous
+        required_status: 401
+      - cookie: none
+        bearer: deleted_session
+        viewer: anonymous
+        required_status: 401
+  - name: deleted-cookie-live-bearer-signs-in-as-bearer
+    requests:
+      - cookie: deleted
+        bearer: live_session
+        viewer: live
+        required_status: 200
+  - name: deleted-cookie-live-api-key
+    requests:
+      - cookie: deleted
+        bearer: live_api_key
+        viewer: live
+        required_status: 200

@@ -1,5 +1,10 @@
-import type { adaptTranscript } from "@peasant-labs/fairtrade/ui";
+import { adaptTranscript, computeAnalytics } from "@peasant-labs/fairtrade/ui";
+import type { SessionRelationshipNavigation } from "@peasant-labs/schema";
 import type { SessionDetailPayload } from "@/types/messages";
+import { API_URL_BASE, ApiError, getAuthHeaders } from "@/lib/api";
+import { parseTranscriptRead } from "@/lib/queries/transcriptContent";
+import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
+import { overlayStoredTitle } from "@/components/session-detail/v2/transcriptChrome";
 
 /**
  * The transcript header offers markdown, json, and jsonl downloads. Each
@@ -130,4 +135,148 @@ export function saveTranscriptFile(file: TranscriptFile): void {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+/**
+ * The whole document as the page shows it: fairtrade's one adapter over the
+ * full payload with the stored title overlaid. The whole-document page and
+ * every download cook through this, so a file reads the way the page does.
+ */
+export function cookWholeTranscript(
+  detail: SessionDetailPayload,
+  options: {
+    storedTitle: string | null | undefined;
+    relationshipNavigation?: SessionRelationshipNavigation[];
+    published?: boolean;
+  },
+): TranscriptViewModel {
+  const analytics = computeAnalytics((detail.turns ?? []) as Parameters<typeof computeAnalytics>[0], {
+    scorecard: detail.scorecard ?? undefined,
+  } as Parameters<typeof computeAnalytics>[1]);
+  const adapted = adaptTranscript(
+    detail as Parameters<typeof adaptTranscript>[0],
+    undefined,
+    analytics,
+    // Read metadata, not durable content: the adapter cooks the source and
+    // starter links and an exact branch anchor only while the navigation it
+    // receives still agrees with the durable relationship.
+    {
+      relationshipNavigation: options.relationshipNavigation,
+      ...(options.published ? { payloadMode: "published" as const } : {}),
+    },
+  );
+  return overlayStoredTitle(adapted, options.storedTitle);
+}
+
+/**
+ * The reader state a download belongs to. A file is saved only while its
+ * epoch is current: the page has not moved to another transcript or another
+ * revision of this one, and the page is still mounted.
+ *
+ * The guard compares the page's revision, not the downloaded bytes, on
+ * purpose. The `/content` route may canonicalize an older stored copy and
+ * install the result as a new generation while it serves it, so its
+ * `Village-Content-Hash` can differ from the hash the positioned header named
+ * for the same content; and the header withholds its hash from some readers.
+ * A byte comparison would then refuse a good download, or decide nothing.
+ * The download is the transcript's current stored copy, which is what a
+ * reader asks for; a page showing an older revision learns so from its own
+ * next read, which answers stale.
+ */
+export interface DownloadEpoch {
+  signal: AbortSignal;
+  isCurrent(): boolean;
+}
+
+/** What a whole-document read needs to parse and cook the stored copy. */
+export interface WholeTranscriptRequest {
+  transcriptId: string;
+  storedTitle: string | null | undefined;
+  knownHarness?: string;
+  relationshipNavigation?: SessionRelationshipNavigation[];
+}
+
+export interface TranscriptDownloadRequest extends WholeTranscriptRequest {
+  format: TranscriptExportFormat;
+  /** The transcript's own village link, written into the markdown header. */
+  url: string;
+}
+
+/** The whole stored copy, parsed the way the whole-document page parses it, and cooked. */
+export interface WholeTranscript {
+  detail: SessionDetailPayload;
+  viewModel: TranscriptViewModel;
+}
+
+/** What a reader action reads the whole stored copy for; it names the action in a refusal. Closed. */
+export const WholeTranscriptPurpose = Object.freeze({ Download: "download", Graph: "graph" } as const);
+export type WholeTranscriptPurpose = (typeof WholeTranscriptPurpose)[keyof typeof WholeTranscriptPurpose];
+
+/**
+ * One authorized read of the whole stored copy, for a page that holds only
+ * part of the transcript: a download, or the trajectory graph. Resolves
+ * `null` when the epoch ended first, so nothing stale is used. A refused or
+ * unreadable read rejects with a message the page can show.
+ */
+export async function readWholeTranscript(
+  request: WholeTranscriptRequest,
+  epoch: DownloadEpoch,
+  purpose: WholeTranscriptPurpose = WholeTranscriptPurpose.Download,
+): Promise<WholeTranscript | null> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL_BASE}/transcripts/${encodeURIComponent(request.transcriptId)}/content`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+      signal: epoch.signal,
+    });
+  } catch (error) {
+    if (epoch.signal.aborted) return null;
+    throw error;
+  }
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `the transcript ${purpose} could not be read (status ${response.status}). try again; if it keeps failing, reload the page.`,
+    );
+  }
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    if (epoch.signal.aborted) return null;
+    throw error;
+  }
+  if (epoch.signal.aborted || !epoch.isCurrent()) return null;
+  const read = parseTranscriptRead(text, request.knownHarness);
+  if (!isSessionDetailPayload(read.content)) {
+    throw new Error(
+      `the transcript ${purpose} needs the stored copy in a format this page cannot read. publish the transcript again from peasant, then try again.`,
+    );
+  }
+  const detail = read.content;
+  const viewModel = cookWholeTranscript(detail, {
+    storedTitle: request.storedTitle,
+    relationshipNavigation: request.relationshipNavigation,
+    published: read.published,
+  });
+  if (epoch.signal.aborted || !epoch.isCurrent()) return null;
+  return { detail, viewModel };
+}
+
+/**
+ * A download from a page that holds only part of the transcript: one read of
+ * the whole stored copy, saved while the epoch is current. Resolves `true`
+ * when a file was handed to the browser and `false` when the epoch ended first.
+ */
+export async function readTranscriptForDownload(
+  request: TranscriptDownloadRequest,
+  epoch: DownloadEpoch,
+): Promise<boolean> {
+  const whole = await readWholeTranscript(request, epoch);
+  if (!whole) return false;
+  saveTranscriptFile(
+    transcriptFile(request.format, { viewModel: whole.viewModel, detail: whole.detail, url: request.url, transcriptId: request.transcriptId }),
+  );
+  return true;
 }

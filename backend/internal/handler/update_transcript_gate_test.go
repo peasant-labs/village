@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -38,15 +35,9 @@ type updateTranscriptGateCase struct {
 
 func loadUpdateTranscriptGateCases(t *testing.T) []updateTranscriptGateCase {
 	t.Helper()
-	var cases []updateTranscriptGateCase
-	decoder := yaml.NewDecoder(bytes.NewReader(updateTranscriptGateYAML))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&cases); err != nil {
+	cases, err := decodeFixtureRows[updateTranscriptGateCase](updateTranscriptGateYAML)
+	if err != nil {
 		t.Fatalf("decode update transcript gate fixtures: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		t.Fatalf("update transcript gate fixture must contain exactly one YAML document: %v", err)
 	}
 	if len(cases) != 8 {
 		t.Fatalf("update transcript gate fixture count = %d, want 8", len(cases))

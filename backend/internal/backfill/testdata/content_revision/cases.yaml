@@ -1,0 +1,69 @@
+# The identity backfill and the key rewrap are two of the writers that run
+# under a transcript's publish lock. Each case seeds one transcript against
+# real PostgreSQL, with the production encrypted store over an in-memory object
+# provider, and runs the maintenance job on it.
+#
+# Fields:
+#   job        backfill (explicit content-identity backfill) or rewrap
+#   identity   the row's seeded identity columns:
+#                segmented-equal    a segmented pair equal to the object's identity
+#                segmented-mismatch a segmented pair the object does not authenticate to
+#                primary-pair       the object's identity as the primary pair
+#   revision   the content revision the row carries; no job may change it
+#   holds_lock another session holds the transcript's publish lock for the run
+#   during     a writer outside the lock changes the row while the job reads:
+#                revision-advance   a replacement installs another primary pair and
+#                                   moves the content revision forward, so the
+#                                   segmented pair the job compares is gone
+#   outcome    how the job counts the row: installed, failed or stale
+#   row_after  what the row looks like afterward:
+#                consolidated  primary pair is the object's identity, segmented pair cleared
+#                identity-kept every identity column and the revision are as seeded
+#                rewrapped     descriptor re-wrapped under the active key, identity untouched
+required:
+  - backfill-consolidates-b-equal
+  - backfill-b-mismatch-fails-closed
+  - backfill-waits-for-the-publish-lock
+  - backfill-stale-when-the-revision-advances-during-the-read
+  - rewrap-keeps
+  - rewrap-waits-for-the-publish-lock
+cases:
+  - name: backfill-consolidates-b-equal
+    job: backfill
+    identity: segmented-equal
+    revision: 2
+    outcome: installed
+    row_after: consolidated
+  - name: backfill-b-mismatch-fails-closed
+    job: backfill
+    identity: segmented-mismatch
+    revision: 2
+    outcome: failed
+    row_after: identity-kept
+  - name: backfill-waits-for-the-publish-lock
+    job: backfill
+    identity: segmented-equal
+    revision: 2
+    holds_lock: true
+    outcome: installed
+    row_after: consolidated
+  - name: backfill-stale-when-the-revision-advances-during-the-read
+    job: backfill
+    identity: segmented-equal
+    revision: 1
+    during: revision-advance
+    outcome: stale
+    row_after: identity-kept
+  - name: rewrap-keeps
+    job: rewrap
+    identity: primary-pair
+    revision: 2
+    outcome: installed
+    row_after: rewrapped
+  - name: rewrap-waits-for-the-publish-lock
+    job: rewrap
+    identity: primary-pair
+    revision: 2
+    holds_lock: true
+    outcome: installed
+    row_after: rewrapped

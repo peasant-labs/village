@@ -1,0 +1,78 @@
+# The paged-read parity family. `names` is the required-name manifest of the
+# family's executed names; `detections` maps each perturbation the comparer's
+# self-test injects to the finding kind it must be detected as; `corpus` is the
+# required-name manifest of the synthetic parity corpus, one name per
+# (row state, audience kind) pair. The corpus names are generated from the two
+# closed sets in transcript_read_shapes.go; a member added to either set adds a
+# generated name that is missing here, and the coverage case fails until the
+# member's cases are listed (and so run).
+names:
+  - parity-every-shape-matches-content
+  - parity-corpus-covers-closed-shape-set
+  - parity-detects-perturbed-rows
+  - parity-detects-perturbed-ref-span
+  - parity-detects-off-by-one-page
+  - parity-detects-refused-shape
+  - parity-detects-wrong-number
+  - parity-privacy-no-content-logged
+detections:
+  - name: parity-detects-perturbed-rows
+    perturbation: perturbed-rows
+    kind: rows
+  - name: parity-detects-perturbed-ref-span
+    perturbation: perturbed-ref-span
+    kind: ref_span
+  - name: parity-detects-off-by-one-page
+    perturbation: off-by-one-page
+    kind: page
+  - name: parity-detects-refused-shape
+    perturbation: refused-shape
+    kind: refusal
+  - name: parity-detects-wrong-number
+    perturbation: wrong-number
+    kind: number
+corpus:
+  - parity-shape-n-public
+  - parity-shape-n-owner
+  - parity-shape-n-collective-member
+  - parity-shape-n-collective-owner-preview
+  - parity-shape-n2-l4-public
+  - parity-shape-n2-l4-owner
+  - parity-shape-n2-l4-collective-member
+  - parity-shape-n2-l4-collective-owner-preview
+  - parity-shape-l1-public
+  - parity-shape-l1-owner
+  - parity-shape-l1-collective-member
+  - parity-shape-l1-collective-owner-preview
+  - parity-shape-l2-public
+  - parity-shape-l2-owner
+  - parity-shape-l2-collective-member
+  - parity-shape-l2-collective-owner-preview
+  - parity-shape-l3-public
+  - parity-shape-l3-owner
+  - parity-shape-l3-collective-member
+  - parity-shape-l3-collective-owner-preview
+  - parity-shape-l1m-public
+  - parity-shape-l1m-owner
+  - parity-shape-l1m-collective-member
+  - parity-shape-l1m-collective-owner-preview
+  - parity-shape-l1d-public
+  - parity-shape-l1d-owner
+  - parity-shape-l1d-collective-member
+  - parity-shape-l1d-collective-owner-preview
+# What both reads of a stored row in each state must do: serve it, or refuse
+# it. A row state outside this map fails the corpus.
+state_reads:
+  n: served
+  n2-l4: refused
+  l1: served
+  l2: served
+  l3: served
+  l1m: refused
+  l1d: unreachable
+unreachable:
+  l1d: transcripts_content_revision_identity
+# The corpus subject, published through the production publish path before
+# its row is moved into each state. It has a row the cooking rule removes, so
+# a served row set that included it would be a break.
+content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"paged-read-parity-session","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":5,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"parity corpus first prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"system","content":"short","timestamp":"2026-01-01T00:00:02Z","depth":0},{"index":2,"role":"assistant","content":"parity corpus answer","timestamp":"2026-01-01T00:00:03Z","depth":0},{"index":3,"role":"user","content":"parity corpus second prompt","timestamp":"2026-01-01T00:00:04Z","depth":0},{"index":4,"role":"assistant","content":"parity corpus reply","timestamp":"2026-01-01T00:00:05Z","depth":0}]}}'

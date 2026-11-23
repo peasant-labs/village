@@ -89,9 +89,19 @@ func (m *memoryStore) Get(_ context.Context, key ObjectKey) ([]byte, string, err
 	defer m.mu.Unlock()
 	o, ok := m.objects[key]
 	if !ok {
-		return nil, "", ErrObjectNotFound
+		return nil, "", ErrObjectAbsentProvider
 	}
 	return append([]byte(nil), o.body...), o.contentType, nil
+}
+func (m *memoryStore) GetBounded(ctx context.Context, key ObjectKey, limit int64) ([]byte, string, error) {
+	body, contentType, err := m.Get(ctx, key)
+	if err != nil {
+		return nil, "", err
+	}
+	if limit < 0 || int64(len(body)) > limit {
+		return nil, "", ErrObjectLookupUncertain
+	}
+	return body, contentType, nil
 }
 func (m *memoryStore) Delete(_ context.Context, key ObjectKey) error {
 	m.mu.Lock()
@@ -223,7 +233,7 @@ func TestEncryptedTranscriptStoreRewrapDeleteAndAbsence(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _, err = s.Read(ctx, id, rewrapped, NewKnownContentIdentity(identity))
-	if !errors.Is(err, ErrObjectNotFound) {
+	if !errors.Is(err, ErrObjectAbsentProvider) {
 		t.Fatalf("absence=%v", err)
 	}
 }
@@ -404,7 +414,7 @@ func TestPublishMetadataObject(t *testing.T) {
 				if err := s.DeleteMetadata(ctx, *m); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
+				if _, err := s.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectAbsentProvider) {
 					t.Fatalf("absence=%v", err)
 				}
 				if _, _, err := s.Read(ctx, id, d, NewKnownContentIdentity(bodyIdentity)); err != nil {

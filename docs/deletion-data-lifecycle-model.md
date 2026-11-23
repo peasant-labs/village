@@ -71,6 +71,18 @@ transcript or account can be hard-deleted and its audit events **persist** - a
 self-contained, append-only, immutable legal record, without (yet) requiring the
 broader soft-delete model.
 
+The separate operator content-repair ledger cascades with its transcript and is
+deliberately outside this deletion-surviving governance audit; retention beyond
+deletion would require a separate policy decision and migration.
+
+Migration 053 also retains a link-tombstone audience for a deleted `shared`
+transcript: only its UUID and the UUIDs of collectives with approved shares.
+The deletion trigger writes it in the same transaction, including account
+cascades, and the rows leave when the collective is deleted. No owner, content,
+or separate timestamp is stored; the governance event carries the retraction
+time. Deletions before 053 have no recorded audience. This changes neither
+hard deletion nor collective share withdrawal.
+
 Two caveats this introduces:
 - **GDPR lawful basis.** Retaining `changed_by` (and any future actor snapshot) in
   a legally-mandated audit relies on the legal-obligation carve-out that overrides
@@ -190,6 +202,14 @@ Account-erasure requests therefore do **not** scrub audit rows. The retained
 `changed_by` is a bare id: after a full account erasure it no longer resolves
 to a person (see the actor-after-erasure caveat in §2). Update this section if
 counsel adopts a different basis or a retention limit.
+
+**Link-tombstone retention class.** The audience table contains neither content
+nor a person id but may be linked to a person through the governance audit's
+`changed_by`. Its proposed basis is the legitimate interest in resolving
+published links; it does **not** inherit the audit's legal-obligation basis.
+Rows are retained until their collective is deleted, subject to counsel's
+review of the basis and any appropriate time limit. Any time limit would use
+the audit event's `effective_at`, not a second clock on the audience row.
 
 **System actor.** `00000000-0000-0000-0000-000000000000`
 (`database.SystemActorID`) is the reserved attribution for sanctioned non-user

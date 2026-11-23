@@ -7,12 +7,21 @@ table - this file holds the **patterns, strategy, and worked examples** that
 those tables point at, and does not repeat them.
 
 All Go commands run from `backend/` (the repo is a `go.work` workspace →
-`use ./backend`, Go 1.25.5). The race detector is **off by default** while the
+`use ./backend`, Go 1.26.0). The race detector is **off by default** while the
 test-performance work in `#387` lands: the handler package spends ~19.4m under
 it, and most of that is serial per-test database setup and migration re-runs
 rather than detector work. Run `RACE=1` (or `go test -race ./...`) to get race
 coverage locally; CI restores it explicitly once the suite is measured and
 partitioned.
+
+## Where the checks run
+
+The pull-request workflows and the merge queue are the same checks. `journey`
+boots the app and posts its evidence comment, `merge-gate` aggregates the
+backend and frontend jobs, and `title-guard` validates the pull request title.
+The queue re-runs all three on the combined group commit, so a green pull
+request is not proof that the group is green; the group build is. Docs-only
+pull requests still run the queue and must report every required context.
 
 ## Test documentation map
 
@@ -1597,22 +1606,25 @@ a separate required-field guard.
 ### Publish harness acceptance
 
 `handler/testdata/publish_harness_acceptance.yaml` and its required-name
-manifest drive the mounted publish handler with one minimal strict content
-envelope and authoritative metadata. They vary only the harness and the content
+manifest drive the publish routes with one minimal strict content envelope and
+authoritative metadata. Each request carries a real session token and goes
+through `RegisterPublishRoutes`, the method the production router mounts
+publishing with, so the session check and the route are the ones a client
+reaches. They vary only the harness and the content
 hash derived from it. The new Antigravity identities, the two archived values,
 and a harvestable value must succeed; an unknown value must return the
 schema-validation 422 before either a row or an object is written. The frozen
 legacy compatibility menu is not widened by the backend module re-pin.
 
-`TestPublishHarnessAcceptance` checks the write passed to the mock database and
-the publish receipt. `TestPublishHarnessAcceptanceRealPostgres` runs the same
+`TestPublishHarnessAcceptance` checks the write passed to the mock database,
+including the owner the session names, and the publish receipt. `TestPublishHarnessAcceptanceRealPostgres` runs the same
 cases through a migrated PostgreSQL database and checks the stored
 `model_provider`; only object storage is faked. Each case owns its account and
 uses the standard audited teardown. This extra database check is needed because
 a direct schema test or a mocked query cannot show what the mounted transaction
 stores. No subprocess or external object service is started by the test.
 
-Mutation checks: reverting the Schema pin fails both new-harness cases, and forcing the handler to store `claude-code` fails the new CLI case.
+Mutation checks: reverting the Schema pin fails both new-harness cases, forcing the handler to store `claude-code` fails the new CLI case, and a session check that ignores the bearer token (401) or names another user fails both tests.
 
 ### Worked example - assert the body
 
@@ -1750,11 +1762,9 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published backend module pin is Schema v0.52.0 and the literal
-served/enforced contract expectation is Village API 0.40.0; the frontend package
-pin remains `@peasant-labs/schema` 0.51.0 pending a Fairtrade release. No
-producer emits the new Antigravity harness values yet. Mounted contract
-bytes are pinned against the independently downloaded GitHub release asset in
+The current backend module pin, its Village API version and the frontend
+package pin are stated once, in AGENTS.md "Shared wire contract and licensing";
+this file does not repeat them. Mounted contract bytes are pinned against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition
 preserves `groupId` on deprecated `/groups` and requires `group_id` on canonical

@@ -1,0 +1,22 @@
+# Cases for the content source over the real encrypted store and a real row.
+# `content` is published through the production publish path and then opened
+# the way a read handler opens it. Every case states in `why` what a unit test
+# of the index alone could not observe.
+content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"content-source-session","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":4,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"first prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"system","content":"short","timestamp":"2026-01-01T00:00:02Z","depth":0},{"index":2,"role":"assistant","content":"an answer","timestamp":"2026-01-01T00:00:03Z","depth":0},{"index":3,"role":"user","content":"second prompt","timestamp":"2026-01-01T00:00:04Z","depth":0}]}}'
+# history_content carries the session's own identifier, which the publish path
+# derives from the committed session; the test substitutes __SESSION_ID__ and
+# republishes it over the plain generation.
+history_content: '{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"__SESSION_ID__","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:05:00Z","durationMins":5,"totalTokens":100,"tokensIn":60,"tokensOut":40,"turnCount":2,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"main prompt","timestamp":"2026-01-01T00:00:01Z","depth":0},{"index":1,"role":"assistant","content":"main answer","timestamp":"2026-01-01T00:00:02Z","depth":0}],"earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"role":"user","content":"older prompt","timestamp":"2025-12-31T00:00:01Z","depth":0},{"index":1,"role":"assistant","content":"older answer","timestamp":"2025-12-31T00:00:02Z","depth":0},{"index":2,"role":"user","content":"older follow up","timestamp":"2025-12-31T00:00:03Z","depth":0}]}]}}'
+cases:
+  - name: source-opens-published-generation-with-one-decryption
+    scenario: open-once
+    why: The decryption count and the identity the index carries are facts of the encrypted store and the stored row; a repeated partition read must not touch the store again.
+  - name: source-agrees-with-whole-document-read-on-turns
+    scenario: whole-document-parity
+    why: The source serves the rows the whole-document read serves, so the two reads of one generation cannot disagree about the stored turns.
+  - name: source-refuses-an-object-that-no-longer-matches-its-row
+    scenario: moved-object
+    why: The existing authenticated read and identity check decide this, so the source must surface its refusal and build no index from bytes the row does not name.
+  - name: source-history-read-shares-the-one-decryption
+    scenario: history-shares-decryption
+    why: A history section is indexed from the bytes the main read already holds, so reading it after main costs no second decryption and restarts its own numbering.

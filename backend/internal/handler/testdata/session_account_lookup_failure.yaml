@@ -1,0 +1,21 @@
+# A validly signed session whose account cannot be read because the account
+# lookup itself fails (a database error, not a missing row). Access is never
+# granted on that error: auth-required routes answer 503 with Retry-After and
+# write nothing, and optional-auth reads serve the caller anonymously.
+#
+# `credential` is how the session is presented: a `cookie` or a `bearer` JWT,
+# or `cookie_with_live_bearer`: the failing account's cookie together with a
+# bearer session for another account whose lookup works.
+#
+# The last row pins an intended rule: a failed cookie lookup ends
+# authentication for the request. It does not fall through to the
+# Authorization header, so the live bearer is not used and the request fails
+# closed (503 on auth-required routes, anonymous on optional-auth routes)
+# rather than signing in as a different credential while the outage hides the
+# first one. Only a cookie whose account is gone falls through.
+- name: session-lookup-failure-fails-closed
+  credential: bearer
+- name: session-cookie-lookup-failure-fails-closed
+  credential: cookie
+- name: cookie-lookup-failure-with-live-bearer-fails-closed
+  credential: cookie_with_live_bearer

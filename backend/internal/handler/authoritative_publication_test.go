@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/authoritative_publication/cases.yaml
@@ -58,15 +56,9 @@ type authoritativePatchCase struct {
 
 func loadAuthoritativePublicationFixture(t *testing.T) authoritativePublicationFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(authoritativePublicationCases))
-	decoder.KnownFields(true)
-	var fixture authoritativePublicationFixture
-	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatal(err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("fixture must contain exactly one YAML document: %v", err)
+	fixture, err := decodeFixtureDocument[authoritativePublicationFixture](authoritativePublicationCases)
+	if err != nil {
+		t.Fatalf("decode the authoritative publication fixture: %v", err)
 	}
 	if len(fixture.Publish) != 7 || len(fixture.Patch) != 1 {
 		t.Fatalf("fixture row guard failed: publish=%d patch=%d", len(fixture.Publish), len(fixture.Patch))

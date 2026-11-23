@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"github.com/peasant-labs/village/backend/internal/config"
 )
@@ -19,6 +20,11 @@ func rustfsEnv(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func rustfsKeyAbsent(err error) bool {
+	var api smithy.APIError
+	return errors.Is(err, ErrObjectLookupUncertain) && errors.As(err, &api) && api.ErrorCode() == "NoSuchKey"
 }
 
 func TestRustFSEncryptedTranscriptProductionPath(t *testing.T) {
@@ -116,7 +122,7 @@ func TestRustFSEncryptedTranscriptProductionPath(t *testing.T) {
 	if err := store.Delete(ctx, rewrapped); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := objects.Get(ctx, d.ObjectKey()); !errors.Is(err, ErrObjectNotFound) {
+	if _, _, err := objects.Get(ctx, d.ObjectKey()); !rustfsKeyAbsent(err) {
 		t.Fatalf("deleted generation absence classification failed: %v", err)
 	}
 }
@@ -166,10 +172,10 @@ func TestRustFSPublishMetadataLifecycle(t *testing.T) {
 	if err := store.DeleteMetadata(ctx, *m); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := objects.Get(ctx, m.Key()); !errors.Is(err, ErrObjectNotFound) {
+	if _, _, err := objects.Get(ctx, m.Key()); !rustfsKeyAbsent(err) {
 		t.Fatalf("deleted metadata absence classification failed: %v", err)
 	}
-	if _, err := store.ReadMetadata(ctx, id, d, *m); !errors.Is(err, ErrObjectNotFound) {
+	if _, err := store.ReadMetadata(ctx, id, d, *m); !rustfsKeyAbsent(err) {
 		t.Fatalf("deleted metadata read classification failed: %v", err)
 	}
 	if _, _, err := store.Read(ctx, id, d, NewKnownContentIdentity(identity)); err != nil {
