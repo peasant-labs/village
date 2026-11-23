@@ -126,21 +126,31 @@ func productionRouter(t *testing.T) chi.Router {
 	return routes
 }
 
-// enumerateAPIRoutes returns every route mounted under /api/v1. chi.Walk
+// enumerateRoutes returns every mounted route, inside /api/v1 or not. chi.Walk
 // reports a method handler that shares a mount node with a subrouter, such as
 // a handler registered on the parent at the mount prefix (chi v5.3.0 and
 // later); a mount stub with no handler of its own stays hidden.
-func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
+func enumerateRoutes(t *testing.T, routes chi.Routes) []route {
 	t.Helper()
 	var out []route
 	err := chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if underAPIPrefix(path) {
-			out = append(out, route{Method: method, Path: path})
-		}
+		out = append(out, route{Method: method, Path: path})
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk the router: %v", err)
+	}
+	return out
+}
+
+// enumerateAPIRoutes returns every route mounted under /api/v1.
+func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
+	t.Helper()
+	var out []route
+	for _, r := range enumerateRoutes(t, routes) {
+		if underAPIPrefix(r.Path) {
+			out = append(out, r)
+		}
 	}
 	return out
 }
@@ -188,7 +198,9 @@ func declaredContractRoutes(t *testing.T) []route {
 // manifest can only shrink: a row for a route the contract now declares, or
 // for a route no longer mounted, is itself a failure.
 func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
-	mounted := mountedAPIRoutes(t)
+	// Every mounted route, so a route the contract declares outside /api/v1,
+	// such as the liveness probe, is seen as mounted.
+	mounted := enumerateRoutes(t, productionRouter(t))
 	declared := declaredContractRoutes(t)
 	manifest := loadUndocumentedRoutes(t)
 	for _, finding := range contractDriftFindings(mounted, declared, manifest) {
@@ -343,6 +355,11 @@ func contractDriftFindings(mounted, declared, manifest []route) []string {
 	}
 	for _, r := range mounted {
 		key := routeKey(r.Method, r.Path)
+		// Only the /api/v1 surface must be declared or listed; a route outside
+		// it that the contract declares is still held mounted by the check below.
+		if !underAPIPrefix(r.Path) {
+			continue
+		}
 		if !declaredSet[key] && !manifestSet[key] {
 			findings = append(findings, fmt.Sprintf("%s %s is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason", r.Method, r.Path))
 		}

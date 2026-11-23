@@ -48,8 +48,8 @@ type unstringConfig struct {
 // TestUnstringMountFilesCoverRouteMounts fails when a production router file
 // mounts a group-relative route and matches no endpoints.mountFiles entry.
 // Each entry is a path or a glob. The live tree is the positive case:
-// router.go lists /health, which is outside the default /api/v1 prefix, and
-// backend/internal/router/*.go matches that file.
+// router.go mounts literals such as /openapi.json inside the /api/v1 group, so
+// they are group-relative, and backend/internal/router/*.go matches that file.
 func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 	root := repoRoot(t)
 	cfg := readUnstringConfig(t, filepath.Join(root, ".unstring.yaml"))
@@ -137,7 +137,7 @@ func TestUnstringMountFilesCoverRouteMounts(t *testing.T) {
 		t.Fatal("no production Go files under backend/internal/router; the mount-file check would pass without seeing a router")
 	}
 	if inScope == 0 {
-		t.Fatal("no group-relative route literal in backend/internal/router; the live tree should mount /health outside the endpoint prefix, so this pass would be vacuous")
+		t.Fatal("no group-relative route literal in backend/internal/router; the live tree mounts literals such as /openapi.json inside the API group, so this pass would be vacuous")
 	}
 }
 
