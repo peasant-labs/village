@@ -22,6 +22,7 @@ import {
   type ExploreSurfaceCase,
 } from "@/test/groupedHelperSurfaceFixtures";
 import type { TranscriptListItem, User, UserProjectPageResponse } from "@/lib/types";
+import type { ProjectHash } from "@peasant-labs/schema";
 import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
@@ -149,7 +150,7 @@ function flatRow(testCase: ContinuationCase, index: number): TranscriptListItem 
 function projectPayload(testCase: ContinuationCase): UserProjectPageResponse {
   return {
     project: {
-      project_hash: testCase.projectHash ?? "0".repeat(64),
+      project_hash: (testCase.projectHash ?? "0".repeat(64)) as ProjectHash,
       project_display_name: "village",
       project_name_source: "consented",
       project_remote_label: "github.com:peasant-labs/village",
