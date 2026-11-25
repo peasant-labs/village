@@ -16,6 +16,8 @@ import (
 	"math"
 	"math/rand/v2"
 	"time"
+
+	"github.com/peasant-labs/schema"
 )
 
 // namedProject is a project whose size is fixed by the dataset preset.
@@ -80,7 +82,7 @@ type Row struct {
 	Origin          string
 	WrappedKey      []byte
 	TurnCount       int32
-	Attempt         string // "none" or the single attempt status for the group
+	Attempt         string // noAttempt or the single attempt status for the group
 	ProjectIndex    int
 }
 
@@ -138,13 +140,21 @@ func hexDigest(seed uint64, label string, n int) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// noAttempt marks a row that never had an attempt in the group. Every other
+// Attempt value is that attempt's share status.
+const noAttempt = "none"
+
 var (
 	titleVerbs = []string{"fix", "add", "refactor", "explore", "review", "write", "debug", "port", "trim", "measure"}
 	titleNouns = []string{"parser", "auth flow", "migration", "README", "billing report", "search index", "export job", "cache layer", "upload path", "lint setup"}
 	providers  = []string{"anthropic", "openai", "other"}
 	origins    = []string{"user", "agent", "unknown"}
 	branches   = []string{"main", "work/a", "work/b", "feature/search", "fix/export"}
-	attemptSet = []string{"pending", "approved", "rejected", "retracted", "revoked"}
+	attemptSet = []string{
+		string(schema.VillageShareStatusPending), string(schema.VillageShareStatusApproved),
+		string(schema.VillageShareStatusRejected), string(schema.VillageShareStatusRetracted),
+		string(schema.VillageShareStatusRevoked),
+	}
 )
 
 type generator struct {
@@ -337,7 +347,7 @@ func (g *generator) newRow(pi int, info ProjectInfo) Row {
 	if g.rng.Float64() < 0.30 {
 		r.Attempt = attemptSet[g.rng.IntN(len(attemptSet))]
 	} else {
-		r.Attempt = "none"
+		r.Attempt = noAttempt
 	}
 	return r
 }

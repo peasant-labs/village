@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -177,17 +178,17 @@ func contributeChunk(ctx context.Context, pool *pgxpool.Pool, owner, group [16]b
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return 0, 0, err
 		}
-		if err == nil && (latest.Status == "pending" || latest.Status == "approved") {
+		if err == nil && (latest.Status == string(schema.VillageShareStatusPending) || latest.Status == string(schema.VillageShareStatusApproved)) {
 			continue
 		}
-		if err := q.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{TranscriptID: pgid(id), GroupID: pgid(group), Status: "pending"}); err != nil {
+		if err := q.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{TranscriptID: pgid(id), GroupID: pgid(group), Status: string(schema.VillageShareStatusPending)}); err != nil {
 			return 0, 0, fmt.Errorf("open attempt for %s: %w", uuidString(id), err)
 		}
 		pre, err := q.GetTranscriptGovernanceForUpdate(ctx, pgid(id))
 		if err != nil {
 			return 0, 0, err
 		}
-		if pre.Visibility != "private" {
+		if pre.Visibility != string(schema.VillageTranscriptVisibilityPrivate) {
 			continue
 		}
 		if _, err := q.UpdateTranscriptMetadata(ctx, sqlc.UpdateTranscriptMetadataParams{
@@ -291,9 +292,9 @@ func toggleVisibility(ctx context.Context, pool *pgxpool.Pool, id [16]byte) (tim
 	if err != nil {
 		return 0, 0, err
 	}
-	next := "shared"
-	if pre.Visibility != "private" {
-		next = "private"
+	next := string(schema.VillageTranscriptVisibilityShared)
+	if pre.Visibility != string(schema.VillageTranscriptVisibilityPrivate) {
+		next = string(schema.VillageTranscriptVisibilityPrivate)
 	}
 	if _, err := q.UpdateTranscriptMetadata(ctx, sqlc.UpdateTranscriptMetadataParams{
 		ID: pgid(id), Title: pre.Title, Description: pre.Description, Visibility: next, LicenseID: pre.LicenseID,
@@ -348,10 +349,10 @@ func runWrites(ctx context.Context, e *env, p Preset, cfg indexConfig, work stri
 	chunkIDs := sel[:rowsPerSet]
 	concIDs := sel[rowsPerSet : rowsPerSet+concRows]
 	visIDs := sel[rowsPerSet+concRows:]
-	if err := writeJSON(filepath.Join(dir, "selection.json"), map[string]any{
-		"project": projName, "project_hash": projHash,
-		"contribution_rows": len(chunkIDs), "concurrent_contribution_rows": len(concIDs), "visibility_rows": len(visIDs),
-		"first_contribution_id": uuidString(chunkIDs[0]), "last_contribution_id": uuidString(chunkIDs[len(chunkIDs)-1]),
+	if err := writeJSON(filepath.Join(dir, "selection.json"), writeSelection{
+		Project: projName, ProjectHash: projHash,
+		ContributionRows: len(chunkIDs), ConcurrentContributionRows: len(concIDs), VisibilityRows: len(visIDs),
+		FirstContributionID: uuidString(chunkIDs[0]), LastContributionID: uuidString(chunkIDs[len(chunkIDs)-1]),
 	}); err != nil {
 		return err
 	}
@@ -676,4 +677,16 @@ func dropDatabase(ctx context.Context, e *env, name string) {
 	}
 	defer admin.Close(ctx)
 	admin.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", pgx.Identifier{name}.Sanitize()))
+}
+
+// writeSelection records which rows the write matrix drew, so a run can be
+// traced back to the seeded rows it changed.
+type writeSelection struct {
+	Project                    string `json:"project"`
+	ProjectHash                string `json:"project_hash"`
+	ContributionRows           int    `json:"contribution_rows"`
+	ConcurrentContributionRows int    `json:"concurrent_contribution_rows"`
+	VisibilityRows             int    `json:"visibility_rows"`
+	FirstContributionID        string `json:"first_contribution_id"`
+	LastContributionID         string `json:"last_contribution_id"`
 }

@@ -38,6 +38,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database"
 )
 
@@ -46,6 +47,8 @@ const (
 	defaultPrefix = "village_bench"
 	seedBatchRows = 50000
 	systemActor   = database.SystemActorID
+	// helpCommand prints the usage instead of running a subcommand.
+	helpCommand = "help"
 )
 
 type env struct {
@@ -97,7 +100,7 @@ func run(args []string) error {
 		return err
 	}
 	e.seed = s
-	if cmd == "help" || cmd == "-h" {
+	if cmd == helpCommand || cmd == "-h" {
 		return usage()
 	}
 	if e.out == "" && cmd != "checksum" {
@@ -385,10 +388,10 @@ func seedTransaction(ctx context.Context, tx pgx.Tx, p Preset, seed uint64) (Man
 				r.GitBranch, r.GitRemote, r.ProjectHash, r.ProjectName, r.Origin, r.WrappedKey,
 				"aes-256-gcm-random-nonce-v1", int32(1), r.TurnCount,
 			})
-			if r.Attempt != "none" {
+			if r.Attempt != noAttempt {
 				var decidedAt *time.Time
 				var decidedBy *[16]byte
-				if r.Attempt != "pending" {
+				if r.Attempt != string(schema.VillageShareStatusPending) {
 					d := r.PublishedAt.Add(24 * time.Hour)
 					decidedAt = &d
 					decidedBy = &creator
