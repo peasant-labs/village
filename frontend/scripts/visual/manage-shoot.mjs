@@ -22,6 +22,7 @@ import { mkdirSync } from 'node:fs'
 import puppeteer from 'puppeteer-core'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
+import { ContributePageTestId } from '../../src/components/contribute/contributeTestId.ts'
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
@@ -70,7 +71,9 @@ const waitFor = async (sel, timeoutMs = 12000) => {
   throw new Error(`selector "${sel}" never mounted`)
 }
 // The contribute page's mounted body: the tree + preview workspace.
-const PANEL = '[data-testid="contribute-member-panel"]'
+// unstring-allow: testid-selector-string — Puppeteer has no test-id query; this one helper builds the selector from typed members
+const byTestId = (id) => `[data-testid="${id}"]`
+const PANEL = byTestId(ContributePageTestId.MemberPanel.wire)
 const shot = async (name, sel, { fullPage = false } = {}) => {
   const el = await waitFor(sel)
   const box = await el.boundingBox()

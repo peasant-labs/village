@@ -12,8 +12,7 @@ import { buildPositionedBodies, PositionedRoute } from './positioned-bodies.mjs'
 const FIXTURE = new URL('../testdata/positioned-transcript.yaml', import.meta.url)
 export const POSITIONED = parse(readFileSync(FIXTURE, 'utf8'), { strict: true })
 
-/** The HTTP methods the positioned mocks answer. Closed. */
-export const HttpMethod = Object.freeze({ Get: 'GET', Post: 'POST' })
+export { HttpMethod } from '../../visual/httpMethod.mjs'
 
 /** The world a positioned request is answered in. Closed. */
 export const PositionedWorld = Object.freeze({

@@ -26,6 +26,7 @@
      MOCK_REST_PORT=8846 node scripts/visual/mock-rest-child-sessions.mjs
 */
 import { createServer } from 'node:http'
+import { HttpMethod } from './httpMethod.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8846)
 // A UUID, because the contribute page's paged reads carry the collective id
@@ -678,28 +679,28 @@ const send = (res, code, body) => {
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const p = url.pathname.replace(/^\/api\/v1/, '')
-  if (req.method === 'OPTIONS') return send(res, 204, null)
+  if (req.method === HttpMethod.Options) return send(res, 204, null)
   console.log(`${req.method} ${url.pathname}${url.search}`)
 
-  if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
-  if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [])
-  if (req.method === 'GET' && p === '/users/alice-dev') return send(res, 200, OWNER_PROFILE)
-  if (req.method === 'GET' && p === '/users/bob-ai') return send(res, 200, OTHER_PROFILE)
-  if (req.method === 'GET' && p === '/transcripts') return send(res, 200, libraryResponse)
-  if (req.method === 'GET' && p === '/users/me/collectives/contributions') {
+  if (req.method === HttpMethod.Get && p === '/auth/me') return send(res, 200, user)
+  if (req.method === HttpMethod.Get && p === '/auth/orgs') return send(res, 200, [])
+  if (req.method === HttpMethod.Get && p === '/users/alice-dev') return send(res, 200, OWNER_PROFILE)
+  if (req.method === HttpMethod.Get && p === '/users/bob-ai') return send(res, 200, OTHER_PROFILE)
+  if (req.method === HttpMethod.Get && p === '/transcripts') return send(res, 200, libraryResponse)
+  if (req.method === HttpMethod.Get && p === '/users/me/collectives/contributions') {
     return send(res, 200, { collectives: contributions })
   }
-  if (req.method === 'GET' && p === '/collectives') return send(res, 200, [groupDetail.group])
-  if (req.method === 'GET' && p === '/collectives/visible') return send(res, 200, [groupDetail.group])
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/settings`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/pending`) return send(res, 200, withResolvedParents(pendingShares, (row) => row.transcript_id))
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/my-shares`) return send(res, 200, withResolvedParents(myShares))
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/transcripts`) {
+  if (req.method === HttpMethod.Get && p === '/collectives') return send(res, 200, [groupDetail.group])
+  if (req.method === HttpMethod.Get && p === '/collectives/visible') return send(res, 200, [groupDetail.group])
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}`) return send(res, 200, groupDetail)
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/settings`) return send(res, 200, groupDetail)
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/pending`) return send(res, 200, withResolvedParents(pendingShares, (row) => row.transcript_id))
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/my-shares`) return send(res, 200, withResolvedParents(myShares))
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/transcripts`) {
     return send(res, 200, { transcripts: withResolvedParents(groupTranscripts) })
   }
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable/projects`) return send(res, 200, contributableProjects())
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable` && url.searchParams.get('view') === 'paged') {
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/contributable/projects`) return send(res, 200, contributableProjects())
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/contributable` && url.searchParams.get('view') === 'paged') {
     const projectHash = url.searchParams.get('project_hash')
     return send(res, 200, {
       group_id: GROUP_ID,
@@ -710,7 +711,7 @@ const server = createServer((req, res) => {
   // No repository is linked here. Answered rather than refused, so the panel
   // renders its own empty state instead of a failure the capture would have to
   // explain away.
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/repositories`) return send(res, 200, { repositories: [] })
+  if (req.method === HttpMethod.Get && p === `/collectives/${GROUP_ID}/repositories`) return send(res, 200, { repositories: [] })
 
   return send(res, 401, { error: 'unauthenticated (mock)' })
 })
