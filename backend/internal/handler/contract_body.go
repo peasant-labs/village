@@ -118,22 +118,27 @@ type ContractOperation struct {
 func (op ContractOperation) String() string { return op.Method + " " + op.Path }
 
 var (
-	opCreateGroup           = ContractOperation{Method: "POST", Path: "/api/v1/groups"}
-	opUpdateGroup           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}"}
-	opCreateGroupInvitation = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/invitations"}
-	opUpdateGroupMemberRole = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/members/{userID}/role"}
-	opLinkGroupRepository   = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/repositories"}
-	opBatchShareProject     = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/shares"}
-	opBatchShareSelection   = ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/shares/selection"}
-	opBatchReviewShares     = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares"}
-	opReviewShare           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares/{transcriptID}"}
-	opShareTranscript       = ContractOperation{Method: "POST", Path: "/api/v1/transcripts/{id}/share"}
-	opLocateTranscriptEntry = ContractOperation{Method: http.MethodPost, Path: schemaRoute.VillageLocateTranscriptEntry.Pattern()}
-	opUpdateUserSettings    = ContractOperation{Method: "PATCH", Path: "/api/v1/users/me/settings"}
-
-	opSetNotificationEmail    = ContractOperation{Method: "PUT", Path: "/api/v1/users/me/email"}
-	opVerifyNotificationEmail = ContractOperation{Method: "POST", Path: "/api/v1/users/me/email/verify"}
+	opCreateGroup             = contractOperation(schemaRoute.VillageCreateGroupDeprecated)
+	opUpdateGroup             = contractOperation(schemaRoute.VillageUpdateGroupDeprecated)
+	opCreateGroupInvitation   = contractOperation(schemaRoute.VillageCreateGroupInvitationDeprecated)
+	opUpdateGroupMemberRole   = contractOperation(schemaRoute.VillageUpdateGroupMemberRoleDeprecated)
+	opLinkGroupRepository     = contractOperation(schemaRoute.VillageLinkGroupRepositoryDeprecated)
+	opBatchShareProject       = contractOperation(schemaRoute.VillageBatchShareProjectDeprecated)
+	opBatchShareSelection     = contractOperation(schemaRoute.VillageBatchShareSelectionDeprecated)
+	opBatchReviewShares       = contractOperation(schemaRoute.VillageBatchReviewSharesDeprecated)
+	opReviewShare             = contractOperation(schemaRoute.VillageReviewShareDeprecated)
+	opShareTranscript         = contractOperation(schemaRoute.VillageShareTranscriptWithGroups)
+	opLocateTranscriptEntry   = contractOperation(schemaRoute.VillageLocateTranscriptEntry)
+	opUpdateUserSettings      = contractOperation(schemaRoute.VillageUpdateMySettings)
+	opSetNotificationEmail    = contractOperation(schemaRoute.VillageSetMyNotificationEmail)
+	opVerifyNotificationEmail = contractOperation(schemaRoute.VillageVerifyMyNotificationEmail)
 )
+
+// contractOperation reads an operation's method and path from the contract's
+// route table, so the handler names the operation the served document declares.
+func contractOperation(route schemaRoute.Route) ContractOperation {
+	return ContractOperation{Method: route.Method().String(), Path: route.Pattern()}
+}
 
 // ContractEnforcedOperations lists every operation whose request body the
 // handlers validate against the served contract. The router drift gate

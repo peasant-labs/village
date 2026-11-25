@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -38,31 +39,31 @@ type contractBodyOperationCase struct {
 }
 
 // requiredContractBodyOperations names the operations the fixture must cover,
-// keyed by method and path. It lives here so deleting fixture rows cannot
+// keyed by method and path as the contract's route table spells them. It lives here so deleting fixture rows cannot
 // delete the manifest that protects them.
 var requiredContractBodyOperations = []string{
-	"POST /api/v1/collectives",
-	"PATCH /api/v1/collectives/{id}",
-	"POST /api/v1/collectives/{id}/invitations",
-	"PATCH /api/v1/collectives/{id}/members/{userID}/role",
-	"POST /api/v1/collectives/{id}/repositories",
-	"POST /api/v1/collectives/{id}/shares",
-	"PATCH /api/v1/collectives/{id}/shares",
-	"PATCH /api/v1/collectives/{id}/shares/{transcriptID}",
-	"POST /api/v1/collectives/{id}/shares/selection",
-	"POST /api/v1/groups",
-	"PATCH /api/v1/groups/{id}",
-	"POST /api/v1/groups/{id}/invitations",
-	"PATCH /api/v1/groups/{id}/members/{userID}/role",
-	"POST /api/v1/groups/{id}/repositories",
-	"POST /api/v1/groups/{id}/shares",
-	"PATCH /api/v1/groups/{id}/shares",
-	"PATCH /api/v1/groups/{id}/shares/{transcriptID}",
-	"POST /api/v1/groups/{id}/shares/selection",
-	"POST /api/v1/transcripts/{id}/share",
-	"PATCH /api/v1/users/me/settings",
-	"PUT /api/v1/users/me/email",
-	"POST /api/v1/users/me/email/verify",
+	schemaRoute.VillageCreateGroup.MuxPattern(),
+	schemaRoute.VillageUpdateGroup.MuxPattern(),
+	schemaRoute.VillageCreateGroupInvitation.MuxPattern(),
+	schemaRoute.VillageUpdateGroupMemberRole.MuxPattern(),
+	schemaRoute.VillageLinkGroupRepository.MuxPattern(),
+	schemaRoute.VillageBatchShareProject.MuxPattern(),
+	schemaRoute.VillageBatchReviewShares.MuxPattern(),
+	schemaRoute.VillageReviewShare.MuxPattern(),
+	schemaRoute.VillageBatchShareSelection.MuxPattern(),
+	schemaRoute.VillageCreateGroupDeprecated.MuxPattern(),
+	schemaRoute.VillageUpdateGroupDeprecated.MuxPattern(),
+	schemaRoute.VillageCreateGroupInvitationDeprecated.MuxPattern(),
+	schemaRoute.VillageUpdateGroupMemberRoleDeprecated.MuxPattern(),
+	schemaRoute.VillageLinkGroupRepositoryDeprecated.MuxPattern(),
+	schemaRoute.VillageBatchShareProjectDeprecated.MuxPattern(),
+	schemaRoute.VillageBatchReviewSharesDeprecated.MuxPattern(),
+	schemaRoute.VillageReviewShareDeprecated.MuxPattern(),
+	schemaRoute.VillageBatchShareSelectionDeprecated.MuxPattern(),
+	schemaRoute.VillageShareTranscriptWithGroups.MuxPattern(),
+	schemaRoute.VillageUpdateMySettings.MuxPattern(),
+	schemaRoute.VillageSetMyNotificationEmail.MuxPattern(),
+	schemaRoute.VillageVerifyMyNotificationEmail.MuxPattern(),
 }
 
 func loadContractBodyOperations(t *testing.T) []contractBodyOperationCase {
