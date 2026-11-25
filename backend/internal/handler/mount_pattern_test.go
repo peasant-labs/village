@@ -9,11 +9,27 @@ import (
 	"github.com/peasant-labs/village/backend/internal/handler"
 )
 
-// Every route the Village API document declares mounts inside the API group:
-// prefixing its relative pattern with the group prefix gives back the declared
-// pattern exactly.
+// mountedOutsideAPIGroup names the declared routes the router mounts outside
+// its API group, each from its own pattern: the health probe answers at the
+// server root, where a load balancer looks for it.
+var mountedOutsideAPIGroup = map[string]schemaRoute.Route{
+	schemaRoute.VillageGetHealth.OperationID(): schemaRoute.VillageGetHealth,
+}
+
+// Every other route the Village API document declares mounts inside the API
+// group: prefixing its relative pattern with the group prefix gives back the
+// declared pattern exactly.
 func TestMountPatternRoundTripsEveryVillageRoute(t *testing.T) {
+	for id, route := range mountedOutsideAPIGroup {
+		if strings.HasPrefix(route.Pattern(), handler.APIPrefix+"/") {
+			t.Errorf("%s (%s) is now under %q; mount it inside the API group and remove it from mountedOutsideAPIGroup",
+				id, route.Pattern(), handler.APIPrefix)
+		}
+	}
 	for _, route := range schemaRoute.AllVillage {
+		if _, outside := mountedOutsideAPIGroup[route.OperationID()]; outside {
+			continue
+		}
 		relative := handler.MountPattern(route)
 		if !strings.HasPrefix(relative, "/") {
 			t.Errorf("MountPattern(%s) = %q; want a path starting with /", route.OperationID(), relative)
