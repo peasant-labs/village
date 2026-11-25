@@ -10,14 +10,28 @@ export type ParamBuildFixture = {
   expectedParams: Record<string, string>;
 };
 
+/**
+ * The kinds of failure a failure-note case throws. They are the fixture's own
+ * words and discriminate the case's `error`, so they are plain strings: a
+ * discriminant narrows only on a literal type.
+ */
+export const ThrownFailureKind = Object.freeze({
+  Mismatch: "mismatch",
+  Status: "status",
+  Network: "network",
+  Message: "message",
+  None: "none",
+} as const);
+export type ThrownFailureKind = (typeof ThrownFailureKind)[keyof typeof ThrownFailureKind];
+
 export type FailureNoteFixture = {
   name: string;
   error:
-    | { kind: "mismatch" }
-    | { kind: "status"; status: number; message: string }
-    | { kind: "network"; message: string }
-    | { kind: "message"; message: string }
-    | { kind: "none" };
+    | { kind: typeof ThrownFailureKind.Mismatch }
+    | { kind: typeof ThrownFailureKind.Status; status: number; message: string }
+    | { kind: typeof ThrownFailureKind.Network; message: string }
+    | { kind: typeof ThrownFailureKind.Message; message: string }
+    | { kind: typeof ThrownFailureKind.None };
   expect: string | null;
 };
 

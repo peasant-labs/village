@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildContributeTree } from "@/lib/contribute/tree";
+import { CheckState } from "@/lib/contribute/checkState";
 import { groupByProject, nodeState, privateIds, selectAll, toggleNode } from "@/lib/contribute/selection";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 
@@ -29,13 +30,13 @@ describe("toggleNode / nodeState", () => {
     ]);
     const [project] = tree;
 
-    expect(nodeState(new Set(), project)).toBe("none");
+    expect(nodeState(new Set(), project)).toBe(CheckState.None);
     const afterFirstToggle = toggleNode(new Set(), project);
-    expect(nodeState(afterFirstToggle, project)).toBe("all");
+    expect(nodeState(afterFirstToggle, project)).toBe(CheckState.All);
     expect([...afterFirstToggle].sort()).toEqual(["a", "b"]);
 
     const afterSecondToggle = toggleNode(afterFirstToggle, project);
-    expect(nodeState(afterSecondToggle, project)).toBe("none");
+    expect(nodeState(afterSecondToggle, project)).toBe(CheckState.None);
     expect(afterSecondToggle.size).toBe(0);
   });
 
@@ -45,7 +46,7 @@ describe("toggleNode / nodeState", () => {
       row({ id: "b", local_id: "b", project_hash: "p" }),
     ]);
     const [project] = tree;
-    expect(nodeState(new Set(["a"]), project)).toBe("some");
+    expect(nodeState(new Set(["a"]), project)).toBe(CheckState.Some);
   });
 });
 

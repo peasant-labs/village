@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { testdataPath } from "@/test/testdataPath";
 import { zVillageContributionPageItem, type VillageContributionPageItem } from "@peasant-labs/schema";
 import { pagedRowMeta, sectionBranches } from "./pagedTree";
 import { projectHashOf, transcriptIdOf, transcriptOf } from "./testTokens";
@@ -33,7 +33,7 @@ interface Fixtures {
   meta: { name: string; session: SessionToken; family: string; expect: string }[];
 }
 
-const fixtures = parse(readFileSync(resolve(process.cwd(), "src/testdata/paged-contribute-tree.yaml"), "utf8")) as Fixtures;
+const fixtures = parse(readFileSync(testdataPath("paged-contribute-tree.yaml"), "utf8")) as Fixtures;
 
 const REQUIRED_BRANCHES = [
   "families-group-under-their-roots-branch",

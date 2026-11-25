@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Share2, Globe, FileText } from "lucide-react";
 import { ConsentDialog } from "@/lib/ft-ui";
 import IntegrityDisclosure from "./IntegrityDisclosure";
+import { ConfirmContributeLabel } from "./confirmContributeLabel";
 
 interface CollectiveTarget {
   id: string;
@@ -82,8 +83,9 @@ export default function ConfirmContributeDialog({
         },
       ]}
       summaryCaption="what crosses the boundary"
-      consentLabel="i understand and consent to sharing these transcripts"
-      confirmLabel="contribute & make visible"
+      consentLabel={ConfirmContributeLabel.Consent.wire}
+      confirmLabel={ConfirmContributeLabel.Confirm.wire}
+      cancelLabel={ConfirmContributeLabel.Cancel.wire}
       confirmIcon={Share2}
       busy={isSubmitting}
       onCancel={onClose}

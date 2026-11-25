@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import TranscriptList from "./TranscriptList";
+import { ChildSessionDisclosureTestId } from "./childSessionDisclosureTestId";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import type { TranscriptRowFact, TranscriptRowSelection } from "./TranscriptList";
@@ -103,13 +104,13 @@ export default function ChildSessionDisclosure({
         expanded={expanded}
         onToggle={() => setExpanded((open) => !open)}
         rowsID={rowsID}
-        testID="child-session-disclosure"
+        testID={ChildSessionDisclosureTestId.Root.wire}
         bare
         indent
       >
         <div
           id={rowsID}
-          data-testid="child-session-disclosure-rows"
+          data-testid={ChildSessionDisclosureTestId.Rows.wire}
           className="border-t border-rule"
         >
           <TranscriptList

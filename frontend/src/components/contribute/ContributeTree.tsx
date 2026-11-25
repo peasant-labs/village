@@ -9,6 +9,8 @@ import { Button, Input, Select, Tag } from "@/lib/ft-ui";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import TriStateCheckbox from "./TriStateCheckbox";
+import { ContributeLabel } from "./contributeLabel";
+import { ChildSessionDisclosureTestId } from "@/components/transcript/childSessionDisclosureTestId";
 import { TreeRail, useTreeRail, type RailRow } from "./treeRail";
 
 interface ContributeTreeProps {
@@ -147,13 +149,13 @@ function SessionRow({
         expanded={childrenOpen}
         onToggle={() => onToggleChildren(session.id)}
         rowsID={`contribute-child-sessions-${session.id}`}
-        testID="child-session-disclosure"
+        testID={ChildSessionDisclosureTestId.Root.wire}
         bare
         indent
       >
         <div
           id={`contribute-child-sessions-${session.id}`}
-          data-testid="child-session-disclosure-rows"
+          data-testid={ChildSessionDisclosureTestId.Rows.wire}
           className="contribute-subtree"
         >
           {session.children.map((child) => (
@@ -422,8 +424,8 @@ export default function ContributeTree({
         <Input
           value={filters.search}
           onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-          placeholder="search sessions"
-          aria-label="search sessions"
+          placeholder={ContributeLabel.Search.wire}
+          aria-label={ContributeLabel.Search.wire}
         />
         <Select
           value={filters.harness ?? ""}
@@ -452,7 +454,7 @@ export default function ContributeTree({
           disabled={selectableIds.length === 0}
           onClick={() => onToggleAll(selectableIds, !allSelected)}
         >
-          {allSelected ? "deselect all" : "select all"}
+          {allSelected ? ContributeLabel.DeselectAll.wire : "select all"}
         </Button>
       </div>
       <div className="on-contribute-rows">

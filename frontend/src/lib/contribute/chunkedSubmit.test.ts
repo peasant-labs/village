@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { testdataPath } from "@/test/testdataPath";
 import {
   zVillageBatchShareResponse,
   type VillageBatchShareSelectionRequest,
@@ -16,7 +16,7 @@ import {
   runContribution,
   selectionAfterRun,
   type ContributionReceipt,
-  type PrivateApproval,
+  PrivateApproval,
 } from "./chunkedSubmit";
 import type { FrozenSelection, SelectedRecord } from "./frozenSelection";
 import { projectHashOf, transcriptIdOf } from "./testTokens";
@@ -46,7 +46,7 @@ interface RunFixture {
   size?: number;
   selection: SelectedToken[];
   approved?: string[];
-  approve_private?: PrivateApproval[];
+  approve_private?: PrivateApproval["wire"][];
   calls: CallToken[];
   expect_asked?: string[][];
   expect: {
@@ -66,7 +66,14 @@ interface Fixtures {
   runs: RunFixture[];
 }
 
-const fixtures = parse(readFileSync(resolve(process.cwd(), "src/testdata/chunked-submit.yaml"), "utf8")) as Fixtures;
+const fixtures = parse(readFileSync(testdataPath("chunked-submit.yaml"), "utf8")) as Fixtures;
+
+/** The approval member a fixture's answer names. */
+function approvalOf(wire: string): PrivateApproval {
+  const member = Object.values(PrivateApproval).find((approval) => approval.wire === wire);
+  if (!member) throw new Error(`the fixture answers an unknown approval ${JSON.stringify(wire)}`);
+  return member;
+}
 
 const ID_TOKEN = new Map<string, string>();
 function id(token: string): string {
@@ -108,12 +115,12 @@ function receiptTokens(receipt: ContributionReceipt) {
       receipt.failed.map((failure) => [
         tokenOf(failure.record.id),
         failure.current_project_hash
-          ? { reason: failure.reason, current: `p${String.fromCharCode(parseInt(failure.current_project_hash.slice(0, 2), 16))}` }
-          : failure.reason,
+          ? { reason: failure.reason.wire, current: `p${String.fromCharCode(parseInt(failure.current_project_hash.slice(0, 2), 16))}` }
+          : failure.reason.wire,
       ]),
     ),
     unattempted: receipt.unattempted.map((record) => tokenOf(record.id)),
-    ...(receipt.stopped ? { stopped: receipt.stopped.reason } : {}),
+    ...(receipt.stopped ? { stopped: receipt.stopped.reason.wire } : {}),
   };
 }
 
@@ -152,7 +159,7 @@ describe("runContribution", () => {
       const controller = new AbortController();
       const requests: RequestToken[] = [];
       const asked: string[][] = [];
-      const answers = [...(fixture.approve_private ?? [])];
+      const answers = (fixture.approve_private ?? []).map(approvalOf);
       const calls = [...fixture.calls];
 
       const receipt = await runContribution({

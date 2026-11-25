@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-
-export type TriState = "none" | "some" | "all";
+import { CheckState } from "@/lib/contribute/checkState";
 
 /**
  * A parent row's checkbox carries three states: none, some, or all of its
@@ -17,14 +16,14 @@ export default function TriStateCheckbox({
   label,
   inputRef,
 }: {
-  state: TriState;
+  state: CheckState;
   disabled?: boolean;
   onChange: () => void;
   label: string;
   inputRef?: (element: HTMLInputElement | null) => void;
 }) {
   const ref = useRef<HTMLInputElement | null>(null);
-  const mixed = state === "some";
+  const mixed = state === CheckState.Some;
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = mixed;
   }, [mixed]);
@@ -37,10 +36,10 @@ export default function TriStateCheckbox({
         }}
         type="checkbox"
         className="check-box"
-        data-state={state}
+        data-state={state.wire}
         data-indeterminate={mixed || undefined}
-        aria-checked={mixed ? "mixed" : state === "all"}
-        checked={state === "all"}
+        aria-checked={mixed ? "mixed" : state === CheckState.All}
+        checked={state === CheckState.All}
         disabled={disabled}
         onChange={onChange}
         aria-label={label}
