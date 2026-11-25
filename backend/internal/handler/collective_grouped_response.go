@@ -93,5 +93,6 @@ func contributableSessionRow(s schema.VillageTranscript, owner schema.VillagePub
 		ModelProvider: s.ModelProvider, PublishedAt: s.PublishedAt, AlreadyShared: alreadyShared,
 		InputSubmissionCount: s.InputSubmissionCount, RootSessionID: s.RootSessionID,
 		Purpose: s.Purpose, Relationships: s.Relationships,
+		SessionStart: s.SessionStart, SessionEnd: s.SessionEnd,
 	}}
 }
