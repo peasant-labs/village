@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import {
   zVillageContributionPageResponse,
   zVillageContributionProjectPage,
@@ -55,7 +56,26 @@ export class ContributionDeploymentError extends Error {
 }
 
 /** Which read failed. The same status means different things on each. */
-export type ContributionRead = "page" | "projects" | "snapshot";
+const ContributionReadValues = {
+  Page: closed("page", "the contribution page"),
+  Projects: closed("projects", "the project list"),
+  Snapshot: closed("snapshot", "the project snapshot"),
+} as const;
+export type ContributionRead = (typeof ContributionReadValues)[keyof typeof ContributionReadValues];
+export const ContributionRead = ContributionReadValues;
+
+/**
+ * The kinds of read failure. They discriminate {@link ContributionReadFailure},
+ * so they are plain strings: a discriminant narrows only on a literal type.
+ */
+export const ContributionReadFailureKind = Object.freeze({
+  Deployment: "deployment",
+  TooLarge: "too_large",
+  Busy: "busy",
+  Cancelled: "cancelled",
+  Failed: "failed",
+} as const);
+export type ContributionReadFailureKind = (typeof ContributionReadFailureKind)[keyof typeof ContributionReadFailureKind];
 
 /**
  * Why a read failed, in the terms the page acts on.
@@ -68,11 +88,11 @@ export type ContributionRead = "page" | "projects" | "snapshot";
  * - `failed`: any other failure; retry.
  */
 export type ContributionReadFailure =
-  | { kind: "deployment"; message: string }
-  | { kind: "too_large" }
-  | { kind: "busy" }
-  | { kind: "cancelled" }
-  | { kind: "failed"; message: string };
+  | { kind: typeof ContributionReadFailureKind.Deployment; message: string }
+  | { kind: typeof ContributionReadFailureKind.TooLarge }
+  | { kind: typeof ContributionReadFailureKind.Busy }
+  | { kind: typeof ContributionReadFailureKind.Cancelled }
+  | { kind: typeof ContributionReadFailureKind.Failed; message: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -141,24 +161,24 @@ export function decodeContributionSnapshot(
 
 /** Turns a thrown read failure into what the page does about it. */
 export function classifyContributionReadError(err: unknown, read: ContributionRead): ContributionReadFailure {
-  if (err instanceof ContributionDeploymentError) return { kind: "deployment", message: err.message };
-  if (err instanceof DOMException && err.name === "AbortError") return { kind: "cancelled" };
+  if (err instanceof ContributionDeploymentError) return { kind: ContributionReadFailureKind.Deployment, message: err.message };
+  if (err instanceof DOMException && err.name === "AbortError") return { kind: ContributionReadFailureKind.Cancelled };
   if (err instanceof ApiError) {
     if (err.status === 413) {
       // The snapshot's own size limit is the only 413 the new reads give. Any
       // other 413 is the flat read's cap, which only an older backend serves.
-      if (read === "snapshot" && err.code === "snapshot_too_large") return { kind: "too_large" };
-      return { kind: "deployment", message: `the ${read} read was refused as too large without the snapshot limit code; the backend deployment is incomplete` };
+      if (read === ContributionRead.Snapshot && err.code === "snapshot_too_large") return { kind: ContributionReadFailureKind.TooLarge };
+      return { kind: ContributionReadFailureKind.Deployment, message: `the ${read.wire} read was refused as too large without the snapshot limit code; the backend deployment is incomplete` };
     }
-    if (read === "projects" && (err.status === 404 || err.status === 405)) {
-      return { kind: "deployment", message: "the project list is not served; the backend deployment is incomplete" };
+    if (read === ContributionRead.Projects && (err.status === 404 || err.status === 405)) {
+      return { kind: ContributionReadFailureKind.Deployment, message: "the project list is not served; the backend deployment is incomplete" };
     }
-    if (read === "snapshot" && err.status === 503 && (err.code === "snapshot_timeout" || err.code === "snapshot_busy")) {
-      return { kind: "busy" };
+    if (read === ContributionRead.Snapshot && err.status === 503 && (err.code === "snapshot_timeout" || err.code === "snapshot_busy")) {
+      return { kind: ContributionReadFailureKind.Busy };
     }
-    return { kind: "failed", message: err.message };
+    return { kind: ContributionReadFailureKind.Failed, message: err.message };
   }
-  return { kind: "failed", message: err instanceof Error ? err.message : "the read failed unexpectedly" };
+  return { kind: ContributionReadFailureKind.Failed, message: err instanceof Error ? err.message : "the read failed unexpectedly" };
 }
 
 function setFilters(query: URLSearchParams, filters: ContributionFilters): void {
@@ -216,7 +236,7 @@ export function useContributionPages(groupId: string, filters: ContributionPageF
   return {
     ...query,
     items,
-    failure: query.error ? classifyContributionReadError(query.error, "page") : null,
+    failure: query.error ? classifyContributionReadError(query.error, ContributionRead.Page) : null,
     refresh: () => client.invalidateQueries({ queryKey, exact: true }),
   };
 }
@@ -247,7 +267,7 @@ export function useContributionProjects(groupId: string, filters: ContributionFi
     matchingTotal: first?.matching_total ?? 0,
     selectableTotal: first?.selectable_total ?? 0,
     providers: first?.providers ?? [],
-    failure: query.error ? classifyContributionReadError(query.error, "projects") : null,
+    failure: query.error ? classifyContributionReadError(query.error, ContributionRead.Projects) : null,
     refresh: () => client.invalidateQueries({ queryKey, exact: true }),
   };
 }

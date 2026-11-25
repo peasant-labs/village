@@ -19,6 +19,7 @@ import { publicProfile } from "@/lib/publicOwner";
 import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows } from "@/lib/childSessions";
 import TranscriptList, { type TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import CollectiveRepos from "@/components/group/CollectiveRepos";
+import { CollectiveLibraryTestId } from "@/components/group/collectiveLibraryTestId";
 import { transcriptHref } from "@/lib/transcriptContext";
 import ProviderBadge from "@/components/transcript/ProviderBadge";
 import { ScopedOwnerHelperGroups, ScopedUnownedHelperGroups, helperGroupsByTranscript, unownedGroupedItems } from "@/components/transcript/ScopedHelperGroups";
@@ -222,7 +223,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     }
     return <div className="flex flex-col gap-4 min-w-0" data-testid="collective-transcript-library">
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="on-collective-library-panel">
-      <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
+      <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID={CollectiveLibraryTestId.Disclosure.wire} bare>
         <div id={`collective-library-${groupID}`}>
           {transcripts.length > 0 && <div className="on-lib-tools" role="group" aria-label="view and select transcripts">
             <div className="on-lib-tools-view">

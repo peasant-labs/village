@@ -54,10 +54,22 @@ export async function submitSelection(
   return decodeSelectionResponse(raw, request);
 }
 
+/**
+ * Where a contribution run is. The phases discriminate
+ * {@link ContributionRunState}, so they are plain strings: a discriminant
+ * narrows only on a literal type.
+ */
+export const ContributionRunPhase = Object.freeze({
+  Idle: "idle",
+  Running: "running",
+  Done: "done",
+} as const);
+export type ContributionRunPhase = (typeof ContributionRunPhase)[keyof typeof ContributionRunPhase];
+
 export type ContributionRunState =
-  | { phase: "idle" }
-  | { phase: "running"; progress: ContributionProgress | null }
-  | { phase: "done"; receipt: ContributionReceipt };
+  | { phase: typeof ContributionRunPhase.Idle }
+  | { phase: typeof ContributionRunPhase.Running; progress: ContributionProgress | null }
+  | { phase: typeof ContributionRunPhase.Done; receipt: ContributionReceipt };
 
 export interface StartContribution {
   selection: FrozenSelection;
@@ -74,7 +86,7 @@ export interface StartContribution {
  */
 export function useContributionRun(groupId: string) {
   const client = useQueryClient();
-  const [state, setState] = useState<ContributionRunState>({ phase: "idle" });
+  const [state, setState] = useState<ContributionRunState>({ phase: ContributionRunPhase.Idle });
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => () => controller.current?.abort(), []);
@@ -84,7 +96,7 @@ export function useContributionRun(groupId: string) {
       if (controller.current) return null;
       const abort = new AbortController();
       controller.current = abort;
-      setState({ phase: "running", progress: null });
+      setState({ phase: ContributionRunPhase.Running, progress: null });
       try {
         const receipt = await runContribution({
           selection,
@@ -92,9 +104,9 @@ export function useContributionRun(groupId: string) {
           approvePrivate,
           signal: abort.signal,
           submit: (request) => submitSelection(groupId, request, abort.signal),
-          onProgress: (progress) => setState({ phase: "running", progress }),
+          onProgress: (progress) => setState({ phase: ContributionRunPhase.Running, progress }),
         });
-        setState({ phase: "done", receipt });
+        setState({ phase: ContributionRunPhase.Done, receipt });
         return receipt;
       } finally {
         controller.current = null;
@@ -107,7 +119,7 @@ export function useContributionRun(groupId: string) {
 
   const cancel = useCallback(() => controller.current?.abort(), []);
   const reset = useCallback(() => {
-    if (!controller.current) setState({ phase: "idle" });
+    if (!controller.current) setState({ phase: ContributionRunPhase.Idle });
   }, []);
 
   return { state, start, cancel, reset };

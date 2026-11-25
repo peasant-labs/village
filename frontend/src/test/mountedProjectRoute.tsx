@@ -13,6 +13,7 @@ import type {
   User,
   UserProjectPageResponse,
 } from "@/lib/types";
+import type { ProjectHash } from "@peasant-labs/schema";
 import { profileOwner } from "@/test/publicOwnerFixture";
 import { withResolvedParents } from "@/test/parentTranscriptFixture";
 
@@ -137,7 +138,7 @@ export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedR
     const transcripts = responses?.[Math.min(projectRead++, responses.length - 1)] ?? fixture.transcripts;
     return ({
     project: {
-      project_hash: fixture.projectHash,
+      project_hash: fixture.projectHash as ProjectHash,
       project_display_name: displayName,
       project_name_source: nameSource,
       project_remote_label: fixture.remoteLabel,

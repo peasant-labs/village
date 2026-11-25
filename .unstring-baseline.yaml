@@ -17,7 +17,7 @@ rules:
     frontend/scripts/journey/ci-post-evidence.mjs: 4
     frontend/scripts/journey/collective-settings.journey.mjs: 5
     frontend/scripts/journey/collective.journey.mjs: 1
-    frontend/scripts/journey/collectives-built.journey.mjs: 5
+    frontend/scripts/journey/collectives-built.journey.mjs: 4
     frontend/scripts/journey/discover.journey.mjs: 2
     frontend/scripts/journey/lib/built-support.test.mjs: 4
     frontend/scripts/journey/lib/collective-fixtures.mjs: 35
@@ -48,17 +48,17 @@ rules:
     frontend/scripts/visual/home-shoot.mjs: 4
     frontend/scripts/visual/integrity-shoot.mjs: 7
     frontend/scripts/visual/manage-boot-village.mjs: 2
-    frontend/scripts/visual/manage-shoot.mjs: 5
-    frontend/scripts/visual/mock-rest-child-sessions.mjs: 15
+    frontend/scripts/visual/manage-shoot.mjs: 4
+    frontend/scripts/visual/mock-rest-child-sessions.mjs: 1
     frontend/scripts/visual/mock-rest-explore.mjs: 11
-    frontend/scripts/visual/mock-rest-grouped-collective.mjs: 12
+    frontend/scripts/visual/mock-rest-grouped-collective.mjs: 10
     frontend/scripts/visual/mock-rest-home.mjs: 2
     frontend/scripts/visual/mock-rest-integrity.mjs: 4
     frontend/scripts/visual/mock-rest-invitations.mjs: 3
     frontend/scripts/visual/mock-rest-pagination.mjs: 8
     frontend/scripts/visual/mock-rest-profile.mjs: 1
     frontend/scripts/visual/mock-rest-project.mjs: 17
-    frontend/scripts/visual/mock-rest.mjs: 35
+    frontend/scripts/visual/mock-rest.mjs: 2
     frontend/scripts/visual/parent-navigation-shoot.mjs: 1
     frontend/scripts/visual/probe-village.mjs: 2
     frontend/scripts/visual/profile-collectives-shoot.mjs: 3
@@ -72,8 +72,7 @@ rules:
     frontend/src/accountProfileRecovery.test.tsx: 5
     frontend/src/accountSettings.test.tsx: 7
     frontend/src/app/HomePage.tsx: 2
-    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 3
-    frontend/src/app/collectives/[id]/contribute/page.tsx: 1
+    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 2
     frontend/src/app/collectives/[id]/page.tsx: 7
     frontend/src/app/collectives/[id]/review/page.test.tsx: 6
     frontend/src/app/collectives/[id]/review/page.tsx: 2
@@ -104,7 +103,7 @@ rules:
     frontend/src/components/collective/settings/ChoiceCards.tsx: 7
     frontend/src/components/collectives/NewCollectiveDialog.tsx: 5
     frontend/src/components/collectives/newCollectiveDialog.test.tsx: 8
-    frontend/src/components/contribute/ContributeTree.tsx: 6
+    frontend/src/components/contribute/ContributeTree.tsx: 3
     frontend/src/components/contribute/TranscriptPreview.test.tsx: 2
     frontend/src/components/dev/DevAnnotateOverlay.tsx: 6
     frontend/src/components/group/CollectiveTranscriptLibrary.tsx: 3
@@ -134,7 +133,7 @@ rules:
     frontend/src/lib/collectivePolicyCopy.ts: 8
     frontend/src/lib/collectiveSections.ts: 4
     frontend/src/lib/contribute/collectiveGroupedSelection.test.ts: 2
-    frontend/src/lib/contribute/selection.ts: 2
+    frontend/src/lib/contribute/selection.ts: 1
     frontend/src/lib/contribute/tree.test.ts: 7
     frontend/src/lib/format.ts: 8
     frontend/src/lib/homeView.test.ts: 3
@@ -154,15 +153,14 @@ rules:
     frontend/src/lib/server/transcriptPageAccess.ts: 1
     frontend/src/lib/transcriptContext.ts: 5
     frontend/src/lib/transcriptExport.ts: 2
-    frontend/src/lib/transcriptPageRequest.test.ts: 1
     frontend/src/lib/transcriptPageRequest.ts: 1
     frontend/src/lowercaseChrome.test.tsx: 10
     frontend/src/manageAccessAccount.test.tsx: 2
     frontend/src/manageAccessDisclosure.test.tsx: 8
     frontend/src/mountedAgentSessionGrouping.test.tsx: 3
     frontend/src/mountedChildSessionGroupingCollective.test.tsx: 3
-    frontend/src/mountedCollectiveGroupedActions.test.tsx: 16
-    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 18
+    frontend/src/mountedCollectiveGroupedActions.test.tsx: 10
+    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 13
     frontend/src/mountedCollectiveGroupedMyShares.test.tsx: 10
     frontend/src/mountedGroupedHelperBrowse.test.tsx: 1
     frontend/src/mountedGroupedHelperSurfaces.test.tsx: 3
@@ -182,7 +180,7 @@ rules:
     frontend/src/test/accountSettingsFixtures.ts: 13
     frontend/src/test/agentSessionGroupingFixtures.ts: 1
     frontend/src/test/childSessionGroupingFixtures.ts: 3
-    frontend/src/test/collectiveGroupedActionFixtures.ts: 16
+    frontend/src/test/collectiveGroupedActionFixtures.ts: 14
     frontend/src/test/collectiveGroupedMySharesFixtures.ts: 4
     frontend/src/test/collectivePageFixtures.ts: 7
     frontend/src/test/collectiveRemovalAccountFixtures.ts: 1
@@ -229,7 +227,7 @@ rules:
     frontend/src/accountEmail.test.tsx: 1
     frontend/src/accountProfileRecovery.test.tsx: 24
     frontend/src/accountSettings.test.tsx: 9
-    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 12
+    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 3
     frontend/src/app/collectives/[id]/groupContributeNav.test.tsx: 2
     frontend/src/app/collectives/[id]/review/page.test.tsx: 8
     frontend/src/app/collectives/collectivesList.test.tsx: 7
@@ -256,7 +254,7 @@ rules:
     frontend/src/manageAccessAccount.test.tsx: 6
     frontend/src/manageAccessDisclosure.test.tsx: 4
     frontend/src/mountedChildSessionGroupingCollective.test.tsx: 14
-    frontend/src/mountedCollectiveGroupedActions.test.tsx: 7
+    frontend/src/mountedCollectiveGroupedActions.test.tsx: 3
     frontend/src/mountedCollectiveGroupedFallback.test.tsx: 2
     frontend/src/mountedCollectiveGroupedMyShares.test.tsx: 5
     frontend/src/mountedGroupedHelperSurfaces.test.tsx: 1
@@ -417,8 +415,8 @@ rules:
     frontend/src/lib/server/shareCardImage.test.tsx: 1
     frontend/src/lib/transcriptPageRequest.ts: 1
     frontend/src/mountedChildSessionGroupingCollective.test.tsx: 2
-    frontend/src/mountedCollectiveGroupedActions.test.tsx: 5
-    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 3
+    frontend/src/mountedCollectiveGroupedActions.test.tsx: 3
+    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 2
     frontend/src/privacyLinks.test.tsx: 1
     frontend/src/signInRoute.test.ts: 2
     frontend/src/signedOutTranscript.test.tsx: 1
@@ -434,7 +432,6 @@ rules:
     frontend/src/lib/adapters/collective.ts: 2
     frontend/src/lib/collectivePolicyCopy.ts: 2
     frontend/src/lib/collectiveSections.ts: 2
-    frontend/src/lib/contribute/selection.ts: 1
     frontend/src/lib/contribute/tree.ts: 1
     frontend/src/lib/insights/types.ts: 1
     frontend/src/lib/transcriptExport.ts: 1
@@ -515,7 +512,6 @@ rules:
     backend/internal/handler/governance_writer_integration_test.go: 3
     backend/internal/handler/group_batch_review_integration_test.go: 1
     backend/internal/handler/group_prompt_check_settings_integration_test.go: 4
-    backend/internal/handler/group_shares.go: 1
     backend/internal/handler/group_shares_identity_integration_test.go: 2
     backend/internal/handler/group_shares_integration_test.go: 4
     backend/internal/handler/grouped_lists_integration_test.go: 1
@@ -646,8 +642,8 @@ rules:
     backend/internal/handler/content_hash_header_test.go: 3
     backend/internal/handler/content_preservation_test.go: 4
     backend/internal/handler/content_withholding_test.go: 1
-    backend/internal/handler/contract_body.go: 16
-    backend/internal/handler/contract_body_test.go: 35
+    backend/internal/handler/contract_body.go: 4
+    backend/internal/handler/contract_body_test.go: 15
     backend/internal/handler/conversation_turn_count_publication_integration_test.go: 4
     backend/internal/handler/conversation_turn_count_reads_integration_test.go: 1
     backend/internal/handler/delete_returned_objects_test.go: 1
@@ -738,7 +734,7 @@ rules:
     backend/internal/router/contract_drift_test.go: 3
     backend/internal/router/publish_batch_test.go: 1
     backend/internal/router/published_schema_test.go: 1
-    backend/internal/router/router.go: 37
+    backend/internal/router/router.go: 36
     backend/internal/router/transcript_pulls_route_integration_test.go: 1
   go-json-body-map:
     backend/internal/github/checks.go: 2
@@ -775,7 +771,6 @@ rules:
     backend/internal/handler/thinking_level_preservation_test.go: 2
   json-body-object:
     frontend/scripts/journey/sign-in.journey.mjs: 2
-    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 3
     frontend/src/app/transcripts/[id]/page.test.tsx: 2
     frontend/src/collectiveInviteSearch.test.tsx: 2
     frontend/src/collectivePagination.test.tsx: 1
@@ -808,9 +803,8 @@ rules:
   jsx-literal-testid:
     frontend/src/app/HomePage.tsx: 11
     frontend/src/app/auth/start/SignInStart.tsx: 1
-    frontend/src/app/collectives/[id]/contribute/page.tsx: 5
     frontend/src/app/collectives/[id]/page.tsx: 3
-    frontend/src/app/collectives/[id]/review/page.tsx: 6
+    frontend/src/app/collectives/[id]/review/page.tsx: 5
     frontend/src/app/collectives/[id]/settings/page.tsx: 1
     frontend/src/app/explore/ExplorePage.tsx: 3
     frontend/src/app/global-error.tsx: 1
@@ -831,7 +825,7 @@ rules:
     frontend/src/components/collective/page/CollectiveWaiting.tsx: 1
     frontend/src/components/collective/settings/SettingsSections.tsx: 5
     frontend/src/components/collectives/InvitationsBlock.tsx: 3
-    frontend/src/components/contribute/ContributeTree.tsx: 2
+    frontend/src/components/contribute/ContributeTree.tsx: 1
     frontend/src/components/contribute/TranscriptPreview.test.tsx: 1
     frontend/src/components/contribute/TranscriptPreview.tsx: 1
     frontend/src/components/group/CollectiveTranscriptLibrary.tsx: 5
@@ -842,7 +836,6 @@ rules:
     frontend/src/components/shell/AppFrame.tsx: 1
     frontend/src/components/shell/PublicTopBar.tsx: 1
     frontend/src/components/transcript/AgentSessionGroup.tsx: 1
-    frontend/src/components/transcript/ChildSessionDisclosure.tsx: 1
     frontend/src/components/transcript/ScopedGroupedContinuation.tsx: 1
     frontend/src/components/transcript/ScopedGroupedHelperSection.tsx: 1
     frontend/src/components/transcript/ScopedHelperGroups.tsx: 6
@@ -866,7 +859,6 @@ rules:
     frontend/src/accountOrgs.test.tsx: 8
     frontend/src/accountProfileRecovery.test.tsx: 7
     frontend/src/accountSettings.test.tsx: 5
-    frontend/src/app/collectives/[id]/contribute/page.test.tsx: 5
     frontend/src/app/collectives/[id]/groupContributeNav.test.tsx: 4
     frontend/src/app/collectives/[id]/review/page.test.tsx: 28
     frontend/src/app/collectives/collectivesList.test.tsx: 2
@@ -887,8 +879,7 @@ rules:
     frontend/src/mountedAgentSessionGrouping.test.tsx: 10
     frontend/src/mountedChildSessionGrouping.test.tsx: 7
     frontend/src/mountedChildSessionGroupingCollective.test.tsx: 1
-    frontend/src/mountedCollectiveGroupedActions.test.tsx: 3
-    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 6
+    frontend/src/mountedCollectiveGroupedFallback.test.tsx: 5
     frontend/src/mountedCollectiveGroupedMyShares.test.tsx: 4
     frontend/src/mountedGroupedHelperBrowse.test.tsx: 1
     frontend/src/mountedGroupedHelperSurfaces.test.tsx: 3
@@ -918,10 +909,10 @@ rules:
     frontend/scripts/journey/transcript.journey.mjs: 1
     frontend/scripts/visual/account-orgs-shoot.mjs: 6
     frontend/scripts/visual/child-session-shoot.mjs: 12
-    frontend/scripts/visual/collective-sxs.mjs: 5
+    frontend/scripts/visual/collective-sxs.mjs: 4
     frontend/scripts/visual/explore-agent-group-shoot.mjs: 3
     frontend/scripts/visual/explore-pagination-shoot.mjs: 4
-    frontend/scripts/visual/grouped-helper-shoot.mjs: 40
+    frontend/scripts/visual/grouped-helper-shoot.mjs: 31
     frontend/scripts/visual/home-shoot.mjs: 32
     frontend/scripts/visual/invitations-shoot.mjs: 4
     frontend/scripts/visual/profile-collectives-shoot.mjs: 28

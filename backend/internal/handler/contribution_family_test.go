@@ -77,24 +77,37 @@ func statementOf(t *testing.T, file, name string) string {
 	return body
 }
 
+// The fragment kinds a family fixture case can name, one per canonical SQL
+// fragment the contribution statements share.
+const (
+	fragmentKindRoot                = "root"
+	fragmentKindDescent             = "descent"
+	fragmentKindLoopWalkDeclaration = "loop_walk_declaration"
+	fragmentKindMember              = "member"
+	fragmentKindRootName            = "root_name"
+	fragmentKindProvider            = "provider"
+	fragmentKindLatest              = "latest"
+	fragmentKindLive                = "live"
+)
+
 func canonicalFragment(t *testing.T, c contributionFamilyFragmentCase) string {
 	t.Helper()
 	switch c.Kind {
-	case "root":
+	case fragmentKindRoot:
 		return contributionRootCondition(c.Alias)
-	case "descent":
+	case fragmentKindDescent:
 		return contributionDescentSQL(c.A, c.Alias)
-	case "loop_walk_declaration":
+	case fragmentKindLoopWalkDeclaration:
 		return contributionLoopWalkDeclarationSQL
-	case "member":
+	case fragmentKindMember:
 		return contributionMemberMatchSQL(c.Alias, c.A, c.B)
-	case "root_name":
+	case fragmentKindRootName:
 		return contributionRootNameMatchSQL(c.Alias, c.A)
-	case "provider":
+	case fragmentKindProvider:
 		return contributionProviderMatchSQL(c.Alias, c.A)
-	case "latest":
+	case fragmentKindLatest:
 		return contributionLatestAttemptSQL(c.Alias, c.A, c.B)
-	case "live":
+	case fragmentKindLive:
 		return contributionLiveSQL(c.Alias)
 	}
 	t.Fatalf("case %s names the unknown fragment kind %q", c.Name, c.Kind)

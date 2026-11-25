@@ -1,4 +1,5 @@
 import { VillageTranscriptVisibility } from "@peasant-labs/schema";
+import { CheckState } from "./checkState";
 import type { ContributableTranscript } from "./types";
 import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "./tree";
 
@@ -9,7 +10,7 @@ export type Selection = ReadonlySet<string>;
 
 /** The tri-state a checkbox row renders: no descendant selected, every
  *  eligible descendant selected, or something in between. */
-export type NodeState = "none" | "some" | "all";
+export type NodeState = CheckState;
 
 function isSessionNode<Row extends TreeRowFacts>(node: ContributeNode<Row>): node is SessionNode<Row> {
   return node.kind === "session";
@@ -41,11 +42,11 @@ export function leafIds<Row extends TreeRowFacts>(node: ContributeNode<Row>): st
  *  empty grouping) reads `"none"` — there is nothing to tick "all" of. */
 export function nodeState<Row extends TreeRowFacts>(selection: Selection, node: ContributeNode<Row>): NodeState {
   const eligible = leafIds(node);
-  if (eligible.length === 0) return "none";
+  if (eligible.length === 0) return CheckState.None;
   const selectedCount = eligible.filter((id) => selection.has(id)).length;
-  if (selectedCount === 0) return "none";
-  if (selectedCount === eligible.length) return "all";
-  return "some";
+  if (selectedCount === 0) return CheckState.None;
+  if (selectedCount === eligible.length) return CheckState.All;
+  return CheckState.Some;
 }
 
 /** Flips `node`'s tri-state: `"all"` clears every eligible descendant leaf,
@@ -54,7 +55,7 @@ export function nodeState<Row extends TreeRowFacts>(selection: Selection, node: 
 export function toggleNode<Row extends TreeRowFacts>(selection: Selection, node: ContributeNode<Row>): Selection {
   const eligible = leafIds(node);
   const next = new Set(selection);
-  if (nodeState(selection, node) === "all") {
+  if (nodeState(selection, node) === CheckState.All) {
     for (const id of eligible) next.delete(id);
   } else {
     for (const id of eligible) next.add(id);

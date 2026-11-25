@@ -16,6 +16,12 @@ files:
     aliases:
       - local: TranscriptListResponse
         generated: VillageTranscriptListResponse
+      - local: ResolvedProject
+        generated: VillageResolvedProject
+      - local: TranscriptCommit
+        generated: VillageTranscriptCommit
+      - local: TranscriptCommitsResponse
+        generated: VillageTranscriptCommitsResponse
       - local: Group
         generated: VillageCollective
         declaration: >-

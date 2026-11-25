@@ -1,4 +1,7 @@
+import { closed } from "@peasant-labs/fairtrade/closed-value";
 import {
+  VillageContributionErrorCode,
+  VillageTranscriptVisibility,
   zVillageBatchShareSelectionRequest,
   zVillageContributionErrorResponse,
   type VillageBatchShareResponse,
@@ -63,36 +66,37 @@ export function planChunks(selection: FrozenSelection, size: number = CONTRIBUTI
  * loaded. Ordered by project, then id, so the list reads in submission order.
  */
 export function privateRecords(selection: FrozenSelection): SelectedRecord[] {
-  return planChunks(selection).flatMap((chunk) => chunk.records.filter((record) => record.visibility === "private"));
+  return planChunks(selection).flatMap((chunk) => chunk.records.filter((record) => record.visibility === VillageTranscriptVisibility.Private));
 }
 
 /**
- * Why a record was not contributed, when the run reached it.
- *
- * - `missing`: the session no longer exists or is no longer yours.
- * - `moved`: the session is now in another project; select it again there.
- * - `private_unapproved`: the session is private and the server still refused
- *   it after it was approved.
- * - `declined_private`: the session is private and you did not approve it.
- * - `conflict`: another write held the session twice in a row.
- * - `rejected`: the server refused the request as malformed. A defect, not
- *   something the person can fix; the message says what the server said.
- * - `unconfirmed`: the server answered without naming this session.
- * - `server` / `network`: the request failed; retrying may work.
+ * Why a record was not contributed, when the run reached it. `Rejected` is a
+ * defect, not something the person can fix; the message says what the server
+ * said. `Server` and `Network` are failed requests that a retry may get past.
  */
-export type ContributionFailureReason =
-  | "missing"
-  | "moved"
-  | "private_unapproved"
-  | "declined_private"
-  | "conflict"
-  | "rejected"
-  | "unconfirmed"
-  | "server"
-  | "network";
+const ContributionFailureReasonValues = {
+  Missing: closed("missing", "the session no longer exists or is no longer yours"),
+  Moved: closed("moved", "the session is now in another project; select it again there"),
+  PrivateUnapproved: closed("private_unapproved", "the session is private and the server refused it after it was approved"),
+  DeclinedPrivate: closed("declined_private", "the session is private and you did not approve it"),
+  Conflict: closed("conflict", "another write held the session twice in a row"),
+  Rejected: closed("rejected", "the server refused the request as malformed"),
+  Unconfirmed: closed("unconfirmed", "the server answered without naming this session"),
+  Server: closed("server", "the server failed the request"),
+  Network: closed("network", "the request did not reach the server"),
+} as const;
+
+export type ContributionFailureReason = (typeof ContributionFailureReasonValues)[keyof typeof ContributionFailureReasonValues];
+export const ContributionFailureReason = ContributionFailureReasonValues;
 
 /** Failures the person can retry as they are: the record stays selected. */
-const RETRYABLE: ReadonlySet<ContributionFailureReason> = new Set(["conflict", "rejected", "unconfirmed", "server", "network"]);
+const RETRYABLE: ReadonlySet<ContributionFailureReason> = new Set([
+  ContributionFailureReason.Conflict,
+  ContributionFailureReason.Rejected,
+  ContributionFailureReason.Unconfirmed,
+  ContributionFailureReason.Server,
+  ContributionFailureReason.Network,
+]);
 
 export function isRetryableFailure(reason: ContributionFailureReason): boolean {
   return RETRYABLE.has(reason);
@@ -101,24 +105,19 @@ export function isRetryableFailure(reason: ContributionFailureReason): boolean {
 /**
  * Why the run stopped before the end. Every record not yet settled is then
  * unattempted: nothing was written for it.
- *
- * - `stale_selection`: a selected session was contributed elsewhere since the
- *   page read it; refresh before submitting again.
- * - `policy`: the collective does not accept this contribution from you.
- * - `membership`: you are not a contributing member of the collective.
- * - `signed_out`: the session expired.
- * - `collective_gone`: the collective no longer exists.
- * - `deployment`: the server does not serve the selection write.
- * - `cancelled`: you cancelled the run.
  */
-export type ContributionStopReason =
-  | "stale_selection"
-  | "policy"
-  | "membership"
-  | "signed_out"
-  | "collective_gone"
-  | "deployment"
-  | "cancelled";
+const ContributionStopReasonValues = {
+  StaleSelection: closed("stale_selection", "a selected session was contributed elsewhere since the page read it"),
+  Policy: closed("policy", "the collective does not accept this contribution from you"),
+  Membership: closed("membership", "you are not a contributing member of the collective"),
+  SignedOut: closed("signed_out", "the session expired"),
+  CollectiveGone: closed("collective_gone", "the collective no longer exists"),
+  Deployment: closed("deployment", "the server does not serve the selection write"),
+  Cancelled: closed("cancelled", "you cancelled the run"),
+} as const;
+
+export type ContributionStopReason = (typeof ContributionStopReasonValues)[keyof typeof ContributionStopReasonValues];
+export const ContributionStopReason = ContributionStopReasonValues;
 
 export interface ContributedRecord {
   record: SelectedRecord;
@@ -155,7 +154,13 @@ export interface ContributionProgress {
 }
 
 /** The answer of the step that re-asks about private sessions. */
-export type PrivateApproval = "approve" | "decline";
+const PrivateApprovalValues = {
+  Approve: closed("approve", "contribute the private sessions and make them visible"),
+  Decline: closed("decline", "leave the private sessions out"),
+} as const;
+
+export type PrivateApproval = (typeof PrivateApprovalValues)[keyof typeof PrivateApprovalValues];
+export const PrivateApproval = PrivateApprovalValues;
 
 export interface ContributionRunInput {
   selection: FrozenSelection;
@@ -179,13 +184,22 @@ type Settlement =
   | { bucket: "already" }
   | { bucket: "failed"; reason: ContributionFailureReason; current_project_hash?: string; message?: string };
 
-/** How one refusal of a chunk is handled. */
-type Refusal =
-  | { kind: "stop"; reason: ContributionStopReason; message?: string }
-  | { kind: "fail_all"; reason: ContributionFailureReason; message?: string }
-  | { kind: "per_record"; details: VillageContributionErrorDetail[]; message: string };
+/** How one refusal of a chunk is handled: the run stops, every record in the
+ * chunk fails, or each named record is answered on its own. */
+const RefusalKind = Object.freeze({ Stop: "stop", FailAll: "fail_all", PerRecord: "per_record" } as const);
 
-const DETAIL_CODES = new Set(["missing", "moved", "private_unapproved", "conflict", "stale_selection"]);
+type Refusal =
+  | { kind: typeof RefusalKind.Stop; reason: ContributionStopReason; message?: string }
+  | { kind: typeof RefusalKind.FailAll; reason: ContributionFailureReason; message?: string }
+  | { kind: typeof RefusalKind.PerRecord; details: VillageContributionErrorDetail[]; message: string };
+
+const DETAIL_CODES = new Set<string>([
+  VillageContributionErrorCode.Missing,
+  VillageContributionErrorCode.Moved,
+  VillageContributionErrorCode.PrivateUnapproved,
+  VillageContributionErrorCode.Conflict,
+  VillageContributionErrorCode.StaleSelection,
+]);
 
 function isAbort(err: unknown, signal: AbortSignal | undefined): boolean {
   if (signal?.aborted) return true;
@@ -194,41 +208,41 @@ function isAbort(err: unknown, signal: AbortSignal | undefined): boolean {
 
 /** Reads one failed request in the terms the run acts on. */
 export function classifyRefusal(err: unknown, signal?: AbortSignal): Refusal {
-  if (isAbort(err, signal)) return { kind: "stop", reason: "cancelled" };
+  if (isAbort(err, signal)) return { kind: RefusalKind.Stop, reason: ContributionStopReason.Cancelled };
   if (!(err instanceof ApiError)) {
-    return { kind: "fail_all", reason: "network", message: err instanceof Error ? err.message : undefined };
+    return { kind: RefusalKind.FailAll, reason: ContributionFailureReason.Network, message: err instanceof Error ? err.message : undefined };
   }
   const message = err.fromServer ? err.message : undefined;
   switch (err.status) {
     case 401:
-      return { kind: "stop", reason: "signed_out", message };
+      return { kind: RefusalKind.Stop, reason: ContributionStopReason.SignedOut, message };
     case 403:
       // A request-level refusal: the code says which, and anything else is
       // still a refusal of the whole request.
-      return { kind: "stop", reason: err.code === "policy" ? "policy" : "membership", message };
+      return { kind: RefusalKind.Stop, reason: err.code === "policy" ? ContributionStopReason.Policy : ContributionStopReason.Membership, message };
     case 404:
       // The handler names a deleted collective in its own words; a route the
       // server does not mount answers with the router's plain-text default.
       return err.fromServer
-        ? { kind: "stop", reason: "collective_gone", message }
-        : { kind: "stop", reason: "deployment" };
+        ? { kind: RefusalKind.Stop, reason: ContributionStopReason.CollectiveGone, message }
+        : { kind: RefusalKind.Stop, reason: ContributionStopReason.Deployment };
     case 405:
     case 501:
-      return { kind: "stop", reason: "deployment" };
+      return { kind: RefusalKind.Stop, reason: ContributionStopReason.Deployment };
     case 409: {
       const body = zVillageContributionErrorResponse.safeParse({ error: err.message, code: err.code, details: err.details });
       const details = body.success ? (body.data.details ?? []) : [];
-      if (details.some((detail) => detail.code === "stale_selection")) {
-        return { kind: "stop", reason: "stale_selection", message };
+      if (details.some((detail) => detail.code === VillageContributionErrorCode.StaleSelection)) {
+        return { kind: RefusalKind.Stop, reason: ContributionStopReason.StaleSelection, message };
       }
       const usable = details.length > 0 && details.every((detail) => detail.transcript_id !== undefined && DETAIL_CODES.has(detail.code));
       return usable
-        ? { kind: "per_record", details, message: err.message }
-        : { kind: "fail_all", reason: "rejected", message };
+        ? { kind: RefusalKind.PerRecord, details, message: err.message }
+        : { kind: RefusalKind.FailAll, reason: ContributionFailureReason.Rejected, message };
     }
     default:
-      if (err.status >= 500 || err.status === 0) return { kind: "fail_all", reason: "server", message };
-      return { kind: "fail_all", reason: "rejected", message };
+      if (err.status >= 500 || err.status === 0) return { kind: RefusalKind.FailAll, reason: ContributionFailureReason.Server, message };
+      return { kind: RefusalKind.FailAll, reason: ContributionFailureReason.Rejected, message };
   }
 }
 
@@ -251,12 +265,12 @@ export async function runContribution(input: ContributionRunInput): Promise<Cont
   for (const [index, chunk] of chunks.entries()) {
     if (stopped) break;
     if (signal?.aborted) {
-      stopped = { reason: "cancelled" };
+      stopped = { reason: ContributionStopReason.Cancelled };
       break;
     }
     let pending = chunk.records.filter((record) => {
-      if (record.visibility === "private" && !approved.has(record.id)) {
-        settle(record.id, { bucket: "failed", reason: "declined_private" });
+      if (record.visibility === VillageTranscriptVisibility.Private && !approved.has(record.id)) {
+        settle(record.id, { bucket: "failed", reason: ContributionFailureReason.DeclinedPrivate });
         return false;
       }
       return true;
@@ -276,11 +290,11 @@ export async function runContribution(input: ContributionRunInput): Promise<Cont
         response = await submit(request);
       } catch (err) {
         const refusal = classifyRefusal(err, signal);
-        if (refusal.kind === "stop") {
+        if (refusal.kind === RefusalKind.Stop) {
           stopped = { reason: refusal.reason, ...(refusal.message ? { message: refusal.message } : {}) };
           break;
         }
-        if (refusal.kind === "fail_all") {
+        if (refusal.kind === RefusalKind.FailAll) {
           for (const record of pending) {
             settle(record.id, { bucket: "failed", reason: refusal.reason, ...(refusal.message ? { message: refusal.message } : {}) });
           }
@@ -294,9 +308,9 @@ export async function runContribution(input: ContributionRunInput): Promise<Cont
           conflictRetried,
           message: refusal.message,
         });
-        if (refusal.details.some((detail) => detail.code === "conflict")) conflictRetried = true;
+        if (refusal.details.some((detail) => detail.code === VillageContributionErrorCode.Conflict)) conflictRetried = true;
         if (signal?.aborted) {
-          stopped = { reason: "cancelled" };
+          stopped = { reason: ContributionStopReason.Cancelled };
           break;
         }
         continue;
@@ -307,7 +321,7 @@ export async function runContribution(input: ContributionRunInput): Promise<Cont
         const status = shared.get(record.id);
         if (status !== undefined) settle(record.id, { bucket: "contributed", status });
         else if (already.has(record.id)) settle(record.id, { bucket: "already" });
-        else settle(record.id, { bucket: "failed", reason: "unconfirmed" });
+        else settle(record.id, { bucket: "failed", reason: ContributionFailureReason.Unconfirmed });
       }
       break;
     }
@@ -347,27 +361,27 @@ async function reconcile(
     const record = byIdMap.get(id);
     if (!record) continue;
     switch (detail.code) {
-      case "missing":
-        ctx.settle(id, { bucket: "failed", reason: "missing" });
+      case VillageContributionErrorCode.Missing:
+        ctx.settle(id, { bucket: "failed", reason: ContributionFailureReason.Missing });
         dropped.add(id);
         break;
-      case "moved":
+      case VillageContributionErrorCode.Moved:
         ctx.settle(id, {
           bucket: "failed",
-          reason: "moved",
+          reason: ContributionFailureReason.Moved,
           ...(detail.current_project_hash ? { current_project_hash: detail.current_project_hash } : {}),
         });
         dropped.add(id);
         break;
-      case "private_unapproved":
+      case VillageContributionErrorCode.PrivateUnapproved:
         if (ctx.asked.has(id)) {
-          ctx.settle(id, { bucket: "failed", reason: "private_unapproved", message: ctx.message });
+          ctx.settle(id, { bucket: "failed", reason: ContributionFailureReason.PrivateUnapproved, message: ctx.message });
           dropped.add(id);
         } else {
           unapproved.push(record);
         }
         break;
-      case "conflict":
+      case VillageContributionErrorCode.Conflict:
         conflict = true;
         break;
     }
@@ -376,7 +390,7 @@ async function reconcile(
   // A detail naming no session of this chunk leaves nothing to drop or ask
   // about; the chunk fails rather than resend the same request.
   if (dropped.size === 0 && unapproved.length === 0 && !conflict) {
-    for (const record of pending) ctx.settle(record.id, { bucket: "failed", reason: "rejected", message: ctx.message });
+    for (const record of pending) ctx.settle(record.id, { bucket: "failed", reason: ContributionFailureReason.Rejected, message: ctx.message });
     return [];
   }
 
@@ -384,9 +398,9 @@ async function reconcile(
     for (const record of unapproved) ctx.asked.add(record.id);
     const answer = await ctx.approvePrivate(unapproved);
     for (const record of unapproved) {
-      if (answer === "approve") ctx.approved.add(record.id);
+      if (answer === PrivateApproval.Approve) ctx.approved.add(record.id);
       else {
-        ctx.settle(record.id, { bucket: "failed", reason: "declined_private" });
+        ctx.settle(record.id, { bucket: "failed", reason: ContributionFailureReason.DeclinedPrivate });
         dropped.add(record.id);
       }
     }
@@ -394,7 +408,7 @@ async function reconcile(
 
   let rest = pending.filter((record) => !dropped.has(record.id));
   if (conflict && ctx.conflictRetried) {
-    for (const record of rest) ctx.settle(record.id, { bucket: "failed", reason: "conflict", message: ctx.message });
+    for (const record of rest) ctx.settle(record.id, { bucket: "failed", reason: ContributionFailureReason.Conflict, message: ctx.message });
     rest = [];
   }
   return rest;

@@ -28,6 +28,8 @@
      MOCK_ROLE=member MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
    An unknown value is refused at startup rather than silently captured as the default. */
 import { createServer } from 'node:http'
+import { VillagePullRequestAttachmentState } from '@peasant-labs/schema'
+import { HttpMethod } from './httpMethod.mjs'
 import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'
 
@@ -83,10 +85,13 @@ const groupId = process.env.MOCK_GROUP_ID || '9a11e000-0000-4000-8000-0000000000
 // typo that would otherwise be captured as a silently different surface.
 const VIEWER_ROLES = ['owner', 'member']
 const viewerRole = process.env.MOCK_ROLE || 'owner'
-const SELECTION_ANSWER = process.env.MOCK_SELECTION_ANSWER || 'approved'
+// How the selection write answers: every session contributed and approved, or
+// the first request answered with one of each outcome. Closed.
+const SelectionAnswer = Object.freeze({ Approved: 'approved', Mixed: 'mixed' })
+const SELECTION_ANSWER = process.env.MOCK_SELECTION_ANSWER || SelectionAnswer.Approved
 let selectionAnswered = false
-if (SELECTION_ANSWER !== 'approved' && SELECTION_ANSWER !== 'mixed') {
-  console.error(`ERROR [mock-rest.mjs] MOCK_SELECTION_ANSWER must be "approved" or "mixed", got "${SELECTION_ANSWER}".`)
+if (!Object.values(SelectionAnswer).includes(SELECTION_ANSWER)) {
+  console.error(`ERROR [mock-rest.mjs] MOCK_SELECTION_ANSWER must be one of ${Object.values(SelectionAnswer).join(', ')}, got "${SELECTION_ANSWER}".`)
   process.exit(1)
 }
 if (!VIEWER_ROLES.includes(viewerRole)) {
@@ -811,31 +816,31 @@ const attestations = []
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const p = url.pathname.replace(/^\/api\/v1/, '')
-  if (req.method === 'OPTIONS') return send(res, 204, null)
+  if (req.method === HttpMethod.Options) return send(res, 204, null)
   console.log(`${req.method} ${url.pathname}`)
-  if (req.method === 'GET' && p === `/transcripts/${ID}`) return send(res, 200, detail)
-  if (req.method === 'GET' && p === `/transcripts/${ID}/content`) return send(res, 200, content)
-  if (req.method === 'GET' && p === `/transcripts/${ID}/annotations`) return send(res, 200, { annotations: [] })
+  if (req.method === HttpMethod.Get && p === `/transcripts/${ID}`) return send(res, 200, detail)
+  if (req.method === HttpMethod.Get && p === `/transcripts/${ID}/content`) return send(res, 200, content)
+  if (req.method === HttpMethod.Get && p === `/transcripts/${ID}/annotations`) return send(res, 200, { annotations: [] })
   // Bound to no pull request: the page shows no pull request list for it.
-  if (req.method === 'GET' && p === `/transcripts/${ID}/pulls`) return send(res, 200, { pull_requests: [] })
-  if (req.method === 'GET' && p === `/transcripts/${ID}/attestations`) return send(res, 200, attestations)
+  if (req.method === HttpMethod.Get && p === `/transcripts/${ID}/pulls`) return send(res, 200, { pull_requests: [] })
+  if (req.method === HttpMethod.Get && p === `/transcripts/${ID}/attestations`) return send(res, 200, attestations)
   // The context target behind the child's exact branch-point link, so a capture
   // can click the real link and land on the CURRENT target at the anchored turn.
-  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}`) return send(res, 200, contextTargetDetail)
-  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/content`) return send(res, 200, contextTargetContent)
-  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/annotations`) return send(res, 200, { annotations: [] })
-  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/collectives`) return send(res, 200, { collectives: [] })
+  if (CONTEXT_NAV && req.method === HttpMethod.Get && p === `/transcripts/${CONTEXT_TARGET_ID}`) return send(res, 200, contextTargetDetail)
+  if (CONTEXT_NAV && req.method === HttpMethod.Get && p === `/transcripts/${CONTEXT_TARGET_ID}/content`) return send(res, 200, contextTargetContent)
+  if (CONTEXT_NAV && req.method === HttpMethod.Get && p === `/transcripts/${CONTEXT_TARGET_ID}/annotations`) return send(res, 200, { annotations: [] })
+  if (CONTEXT_NAV && req.method === HttpMethod.Get && p === `/transcripts/${CONTEXT_TARGET_ID}/collectives`) return send(res, 200, { collectives: [] })
   // The contribute tree's own fixture ids (contributableResponse, above):
   // real turns + a tool call + a saved label, so the preview column's
   // capture shows actual content instead of a loading/not-found state.
   const ctMatch = /^\/transcripts\/(c0de0000-[0-9a-f-]+)(\/content|\/annotations)?$/.exec(p)
-  if (req.method === 'GET' && ctMatch) {
+  if (req.method === HttpMethod.Get && ctMatch) {
     const [, ctId, suffix] = ctMatch
     if (suffix === '/content') return send(res, 200, previewTranscriptContent)
     if (suffix === '/annotations') return send(res, 200, previewAnnotations)
     return send(res, 200, previewTranscriptDetail(ctId))
   }
-  if (req.method === 'POST' && p === `/transcripts/${ID}/attestations`) {
+  if (req.method === HttpMethod.Post && p === `/transcripts/${ID}/attestations`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -857,10 +862,10 @@ const server = createServer((req, res) => {
   // The pull request page (#113): one attached attachment with a digest, plus
   // the caller's own attachment preference. The digest is the shape the backend
   // builds, so a capture shows real session/prompt/skill/commit rows.
-  if (req.method === 'GET' && /^\/users\/me\/settings$/.test(p)) {
+  if (req.method === HttpMethod.Get && /^\/users\/me\/settings$/.test(p)) {
     return send(res, 200, { preview_before_attach: process.env.MOCK_PREVIEW_BEFORE_ATTACH === '0' ? false : true })
   }
-  if (req.method === 'PATCH' && p === '/users/me/settings') {
+  if (req.method === HttpMethod.Patch && p === '/users/me/settings') {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -872,11 +877,11 @@ const server = createServer((req, res) => {
   const pullMatch = /^\/pulls\/([^/]+)\/([^/]+)\/(\d+)(\/confirm)?$/.exec(p)
   if (pullMatch) {
     const [, owner, name, number, confirm] = pullMatch
-    const attached = req.method !== 'DELETE' && confirm !== undefined
+    const attached = req.method !== HttpMethod.Delete && confirm !== undefined
     // An empty digest only exists once the attachment is attached: a preview
     // always has at least one accepted transcript, so EMPTY_DIGEST serves the
     // state that can actually produce it.
-    const state = req.method === 'DELETE' ? 'detached' : attached || process.env.EMPTY_DIGEST === '1' ? 'attached' : 'preview'
+    const state = req.method === HttpMethod.Delete ? 'detached' : attached || process.env.EMPTY_DIGEST === '1' ? 'attached' : 'preview'
     return send(res, 200, {
       attachment: {
         id: '7f3c1a2b-4d5e-4f60-8a9b-0c1d2e3f4a5b',
@@ -890,12 +895,12 @@ const server = createServer((req, res) => {
         state,
         author: viewerProfile,
         requested_by: null,
-        comment_id: state === 'attached' ? 4242 : null,
-        check_run_id: state === 'attached' ? 77 : null,
+        comment_id: state === VillagePullRequestAttachmentState.Attached ? 4242 : null,
+        check_run_id: state === VillagePullRequestAttachmentState.Attached ? 77 : null,
         created_at: '2026-06-28T12:00:00Z',
         updated_at: '2026-06-28T12:00:00Z',
-        confirmed_at: state === 'attached' ? '2026-06-28T12:05:00Z' : null,
-        detached_at: state === 'detached' ? '2026-06-28T12:10:00Z' : null,
+        confirmed_at: state === VillagePullRequestAttachmentState.Attached ? '2026-06-28T12:05:00Z' : null,
+        detached_at: state === VillagePullRequestAttachmentState.Detached ? '2026-06-28T12:10:00Z' : null,
       },
       digest: {
         header: {
@@ -935,15 +940,15 @@ const server = createServer((req, res) => {
       viewer_is_author: true,
     })
   }
-  if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
-  if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [{ org_id: 1, org_login: 'anthropic-labs', avatar_url: null, visible: true, fetched_at: '2026-06-28T12:00:00Z' }])
-  if (req.method === 'GET' && p === '/collectives') return send(res, 200, groupsList)
-  if (req.method === 'GET' && p === '/collectives/visible') return send(res, 200, visibleCollectives)
-  if (req.method === 'GET' && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
-  if (req.method === 'GET' && p === `/collectives/${groupId}`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/collectives/${groupId}/my-shares`) return send(res, 200, [])
-  if (req.method === 'GET' && p === `/collectives/${groupId}/repositories`) return send(res, 200, { repositories: [] })
-  if (req.method === 'GET' && p === `/collectives/${groupId}/repositories/available`) {
+  if (req.method === HttpMethod.Get && p === '/auth/me') return send(res, 200, user)
+  if (req.method === HttpMethod.Get && p === '/auth/orgs') return send(res, 200, [{ org_id: 1, org_login: 'anthropic-labs', avatar_url: null, visible: true, fetched_at: '2026-06-28T12:00:00Z' }])
+  if (req.method === HttpMethod.Get && p === '/collectives') return send(res, 200, groupsList)
+  if (req.method === HttpMethod.Get && p === '/collectives/visible') return send(res, 200, visibleCollectives)
+  if (req.method === HttpMethod.Get && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}`) return send(res, 200, groupDetail)
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/my-shares`) return send(res, 200, [])
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/repositories`) return send(res, 200, { repositories: [] })
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/repositories/available`) {
     return send(res, 200, {
       repositories: [
         { owner: 'peasant-labs', name: 'village', is_private: false },
@@ -952,11 +957,11 @@ const server = createServer((req, res) => {
       ],
     })
   }
-  if (req.method === 'GET' && p === `/collectives/${groupId}/pending`) return send(res, 200, pendingShares)
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/pending`) return send(res, 200, pendingShares)
   // The batch review decision. Every id is decided except a designated one,
   // so a capture can show BOTH outcomes the page has to render: rows that
   // leave the queue, and a row another reviewer already decided.
-  if (req.method === 'PATCH' && p === `/collectives/${groupId}/shares`) {
+  if (req.method === HttpMethod.Patch && p === `/collectives/${groupId}/shares`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -969,12 +974,12 @@ const server = createServer((req, res) => {
     })
     return
   }
-  if (req.method === 'GET' && p === `/collectives/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
-  if (req.method === 'GET' && p === `/collectives/${groupId}/settings`) return send(res, 200, groupDetail)
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/settings`) return send(res, 200, groupDetail)
   // The contribute page's paged reads, all derived from contributableResponse:
   // the project list, one project's families (every row a root here), and
   // the "select all" snapshot of a project's selectable rows.
-  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable/projects`) {
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/contributable/projects`) {
     const q = (url.searchParams.get('q') || '').toLowerCase()
     const rows = contributableResponse.transcripts.filter((t) => !q || t.title.toLowerCase().includes(q))
     const byProject = new Map()
@@ -1001,7 +1006,7 @@ const server = createServer((req, res) => {
       projects,
     })
   }
-  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'paged') {
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'paged') {
     const projectHash = url.searchParams.get('project_hash')
     const q = (url.searchParams.get('q') || '').toLowerCase()
     const rows = contributableResponse.transcripts.filter(
@@ -1013,15 +1018,15 @@ const server = createServer((req, res) => {
       items: rows.map((t) => ({ root: { transcript: t }, helpers: [] })),
     })
   }
-  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'snapshot') {
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/contributable` && url.searchParams.get('view') === 'snapshot') {
     const projectHash = url.searchParams.get('project_hash')
     const records = contributableResponse.transcripts
       .filter((t) => t.project_hash === projectHash && !t.already_shared)
       .map(({ id, title, project_hash, visibility }) => ({ id, title, project_hash, visibility }))
     return send(res, 200, { group_id: groupId, project_hash: projectHash, count: records.length, records })
   }
-  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable`) return send(res, 200, contributableResponse)
-  if (req.method === 'POST' && p === `/collectives/${groupId}/shares`) {
+  if (req.method === HttpMethod.Get && p === `/collectives/${groupId}/contributable`) return send(res, 200, contributableResponse)
+  if (req.method === HttpMethod.Post && p === `/collectives/${groupId}/shares`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -1040,7 +1045,7 @@ const server = createServer((req, res) => {
     })
     return
   }
-  if (req.method === 'POST' && p === `/collectives/${groupId}/shares/selection`) {
+  if (req.method === HttpMethod.Post && p === `/collectives/${groupId}/shares/selection`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -1053,7 +1058,7 @@ const server = createServer((req, res) => {
         // approval, the second already contributed, the rest left unnamed (so
         // the page reports them unconfirmed and offers a retry). Every later
         // request, the retry included, contributes everything it sends.
-        if (SELECTION_ANSWER === 'mixed' && !selectionAnswered) {
+        if (SELECTION_ANSWER === SelectionAnswer.Mixed && !selectionAnswered) {
           selectionAnswered = true
           return send(res, 200, {
             project_hash,
@@ -1070,7 +1075,7 @@ const server = createServer((req, res) => {
     })
     return
   }
-  if (req.method === 'GET' && p === '/transcripts') return send(res, 200, shareableTranscriptListResponse)
+  if (req.method === HttpMethod.Get && p === '/transcripts') return send(res, 200, shareableTranscriptListResponse)
   // /me (and anything else) → 401: an unauthenticated viewer still renders the transcript (auth only
   // gates the per-turn ACTIONS, not the render).
   return send(res, 401, { error: 'unauthenticated (mock)' })

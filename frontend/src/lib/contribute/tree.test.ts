@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildContributeTree } from "@/lib/contribute/tree";
+import { CheckState } from "@/lib/contribute/checkState";
 import { childSessionGroupLabel } from "@/lib/childSessions";
 import { leafIds, nodeState, toggleNode } from "@/lib/contribute/selection";
 import { applyFilters, harnessCounts } from "@/lib/contribute/filter";
@@ -62,7 +63,7 @@ describe("a session nested under the session that started it", () => {
     // left behind would be published apart from the session that explains it.
     const selection = toggleNode(new Set<string>(), starter);
     expect([...selection].sort()).toEqual([starter.id, ...startedIds].sort());
-    expect(nodeState(selection, starter)).toBe("all");
+    expect(nodeState(selection, starter)).toBe(CheckState.All);
 
     // And untick clears both again, so the pair cannot be half-selected by
     // clicking twice.
@@ -130,6 +131,6 @@ describe("leafIds / nodeState (already-shared exclusion)", () => {
         .filter((r) => r.id === c.expect.excludedLeafId)
         .map((r) => ({ ...r, already_shared: true })),
     );
-    expect(nodeState(new Set(), allSharedTree[0])).toBe("none");
+    expect(nodeState(new Set(), allSharedTree[0])).toBe(CheckState.None);
   });
 });

@@ -8,9 +8,14 @@ import { useAuth } from "@/providers/AuthProvider";
 import { loginHref } from "@/lib/signIn";
 import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import { useGroup } from "@/lib/queries/groups";
-import { useContributionRun } from "@/lib/queries/contributionSubmit";
-import { isRetryableFailure, privateRecords, type PrivateApproval } from "@/lib/contribute/chunkedSubmit";
-import { useContributionProjects, type ContributionFilters } from "@/lib/queries/contributionReads";
+import { isMemberRole } from "@/lib/adapters/collective";
+import { ContributionRunPhase, useContributionRun } from "@/lib/queries/contributionSubmit";
+import { isRetryableFailure, PrivateApproval, privateRecords } from "@/lib/contribute/chunkedSubmit";
+import {
+  ContributionReadFailureKind,
+  useContributionProjects,
+  type ContributionFilters,
+} from "@/lib/queries/contributionReads";
 import {
   deselectIds,
   EMPTY_SELECTION,
@@ -22,6 +27,8 @@ import {
 import PagedContributeTree, { type SelectionUpdate } from "@/components/contribute/PagedContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import ContributionReceipt from "@/components/contribute/ContributionReceipt";
+import { ContributePageTestId } from "@/components/contribute/contributeTestId";
+import { ContributeLabel, contributeLabel, countOf, deselectUnlistedLabel } from "@/components/contribute/contributeLabel";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button, Input, Select } from "@/lib/ft-ui";
 import RequestFailureState from "@/components/RequestFailureState";
@@ -38,7 +45,6 @@ type ConsentStep =
 /** How long the search waits after the last keystroke before it reads. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 /**
  * Dedicated contribute route for a collective: `/collectives/{id}/contribute`.
@@ -61,7 +67,7 @@ export default function GroupContributePage({
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   const run = useContributionRun(id);
-  const running = run.state.phase === "running";
+  const running = run.state.phase === ContributionRunPhase.Running;
 
   const [searchText, setSearchText] = useState("");
   const [query, setQuery] = useState("");
@@ -100,7 +106,7 @@ export default function GroupContributePage({
   const contributedMeanwhile = running ? 0 : becameLive.length;
 
   const yourRole = group?.your_role;
-  const isMember = yourRole === "contributor" || yourRole === "member" || yourRole === "owner";
+  const isMember = isMemberRole(yourRole);
 
   const projectLabelByHash = useMemo(() => {
     const labels = new Map<string, string>();
@@ -154,7 +160,7 @@ export default function GroupContributePage({
                 ? "you must be a member of this collective to contribute"
                 : "collective not found"
           }
-          testId="contribute-non-member-notice"
+          testId={ContributePageTestId.NonMemberNotice.wire}
           actions={
             <>
               {signedOut && (
@@ -214,7 +220,7 @@ export default function GroupContributePage({
     contribute(new Map(records.map((record) => [record.id, record])));
   }
 
-  const pickerFailure = picker.failure && picker.failure.kind !== "cancelled" ? picker.failure : null;
+  const pickerFailure = picker.failure && picker.failure.kind !== ContributionReadFailureKind.Cancelled ? picker.failure : null;
   const nothingToContribute =
     !filtersActive && !picker.isLoading && !pickerFailure && picker.projects.length === 0 && selectedCount === 0;
 
@@ -241,12 +247,12 @@ export default function GroupContributePage({
       {nothingToContribute ? (
         <OnEmpty
           icon={<FileText aria-hidden="true" />}
-          title="no transcripts to contribute"
+          title={ContributeLabel.NothingToContribute.wire}
           body="all your transcripts are already shared with this collective, or you have no published transcripts."
-          testId="contribute-member-panel"
+          testId={ContributePageTestId.MemberPanel.wire}
         />
       ) : (
-        <div className="on-contribute-workspace" data-testid="contribute-member-panel">
+        <div className="on-contribute-workspace" data-testid={ContributePageTestId.MemberPanel.wire}>
           <div className="on-contribute-columns">
             <div className="on-contribute-browser">
               <div className="on-contribute-tree">
@@ -254,8 +260,8 @@ export default function GroupContributePage({
                   <Input
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="search sessions"
-                    aria-label="search sessions"
+                    placeholder={ContributeLabel.Search.wire}
+                    aria-label={ContributeLabel.Search.wire}
                   />
                   <Select value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="filter by harness">
                     <option value="">every harness</option>
@@ -267,8 +273,8 @@ export default function GroupContributePage({
                   </Select>
                 </div>
                 <div className="on-contribute-selection">
-                  <p className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid="contribute-selection-tally">
-                    {selectedCount} selected · {plural(picker.selectableTotal, "selectable session")}
+                  <p className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid={ContributePageTestId.SelectionTally.wire}>
+                    {selectedCount} selected · {countOf(picker.selectableTotal, "selectable session")}
                     {picker.matchingTotal > picker.selectableTotal &&
                       ` · ${picker.matchingTotal - picker.selectableTotal} already contributed`}
                   </p>
@@ -291,20 +297,20 @@ export default function GroupContributePage({
                 {(unlistedIds.length > 0 || contributedMeanwhile > 0) && (
                   <div className="flex flex-col gap-2 border-b border-rule px-4 py-3 text-sm text-ink-2" role="status">
                     {unlistedIds.length > 0 && (
-                      <div className="flex flex-wrap items-center justify-between gap-2" data-testid="contribute-unlisted-notice">
+                      <div className="flex flex-wrap items-center justify-between gap-2" data-testid={ContributePageTestId.UnlistedNotice.wire}>
                         <p>
-                          {plural(unlistedIds.length, "selected session")} {unlistedIds.length === 1 ? "is" : "are"} in
+                          {countOf(unlistedIds.length, "selected session")} {unlistedIds.length === 1 ? "is" : "are"} in
                           projects this search does not list. {unlistedIds.length === 1 ? "it stays" : "they stay"} selected.
                         </p>
                         <Button size="sm" variant="ghost" onClick={() => setSelection((previous) => deselectIds(previous, unlistedIds))}>
-                          deselect {unlistedIds.length === 1 ? "it" : "them"}
+                          {deselectUnlistedLabel(unlistedIds.length)}
                         </Button>
                       </div>
                     )}
                     {contributedMeanwhile > 0 && (
-                      <div className="flex flex-wrap items-center justify-between gap-2" data-testid="contribute-meanwhile-notice">
+                      <div className="flex flex-wrap items-center justify-between gap-2" data-testid={ContributePageTestId.MeanwhileNotice.wire}>
                         <p>
-                          {plural(contributedMeanwhile, "selected session")} {contributedMeanwhile === 1 ? "was" : "were"}{" "}
+                          {countOf(contributedMeanwhile, "selected session")} {contributedMeanwhile === 1 ? "was" : "were"}{" "}
                           contributed meanwhile and left the selection.
                         </p>
                         <Button size="sm" variant="ghost" onClick={() => setSelection((previous) => deselectIds(previous, becameLive))}>
@@ -319,16 +325,16 @@ export default function GroupContributePage({
                     <RequestFailureState
                       title="your transcripts could not load"
                       message={
-                        pickerFailure.kind === "deployment"
+                        pickerFailure.kind === ContributionReadFailureKind.Deployment
                           ? pickerFailure.message
                           : "your available transcripts could not be read. retry to find out which transcripts you can contribute."
                       }
-                      retryLabel="retry your transcripts"
+                      retryLabel={ContributeLabel.RetryTranscripts.wire}
                       retryDisabled={picker.isFetching}
                       onRetry={() => void picker.refresh()}
                     />
                   ) : picker.isLoading ? (
-                    <div className="flex flex-col gap-2 p-4" aria-busy="true" data-testid="contribute-projects-loading">
+                    <div className="flex flex-col gap-2 p-4" aria-busy="true" data-testid={ContributePageTestId.ProjectsLoading.wire}>
                       <span className="sr-only">loading your projects</span>
                       <div className="h-12 w-full bg-surface-hover animate-shimmer" />
                       <div className="h-12 w-full bg-surface-hover animate-shimmer" />
@@ -378,8 +384,8 @@ export default function GroupContributePage({
         {/* The status side takes the free width, so an open receipt grows
             downward and the contribute button holds its place. */}
         <div className="flex min-w-0 flex-[1_1_20rem] flex-col gap-1">
-          <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
-          {run.state.phase === "running" && (
+          <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid={ContributePageTestId.SelectionCount.wire}>{selectedCount} selected</p>
+          {run.state.phase === ContributionRunPhase.Running && (
             <div className="flex items-center gap-3">
               <div
                 className="w-64 max-w-full h-1 bg-rule overflow-hidden"
@@ -388,7 +394,7 @@ export default function GroupContributePage({
                 aria-valuemin={0}
                 aria-valuemax={run.state.progress?.total ?? selectedCount}
                 aria-valuenow={run.state.progress?.settled ?? 0}
-                data-testid="contribute-run-progress"
+                data-testid={ContributePageTestId.RunProgress.wire}
               >
                 <div
                   className="h-full bg-mark transition-[width]"
@@ -403,11 +409,11 @@ export default function GroupContributePage({
                 </span>
               )}
               <Button size="sm" variant="ghost" onClick={run.cancel}>
-                stop
+                {ContributeLabel.Stop.wire}
               </Button>
             </div>
           )}
-          {run.state.phase === "done" && (
+          {run.state.phase === ContributionRunPhase.Done && (
             <ContributionReceipt
               receipt={run.state.receipt}
               projectLabel={(hash) => projectLabelByHash.get(hash)}
@@ -421,7 +427,7 @@ export default function GroupContributePage({
           disabled={selectedCount === 0 || running}
           onClick={() => contribute(selection)}
         >
-          {running ? "contributing…" : `contribute ${plural(selectedCount, "transcript")}`}
+          {running ? "contributing…" : contributeLabel(selectedCount)}
         </Button>
         </div>
       </div>
@@ -430,9 +436,9 @@ export default function GroupContributePage({
 
       <ConfirmContributeDialog
         open={consent !== null}
-        onClose={() => (consent?.kind === "during_run" ? answerApproval("decline") : setConsent(null))}
+        onClose={() => (consent?.kind === "during_run" ? answerApproval(PrivateApproval.Decline) : setConsent(null))}
         onConfirm={() => {
-          if (consent?.kind === "during_run") answerApproval("approve");
+          if (consent?.kind === "during_run") answerApproval(PrivateApproval.Approve);
           else if (consent) void startRun(consent.selection, new Set(consent.records.map((record) => record.id)));
         }}
         transcripts={(consent?.records ?? []).map((record) => ({ id: record.id, title: record.title ?? "untitled session" }))}

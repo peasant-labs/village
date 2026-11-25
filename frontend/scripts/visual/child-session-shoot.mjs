@@ -77,6 +77,7 @@
 import { mkdirSync, statSync } from 'node:fs'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
+import { ChildSessionDisclosureTestId } from '../../src/components/transcript/childSessionDisclosureTestId.ts'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 // The collective the fixture mock serves. Every collective surface reads it.
@@ -582,7 +583,7 @@ if (config.parentID) {
   }
 
   if (config.openEveryRepository) {
-    const openedRepositories = await page.evaluate(() => {
+    const openedRepositories = await page.evaluate((toggleId) => {
       const heading = [...document.querySelectorAll('span')].find(
         (el) => el.children.length === 0 && (el.textContent || '').trim() === 'Repositories')
       const panel = heading && heading.closest('div.border')
@@ -591,10 +592,10 @@ if (config.parentID) {
       // opened later, by the step that captures the opened state, so it is
       // left alone here.
       const closed = [...panel.querySelectorAll('button[aria-expanded="false"]')]
-        .filter((button) => button.dataset.testid !== 'child-session-disclosure-toggle')
+        .filter((button) => button.dataset.testid !== toggleId)
       closed.forEach((button) => button.click())
       return closed.length
-    })
+    }, ChildSessionDisclosureTestId.Toggle.wire)
     if (openedRepositories === null) {
       await stop(2, 'the repository view never rendered its panel.',
         'the served build does not draw a repository view on this panel.',
@@ -761,12 +762,12 @@ if (config.parentID) {
 
   // ── Opened ────────────────────────────────────────────────────────────────
 
-  const opened = await page.evaluate((sel) => {
-    const toggle = document.querySelector(`${sel} [data-testid="child-session-disclosure-toggle"]`)
+  const opened = await page.evaluate((sel, toggleId) => {
+    const toggle = document.querySelector(`${sel} [data-testid="${toggleId}"]`)
     if (!toggle) return false
     toggle.click()
     return true
-  }, chipSelector)
+  }, chipSelector, ChildSessionDisclosureTestId.Toggle.wire)
   if (!opened) {
     await stop(2, `the control under ${config.parentID} rendered without its button.`,
       'the shared collapsed-group control did not render.',
@@ -854,7 +855,7 @@ if (!chip) {
     'rebuild and restart the app from THIS worktree with MOCK_CHILD_SESSIONS=1, and retry.')
 }
 const parentID = await page.evaluate((el) => el.getAttribute('data-parent-transcript-id'), chip)
-const toggle = await waitFor('[data-testid="child-session-disclosure-toggle"]')
+const toggle = await waitFor(`[data-testid="${ChildSessionDisclosureTestId.Toggle.wire}"]`)
 if (!toggle) {
   await stop(2, `the chip under ${parentID} rendered without its control.`,
     'the shared collapsed-group control did not render.',

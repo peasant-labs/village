@@ -20,6 +20,7 @@ import { groupedReviewSelection } from "@/lib/contribute/groupedSelection";
 import { helperItemID, useCollectiveIdentitySelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
+import { ReviewPageTestId } from "@/app/collectives/[id]/review/reviewTestId";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import {
   ScopedOwnerHelperTree,
@@ -298,7 +299,7 @@ export default function GroupReviewPage({
                     previewId={activePreviewId}
                     layout="sessions"
                     selectionSummary={<>
-                      {filteredRows.filter((row) => !row.stale).length} waiting · <span data-testid="review-selection-count">{selectedCount} selected</span>
+                      {filteredRows.filter((row) => !row.stale).length} waiting · <span data-testid={ReviewPageTestId.SelectionCount.wire}>{selectedCount} selected</span>
                     </>}
                     filters={filters}
                     onFiltersChange={setFilters}

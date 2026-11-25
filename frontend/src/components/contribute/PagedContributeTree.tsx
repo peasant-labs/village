@@ -7,6 +7,8 @@ import { Button, SessionGroupDisclosure, Tag } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import {
   classifyContributionReadError,
+  ContributionRead,
+  ContributionReadFailureKind,
   fetchContributionSnapshot,
   useContributionPages,
   type ContributionFilters,
@@ -27,7 +29,9 @@ import {
 } from "@/lib/contribute/frozenSelection";
 import { pagedRowMeta, sectionBranches, type PagedBranch, type PagedFamily } from "@/lib/contribute/pagedTree";
 import RequestFailureState from "@/components/RequestFailureState";
+import { ChildSessionDisclosureTestId } from "@/components/transcript/childSessionDisclosureTestId";
 import TriStateCheckbox from "./TriStateCheckbox";
+import { ContributeLabel } from "./contributeLabel";
 import { TreeRail, useTreeRail, type RailRow } from "./treeRail";
 
 export type SelectionUpdate = (update: (previous: FrozenSelection) => FrozenSelection) => void;
@@ -103,7 +107,7 @@ function SessionRowView({
           >
             {label}
           </button>
-          {locked && <Tag className="contribute-session-mark shrink-0">already contributed</Tag>}
+          {locked && <Tag className="contribute-session-mark shrink-0">{ContributeLabel.AlreadyContributed.wire}</Tag>}
         </div>
         <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">
           {pagedRowMeta(row)}
@@ -144,11 +148,11 @@ function FamilyView({
             expanded={open}
             onToggle={onToggleOpen}
             rowsID={rowsId}
-            testID="child-session-disclosure"
+            testID={ChildSessionDisclosureTestId.Root.wire}
             bare
             indent
           >
-            <div id={rowsId} data-testid="child-session-disclosure-rows" className="contribute-subtree">
+            <div id={rowsId} data-testid={ChildSessionDisclosureTestId.Rows.wire} className="contribute-subtree">
               {family.helpers.map((helper) => (
                 <SessionRowView key={helper.transcript.id} row={helper} family={[helper]} {...rowProps} />
               ))}
@@ -216,14 +220,14 @@ function BranchView({
 
 function failureMessage(failure: ContributionReadFailure): string {
   switch (failure.kind) {
-    case "deployment":
-    case "failed":
+    case ContributionReadFailureKind.Deployment:
+    case ContributionReadFailureKind.Failed:
       return failure.message;
-    case "too_large":
+    case ContributionReadFailureKind.TooLarge:
       return "this project has too many matching sessions to read at once. narrow the search and try again.";
-    case "busy":
+    case ContributionReadFailureKind.Busy:
       return "the server is busy. try again in a moment.";
-    case "cancelled":
+    case ContributionReadFailureKind.Cancelled:
       return "the read was cancelled.";
   }
 }
@@ -285,7 +289,7 @@ function ProjectBody({
   }
 
   // A failed later page keeps the rows already loaded and retries that page.
-  const failure = pages.failure && pages.failure.kind !== "cancelled" ? pages.failure : null;
+  const failure = pages.failure && pages.failure.kind !== ContributionReadFailureKind.Cancelled ? pages.failure : null;
   const failedLater = failure != null && items.length > 0;
 
   return (
@@ -404,8 +408,8 @@ function useProjectSnapshot(
         selectableIds: snapshot.records.filter((record) => !isLiveStatus(record.latest_status)).map((record) => record.id),
       });
     } catch (err) {
-      const classified = classifyContributionReadError(err, "snapshot");
-      if (classified.kind !== "cancelled") setFailure({ filtersKey, failure: classified });
+      const classified = classifyContributionReadError(err, ContributionRead.Snapshot);
+      if (classified.kind !== ContributionReadFailureKind.Cancelled) setFailure({ filtersKey, failure: classified });
     } finally {
       if (controller.current === abort) {
         controller.current = null;
@@ -466,7 +470,7 @@ function ProjectSection({
         </div>
         {snapshot.covered ? (
           <Button size="sm" variant="ghost" pressed onClick={snapshot.deselectAll}>
-            deselect all
+            {ContributeLabel.DeselectAll.wire}
           </Button>
         ) : (
           <Button

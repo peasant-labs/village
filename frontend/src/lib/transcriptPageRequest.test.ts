@@ -7,7 +7,7 @@ import {
 } from "@/lib/transcriptPageRequest";
 import { TranscriptListResponseMismatchError } from "@/lib/queries/transcripts";
 import { ApiError } from "@/lib/api";
-import { loadTranscriptPageRequestFixtures } from "@/test/transcriptPageRequestFixtures";
+import { loadTranscriptPageRequestFixtures, ThrownFailureKind } from "@/test/transcriptPageRequestFixtures";
 
 const fixtures = loadTranscriptPageRequestFixtures();
 
@@ -29,13 +29,13 @@ describe("transcriptListFailureNote", () => {
     it(fixture.name, () => {
       const thrown = fixture.error;
       const error =
-        thrown.kind === "mismatch"
+        thrown.kind === ThrownFailureKind.Mismatch
           ? new TranscriptListResponseMismatchError("2", "24", 5, 24)
-          : thrown.kind === "status"
+          : thrown.kind === ThrownFailureKind.Status
             ? new ApiError(thrown.status, thrown.message)
-            : thrown.kind === "network"
+            : thrown.kind === ThrownFailureKind.Network
               ? new TypeError(thrown.message)
-              : thrown.kind === "message"
+              : thrown.kind === ThrownFailureKind.Message
                 ? new Error(thrown.message)
                 : "not an error";
       expect(transcriptListFailureNote(error)).toBe(fixture.expect);

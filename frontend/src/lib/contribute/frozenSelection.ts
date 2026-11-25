@@ -1,3 +1,4 @@
+import { CheckState } from "./checkState";
 import {
   zVillageContributionStatus,
   type VillageContributableTranscript,
@@ -98,14 +99,14 @@ export function deselectIds(selection: FrozenSelection, ids: Iterable<string>): 
   return next;
 }
 
-export type CheckState = "none" | "some" | "all";
+export { CheckState } from "./checkState";
 
 function stateOf(selection: FrozenSelection, rows: readonly LoadedRow[]): CheckState {
   const selectable = rows.filter((row) => !isLockedRow(row));
-  if (selectable.length === 0) return "none";
+  if (selectable.length === 0) return CheckState.None;
   const selected = selectable.filter((row) => selection.has(row.transcript.id)).length;
-  if (selected === 0) return "none";
-  return selected === selectable.length ? "all" : "some";
+  if (selected === 0) return CheckState.None;
+  return selected === selectable.length ? CheckState.All : CheckState.Some;
 }
 
 /**
@@ -117,7 +118,7 @@ export function familyState(selection: FrozenSelection, family: readonly LoadedR
 }
 
 export function toggleFamily(selection: FrozenSelection, family: readonly LoadedRow[]): FrozenSelection {
-  return familyState(selection, family) === "all"
+  return familyState(selection, family) === CheckState.All
     ? deselectIds(selection, family.map((row) => row.transcript.id))
     : selectRows(selection, family);
 }
@@ -138,7 +139,7 @@ export function loadedProjectState(selection: FrozenSelection, rows: readonly Lo
  */
 export function toggleLoadedProject(selection: FrozenSelection, rows: readonly LoadedRow[], projectHash: string): FrozenSelection {
   const projectRows = loadedOfProject(rows, projectHash);
-  return stateOf(selection, projectRows) === "all"
+  return stateOf(selection, projectRows) === CheckState.All
     ? deselectIds(selection, projectRows.map((row) => row.transcript.id))
     : selectRows(selection, projectRows);
 }

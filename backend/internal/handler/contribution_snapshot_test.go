@@ -172,7 +172,7 @@ func TestClassifyContributionSnapshotError(t *testing.T) {
 		"wrapped pg":        fmt.Errorf("query: %w", &pgconn.PgError{Code: "57014"}),
 	} {
 		code, ok := classifyContributionSnapshotError(err)
-		if !ok || code != "snapshot_timeout" {
+		if !ok || code != contributionSnapshotTimeoutCode {
 			t.Errorf("%s: classified as %q, %v; want snapshot_timeout", name, code, ok)
 		}
 	}
@@ -243,7 +243,7 @@ func TestContributionSnapshotSetWritesCompactSortedJSON(t *testing.T) {
 		}
 	}
 	h := got.Records[0]
-	if h["title"] != "helper" || h["visibility"] != "public" || h["latest_status"] != "pending" || h["project_hash"] != other ||
+	if h["title"] != "helper" || h["visibility"] != string(schema.VillageTranscriptVisibilityPublic) || h["latest_status"] != string(schema.VillageShareStatusPending) || h["project_hash"] != other ||
 		h["parent_transcript_id"] != uuid.UUID(root).String() || len(h) != 6 {
 		t.Errorf("helper record = %v", h)
 	}

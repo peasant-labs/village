@@ -1,19 +1,26 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
-import { zVillageBatchShareSelectionRequest } from "@peasant-labs/schema";
+import {
+  zVillageBatchShareSelectionRequest,
+  type VillageBatchShareResponse,
+  type VillageContributionErrorResponse,
+} from "@peasant-labs/schema";
+import { testdataPath } from "@/test/testdataPath";
 import { ApiError } from "../api";
 import { contributionSelectionPath, decodeSelectionResponse, submitSelection } from "./contributionSubmit";
 import { expandContributionTokens, GROUP_ID, projectHashOf, transcriptIdOf } from "../contribute/testTokens";
 
+/** The fixture's word for a body the decoder accepts. */
+const DECODE_ACCEPTED = "ok";
+
 interface DecodeCase {
   name: string;
   body: unknown;
-  expect: "ok" | { server: string };
+  expect: typeof DECODE_ACCEPTED | { server: string };
 }
 
-const fixtures = parse(readFileSync(resolve(process.cwd(), "src/testdata/contribution-submit.yaml"), "utf8")) as {
+const fixtures = parse(readFileSync(testdataPath("contribution-submit.yaml"), "utf8")) as {
   decode: DecodeCase[];
 };
 
@@ -26,7 +33,7 @@ const request = zVillageBatchShareSelectionRequest.parse({
 describe("selection write response", () => {
   it.each(fixtures.decode.map((c) => [c.name, c] as const))("%s", (_name, testCase) => {
     const body = expandContributionTokens(testCase.body);
-    if (testCase.expect === "ok") {
+    if (testCase.expect === DECODE_ACCEPTED) {
       expect(() => decodeSelectionResponse(body, request)).not.toThrow();
       return;
     }
@@ -46,9 +53,12 @@ describe("submitSelection", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("posts the request to the collective's selection write", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ project_hash: request.project_hash, shared: [], already_shared: request.transcript_ids }), { status: 200 }),
-    );
+    const accepted: VillageBatchShareResponse = {
+      project_hash: request.project_hash,
+      shared: [],
+      already_shared: request.transcript_ids,
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(accepted), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const response = await submitSelection(GROUP_ID, request);
     expect(response.already_shared).toEqual(request.transcript_ids);
@@ -64,7 +74,8 @@ describe("submitSelection", () => {
     expect(missingRoute).toBeInstanceOf(ApiError);
     expect((missingRoute as ApiError).fromServer).toBe(false);
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "this collective no longer exists" }), { status: 404 })));
+    const collectiveGone: VillageContributionErrorResponse = { error: "this collective no longer exists" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(collectiveGone), { status: 404 })));
     const deleted = await submitSelection(GROUP_ID, request).catch((err: unknown) => err);
     expect((deleted as ApiError).fromServer).toBe(true);
   });

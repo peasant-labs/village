@@ -1,15 +1,21 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { parse } from "yaml";
+import { VillageContributableView } from "@peasant-labs/schema";
 import type { Group } from "@/lib/types";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { makeUser } from "@/test/mountedGroupRoute";
 import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import { profileOwner } from "@/test/publicOwnerFixture";
 import { GROUP_ID, projectHashOf, transcriptIdOf, transcriptOf } from "@/lib/contribute/testTokens";
+import { PrivateApproval } from "@/lib/contribute/chunkedSubmit";
+import { ContributePageTestId, ContributionReceiptTestId } from "@/components/contribute/contributeTestId";
+import { ContributeLabel, contributeLabel, deselectUnlistedLabel } from "@/components/contribute/contributeLabel";
+import { ConfirmContributeLabel } from "@/components/transcript/confirmContributeLabel";
+import { ChildSessionDisclosureTestId } from "@/components/transcript/childSessionDisclosureTestId";
+import { testdataPath } from "@/test/testdataPath";
 
 interface SessionToken {
   id: string;
@@ -33,8 +39,11 @@ interface ProjectToken {
 
 type SnapshotToken = string[] | { status: number; code: string };
 
+/** The fixture's word for a selection write that never answers until the run is stopped. */
+const SUBMIT_HOLD = "hold";
+
 type SubmitAnswer =
-  | "hold"
+  | typeof SUBMIT_HOLD
   | { shared: Record<string, string>; already?: string[] }
   | { status: number; code?: string; details?: { code: string; id?: string }[] };
 
@@ -49,7 +58,7 @@ interface PageCase {
   expect: Record<string, unknown>;
 }
 
-const fixtures = parse(readFileSync(resolve(process.cwd(), "src/testdata/paged-contribute-page.yaml"), "utf8")) as {
+const fixtures = parse(readFileSync(testdataPath("paged-contribute-page.yaml"), "utf8")) as {
   cases: PageCase[];
 };
 
@@ -175,7 +184,7 @@ function installLibrary(testCase: PageCase): RecordedRequest[] {
           projects: projects.map(summaryOf),
         });
       }
-      if (path.endsWith(`${base}/contributable`) && params.get("view") === "paged") {
+      if (path.endsWith(`${base}/contributable`) && params.get("view") === VillageContributableView.Paged) {
         const token = Object.keys(testCase.families ?? {}).find((p) => projectHashOf(p) === params.get("project_hash"));
         const families = token ? testCase.families![token] : [];
         return json({
@@ -187,7 +196,7 @@ function installLibrary(testCase: PageCase): RecordedRequest[] {
           })),
         });
       }
-      if (path.endsWith(`${base}/contributable`) && params.get("view") === "snapshot") {
+      if (path.endsWith(`${base}/contributable`) && params.get("view") === VillageContributableView.Snapshot) {
         const projectHash = params.get("project_hash")!;
         const token = Object.keys(testCase.snapshot ?? {}).find((p) => projectHashOf(p) === projectHash);
         const snapshot = token ? testCase.snapshot![token] : [];
@@ -217,7 +226,7 @@ function installLibrary(testCase: PageCase): RecordedRequest[] {
       }
       if (path.endsWith(`${base}/shares/selection`) && method === "POST") {
         const answer = submitAnswers.shift();
-        if (answer === "hold") {
+        if (answer === SUBMIT_HOLD) {
           return new Promise<Response>((_, reject) => {
             init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
           });
@@ -264,18 +273,18 @@ async function renderRoute() {
 
 /** The visible sentence of an element whose text React splits across nodes. */
 const textOf = (element: HTMLElement) => element.textContent!.replace(/\s+/g, " ").trim();
-const tallyText = () => textOf(screen.getByTestId("contribute-selection-tally"));
+const tallyText = () => textOf(screen.getByTestId(ContributePageTestId.SelectionTally.wire));
 const section = (project: string) => screen.getByTestId(`contribute-project-${projectHashOf(project)}`);
 const sessionRow = (id: string) => screen.getByTestId(`contribute-session-row-${transcriptIdOf(id)}`);
 const checkboxOf = (row: HTMLElement) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-const pagedReads = (requests: RecordedRequest[]) => requests.filter((r) => r.params.get("view") === "paged");
+const pagedReads = (requests: RecordedRequest[]) => requests.filter((r) => r.params.get("view") === VillageContributableView.Paged);
 const shareBodies = (requests: RecordedRequest[]) =>
   requests
     .filter((r) => r.path.endsWith("/shares/selection"))
     .map((r) => r.body as { project_hash: string; transcript_ids: string[]; private_approvals: string[] });
 /** The receipt's count line, one bucket per item. */
 const receiptText = () =>
-  within(within(screen.getByTestId("contribute-run-receipt")).getByRole("list", { name: "contribution receipt" }))
+  within(within(screen.getByTestId(ContributionReceiptTestId.Root.wire)).getByRole("list", { name: ContributeLabel.Receipt.wire }))
     .getAllByRole("button")
     .map(textOf)
     .join(" · ");
@@ -309,9 +318,9 @@ async function selectAll(project: string) {
 
 async function search(text: string) {
   act(() => {
-    fireEvent.change(screen.getByRole("textbox", { name: "search sessions" }), { target: { value: text } });
+    fireEvent.change(screen.getByRole("textbox", { name: ContributeLabel.Search.wire }), { target: { value: text } });
   });
-  await waitFor(() => expect(screen.getByRole("textbox", { name: "search sessions" })).toHaveValue(text));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: ContributeLabel.Search.wire })).toHaveValue(text));
 }
 
 function expectBatches(requests: RecordedRequest[], byProject: Record<string, string[]>) {
@@ -335,7 +344,7 @@ describe("the paged contribute route", () => {
     const requests = installLibrary(c);
     await renderRoute();
 
-    await waitFor(() => expect(screen.getByTestId("contribute-selection-tally")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(ContributePageTestId.SelectionTally.wire)).toBeInTheDocument());
     await waitFor(() => expect(tallyText()).toBe(c.expect.tally));
     for (const [project, counts] of Object.entries(c.expect.counts as Record<string, string>)) {
       expect(textOf(screen.getByTestId(`contribute-project-counts-${projectHashOf(project)}`))).toBe(counts);
@@ -363,7 +372,7 @@ describe("the paged contribute route", () => {
     expect(branches.map((row) => textOf(row))).toEqual((c.expect.branches as string[]).map((b) => `branch · ${b}`));
 
     const locked = sessionRow(c.expect.locked as string);
-    expect(within(locked).getByText("already contributed")).toBeInTheDocument();
+    expect(within(locked).getByText(ContributeLabel.AlreadyContributed.wire)).toBeInTheDocument();
     expect(checkboxOf(locked)).toBeDisabled();
   });
 
@@ -375,20 +384,20 @@ describe("the paged contribute route", () => {
 
     await selectAll("pA");
     await waitFor(() => expect(tallyText()).toBe(c.expect.tally_after_select_all));
-    expect(requests.filter((r) => r.params.get("view") === "snapshot").map((r) => r.params.get("project_hash"))).toEqual([hash]);
+    expect(requests.filter((r) => r.params.get("view") === VillageContributableView.Snapshot).map((r) => r.params.get("project_hash"))).toEqual([hash]);
     expect(textOf(screen.getByTestId(`contribute-project-counts-${hash}`))).toBe(c.expect.counts_after_select_all);
     // The snapshot alone made the selection: the section was never opened.
     expect(pagedReads(requests)).toHaveLength(0);
 
     act(() => {
-      fireEvent.click(within(section("pA")).getByRole("button", { name: "deselect all" }));
+      fireEvent.click(within(section("pA")).getByRole("button", { name: ContributeLabel.DeselectAll.wire }));
     });
     expect(tallyText()).toBe(c.expect.tally_after_deselect_all);
 
     await selectAll("pA");
-    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 2 transcripts/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: contributeLabel(2) })).toBeEnabled());
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(2) }));
     });
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(1));
     expectBatches(requests, c.expect.requests_by_project as Record<string, string[]>);
@@ -417,7 +426,7 @@ describe("the paged contribute route", () => {
       fireEvent.click(checkboxOf(sessionRow(c.expect.tick as string)));
     });
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 1 transcript/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(1) }));
     });
 
     // The dialog opens BEFORE anything is sent.
@@ -425,10 +434,10 @@ describe("the paged contribute route", () => {
     expect(shareBodies(requests)).toHaveLength(0);
 
     act(() => {
-      fireEvent.click(screen.getByRole("checkbox", { name: /i understand and consent/i }));
+      fireEvent.click(screen.getByRole("checkbox", { name: ConfirmContributeLabel.Consent.wire }));
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute & make visible/i }));
+      fireEvent.click(screen.getByRole("button", { name: ConfirmContributeLabel.Confirm.wire }));
     });
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(1));
     expectRequest(shareBodies(requests)[0], expected);
@@ -449,7 +458,7 @@ describe("the paged contribute route", () => {
     expect(screen.queryByTestId(`contribute-session-row-${transcriptIdOf(helperId)}`)).toBeNull();
     const chip = document.querySelector<HTMLElement>(`[data-parent-transcript-id="${rootId}"]`);
     expect(chip, "the helper sits behind the control under its root").not.toBeNull();
-    expect(within(chip!).getByTestId("child-session-disclosure-label").textContent).toBe(c.expect.disclosure_label);
+    expect(within(chip!).getByTestId(ChildSessionDisclosureTestId.Label.wire).textContent).toBe(c.expect.disclosure_label);
 
     act(() => {
       fireEvent.click(checkboxOf(sessionRow(c.expect.root as string)));
@@ -457,16 +466,16 @@ describe("the paged contribute route", () => {
     expect(tallyText()).toBe(c.expect.tally_after_tick);
 
     act(() => {
-      fireEvent.click(within(chip!).getByTestId("child-session-disclosure-toggle"));
+      fireEvent.click(within(chip!).getByTestId(ChildSessionDisclosureTestId.Toggle.wire));
     });
-    const helperRow = within(within(chip!).getByTestId("child-session-disclosure-rows")).getByTestId(
+    const helperRow = within(within(chip!).getByTestId(ChildSessionDisclosureTestId.Rows.wire)).getByTestId(
       `contribute-session-row-${transcriptIdOf(helperId)}`,
     );
     expect(checkboxOf(helperRow).checked, "ticking the root takes its helper").toBe(true);
     expect(textOf(helperRow)).toContain("in project b");
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(2) }));
     });
     const byProject = c.expect.requests_by_project as Record<string, string[]>;
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(Object.keys(byProject).length));
@@ -485,9 +494,9 @@ describe("the paged contribute route", () => {
     const chip = document.querySelector<HTMLElement>(`[data-parent-transcript-id="${rootId}"]`);
     expect(chip, "the helpers sit behind the control under their root").not.toBeNull();
     act(() => {
-      fireEvent.click(within(chip!).getByTestId("child-session-disclosure-toggle"));
+      fireEvent.click(within(chip!).getByTestId(ChildSessionDisclosureTestId.Toggle.wire));
     });
-    const helperRow = within(within(chip!).getByTestId("child-session-disclosure-rows")).getByTestId(
+    const helperRow = within(within(chip!).getByTestId(ChildSessionDisclosureTestId.Rows.wire)).getByTestId(
       `contribute-session-row-${helperId}`,
     );
 
@@ -500,7 +509,7 @@ describe("the paged contribute route", () => {
     expect(checkboxOf(sessionRow(c.expect.root as string)).checked, "the root stays unticked").toBe(false);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 1 transcript/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(1) }));
     });
     const byProject = c.expect.requests_by_project as Record<string, string[]>;
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(Object.keys(byProject).length));
@@ -517,14 +526,14 @@ describe("the paged contribute route", () => {
 
     await search(c.expect.search as string);
     await waitFor(() => expect(requests.some((r) => r.params.get("q") === c.expect.search)).toBe(true), { timeout: 2000 });
-    const notice = await screen.findByTestId("contribute-unlisted-notice");
+    const notice = await screen.findByTestId(ContributePageTestId.UnlistedNotice.wire);
     expect(textOf(notice)).toContain(c.expect.notice as string);
     expect(tallyText()).toBe(c.expect.tally_while_searching);
 
     act(() => {
-      fireEvent.click(within(notice).getByRole("button", { name: "deselect them" }));
+      fireEvent.click(within(notice).getByRole("button", { name: deselectUnlistedLabel(2) }));
     });
-    expect(screen.queryByTestId("contribute-unlisted-notice")).toBeNull();
+    expect(screen.queryByTestId(ContributePageTestId.UnlistedNotice.wire)).toBeNull();
     expect(tallyText()).toBe(c.expect.tally_after_deselect);
   });
 
@@ -538,7 +547,7 @@ describe("the paged contribute route", () => {
     expect(await screen.findByText(c.expect.empty as string, {}, { timeout: 2000 })).toBeInTheDocument();
     // A search that matches nothing still offers the search back, not the
     // empty-library state.
-    expect(screen.getByRole("textbox", { name: "search sessions" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: ContributeLabel.Search.wire })).toBeInTheDocument();
   });
 
   it("the-project-list-failing-offers-a-retry", async () => {
@@ -547,11 +556,11 @@ describe("the paged contribute route", () => {
     await renderRoute();
     const pickerReads = () => requests.filter((r) => r.path.endsWith("/contributable/projects"));
 
-    const retry = await screen.findByRole("button", { name: "retry your transcripts" });
+    const retry = await screen.findByRole("button", { name: ContributeLabel.RetryTranscripts.wire });
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     for (let read = 1; read <= c.picker_failures!.length; read += 1) {
       expect(screen.getByRole("alert")).toHaveTextContent("your transcripts could not load");
-      expect(screen.queryByText(/no transcripts to contribute/)).not.toBeInTheDocument();
+      expect(screen.queryByText(ContributeLabel.NothingToContribute.wire)).not.toBeInTheDocument();
       retry.focus();
       fireEvent.click(retry);
       await waitFor(() => expect(pickerReads()).toHaveLength(read + 1));
@@ -573,8 +582,8 @@ describe("the paged contribute route", () => {
     await renderRoute();
 
     expect(await screen.findByText(c.expect.title as string)).toBeInTheDocument();
-    expect(screen.queryByTestId("contribute-selection-tally")).toBeNull();
-    expect(screen.getByRole("button", { name: /contribute 0 transcripts/ })).toBeDisabled();
+    expect(screen.queryByTestId(ContributePageTestId.SelectionTally.wire)).toBeNull();
+    expect(screen.getByRole("button", { name: contributeLabel(0) })).toBeDisabled();
   });
 
   it("the-receipt-counts-every-bucket-and-a-retry-sends-the-failures", async () => {
@@ -583,14 +592,14 @@ describe("the paged contribute route", () => {
     await renderRoute();
 
     await selectAll("pA");
-    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 3 transcripts/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: contributeLabel(3) })).toBeEnabled());
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 3 transcripts/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(3) }));
     });
-    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(ContributionReceiptTestId.Root.wire)).toBeInTheDocument());
     expect(receiptText()).toBe(c.expect.receipt);
-    expect(textOf(await openBucket("contribute-receipt-contributed"))).toBe(c.expect.contributed_named);
-    expect(textOf(await openBucket("contribute-receipt-failed"))).toBe(c.expect.failed_named);
+    expect(textOf(await openBucket(ContributionReceiptTestId.Contributed.wire))).toBe(c.expect.contributed_named);
+    expect(textOf(await openBucket(ContributionReceiptTestId.Failed.wire))).toBe(c.expect.failed_named);
     // The retryable failure stays selected; what the run settled leaves.
     expect(tallyText()).toBe(c.expect.tally_after_run);
 
@@ -609,24 +618,24 @@ describe("the paged contribute route", () => {
 
     await selectAll("pA");
     await selectAll("pB");
-    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 2 transcripts/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: contributeLabel(2) })).toBeEnabled());
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(2) }));
     });
-    expect(await screen.findByTestId("contribute-run-progress")).toBeInTheDocument();
+    expect(await screen.findByTestId(ContributePageTestId.RunProgress.wire)).toBeInTheDocument();
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(1));
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "stop" }));
+      fireEvent.click(screen.getByRole("button", { name: ContributeLabel.Stop.wire }));
     });
-    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(ContributionReceiptTestId.Root.wire)).toBeInTheDocument());
     expect(receiptText()).toBe(c.expect.receipt);
-    expect(textOf(screen.getByTestId("contribute-receipt-stopped"))).toBe(c.expect.stopped);
+    expect(textOf(screen.getByTestId(ContributionReceiptTestId.Stopped.wire))).toBe(c.expect.stopped);
     expect(tallyText()).toBe(c.expect.tally_after_stop);
     // Nothing is sent after the stop.
     expect(shareBodies(requests)).toHaveLength(1);
   });
 
-  it.each(["approve", "decline"] as const)("a-session-that-turned-private-is-asked-about-again (%s)", async (answer) => {
+  it.each([PrivateApproval.Approve.wire, PrivateApproval.Decline.wire])("a-session-that-turned-private-is-asked-about-again (%s)", async (answer) => {
     const c = caseNamed("a-session-that-turned-private-is-asked-about-again");
     const outcome = c.expect[answer] as {
       resent: { project: string; ids: string[]; private_approvals: string[] };
@@ -638,31 +647,31 @@ describe("the paged contribute route", () => {
     await renderRoute();
 
     await selectAll("pA");
-    await waitFor(() => expect(screen.getByRole("button", { name: /contribute 2 transcripts/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: contributeLabel(2) })).toBeEnabled());
     // Every session was public when selected, so the run starts without asking.
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /contribute 2 transcripts/ }));
+      fireEvent.click(screen.getByRole("button", { name: contributeLabel(2) }));
     });
     expect(await screen.findByText(new RegExp(c.expect.dialog as string))).toBeInTheDocument();
     expect(shareBodies(requests)).toHaveLength(1);
 
-    if (answer === "approve") {
+    if (answer === PrivateApproval.Approve.wire) {
       act(() => {
-        fireEvent.click(screen.getByRole("checkbox", { name: /i understand and consent/i }));
+        fireEvent.click(screen.getByRole("checkbox", { name: ConfirmContributeLabel.Consent.wire }));
       });
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /contribute & make visible/i }));
+        fireEvent.click(screen.getByRole("button", { name: ConfirmContributeLabel.Confirm.wire }));
       });
     } else {
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+        fireEvent.click(screen.getByRole("button", { name: ConfirmContributeLabel.Cancel.wire }));
       });
     }
     await waitFor(() => expect(shareBodies(requests)).toHaveLength(2));
     expectRequest(shareBodies(requests)[1], outcome.resent);
-    await waitFor(() => expect(screen.getByTestId("contribute-run-receipt")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(ContributionReceiptTestId.Root.wire)).toBeInTheDocument());
     expect(receiptText()).toBe(outcome.receipt);
-    if (outcome.failed_named) expect(textOf(await openBucket("contribute-receipt-failed"))).toBe(outcome.failed_named);
+    if (outcome.failed_named) expect(textOf(await openBucket(ContributionReceiptTestId.Failed.wire))).toBe(outcome.failed_named);
     if (outcome.tally_after_run) expect(tallyText()).toBe(outcome.tally_after_run);
     // A declined session is not a failure a retry can fix.
     expect(screen.queryByRole("button", { name: /^retry / })).toBeNull();

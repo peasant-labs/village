@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { testdataPath } from "@/test/testdataPath";
 import {
   zVillageContributionSnapshotResponse,
   type VillageContributableTranscript,
@@ -59,8 +59,8 @@ interface Fixtures {
     name: string;
     rows: RowToken[];
     selected: SelectedToken[];
-    state_before: CheckState;
-    state_after?: CheckState;
+    state_before: CheckState["wire"];
+    state_after?: CheckState["wire"];
     expect_selected: string[];
   }[];
   loaded_project_toggle: {
@@ -68,7 +68,7 @@ interface Fixtures {
     rows: RowToken[];
     selected: SelectedToken[];
     project: string;
-    state_before: CheckState;
+    state_before: CheckState["wire"];
     expect_selected: string[];
   }[];
   snapshot_merge: {
@@ -100,7 +100,7 @@ interface Fixtures {
   }[];
 }
 
-const fixtures = parse(readFileSync(resolve(process.cwd(), "src/testdata/frozen-selection.yaml"), "utf8")) as Fixtures;
+const fixtures = parse(readFileSync(testdataPath("frozen-selection.yaml"), "utf8")) as Fixtures;
 
 function rowOf(token: RowToken): LoadedRow {
   return {
@@ -160,10 +160,10 @@ describe("family toggle", () => {
   it.each(named(fixtures.family_toggle))("%s", (_name, testCase) => {
     const family = testCase.rows.map(rowOf);
     const before = selectionOf(testCase.selected);
-    expect(familyState(before, family)).toBe(testCase.state_before);
+    expect(familyState(before, family).wire).toBe(testCase.state_before);
     const after = toggleFamily(before, family);
     expect(selectedIds(after)).toEqual(ids(testCase.expect_selected));
-    if (testCase.state_after) expect(familyState(after, family)).toBe(testCase.state_after);
+    if (testCase.state_after) expect(familyState(after, family).wire).toBe(testCase.state_after);
   });
 });
 
@@ -172,7 +172,7 @@ describe("loaded project toggle", () => {
     const rows = testCase.rows.map(rowOf);
     const project = projectHashOf(testCase.project);
     const before = selectionOf(testCase.selected);
-    expect(loadedProjectState(before, rows, project)).toBe(testCase.state_before);
+    expect(loadedProjectState(before, rows, project).wire).toBe(testCase.state_before);
     expect(selectedIds(toggleLoadedProject(before, rows, project))).toEqual(ids(testCase.expect_selected));
   });
 });

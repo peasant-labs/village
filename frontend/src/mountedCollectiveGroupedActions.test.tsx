@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, expect, it, vi } from "vitest";
 import GroupDetailPage from "@/app/collectives/[id]/page";
 import GroupReviewPage from "@/app/collectives/[id]/review/page";
+import { ReviewPageTestId } from "@/app/collectives/[id]/review/reviewTestId";
+import { CollectiveLibraryTestId } from "@/components/group/collectiveLibraryTestId";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { Group, User } from "@/lib/types";
 import {
@@ -215,7 +217,7 @@ for (const testCase of fixtures.cases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
-    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId(CollectiveLibraryTestId.DisclosureToggle.wire));
 
     if (testCase.surface === "browse") {
       // The collective's browse list is still its own list; the grouped read
@@ -300,7 +302,7 @@ for (const testCase of fixtures.overlapCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
-    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId(CollectiveLibraryTestId.DisclosureToggle.wire));
 
     // The identity is drawn by the flat list ...
     await waitFor(() =>
@@ -313,7 +315,7 @@ for (const testCase of fixtures.overlapCases) {
 
     const helperBox = () => memberCheckbox(selectedMember.title);
     const flatBox = () => flatRowCheckbox(memberID);
-    const tally = () => screen.getByTestId("review-selection-count");
+    const tally = () => screen.getByTestId(ReviewPageTestId.SelectionCount.wire);
 
     expect(flatBox().checked).toBe(false);
     expect(helperBox().checked).toBe(false);
@@ -380,7 +382,7 @@ for (const testCase of fixtures.connectorCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
-    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId(CollectiveLibraryTestId.DisclosureToggle.wire));
 
     await waitFor(() =>
       expect(screen.getByTestId(`contribute-session-row-${row.id}`)).toBeInTheDocument(),
