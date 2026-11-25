@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 )
 
 //go:embed testdata/contribution-page-request.yaml
@@ -176,7 +177,7 @@ func TestDispatchContributableViewMenu(t *testing.T) {
 	h := &Handler{}
 	for _, view := range []string{"pagd", "PAGED", "flat", "%20"} {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/collectives/x/contributable?view="+view, nil)
+		req := httptest.NewRequest(http.MethodGet, contractPath(t)(schemaRoute.VillageListContributableTranscriptsPath("x"))+"?view="+view, nil)
 		if !h.dispatchContributableView(rec, req) {
 			t.Errorf("view=%s was not answered by the dispatcher", view)
 		}
@@ -190,7 +191,7 @@ func TestDispatchContributableViewMenu(t *testing.T) {
 		}
 	}
 	rec := httptest.NewRecorder()
-	if h.dispatchContributableView(rec, httptest.NewRequest(http.MethodGet, "/api/v1/collectives/x/contributable", nil)) {
+	if h.dispatchContributableView(rec, httptest.NewRequest(http.MethodGet, contractPath(t)(schemaRoute.VillageListContributableTranscriptsPath("x")), nil)) {
 		t.Errorf("an omitted view must fall through to the flat response")
 	}
 	if rec.Body.Len() != 0 {

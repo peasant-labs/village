@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
@@ -264,18 +265,16 @@ func (w *pagedWorld) readPagedFamilies(t *testing.T, q, provider string, into *c
 		if member.Matched != nil && *member.Matched {
 			into.matched[key] = true
 		}
-		live, _ := member.Transcript["already_shared"].(bool)
-		into.live[key] = live
-		into.provider[key], _ = member.Transcript["model_provider"].(string)
-		hash, _ := member.Transcript["project_hash"].(string)
-		into.projectOf[key] = w.projectKeyOfHash(hash)
+		into.live[key] = member.Transcript.AlreadyShared
+		into.provider[key] = member.Transcript.ModelProvider
+		into.projectOf[key] = w.projectKeyOfHash(member.Transcript.ProjectHash)
 	}
 	for _, item := range raw.Items {
-		rootKey := w.keyOf(item.Root.Transcript["id"].(string))
+		rootKey := w.keyOf(item.Root.Transcript.ID)
 		note(rootKey, item.Root)
 		into.families[rootKey] = []string{}
 		for _, helper := range item.Helpers {
-			key := w.keyOf(helper.Transcript["id"].(string))
+			key := w.keyOf(helper.Transcript.ID)
 			note(key, helper)
 			into.families[rootKey] = append(into.families[rootKey], key)
 		}
@@ -294,7 +293,7 @@ func (w *pagedWorld) projectKeyOfHash(hash string) string {
 func (w *pagedWorld) readPicker(t *testing.T, q, provider string) schema.VillageContributionProjectPage {
 	t.Helper()
 	query := w.consistencyQuery("", q, provider, nil)
-	target := "/api/v1/collectives/" + w.groupID() + "/contributable/projects"
+	target := contractPath(t)(schemaRoute.VillageListContributionProjectsPath(w.groupID()))
 	if query != "" {
 		target += "?" + query
 	}
@@ -392,7 +391,7 @@ func newConsistencyWorld(t *testing.T, fixture consistencyFixture) *consistencyW
 
 	h := New(&config.Config{JWTSecret: secret}, pool, nil)
 	router := chi.NewRouter()
-	router.Route("/api/v1", h.RegisterCollectiveBrowseRoutes)
+	router.Route(APIPrefix, h.RegisterCollectiveBrowseRoutes)
 	world.router = router
 	token, err := auth.CreateToken(secret, uuid.UUID(world.member.Bytes), world.memberName)
 	if err != nil {
@@ -461,7 +460,7 @@ func TestContributionReadsAgree(t *testing.T) {
 			if request.ExpectEverySessionOnce {
 				var owned []string
 				for _, spec := range fixture.Library.Transcripts {
-					if spec.Owner != "other" {
+					if spec.Owner != fixtureOwnerOther {
 						owned = append(owned, spec.Key)
 					}
 				}
@@ -608,7 +607,7 @@ func TestContributionReadsAgree(t *testing.T) {
 func TestContributionReadsAgreeOnParameters(t *testing.T) {
 	fixture := loadConsistencyFixture(t)
 	world := newConsistencyWorld(t, fixture)
-	base := "/api/v1/collectives/" + world.groupID() + "/contributable"
+	base := contractPath(t)(schemaRoute.VillageListContributableTranscriptsPath(world.groupID()))
 	project := world.projectHashOf("alpha")
 
 	for _, c := range fixture.Parameters {
@@ -658,12 +657,12 @@ func TestContributionReadsAgreeOnTheGate(t *testing.T) {
 			}
 			collective := world.groupID()
 			switch c.Collective {
-			case "unknown":
+			case fixtureCollectiveUnknown:
 				collective = uuid.NewString()
-			case "malformed":
-				collective = "not-an-identifier"
+			case fixtureCollectiveMalformed:
+				collective = fixtureMalformedCollectiveID
 			}
-			base := "/api/v1/collectives/" + collective + "/contributable"
+			base := contractPath(t)(schemaRoute.VillageListContributableTranscriptsPath(collective))
 			extra := ""
 			if c.Raw != "" {
 				extra = "&" + c.Raw

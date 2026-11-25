@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -125,12 +126,12 @@ func TestBatchShareSelectionAnswersALedgerRefusal(t *testing.T) {
 					next.ServeHTTP(w, req.WithContext(withUserID(req.Context(), contractBodyTestUser)))
 				})
 			})
-			r.Post("/api/v1/collectives/{id}/shares/selection", h.BatchShareSelection)
+			r.Post(schemaRoute.VillageBatchShareSelection.Pattern(), h.BatchShareSelection)
 
 			body := `{"project_hash":"` + projectHash + `","transcript_ids":["` + second.String() + `","` + first.String() +
 				`"],"private_approvals":[]}`
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/collectives/"+groupID.String()+"/shares/selection",
-				strings.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost,
+				contractPath(t)(schemaRoute.VillageBatchShareSelectionPath(groupID.String())), strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, req)

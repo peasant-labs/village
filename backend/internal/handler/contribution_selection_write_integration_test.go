@@ -164,8 +164,9 @@ var (
 	selectionWriteAcceptances = map[string]bool{"": true, "open": true, "curated": true, "verified_only": true}
 	selectionWriteInjections  = map[string]bool{"": true, "refuse_last_ledger_insert": true}
 	selectionWriteActions     = map[string]bool{
-		"make_private": true, "make_private_before": true, "append_approved": true, "withdraw": true, "reject": true,
-		"move": true, "set_acceptance": true, "remove_membership": true, "compete": true,
+		selectionRaceMakePrivate: true, selectionRaceMakePrivateBefore: true, selectionRaceAppendApproved: true,
+		selectionRaceWithdraw: true, selectionRaceReject: true, selectionRaceMove: true,
+		selectionRaceSetAcceptance: true, selectionRaceRemoveMembership: true, selectionRaceCompete: true,
 	}
 	selectionWriteToken = regexp.MustCompile(`\{(id|upper|project):[^}]*\}`)
 )
@@ -213,7 +214,7 @@ func validateSelectionWriteCase(c selectionWriteCase) error {
 		if tr.Parent != "" && !declared[tr.Parent] {
 			return fmt.Errorf("transcript %q names parent %q, which is not declared before it", tr.Key, tr.Parent)
 		}
-		if tr.Owner != "" && tr.Owner != "other" {
+		if tr.Owner != "" && tr.Owner != fixtureOwnerOther {
 			return fmt.Errorf("transcript %q has owner %q; only other is known", tr.Key, tr.Owner)
 		}
 		declared[tr.Key] = true
@@ -245,7 +246,7 @@ func validateSelectionWriteCase(c selectionWriteCase) error {
 	if r.Prefix != "" && r.Prefix != "/collectives" && r.Prefix != "/groups" {
 		return fmt.Errorf("prefix %q is not a collective prefix", r.Prefix)
 	}
-	if r.Collective != "" && r.Collective != "unknown" && !strings.HasPrefix(r.Collective, "literal:") {
+	if r.Collective != "" && r.Collective != fixtureCollectiveUnknown && !strings.HasPrefix(r.Collective, "literal:") {
 		return fmt.Errorf("collective %q is not unknown or literal:<text>", r.Collective)
 	}
 	for _, key := range append(append([]string{}, r.Select...), r.Approve...) {
@@ -257,7 +258,7 @@ func validateSelectionWriteCase(c selectionWriteCase) error {
 		if !selectionWriteActions[c.Race.Action] || !declared[c.Race.Hold] {
 			return fmt.Errorf("race %+v needs a known action and a declared hold", *c.Race)
 		}
-		if (c.Race.Action == "move") != (c.Race.Project != "") || (c.Race.Action == "set_acceptance") != (c.Race.Acceptance != "") {
+		if (c.Race.Action == selectionRaceMove) != (c.Race.Project != "") || (c.Race.Action == selectionRaceSetAcceptance) != (c.Race.Acceptance != "") {
 			return fmt.Errorf("race %+v: move needs exactly a project and set_acceptance exactly an acceptance", *c.Race)
 		}
 		if c.Inject != "" {
@@ -336,7 +337,7 @@ func newSelectionWriteWorld(t *testing.T, ctx context.Context, c selectionWriteC
 	t.Helper()
 	w := &selectionWriteWorld{contributeWorld: world, spec: c, ghosts: map[string]pgtype.UUID{}}
 	switch c.Membership {
-	case "contributor", "pending":
+	case string(schema.VillageGroupRoleContributor), string(schema.VillageGroupRolePending):
 		shareAddMember(t, ctx, w.pool, w.group, w.member, c.Membership)
 	}
 	for ordinal, tr := range c.Transcripts {
@@ -355,7 +356,7 @@ func newSelectionWriteWorld(t *testing.T, ctx context.Context, c selectionWriteC
 
 	w.h = New(&config.Config{JWTSecret: secret}, w.pool, nil)
 	router := chi.NewRouter()
-	router.Route("/api/v1", w.h.RegisterContributionSelectionRoutes)
+	router.Route(APIPrefix, w.h.RegisterContributionSelectionRoutes)
 	w.router = router
 	token, err := auth.CreateToken(secret, uuid.UUID(w.member.Bytes), w.memberName)
 	if err != nil {
@@ -432,12 +433,12 @@ func (w *selectionWriteWorld) target() string {
 	}
 	collective := w.groupID()
 	switch {
-	case w.spec.Request.Collective == "unknown":
+	case w.spec.Request.Collective == fixtureCollectiveUnknown:
 		collective = uuid.NewString()
 	case strings.HasPrefix(w.spec.Request.Collective, "literal:"):
 		collective = strings.TrimPrefix(w.spec.Request.Collective, "literal:")
 	}
-	return "/api/v1" + prefix + "/" + collective + "/shares/selection"
+	return APIPrefix + prefix + "/" + collective + "/shares/selection"
 }
 
 func (w *selectionWriteWorld) body(t *testing.T) []byte {
@@ -458,9 +459,9 @@ func (w *selectionWriteWorld) body(t *testing.T) []byte {
 		}
 		return []byte(out)
 	}
-	ids := make([]string, 0, len(r.Select))
+	ids := make([]schema.TranscriptID, 0, len(r.Select))
 	for _, key := range r.Select {
-		ids = append(ids, w.idText(t, key))
+		ids = append(ids, schema.TranscriptID(w.idText(t, key)))
 	}
 	if r.Oversize {
 		for len(ids) <= (1<<20)/36+1 {
@@ -470,17 +471,17 @@ func (w *selectionWriteWorld) body(t *testing.T) []byte {
 	for len(ids) < r.PadTo {
 		ids = append(ids, ids[0])
 	}
-	approvals := make([]string, 0, len(r.Approve))
+	approvals := make([]schema.TranscriptID, 0, len(r.Approve))
 	for _, key := range r.Approve {
-		approvals = append(approvals, w.idText(t, key))
+		approvals = append(approvals, schema.TranscriptID(w.idText(t, key)))
 	}
 	for len(approvals) < r.PadApprovalsTo {
 		approvals = append(approvals, approvals[0])
 	}
-	body, err := json.Marshal(map[string]any{
-		"project_hash":      w.projectHash(r.Project),
-		"transcript_ids":    ids,
-		"private_approvals": approvals,
+	body, err := json.Marshal(schema.VillageBatchShareSelectionRequest{
+		ProjectHash:      schema.ProjectHash(w.projectHash(r.Project)),
+		TranscriptIDs:    ids,
+		PrivateApprovals: approvals,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -817,10 +818,10 @@ func (w *selectionWriteWorld) race(t *testing.T, ctx context.Context, req *http.
 		}
 	}
 
-	if race.Action == "make_private_before" {
+	if race.Action == selectionRaceMakePrivateBefore {
 		// The negative control: the change lands before the preflight, which
 		// must refuse without waiting for the lock the test still holds.
-		w.perform(t, ctx, race, "make_private")
+		w.perform(t, ctx, race, selectionRaceMakePrivate)
 		start()
 		select {
 		case rec := <-done:
@@ -837,7 +838,7 @@ func (w *selectionWriteWorld) race(t *testing.T, ctx context.Context, req *http.
 
 	start()
 	waitForSessionBlockedBy(t, ctx, w.pool, blocker)
-	if race.Action == "compete" {
+	if race.Action == selectionRaceCompete {
 		w.compete(t, ctx, race, release)
 	} else {
 		w.perform(t, ctx, race, race.Action)
@@ -853,7 +854,7 @@ func (w *selectionWriteWorld) perform(t *testing.T, ctx context.Context, race se
 	t.Helper()
 	id := w.transcripts[race.Hold]
 	switch action {
-	case "make_private":
+	case selectionRaceMakePrivate:
 		private := dbVisibilityPrivate
 		if err := w.h.inTxAs(ctx, w.member, func(q Querier) error {
 			_, err := applyMetadataPatch(ctx, q, id, metadataPatch{Visibility: &private})
@@ -864,7 +865,7 @@ func (w *selectionWriteWorld) perform(t *testing.T, ctx context.Context, race se
 		if got := w.visibility(t, ctx, race.Hold); got != dbVisibilityPrivate {
 			t.Fatalf("%s is %s after it was made private", race.Hold, got)
 		}
-	case "append_approved":
+	case selectionRaceAppendApproved:
 		if _, err := w.pool.Exec(ctx, `
 			INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
 			VALUES ($1, $2, (SELECT COALESCE(MAX(event_num), 0) + 1 FROM transcript_share_attempts
@@ -872,37 +873,37 @@ func (w *selectionWriteWorld) perform(t *testing.T, ctx context.Context, race se
 		`, id, w.group); err != nil {
 			t.Fatalf("append an accepted attempt for %s: %v", race.Hold, err)
 		}
-	case "withdraw":
+	case selectionRaceWithdraw:
 		if err := w.h.inTxAs(ctx, w.member, func(q Querier) error {
 			return q.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: id, GroupID: w.group})
 		}); err != nil {
 			t.Fatalf("withdraw %s: %v", race.Hold, err)
 		}
-		if got := w.latestStatus(t, ctx, race.Hold); got != "retracted" {
+		if got := w.latestStatus(t, ctx, race.Hold); got != string(schema.VillageShareStatusRetracted) {
 			t.Fatalf("the latest attempt of %s is %s after it was withdrawn", race.Hold, got)
 		}
-	case "reject":
+	case selectionRaceReject:
 		if err := w.h.inTxAs(ctx, w.moderator, func(q Querier) error {
 			return q.UpdateShareStatus(ctx, sqlc.UpdateShareStatusParams{
-				TranscriptID: id, GroupID: w.group, Status: "rejected", DecidedBy: w.moderator,
+				TranscriptID: id, GroupID: w.group, Status: string(schema.VillageShareStatusRejected), DecidedBy: w.moderator,
 			})
 		}); err != nil {
 			t.Fatalf("reject %s: %v", race.Hold, err)
 		}
-		if got := w.latestStatus(t, ctx, race.Hold); got != "rejected" {
+		if got := w.latestStatus(t, ctx, race.Hold); got != string(schema.VillageShareStatusRejected) {
 			t.Fatalf("the latest attempt of %s is %s after it was rejected", race.Hold, got)
 		}
-	case "move":
+	case selectionRaceMove:
 		tag, err := w.pool.Exec(ctx, "UPDATE transcripts SET project_hash = $2 WHERE id = $1", id, w.projectHash(race.Project))
 		if err != nil || tag.RowsAffected() != 1 {
 			t.Fatalf("move %s to project %s: %v (%d rows)", race.Hold, race.Project, err, tag.RowsAffected())
 		}
-	case "set_acceptance":
+	case selectionRaceSetAcceptance:
 		tag, err := w.pool.Exec(ctx, "UPDATE groups SET acceptance_mode = $2 WHERE id = $1", w.group, race.Acceptance)
 		if err != nil || tag.RowsAffected() != 1 {
 			t.Fatalf("make the collective %s: %v (%d rows)", race.Acceptance, err, tag.RowsAffected())
 		}
-	case "remove_membership":
+	case selectionRaceRemoveMembership:
 		tag, err := w.pool.Exec(ctx, "DELETE FROM group_members WHERE group_id = $1 AND user_id = $2", w.group, w.member)
 		if err != nil || tag.RowsAffected() != 1 {
 			t.Fatalf("remove the caller's membership: %v (%d rows)", err, tag.RowsAffected())

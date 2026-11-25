@@ -7,7 +7,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -131,17 +131,17 @@ func runContributionProjectsCase(t *testing.T, ctx context.Context, pool *pgxpoo
 		if tr.Provider != "" || tr.Title != "" || tr.Path != "" {
 			w.updateContributionFixture(t, ctx, tr)
 		}
-		if tr.Pre == "live" {
+		if tr.Pre == fixturePreLive {
 			w.submitSingle(t, h, tr.Key)
 		}
 	}
 
 	collective := w.groupID()
 	switch c.Collective {
-	case "unknown":
+	case fixtureCollectiveUnknown:
 		collective = uuid.NewString()
-	case "malformed":
-		collective = "not-an-identifier"
+	case fixtureCollectiveMalformed:
+		collective = fixtureMalformedCollectiveID
 	}
 
 	if c.ForeignCursor {
@@ -150,7 +150,7 @@ func runContributionProjectsCase(t *testing.T, ctx context.Context, pool *pgxpoo
 			t.Fatalf("the foreign cursor needs a second project to page to")
 		}
 		c.RawQuery = "cursor=" + url.QueryEscape(*first.NextCursor)
-		status, body := listContributionProjectsFor(h, w, collective, contributionProjectsRawQuery(c, w, 0, ""))
+		status, body := listContributionProjectsFor(t, h, w, collective, contributionProjectsRawQuery(c, w, 0, ""))
 		if status != http.StatusBadRequest {
 			t.Fatalf("a cursor from another search answered %d, want 400: %s", status, body)
 		}
@@ -158,7 +158,7 @@ func runContributionProjectsCase(t *testing.T, ctx context.Context, pool *pgxpoo
 	}
 
 	if c.ExpectStatus != http.StatusOK {
-		status, body := listContributionProjectsFor(h, w, collective, contributionProjectsRawQuery(c, w, 0, ""))
+		status, body := listContributionProjectsFor(t, h, w, collective, contributionProjectsRawQuery(c, w, 0, ""))
 		if status != c.ExpectStatus {
 			t.Fatalf("status = %d, want %d, body %s", status, c.ExpectStatus, body)
 		}
@@ -241,7 +241,7 @@ func assertProjectPage(t *testing.T, w *contributeWorld, c contributionProjectsC
 	for _, ep := range want {
 		hash := w.projectHash(ep.Project)
 		name := ep.Name
-		if name == "label" {
+		if name == fixtureNameLabel {
 			name = "project-" + hash[:12]
 		}
 		wantSummaries = append(wantSummaries, schema.VillageContributionProjectSummary{
@@ -338,7 +338,7 @@ func contributionProjectsRawQuery(c contributionProjectsCase, w *contributeWorld
 
 func listProjectPage(t *testing.T, h *Handler, w *contributeWorld, collective, rawQuery string) schema.VillageContributionProjectPage {
 	t.Helper()
-	status, body := listContributionProjectsFor(h, w, collective, rawQuery)
+	status, body := listContributionProjectsFor(t, h, w, collective, rawQuery)
 	if status != http.StatusOK {
 		t.Fatalf("list projects answered %d: %s", status, body)
 	}
@@ -354,8 +354,9 @@ func listProjectPage(t *testing.T, h *Handler, w *contributeWorld, collective, r
 	return page
 }
 
-func listContributionProjectsFor(h *Handler, w *contributeWorld, collective, rawQuery string) (int, []byte) {
-	target := fmt.Sprintf("/api/v1/groups/%s/contributable/projects", collective)
+func listContributionProjectsFor(t *testing.T, h *Handler, w *contributeWorld, collective, rawQuery string) (int, []byte) {
+	t.Helper()
+	target := contractPath(t)(schemaRoute.VillageListContributionProjectsDeprecatedPath(collective))
 	if rawQuery != "" {
 		target += "?" + rawQuery
 	}

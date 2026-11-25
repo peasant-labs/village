@@ -205,7 +205,7 @@ func (w *pagedWorld) projectHashOf(key string) string {
 func (w *pagedWorld) insert(t *testing.T, ctx context.Context, ordinal int, spec pagedTranscriptSpec) {
 	t.Helper()
 	owner := w.member
-	if spec.Owner == "other" {
+	if spec.Owner == fixtureOwnerOther {
 		owner = w.other
 	}
 	visibility := spec.Visibility
@@ -357,7 +357,7 @@ func (w *pagedWorld) atVersionOne(t *testing.T, cursor string) string {
 }
 
 func (w *pagedWorld) get(prefix, query string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1"+prefix+"/"+w.groupID()+"/contributable?"+query, nil)
+	req := httptest.NewRequest(http.MethodGet, APIPrefix+prefix+"/"+w.groupID()+"/contributable?"+query, nil)
 	req.Header.Set("Authorization", "Bearer "+w.token)
 	rec := httptest.NewRecorder()
 	w.router.ServeHTTP(rec, req)
@@ -393,8 +393,39 @@ func (w *pagedWorld) expectedOrder(entries []string) []string {
 }
 
 type pagedRawMember struct {
-	Transcript map[string]any `json:"transcript"`
-	Matched    *bool          `json:"matched"`
+	Transcript pagedRawTranscript `json:"transcript"`
+	Matched    *bool              `json:"matched"`
+}
+
+// pagedRawTranscript holds the member fields the cases assert. The optional
+// ones record whether the key was sent at all, because a case can require a
+// field to be absent rather than empty.
+type pagedRawTranscript struct {
+	ID                 string     `json:"id"`
+	AlreadyShared      bool       `json:"already_shared"`
+	ModelProvider      string     `json:"model_provider"`
+	ProjectHash        string     `json:"project_hash"`
+	ProjectDisplayName string     `json:"project_display_name"`
+	Visibility         string     `json:"visibility"`
+	LatestStatus       sentString `json:"latest_status"`
+	ParentTranscriptID sentString `json:"parent_transcript_id"`
+	SessionStart       sentString `json:"session_start"`
+	SessionEnd         sentString `json:"session_end"`
+}
+
+// sentString is an optional string field as it was sent. Present is true
+// whenever the key was in the object, null included, and Value is its text.
+type sentString struct {
+	Present bool
+	Value   string
+}
+
+func (o *sentString) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	if string(data) == "null" {
+		return nil
+	}
+	return json.Unmarshal(data, &o.Value)
 }
 
 type pagedRawPage struct {
@@ -473,7 +504,7 @@ func TestListContributablePaged(t *testing.T) {
 
 			h := New(&config.Config{JWTSecret: secret}, pool, nil)
 			router := chi.NewRouter()
-			router.Route("/api/v1", h.RegisterCollectiveBrowseRoutes)
+			router.Route(APIPrefix, h.RegisterCollectiveBrowseRoutes)
 			world.router = router
 			token, err := auth.CreateToken(secret, uuid.UUID(world.member.Bytes), world.memberName)
 			if err != nil {
@@ -532,14 +563,14 @@ func (w *pagedWorld) assertPage(t *testing.T, index int, query string, request p
 	members := map[string]pagedRawMember{}
 	gotHelpers := map[string][]string{}
 	for _, item := range page.Items {
-		rootKey := w.keyOf(item.Root.Transcript["id"].(string))
+		rootKey := w.keyOf(item.Root.Transcript.ID)
 		gotRoots = append(gotRoots, rootKey)
 		members[rootKey] = item.Root
 		if item.Helpers == nil {
 			t.Errorf(label("helpers of %s is null; an empty family is an empty array"), rootKey)
 		}
 		for _, helper := range item.Helpers {
-			key := w.keyOf(helper.Transcript["id"].(string))
+			key := w.keyOf(helper.Transcript.ID)
 			gotHelpers[rootKey] = append(gotHelpers[rootKey], key)
 			members[key] = helper
 		}
@@ -584,7 +615,7 @@ func (w *pagedWorld) assertPage(t *testing.T, index int, query string, request p
 			want[key] = true
 		}
 		for key, member := range members {
-			if got, _ := member.Transcript["already_shared"].(bool); got != want[key] {
+			if got := member.Transcript.AlreadyShared; got != want[key] {
 				t.Errorf(label("member %s already_shared=%v, want %v (%s)"), key, got, want[key], why)
 			}
 		}
@@ -595,67 +626,66 @@ func (w *pagedWorld) assertPage(t *testing.T, index int, query string, request p
 			t.Errorf(label("member %s is not on the page"), key)
 			continue
 		}
-		got, present := member.Transcript["latest_status"]
-		if want == "none" {
-			if present {
-				t.Errorf(label("member %s carries latest_status=%v, want none (%s)"), key, got, why)
+		got := member.Transcript.LatestStatus
+		if want == fixtureExpectAbsent {
+			if got.Present {
+				t.Errorf(label("member %s carries latest_status=%q, want none (%s)"), key, got.Value, why)
 			}
 			continue
 		}
-		if got != want {
-			t.Errorf(label("member %s latest_status=%v, want %q (%s)"), key, got, want, why)
+		if got.Value != want {
+			t.Errorf(label("member %s latest_status=%q, want %q (%s)"), key, got.Value, want, why)
 		}
 	}
 	for key, projectKey := range request.ExpectProject {
-		if got := members[key].Transcript["project_hash"]; got != w.projectHashOf(projectKey) {
-			t.Errorf(label("member %s is in project %v, want project %s (%s)"), key, got, projectKey, why)
+		if got := members[key].Transcript.ProjectHash; got != w.projectHashOf(projectKey) {
+			t.Errorf(label("member %s is in project %q, want project %s (%s)"), key, got, projectKey, why)
 		}
 	}
 	for key, want := range request.ExpectProjectName {
-		if got := members[key].Transcript["project_display_name"]; got != want {
-			t.Errorf(label("member %s renders project name %v, want %q (%s)"), key, got, want, why)
+		if got := members[key].Transcript.ProjectDisplayName; got != want {
+			t.Errorf(label("member %s renders project name %q, want %q (%s)"), key, got, want, why)
 		}
 	}
 	for key, want := range request.ExpectParentTranscript {
-		got, present := members[key].Transcript["parent_transcript_id"]
-		if want == "none" {
-			if present {
-				t.Errorf(label("member %s carries parent_transcript_id=%v, want none (%s)"), key, got, why)
+		got := members[key].Transcript.ParentTranscriptID
+		if want == fixtureExpectAbsent {
+			if got.Present {
+				t.Errorf(label("member %s carries parent_transcript_id=%q, want none (%s)"), key, got.Value, why)
 			}
 			continue
 		}
-		if wantID := uuid.UUID(w.transcripts[want].Bytes).String(); got != wantID {
-			t.Errorf(label("member %s parent_transcript_id=%v, want %s's id (%s)"), key, got, want, why)
+		if wantID := uuid.UUID(w.transcripts[want].Bytes).String(); got.Value != wantID {
+			t.Errorf(label("member %s parent_transcript_id=%q, want %s's id (%s)"), key, got.Value, want, why)
 		}
 	}
 	for key, want := range request.ExpectSessionStart {
-		_, present := members[key].Transcript["session_start"]
-		if present != (want == "present") {
+		present := members[key].Transcript.SessionStart.Present
+		if present != (want == fixtureExpectPresent) {
 			t.Errorf(label("member %s session_start present=%v, want %s (%s)"), key, present, want, why)
 		}
 	}
 	for key, want := range request.ExpectSessionEnd {
-		got, present := members[key].Transcript["session_end"]
-		if present != (want == "present") {
+		got := members[key].Transcript.SessionEnd
+		if present := got.Present; present != (want == fixtureExpectPresent) {
 			t.Errorf(label("member %s session_end present=%v, want %s (%s)"), key, present, want, why)
 			continue
 		}
-		if !present {
+		if !got.Present {
 			continue
 		}
 		age := w.sessionEndAgeOf(key)
 		if age == nil {
 			t.Fatalf("case %s: member %s is expected to carry session_end but the case gives it no session_end_age", w.caseName, key)
 		}
-		text, _ := got.(string)
-		at, err := time.Parse(time.RFC3339Nano, text)
+		at, err := time.Parse(time.RFC3339Nano, got.Value)
 		if wantAt := w.base.Add(-time.Duration(*age) * time.Minute); err != nil || !at.Equal(wantAt) {
-			t.Errorf(label("member %s session_end=%v, want %s (%s)"), key, got, wantAt.Format(time.RFC3339), why)
+			t.Errorf(label("member %s session_end=%q, want %s (%s)"), key, got.Value, wantAt.Format(time.RFC3339), why)
 		}
 	}
 	for key, want := range request.ExpectVisibility {
-		if got := members[key].Transcript["visibility"]; got != want {
-			t.Errorf(label("member %s visibility=%v, want %q (%s)"), key, got, want, why)
+		if got := members[key].Transcript.Visibility; got != want {
+			t.Errorf(label("member %s visibility=%q, want %q (%s)"), key, got, want, why)
 		}
 	}
 }
@@ -694,7 +724,7 @@ func (w *pagedWorld) assertWalk(t *testing.T, walk pagedWalkSpec, why string) {
 			t.Fatalf("walk page %d holds %d roots, over the limit %d", pages, len(page.Items), walk.Limit)
 		}
 		for _, item := range page.Items {
-			seen = append(seen, w.keyOf(item.Root.Transcript["id"].(string)))
+			seen = append(seen, w.keyOf(item.Root.Transcript.ID))
 		}
 		if page.NextCursor == nil {
 			break
@@ -723,7 +753,7 @@ func (w *pagedWorld) assertWalk(t *testing.T, walk pagedWalkSpec, why string) {
 		}
 		var single []string
 		for _, item := range page.Items {
-			single = append(single, w.keyOf(item.Root.Transcript["id"].(string)))
+			single = append(single, w.keyOf(item.Root.Transcript.ID))
 		}
 		if strings.Join(seen, ",") != strings.Join(single, ",") {
 			t.Errorf("the walk visited %v but the single page lists %v; paging must not change the order (%s)", seen, single, why)

@@ -28,6 +28,7 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v5"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
@@ -160,7 +161,7 @@ func newSnapshotHarness(t *testing.T, ctx context.Context, pool *pgxpool.Pool, n
 	}
 	s.h = New(cfg, pool, nil)
 	s.router = chi.NewRouter()
-	s.router.Route("/api/v1", s.h.RegisterCollectiveBrowseRoutes)
+	s.router.Route(APIPrefix, s.h.RegisterCollectiveBrowseRoutes)
 	return s
 }
 
@@ -198,11 +199,11 @@ func (s *snapshotHarness) getAs(h *Handler, user pgtype.UUID, name, group, prefi
 		router = s.others[h]
 		if router == nil {
 			router = chi.NewRouter()
-			router.Route("/api/v1", h.RegisterCollectiveBrowseRoutes)
+			router.Route(APIPrefix, h.RegisterCollectiveBrowseRoutes)
 			s.others[h] = router
 		}
 	}
-	target := "/api/v1" + prefix + "/" + group + "/contributable"
+	target := APIPrefix + prefix + "/" + group + "/contributable"
 	if query != "" {
 		target += "?" + query
 	}
@@ -248,7 +249,7 @@ func (s *snapshotHarness) insert(row snapshotSeed) {
 		title.String = "t-" + row.Key
 	}
 	owner := w.member
-	if row.Owner == "other" {
+	if row.Owner == fixtureOwnerOther {
 		owner = w.other
 	}
 	var parent pgtype.Text
@@ -297,7 +298,7 @@ func (s *snapshotHarness) insert(row snapshotSeed) {
 	} else {
 		s.titles[row.Key] = nil
 	}
-	if row.Owner != "other" {
+	if row.Owner != fixtureOwnerOther {
 		s.parents[row.Key] = row.Parent
 	}
 	s.attempts(row.Key, w.group, row.Attempts)
@@ -664,7 +665,7 @@ func TestContributionSnapshotRefusalsAndViews(t *testing.T) {
 		}
 		anon := httptest.NewRecorder()
 		s.router.ServeHTTP(anon, httptest.NewRequest(http.MethodGet,
-			"/api/v1/collectives/"+s.w.groupID()+"/contributable?"+s.snapshotQuery("p", nil), nil))
+			contractPath(t)(schemaRoute.VillageListContributableTranscriptsPath(s.w.groupID()))+"?"+s.snapshotQuery("p", nil), nil))
 		if anon.Code != http.StatusUnauthorized {
 			t.Errorf("an anonymous snapshot = %d, want 401", anon.Code)
 		}
@@ -744,12 +745,12 @@ func TestContributionSnapshotIsOneConsistentRead(t *testing.T) {
 		}
 	}
 	wire := decodeSnapshot(t, s2.get("/collectives", s2.snapshotQuery("p", nil)))
-	if len(wire.Records) != 1 || wire.Records[0].LatestStatus == nil || *wire.Records[0].LatestStatus != "approved" {
+	if len(wire.Records) != 1 || wire.Records[0].LatestStatus == nil || *wire.Records[0].LatestStatus != string(schema.VillageShareStatusApproved) {
 		t.Fatalf("a status written during the snapshot leaked into it: %+v", wire.Records)
 	}
 	s2.h.contributionSnapshot.afterSnapshot = nil
 	wire = decodeSnapshot(t, s2.get("/collectives", s2.snapshotQuery("p", nil)))
-	if wire.Records[0].LatestStatus == nil || *wire.Records[0].LatestStatus != "revoked" {
+	if wire.Records[0].LatestStatus == nil || *wire.Records[0].LatestStatus != string(schema.VillageShareStatusRevoked) {
 		t.Fatalf("a fresh read must see the revocation, got %+v", wire.Records)
 	}
 }
