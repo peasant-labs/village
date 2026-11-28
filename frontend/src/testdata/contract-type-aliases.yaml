@@ -62,6 +62,14 @@ files:
         generated: VillageShareEvent
       - local: CollectiveSubmissionPair
         generated: VillageCollectiveSubmission
+      - local: ResolvedProject
+        generated: VillageResolvedProject
+        declaration: >-
+          AsPlainString<VillageResolvedProject, "project_hash">
+      - local: TranscriptCommit
+        generated: VillageTranscriptCommit
+      - local: TranscriptCommitsResponse
+        generated: VillageTranscriptCommitsResponse
 
   - path: ./review/types.ts
     known_hand_written_outside_scope: []

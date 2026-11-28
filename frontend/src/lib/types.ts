@@ -13,12 +13,7 @@ import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageT
  * arrives as `""`, never `null` — a project with no git remote is a normal
  * state, and the subtitle is simply omitted for it.
  */
-export interface ResolvedProject {
-  project_hash: string;
-  project_display_name: string;
-  project_name_source: NameSource;
-  project_remote_label: string;
-}
+export type ResolvedProject = AsPlainString<VillageResolvedProject, "project_hash">;
 
 /**
  * One collective in a project page's roll-up.
@@ -72,10 +67,13 @@ import type {
   VillagePullRequestsSummary,
   VillageRepositoryCommit,
   VillageRepositoryCommitsResponse,
+  VillageResolvedProject,
   VillageShareEvent,
   VillageShareEventActor,
   VillageShareStatus,
   VillageTranscriptCollective,
+  VillageTranscriptCommit,
+  VillageTranscriptCommitsResponse,
   VillageTranscriptIntegrity,
   VillageUserCollective,
   VillageUserCollectiveShare,
@@ -389,20 +387,9 @@ export type RepositoryCommitsResponse = VillageRepositoryCommitsResponse;
  * Note the camelCase wire shape — distinct from the snake_case
  * {@link RepositoryCommit} returned by the repository commits endpoint.
  */
-export interface TranscriptCommit {
-  sha: string;
-  message: string | null;
-  authorName: string | null;
-  authorEmail: string | null;
-  authoredAt: string | null;
-  committedAt: string | null;
-  /** Ordinal position of the commit within the session (0-based). */
-  order: number;
-}
+export type TranscriptCommit = VillageTranscriptCommit;
 
-export interface TranscriptCommitsResponse {
-  commits: TranscriptCommit[];
-}
+export type TranscriptCommitsResponse = VillageTranscriptCommitsResponse;
 
 export interface Attestation {
   id: string;
