@@ -34,6 +34,11 @@ on:
       - "scripts/check-go-test-events.go"
       - "scripts/test-go-test-events.sh"
       - "scripts/testdata/go-test-events/**"
+      - "scripts/require-tests.sh"
+      - "scripts/require-tests.go"
+      - "scripts/gate-required-tests.yaml"
+      - "scripts/test-require-tests.sh"
+      - "scripts/testdata/require-tests/**"
       - ".github/workflows/backend-tests.yml"
 
 # Every job only reads repository contents. The workflow does not expose secrets
@@ -253,8 +258,12 @@ jobs:
           TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/village_test?sslmode=disable
           TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/postgres?sslmode=disable
           TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/{database}?sslmode=disable
+        # The gate checks the handler package's go test -json stream against
+        # the required-test manifest (scripts/gate-required-tests.yaml); the
+        # checker's own fixtures run first.
         run: |
           scripts/test-go-test-events.sh
+          scripts/test-require-tests.sh
           scripts/run-integration-gates.sh
 
       - name: Clean up RustFS

@@ -26,6 +26,9 @@ type requestLogFixture struct {
 		Body          string `yaml:"body"`
 		Authorization string `yaml:"authorization"`
 		Want          string `yaml:"want"`
+		// OutsideRouter serves the request through the logger with no chi
+		// router around it, so the request carries no route context.
+		OutsideRouter bool `yaml:"outside_router"`
 	} `yaml:"cases"`
 	Forbidden []string `yaml:"forbidden"`
 }
@@ -39,6 +42,7 @@ var requiredRequestLogCases = []string{
 	"log-template-unmatched-root",
 	"log-template-unknown-method",
 	"log-template-health",
+	"log-outside-router-no-route-context",
 }
 
 // TestRequestLoggerRecordsRouteTemplates mounts the production request logger
@@ -96,7 +100,11 @@ func TestRequestLoggerRecordsRouteTemplates(t *testing.T) {
 			if c.Authorization != "" {
 				r.Header.Set("Authorization", c.Authorization)
 			}
-			root.ServeHTTP(httptest.NewRecorder(), r)
+			if c.OutsideRouter {
+				RequestLogger(logger)(http.HandlerFunc(ok)).ServeHTTP(httptest.NewRecorder(), r)
+			} else {
+				root.ServeHTTP(httptest.NewRecorder(), r)
+			}
 			line := strings.TrimSpace(out.String())
 			if strings.Count(line, "\n") != 0 {
 				t.Fatalf("one request wrote several lines: %q", line)

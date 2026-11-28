@@ -7,7 +7,7 @@ import { parse } from 'yaml'
 import { TranscriptSegmentPartitionKind, zVillageTranscriptMetadataResponse } from '@peasant-labs/schema'
 import { makeTranscriptFixture } from '../../../src/test/transcriptRowFixture.ts'
 import { anonymousOwner, profileOwner } from '../../../src/test/publicOwnerFixture.ts'
-import { buildPositionedBodies } from './positioned-bodies.mjs'
+import { buildPositionedBodies, PositionedRoute } from './positioned-bodies.mjs'
 
 const FIXTURE = new URL('../testdata/positioned-transcript.yaml', import.meta.url)
 export const POSITIONED = parse(readFileSync(FIXTURE, 'utf8'), { strict: true })
@@ -126,8 +126,17 @@ export async function handlePositionedRequest(req, res, world) {
   }
   const { bodies, metadata } = entry
   const suffix = match[2] ?? ''
+  // A request a real server would refuse is refused here too, so the page cannot stop sending
+  // what the positioned routes require and still pass against this mock.
+  const refused = (route, body) => {
+    const refusal = bodies.requestRefusal(route, url.searchParams, body)
+    if (refusal) answer(res, refusal.status, { error: refusal.error })
+    return refusal !== undefined
+  }
   if (req.method === HttpMethod.Post && suffix === '/segments/locate') {
-    const found = bodies.locate(JSON.parse((await readBody(req)) || '{}').reference)
+    const request = JSON.parse((await readBody(req)) || '{}')
+    if (refused(PositionedRoute.Locate, request)) return true
+    const found = bodies.locate(request.reference)
     if (found) answer(res, 200, found)
     else answer(res, 404, { error: 'no entry matches the reference' })
     return true
@@ -141,14 +150,18 @@ export async function handlePositionedRequest(req, res, world) {
     case '/annotations': answer(res, 200, { annotations: [] }); return true
     case '/pulls': answer(res, 200, { pull_requests: [], unverified_pull_requests: [] }); return true
     case '/collectives': answer(res, 200, { collectives: [] }); return true
-    case '/header': answer(res, 200, bodies.header); return true
+    case '/header':
+      if (!refused(PositionedRoute.Header)) answer(res, 200, bodies.header)
+      return true
     case '/segments': {
+      if (refused(PositionedRoute.Directory)) return true
       const body = bodies.directoryFor(partition, Number(url.searchParams.get('page') ?? '1'))
       if (body) answer(res, 200, body)
       else missing()
       return true
     }
     case '/window': {
+      if (refused(PositionedRoute.Window)) return true
       const anchor = url.searchParams.get('anchor')
       const body = bodies.windowFor(partition, anchor === null ? undefined : Number(anchor))
       if (body) answer(res, 200, body)
@@ -156,6 +169,7 @@ export async function handlePositionedRequest(req, res, world) {
       return true
     }
     default: {
+      if (refused(PositionedRoute.Segment)) return true
       const body = bodies.segmentFor(partition, Number(suffix.slice('/segments/'.length)))
       if (body) answer(res, 200, body)
       else missing()

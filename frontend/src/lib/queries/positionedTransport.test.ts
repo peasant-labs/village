@@ -1,13 +1,12 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
+import { testdataPath } from "@/test/testdataPath";
 import { API_URL_BASE } from "../api";
 import { villagePositionedTransport } from "./positionedTransport";
 
 const transcriptBase = `${API_URL_BASE}/transcripts/${encodeURIComponent("a/b")}`;
-// unstring-allow: data-path-literal — named once at module scope and read only through this constant
-const FIXTURE = resolve(process.cwd(), "src/testdata/positioned-transport.yaml");
+const FIXTURE = testdataPath("positioned-transport.yaml");
 
 type Case = {
   name: string; operation: "header" | "directory" | "segment" | "window" | "locate";

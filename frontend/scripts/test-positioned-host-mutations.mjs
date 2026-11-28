@@ -31,6 +31,7 @@ if (root == null || typeof root !== "object" || Array.isArray(root) || Object.ke
 const requiredNames = [
   "v2-error-reads-content",
   "version-token-substring",
+  "version-current-member-only",
   "decide-on-min-alone",
   "decide-on-health-trait",
   "export-from-loaded-segments",
@@ -45,6 +46,16 @@ const requiredNames = [
   "snapped-line-prints-recorded-index",
   "discovery-timeout-removed",
   "download-epoch-never-ends",
+  "saved-turn-by-position",
+  "saved-turn-not-targeted",
+  "saved-history-not-reopened",
+  "stopped-download-silent",
+  "restored-offset-dropped",
+  "scroll-save-unthrottled",
+  "scroll-save-writes-unchanged",
+  "restore-offset-ignores-user-scroll",
+  "restore-offset-ignores-out-of-view",
+  "absent-recorded-index-clears-saved",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
@@ -97,6 +108,7 @@ function runKiller(killer) {
 }
 
 let killed = 0;
+let skipped = 0;
 for (const mutation of root.mutations) {
   const sourceURL = new URL(mutation.file, fixtureURL);
   const source = await readFile(sourceURL, "utf8");
@@ -108,11 +120,13 @@ for (const mutation of root.mutations) {
   pending = { url: sourceURL, source };
   await writeFile(sourceURL, source.split(mutation.original).join(mutation.replacement));
   try {
+    let ran = 0;
     for (const killer of mutation.killers) {
       if (killer.kind === "journey" && !withJourneys) {
         process.stdout.write(`skipped journey killer: ${mutation.name} -> ${killer.name} (set POSITIONED_MUTATIONS_JOURNEYS=1)\n`);
         continue;
       }
+      ran += 1;
       const failing = runKiller(killer);
       if (!failing.some((title) => title.includes(killer.name))) {
         throw new Error(
@@ -123,9 +137,14 @@ for (const mutation of root.mutations) {
       }
       process.stdout.write(`mutation killed: ${mutation.name} by ${killer.kind} ${killer.name}\n`);
     }
-    killed += 1;
+    if (ran > 0) {
+      killed += 1;
+    } else {
+      skipped += 1;
+      process.stdout.write(`SKIPPED (journey-only): ${mutation.name}\n`);
+    }
   } finally {
     restore();
   }
 }
-process.stdout.write(`all ${killed} positioned-host mutations killed\n`);
+process.stdout.write(`${killed} killed, ${skipped} skipped (of ${root.mutations.length} positioned-host mutations)\n`);

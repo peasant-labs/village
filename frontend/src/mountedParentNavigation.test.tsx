@@ -18,6 +18,7 @@ import {
 } from "@/test/mountedProductionRoute";
 import { pushedRoutes, resetNextNavigation } from "@/test/nextNavigationMock";
 import { writeTranscriptReadState } from "@/lib/transcriptReadState";
+import { TranscriptReadMode } from "@/lib/queries/segmentedReadCapability";
 
 // Mounts the REAL production route (TranscriptDetailPage -> SessionDetailV2 ->
 // fairtrade TranscriptViewer) with REST mocked and NO mock of
@@ -344,6 +345,8 @@ describe("mounted parent/context navigation on the production transcript route",
       activeTurn: 1,
       earlierHistoryOpen: {},
       scrollTop: 240,
+      turnOffset: 0,
+      readMode: TranscriptReadMode.Content,
     });
 
     const anchor = c.expected.link_anchors[0];

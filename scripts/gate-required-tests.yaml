@@ -15,7 +15,8 @@
     "TestBuildAdmission/build-admission-denied-viewer-404-before-admission",
     "TestBuildAdmission/build-admission-warm-read-and-waiter-take-no-slot",
     "TestBuildAdmission/build-admission-releases-on-failure-and-cancel",
-    "TestBuildAdmission/build-admission-refusal-reserves-nothing"
+    "TestBuildAdmission/build-admission-refusal-reserves-nothing",
+    "TestBuildAdmission/build-admission-release-is-idempotent"
   ],
   "schema": ["TestTranscriptCaptureDifferential"]
 }
