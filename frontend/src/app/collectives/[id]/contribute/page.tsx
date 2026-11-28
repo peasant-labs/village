@@ -26,11 +26,12 @@ import {
 } from "@/lib/contribute/frozenSelection";
 import PagedContributeTree, { type SelectionUpdate } from "@/components/contribute/PagedContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
-import ContributionReceipt from "@/components/contribute/ContributionReceipt";
+import ContributionReceipt, { outcomeOf } from "@/components/contribute/ContributionReceipt";
 import { ContributePageTestId } from "@/components/contribute/contributeTestId";
 import { ContributeLabel, contributeLabel, countOf, deselectUnlistedLabel } from "@/components/contribute/contributeLabel";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button, Input, Select } from "@/lib/ft-ui";
+import MetaItems from "@/components/MetaItems";
 import RequestFailureState from "@/components/RequestFailureState";
 
 /**
@@ -68,6 +69,7 @@ export default function GroupContributePage({
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   const run = useContributionRun(id);
   const running = run.state.phase === ContributionRunPhase.Running;
+  const runOutcome = run.state.phase === ContributionRunPhase.Done ? outcomeOf(run.state.receipt) : null;
 
   const [searchText, setSearchText] = useState("");
   const [query, setQuery] = useState("");
@@ -274,11 +276,18 @@ export default function GroupContributePage({
                 </div>
                 <div className="on-contribute-selection">
                   <p className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid={ContributePageTestId.SelectionTally.wire}>
-                    {selectedCount} selected · {countOf(picker.selectableTotal, "selectable session")}
-                    {picker.matchingTotal > picker.selectableTotal &&
-                      ` · ${picker.matchingTotal - picker.selectableTotal} already contributed`}
+                    <MetaItems
+                      items={[
+                        `${selectedCount} selected`,
+                        countOf(picker.selectableTotal, "selectable session"),
+                        picker.matchingTotal > picker.selectableTotal &&
+                          `${picker.matchingTotal - picker.selectableTotal} already contributed`,
+                      ]}
+                    />
                   </p>
-                  <div className="flex items-center gap-2">
+                  {/* Held to the trailing edge, so a wrapped row keeps the
+                      ghost buttons from sitting indented under the tally. */}
+                  <div className="ml-auto flex items-center gap-2">
                     {selectedCount > 0 && (
                       <Button size="sm" variant="ghost" onClick={() => setSelection(EMPTY_SELECTION)}>
                         clear selection
@@ -384,7 +393,19 @@ export default function GroupContributePage({
         {/* The status side takes the free width, so an open receipt grows
             downward and the contribute button holds its place. */}
         <div className="flex min-w-0 flex-[1_1_20rem] flex-col gap-1">
-          <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid={ContributePageTestId.SelectionCount.wire}>{selectedCount} selected</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[length:var(--fs-label)] tabular-nums">
+            {/* Always mounted, so the end of a run is announced when its
+                words arrive. Empty, it takes no room. */}
+            <p role="status" className={runOutcome ? "inline-flex items-center gap-2 text-ink" : "sr-only"} data-testid={ContributePageTestId.RunOutcome.wire}>
+              {runOutcome && (
+                <>
+                  <runOutcome.Icon aria-hidden="true" className="size-4 shrink-0" />
+                  {runOutcome.label}
+                </>
+              )}
+            </p>
+            <p className="text-ink-3" data-testid={ContributePageTestId.SelectionCount.wire}>{selectedCount} selected</p>
+          </div>
           {run.state.phase === ContributionRunPhase.Running && (
             <div className="flex items-center gap-3">
               <div

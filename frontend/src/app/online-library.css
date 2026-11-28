@@ -46,6 +46,12 @@
 .on-preview-state > p { margin: 0; max-width: var(--measure-prose); }
 .on-contribute-footer { position: sticky; bottom: 0; z-index: 10; min-width: 0; background: var(--surface); border-top: var(--bd); }
 .on-contribute-footer-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-4); padding-block: var(--sp-4); }
+/* On a phone the submit spans the footer under the status, and the footer
+   gives up its desktop breathing room so the tree keeps the screen. */
+@media (max-width: 559px) {
+  .on-contribute-footer-inner { gap: var(--sp-3); padding-block: var(--sp-3); }
+  .on-contribute-footer-inner > .btn { flex: 1 1 100%; }
+}
 @container (min-width: 880px) {
   .on-contribute-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .on-contribute-browser { border-bottom: 0; border-right: var(--bd); }
