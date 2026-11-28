@@ -15,26 +15,28 @@ import (
 	"testing"
 
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/config"
 )
 
 //go:embed testdata/contract_response_cases.yaml
 var contractResponseYAML []byte
 
+type contractGap struct {
+	Name   string `yaml:"name"`
+	Reason string `yaml:"reason"`
+}
+
 type contractResponseFixtures struct {
-	Selected  []string `yaml:"selected"`
-	SelfTests []struct {
+	KnownContractGaps []contractGap `yaml:"known_contract_gaps"`
+	SelfTests         []struct {
 		Name     string `yaml:"name"`
 		Mutation string `yaml:"mutation"`
 		Want     string `yaml:"want"`
 	} `yaml:"self_tests"`
 }
 
-var requiredContractResponseCases = []string{
-	"health-no-pool", "logout", "empty-organization-search", "organization-visibility-updated",
-	"create-api-key", "list-api-keys", "update-discoverability", "list-tags",
-	"public-organizations", "project-page", "set-project-name", "list-annotations", "list-commits",
-}
+var requiredKnownContractGaps = map[string]string{}
 
 func contractResponseFixturesFor(t *testing.T) contractResponseFixtures {
 	t.Helper()
@@ -42,8 +44,18 @@ func contractResponseFixturesFor(t *testing.T) contractResponseFixtures {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(f.Selected, requiredContractResponseCases) {
-		t.Fatalf("contract response cases = %v; want %v", f.Selected, requiredContractResponseCases)
+	gotGaps := map[string]string{}
+	for _, g := range f.KnownContractGaps {
+		if g.Name == "" || strings.TrimSpace(g.Reason) == "" {
+			t.Fatalf("known contract gap %+v must name both case and reason", g)
+		}
+		if _, dup := gotGaps[g.Name]; dup {
+			t.Fatalf("duplicate known contract gap %q", g.Name)
+		}
+		gotGaps[g.Name] = g.Reason
+	}
+	if !reflect.DeepEqual(gotGaps, requiredKnownContractGaps) {
+		t.Fatalf("known contract gaps = %v; want %v", gotGaps, requiredKnownContractGaps)
 	}
 	return f
 }
@@ -119,12 +131,21 @@ func contractResponse(method, requestPath string, rec *httptest.ResponseRecorder
 	if !ok {
 		return fmt.Errorf("undeclared media %s", media)
 	}
-	if media != "application/json" || len(content.Schema) == 0 {
+	if media == "text/html" && len(content.Schema) == 0 {
+		// Skip body validation only when the matched response declares no schema
+		// for text/html; status and declared headers were validated above.
+		return nil
+	}
+	if (media != "application/json" && media != "text/html" && media != "text/plain") || len(content.Schema) == 0 {
 		return fmt.Errorf("unsupported response schema for %s", media)
 	}
 	var body any
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		return fmt.Errorf("decode body: %w", err)
+	if media == "text/html" || media == "text/plain" {
+		body = rec.Body.String()
+	} else {
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			return fmt.Errorf("decode body: %w", err)
+		}
 	}
 	compiler := schema.NewJSONSchemaCompiler()
 	const specURL = "https://village.invalid/openapi.json"
@@ -145,13 +166,18 @@ func contractResponse(method, requestPath string, rec *httptest.ResponseRecorder
 
 func validateSelectedContractResponse(t *testing.T, c routeByteCase, rec *httptest.ResponseRecorder, path string) {
 	t.Helper()
-	for _, name := range contractResponseFixturesFor(t).Selected {
-		if name == c.Name {
-			if err := contractResponse(c.Method, path, rec); err != nil {
-				t.Fatal(err)
+	f := contractResponseFixturesFor(t)
+	for _, gap := range f.KnownContractGaps {
+		if gap.Name == c.Name {
+			err := contractResponse(c.Method, path, rec)
+			if err == nil || !strings.Contains(err.Error(), gap.Reason) {
+				t.Fatalf("known contract gap %q error = %v; want %q", gap.Name, err, gap.Reason)
 			}
 			return
 		}
+	}
+	if err := contractResponse(c.Method, path, rec); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -161,9 +187,9 @@ func TestContractResponseFixtureCoverage(t *testing.T) {
 	for _, c := range cases {
 		seen[c.Name] = true
 	}
-	for _, name := range contractResponseFixturesFor(t).Selected {
-		if !seen[name] {
-			t.Errorf("missing mounted response case %q", name)
+	for _, gap := range contractResponseFixturesFor(t).KnownContractGaps {
+		if !seen[gap.Name] {
+			t.Errorf("missing mounted response case %q in known_contract_gaps", gap.Name)
 		}
 	}
 }
@@ -192,9 +218,20 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 				path = "/not-a-route"
 			case "wrong-media":
 				rec.Header().Set("Content-Type", "text/plain")
+			case "undeclared-content-type":
+				rec.Header().Set("Content-Type", "text/html")
 			case "malformed-json":
 				rec.Body.Reset()
 				rec.Body.WriteString("{")
+			case "unexpected-body":
+				var err error
+				path, err = schemaRoute.VillageGetTranscriptHeaderPath("00000000-0000-0000-0000-000000000001")
+				if err != nil {
+					t.Fatal(err)
+				}
+				rec = httptest.NewRecorder()
+				rec.Code = http.StatusNotModified
+				rec.Body.WriteString("unexpected")
 			default:
 				t.Fatalf("unknown mutation %q", c.Mutation)
 			}
@@ -203,7 +240,7 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 			}
 		})
 	}
-	required := map[string]bool{"undeclared-status": true, "missing-required-header": true, "invalid-body": true, "undeclared-operation": true, "undeclared-media": true, "invalid-json": true}
+	required := map[string]bool{"undeclared-status": true, "missing-required-header": true, "invalid-body": true, "undeclared-operation": true, "undeclared-media": true, "undeclared-content-type": true, "invalid-json": true, "unexpected-body": true}
 	if !reflect.DeepEqual(seen, required) {
 		t.Fatalf("self-test names = %v; want %v", seen, required)
 	}

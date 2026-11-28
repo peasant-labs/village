@@ -1,17 +1,4 @@
-selected:
-  - health-no-pool
-  - logout
-  - empty-organization-search
-  - organization-visibility-updated
-  - create-api-key
-  - list-api-keys
-  - update-discoverability
-  - list-tags
-  - public-organizations
-  - project-page
-  - set-project-name
-  - list-annotations
-  - list-commits
+known_contract_gaps: []
 self_tests:
   - name: undeclared-status
     mutation: status
@@ -28,6 +15,12 @@ self_tests:
   - name: undeclared-media
     mutation: wrong-media
     want: undeclared media
+  - name: undeclared-content-type
+    mutation: undeclared-content-type
+    want: undeclared media
   - name: invalid-json
     mutation: malformed-json
     want: decode body
+  - name: unexpected-body
+    mutation: unexpected-body
+    want: unexpected body

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -667,5 +669,26 @@ func TestContractBody_PathItemMetadata(t *testing.T) {
 		if !present {
 			t.Fatalf("missing case %q", name)
 		}
+	}
+}
+
+func TestContractBody_RealValidatorToleratesPathItemMetadata(t *testing.T) {
+	var doc struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(schema.VillageAPISpecJSON(), &doc); err != nil {
+		t.Fatalf("parse served contract: %v", err)
+	}
+	healthPath := schemaRoute.VillageGetHealth.Pattern()
+	if len(doc.Paths[healthPath]["servers"]) == 0 {
+		t.Fatalf("served contract %s path item lacks non-method servers metadata", healthPath)
+	}
+	v := moduleValidator{}
+	settingsPath := schemaRoute.VillageUpdateMySettings.Pattern()
+	if err := v.ValidateBody(http.MethodPatch, settingsPath, []byte(`{"preview_before_attach":true}`)); err != nil {
+		t.Fatalf("valid body rejected: %v", err)
+	}
+	if err := v.ValidateBody(http.MethodPatch, settingsPath, []byte(`{"preview_before_attach":"yes"}`)); !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("invalid body error = %v, want ErrSchemaInvalid", err)
 	}
 }
