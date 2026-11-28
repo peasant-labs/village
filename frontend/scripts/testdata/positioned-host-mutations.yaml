@@ -42,7 +42,8 @@ mutations:
     original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
     replacement: "  return [served.current, served.min].some((token) => token.includes(SegmentedReadAPIVersion));\n"
     killers:
-      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused}
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused-leading}
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused-trailing}
 
   - name: version-current-member-only
     why: a window served only when its current member is the token, so a later server that still serves the reads gets the whole document
