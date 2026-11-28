@@ -254,3 +254,11 @@ mutations:
     replacement: "        (void isRowInView, true)\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-skips-out-of-view}
+
+  - name: scroll-save-pagehide-dropped
+    why: a pagehide listener that skips flushing a pending scroll-save frame when the page hides mid-scroll
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const onPageHide = () => {\n    if (!frame) return;\n    cancelAnimationFrame(frame);\n    frame = 0;\n    persist();\n  };\n"
+    replacement: "  const onPageHide = () => {\n    void frame;\n  };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-flushes-on-pagehide}

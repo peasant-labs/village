@@ -56,6 +56,7 @@ const requiredNames = [
   "restore-offset-ignores-user-scroll",
   "restore-offset-ignores-out-of-view",
   "absent-recorded-index-clears-saved",
+  "scroll-save-pagehide-dropped",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
