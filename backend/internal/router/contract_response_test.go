@@ -28,84 +28,12 @@ type contractGap struct {
 }
 
 type contractResponseFixtures struct {
-	Selected          []string      `yaml:"selected"`
 	KnownContractGaps []contractGap `yaml:"known_contract_gaps"`
 	SelfTests         []struct {
 		Name     string `yaml:"name"`
 		Mutation string `yaml:"mutation"`
 		Want     string `yaml:"want"`
 	} `yaml:"self_tests"`
-}
-
-var requiredContractResponseCases = []string{
-	"health-no-pool", "openapi-document", "logout", "empty-organization-search",
-	"list-attestations-invalid-id", "list-annotations-invalid-id", "list-commits-invalid-id",
-	"github-login-sixth-request", "delete-account-anonymous", "update-discoverability-anonymous",
-	"set-username-anonymous", "create-api-key-anonymous", "list-api-keys-anonymous",
-	"revoke-api-key-anonymous", "organization-visibility-anonymous", "delete-transcript-anonymous",
-	"create-attestation-anonymous", "delete-attestation-anonymous", "create-annotation-anonymous",
-	"batch-publish-anonymous", "set-project-name-anonymous", "clear-project-name-anonymous",
-	"github-install-anonymous", "github-install-callback-anonymous", "github-install-unconfigured",
-	"github-install-callback-unconfigured", "organization-visibility-updated",
-	"organization-visibility-invalid-json", "delete-missing-attestation",
-	"delete-attestation-invalid-id", "public-profile-missing", "public-organizations-missing",
-	"create-api-key", "list-api-keys", "peasant-revoke-api-key", "batch-publish-signed-in",
-	"organization-search-null-avatar", "organization-search-avatar", "github-entry",
-	"github-callback-state-json", "github-callback-state-html", "gitlab-entry",
-	"gitlab-callback-state-json", "gitlab-callback-state-html", "huggingface-entry",
-	"huggingface-callback-state-json", "huggingface-callback-state-html", "codeberg-entry",
-	"codeberg-callback-state-json", "codeberg-callback-state-html", "sourcehut-entry",
-	"sourcehut-callback-state-json", "sourcehut-callback-state-html",
-	"gitlab-entry-unconfigured-json", "gitlab-entry-unconfigured-html",
-	"gitlab-callback-unconfigured-json", "gitlab-callback-unconfigured-html",
-	"huggingface-entry-unconfigured-json", "huggingface-entry-unconfigured-html",
-	"huggingface-callback-unconfigured-json", "huggingface-callback-unconfigured-html",
-	"codeberg-entry-unconfigured-json", "codeberg-entry-unconfigured-html",
-	"codeberg-callback-unconfigured-json", "codeberg-callback-unconfigured-html",
-	"sourcehut-entry-unconfigured-json", "sourcehut-entry-unconfigured-html",
-	"sourcehut-callback-unconfigured-json", "sourcehut-callback-unconfigured-html",
-	"gitlab-callback-missing-code-json", "gitlab-callback-missing-code-html", "github-callback-web",
-	"github-callback-cli", "gitlab-callback-web", "github-callback-missing-code-json",
-	"github-callback-missing-code-html", "github-install", "github-install-missing-group-json",
-	"github-install-missing-group-html", "github-install-not-owner", "github-install-callback-bound",
-	"github-install-callback-unbound", "github-install-callback-invalid-id-json",
-	"github-install-callback-invalid-id-html", "github-install-callback-unreadable",
-	"update-discoverability", "update-discoverability-missing", "set-username", "set-username-taken",
-	"set-username-invalid", "list-tags", "popular-tags", "public-profile", "public-organizations",
-	"project-page", "project-page-no-visible-transcripts", "project-page-missing",
-	"project-page-invalid-hash", "set-project-name", "set-project-name-unowned",
-	"set-project-name-empty", "clear-project-name", "clear-project-name-absent",
-	"list-attestations-empty", "create-attestation", "create-attestation-duplicate",
-	"create-attestation-not-member", "create-attestation-invalid-type", "list-attestations",
-	"list-annotations-empty", "create-annotation", "create-annotation-missing-entry",
-	"list-annotations", "list-commits", "list-commits-hidden", "cli-login", "cli-exchange",
-	"cli-exchange-used-code", "cli-exchange-unknown-code", "huggingface-callback-web",
-	"codeberg-callback-web", "sourcehut-callback-web", "github-install-unconfigured-html",
-	"github-install-callback-unconfigured-html", "revoke-api-key-invalid-id",
-	"clear-project-name-invalid-hash", "list-attestations-hidden", "list-annotations-hidden",
-	"create-attestation-hidden", "create-annotation-hidden", "create-attestation-invalid-id",
-	"create-annotation-invalid-id", "delete-transcript-invalid-id", "delete-transcript-not-owner",
-	"delete-transcript-without-blob-store", "delete-transcript", "delete-transcript-missing",
-	"delete-account", "cli-login-missing-port-json", "cli-login-missing-port-html",
-	"cli-login-missing-state-json", "cli-login-missing-state-html", "cli-login-invalid-port-json",
-	"cli-login-invalid-port-html", "cli-login-port-below-range-json",
-	"cli-login-port-below-range-html", "cli-login-port-above-range-json",
-	"cli-login-port-above-range-html", "cli-login-sixth-request", "cli-exchange-invalid-json",
-	"cli-exchange-missing-code", "cli-exchange-missing-state", "cli-exchange-sixth-request",
-	"gitlab-login-sixth-request", "huggingface-login-sixth-request", "codeberg-login-sixth-request",
-	"sourcehut-login-sixth-request", "huggingface-callback-missing-code-json",
-	"huggingface-callback-missing-code-html", "codeberg-callback-missing-code-json",
-	"codeberg-callback-missing-code-html", "sourcehut-callback-missing-code-json",
-	"sourcehut-callback-missing-code-html", "list-api-keys-session-unconfirmed",
-	"create-api-key-session-unconfirmed", "revoke-api-key-session-unconfirmed",
-	"delete-account-session-unconfirmed", "update-discoverability-session-unconfirmed",
-	"set-username-session-unconfirmed", "organization-visibility-session-unconfirmed",
-	"github-install-session-unconfirmed", "github-install-callback-session-unconfirmed",
-	"batch-publish-session-unconfirmed", "delete-transcript-session-unconfirmed",
-	"create-annotation-session-unconfirmed", "create-attestation-session-unconfirmed",
-	"delete-attestation-session-unconfirmed", "set-project-name-session-unconfirmed",
-	"clear-project-name-session-unconfirmed", "delete-transcript-storage-failure",
-	"unsubscribe-invalid", "unsubscribe-rate-limited",
 }
 
 var requiredKnownContractGaps = map[string]string{}
@@ -115,9 +43,6 @@ func contractResponseFixturesFor(t *testing.T) contractResponseFixtures {
 	f, err := decodeSingleYAMLDocument[contractResponseFixtures](contractResponseYAML)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(f.Selected, requiredContractResponseCases) {
-		t.Fatalf("contract response cases = %v; want %v", f.Selected, requiredContractResponseCases)
 	}
 	gotGaps := map[string]string{}
 	for _, g := range f.KnownContractGaps {
@@ -206,16 +131,16 @@ func contractResponse(method, requestPath string, rec *httptest.ResponseRecorder
 	if !ok {
 		return fmt.Errorf("undeclared media %s", media)
 	}
-	if media == "text/html" {
-		// text/html responses have no JSON body schema in the served contract;
-		// status and declared headers were validated above.
+	if media == "text/html" && len(content.Schema) == 0 {
+		// Skip body validation only when the matched response declares no schema
+		// for text/html; status and declared headers were validated above.
 		return nil
 	}
-	if (media != "application/json" && media != "text/plain") || len(content.Schema) == 0 {
+	if (media != "application/json" && media != "text/html" && media != "text/plain") || len(content.Schema) == 0 {
 		return fmt.Errorf("unsupported response schema for %s", media)
 	}
 	var body any
-	if media == "text/plain" {
+	if media == "text/html" || media == "text/plain" {
 		body = rec.Body.String()
 	} else {
 		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -242,14 +167,6 @@ func contractResponse(method, requestPath string, rec *httptest.ResponseRecorder
 func validateSelectedContractResponse(t *testing.T, c routeByteCase, rec *httptest.ResponseRecorder, path string) {
 	t.Helper()
 	f := contractResponseFixturesFor(t)
-	for _, name := range f.Selected {
-		if name == c.Name {
-			if err := contractResponse(c.Method, path, rec); err != nil {
-				t.Fatal(err)
-			}
-			return
-		}
-	}
 	for _, gap := range f.KnownContractGaps {
 		if gap.Name == c.Name {
 			err := contractResponse(c.Method, path, rec)
@@ -259,7 +176,9 @@ func validateSelectedContractResponse(t *testing.T, c routeByteCase, rec *httpte
 			return
 		}
 	}
-	t.Fatalf("route byte case %q is in neither selected nor known_contract_gaps", c.Name)
+	if err := contractResponse(c.Method, path, rec); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestContractResponseFixtureCoverage(t *testing.T) {
@@ -268,29 +187,9 @@ func TestContractResponseFixtureCoverage(t *testing.T) {
 	for _, c := range cases {
 		seen[c.Name] = true
 	}
-	f := contractResponseFixturesFor(t)
-	covered := map[string]bool{}
-	for _, name := range f.Selected {
-		if !seen[name] {
-			t.Errorf("missing mounted response case %q", name)
-		}
-		if covered[name] {
-			t.Errorf("duplicate selected response case %q", name)
-		}
-		covered[name] = true
-	}
-	for _, gap := range f.KnownContractGaps {
+	for _, gap := range contractResponseFixturesFor(t).KnownContractGaps {
 		if !seen[gap.Name] {
 			t.Errorf("missing mounted response case %q in known_contract_gaps", gap.Name)
-		}
-		if covered[gap.Name] {
-			t.Errorf("case %q appears in both selected and known_contract_gaps", gap.Name)
-		}
-		covered[gap.Name] = true
-	}
-	for _, c := range cases {
-		if !covered[c.Name] {
-			t.Errorf("route byte case %q is neither in selected nor known_contract_gaps", c.Name)
 		}
 	}
 }
@@ -319,6 +218,8 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 				path = "/not-a-route"
 			case "wrong-media":
 				rec.Header().Set("Content-Type", "text/plain")
+			case "undeclared-content-type":
+				rec.Header().Set("Content-Type", "text/html")
 			case "malformed-json":
 				rec.Body.Reset()
 				rec.Body.WriteString("{")
@@ -339,7 +240,7 @@ func TestContractResponseRejectsInvalidResponses(t *testing.T) {
 			}
 		})
 	}
-	required := map[string]bool{"undeclared-status": true, "missing-required-header": true, "invalid-body": true, "undeclared-operation": true, "undeclared-media": true, "invalid-json": true, "unexpected-body": true}
+	required := map[string]bool{"undeclared-status": true, "missing-required-header": true, "invalid-body": true, "undeclared-operation": true, "undeclared-media": true, "undeclared-content-type": true, "invalid-json": true, "unexpected-body": true}
 	if !reflect.DeepEqual(seen, required) {
 		t.Fatalf("self-test names = %v; want %v", seen, required)
 	}
