@@ -22,6 +22,7 @@
 !manage-boot-village.mjs
 !boot-explore.mjs
 !mock-rest.mjs
+!httpMethod.mjs
 !mock-rest-explore.mjs
 !mock-rest-pagination.mjs
 !explore-pagination-shoot.mjs
