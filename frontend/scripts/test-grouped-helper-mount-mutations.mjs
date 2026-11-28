@@ -38,6 +38,7 @@ const requiredNames = [
   "invalid-expand-field",
   "continuation-total-drift",
   "collective-expected-id-drift",
+  "paged-single-helper-request-drift",
   "collective-required-case-renamed",
   "collective-fallback-flat-mode-invalid",
   "collective-continuation-total-drift",

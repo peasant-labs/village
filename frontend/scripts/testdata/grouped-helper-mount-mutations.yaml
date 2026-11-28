@@ -60,12 +60,22 @@ mutations:
 
   - name: collective-expected-id-drift
     file: ../../src/testdata/collective-grouped-actions.yaml
-    original: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2]\n"
+    original: "  - name: review-selects-one-helper-only\n    surface: review\n    why: A reviewer decides one helper member and the decision names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2]\n"
     # The drifted set stays a superset of the selected member, so the fixture
     # loader admits it and the mounted assertion is the thing that fails.
-    replacement: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2, G1]\n"
+    replacement: "  - name: review-selects-one-helper-only\n    surface: review\n    why: A reviewer decides one helper member and the decision names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2, G1]\n"
     testFile: src/mountedCollectiveGroupedActions.test.tsx
-    testName: contribute-selects-one-helper-only
+    testName: review-selects-one-helper-only
+    failure: assertion
+
+  # The contribute route pages by project and takes its families from the
+  # server, so its single-helper case lives in the paged page's corpus.
+  - name: paged-single-helper-request-drift
+    file: ../../src/testdata/paged-contribute-page.yaml
+    original: "      tally_after_tick: 1 selected · 3 selectable sessions\n      requests_by_project:\n        pA: [t2]\n"
+    replacement: "      tally_after_tick: 1 selected · 3 selectable sessions\n      requests_by_project:\n        pA: [t2, t1]\n"
+    testFile: src/app/collectives/[id]/contribute/page.test.tsx
+    testName: a-single-helper-can-be-contributed-alone
     failure: assertion
 
   - name: collective-required-case-renamed
@@ -78,10 +88,10 @@ mutations:
 
   - name: collective-fallback-flat-mode-invalid
     file: ../../src/testdata/collective-grouped-actions.yaml
-    original: "  - name: contribute-empty-flat-mounts-helper-only-context\n    surface: contribute\n    why: The flat contributable tree is empty, so the helper-only context container must mount without a tree row.\n    flat: empty\n    grouped: context\n"
-    replacement: "  - name: contribute-empty-flat-mounts-helper-only-context\n    surface: contribute\n    why: The flat contributable tree is empty, so the helper-only context container must mount without a tree row.\n    flat: bogus\n    grouped: context\n"
+    original: "  - name: review-empty-flat-mounts-helper-only-context\n    surface: review\n    why: The flat review queue is empty, so the helper-only context container must mount without a queue row.\n    flat: empty\n    grouped: context\n"
+    replacement: "  - name: review-empty-flat-mounts-helper-only-context\n    surface: review\n    why: The flat review queue is empty, so the helper-only context container must mount without a queue row.\n    flat: bogus\n    grouped: context\n"
     testFile: src/mountedCollectiveGroupedFallback.test.tsx
-    testName: contribute-empty-flat-mounts-helper-only-context
+    testName: review-empty-flat-mounts-helper-only-context
     failure: loader
 
   - name: collective-continuation-total-drift
