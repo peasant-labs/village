@@ -6,7 +6,7 @@ import { closed } from "@peasant-labs/fairtrade/closed-value";
  * the tests query by it.
  */
 export const ConfirmContributeLabel = {
-  Consent: closed("i understand and consent to sharing these transcripts", "the box a contributor ticks to consent"),
-  Confirm: closed("contribute & make visible", "the control that contributes and makes the sessions visible"),
+  Consent: closed("i consent to contributing these transcripts", "the box a contributor ticks to consent"),
+  Confirm: closed("contribute", "the control that contributes the transcripts and changes their visibility"),
   Cancel: closed("cancel", "the control that closes the dialog without contributing"),
 } as const;

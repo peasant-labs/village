@@ -50,7 +50,7 @@ export default function ConfirmContributeDialog({
       labelId="cns-contribute"
       title={
         <>
-          make {count} transcript{plural ? "s" : ""} visible?
+          contribute {count} private transcript{plural ? "s" : ""}?
         </>
       }
       intro={
@@ -72,7 +72,7 @@ export default function ConfirmContributeDialog({
               <span className="cns-mono">shared</span>
             </>
           ),
-          scope: "the full turn-by-turn record is shared",
+          scope: "members can read the full turn-by-turn record",
         },
         {
           icon: Globe,

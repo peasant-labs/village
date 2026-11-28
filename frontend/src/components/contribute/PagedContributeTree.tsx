@@ -74,7 +74,7 @@ function SessionRowView({
   setRowElement: (key: string, element: HTMLElement | null) => void;
 }) {
   const id = row.transcript.id;
-  const label = row.transcript.title ?? "untitled session";
+  const label = row.transcript.title ?? "untitled transcript";
   const locked = isLockedRow(row);
   const isActive = previewId === id;
   const rowRef = useCallback((element: HTMLDivElement | null) => setRowElement(`s:${id}`, element), [id, setRowElement]);
@@ -94,7 +94,7 @@ function SessionRowView({
         state={familyState(selection, family)}
         disabled={disabled}
         onChange={() => onSelectionChange((previous) => toggleFamily(previous, family))}
-        label={`select session ${label}`}
+        label={`select transcript ${label}`}
       />
       <div className="min-w-0 flex-1">
         <div className="contribute-session-heading flex items-center gap-3">
@@ -196,7 +196,7 @@ function BranchView({
           state={familyState(rowProps.selection, branch.rows)}
           disabled={branch.rows.every(isLockedRow)}
           onChange={() => rowProps.onSelectionChange((previous) => toggleFamily(previous, branch.rows))}
-          label={`select the loaded sessions on branch ${branch.label}`}
+          label={`select the loaded transcripts on branch ${branch.label}`}
         />
         <GitBranch aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="truncate normal-case">
@@ -226,7 +226,7 @@ function failureMessage(failure: ContributionReadFailure): string {
     case ContributionReadFailureKind.Failed:
       return failure.message;
     case ContributionReadFailureKind.TooLarge:
-      return "this project has too many matching sessions to read at once. narrow the search and try again.";
+      return "this project has too many matching transcripts to read at once. narrow the search and try again.";
     case ContributionReadFailureKind.Busy:
       return "the server is busy. try again in a moment.";
     case ContributionReadFailureKind.Cancelled:
@@ -283,7 +283,7 @@ function ProjectBody({
   if (pages.isLoading) {
     return (
       <div className="flex flex-col gap-2 px-4 py-3" aria-busy="true" data-testid={`contribute-project-loading-${projectHash}`}>
-        <span className="sr-only">loading sessions</span>
+        <span className="sr-only">loading transcripts</span>
         <div className="h-10 w-full bg-surface-hover animate-shimmer" />
         <div className="h-10 w-full bg-surface-hover animate-shimmer" />
       </div>
@@ -298,7 +298,7 @@ function ProjectBody({
     <div className="contribute-subtree" data-testid={`contribute-project-body-${projectHash}`}>
       {failure && !failedLater && (
         <RequestFailureState
-          title="this project's sessions could not load"
+          title="this project's transcripts could not load"
           headingLevel={3}
           message={failureMessage(failure)}
           retryLabel="retry this project"
@@ -307,7 +307,7 @@ function ProjectBody({
         />
       )}
       {!failure && items.length === 0 && (
-        <p className="px-4 py-4 text-sm text-ink-3">no sessions in this project match any more. refresh to update the counts.</p>
+        <p className="px-4 py-4 text-sm text-ink-3">no transcripts in this project match any more. refresh to update the counts.</p>
       )}
       {branches.length > 0 && (
         <TreeRail containerRef={containerRef} path={path}>
@@ -330,7 +330,7 @@ function ProjectBody({
       {items.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <p className="font-mono text-[length:var(--fs-label)] tabular-nums text-ink-3" data-testid={`contribute-project-loaded-${projectHash}`}>
-            loaded {rows.length} of {plural(project.matching_count, "session")}
+            loaded {rows.length} of {plural(project.matching_count, "transcript")}
           </p>
           {pages.hasNextPage && !failedLater && (
             <Button size="sm" variant="secondary" loading={pages.isFetchingNextPage} disabled={pages.isFetchingNextPage} onClick={() => void pages.fetchNextPage()}>
@@ -341,7 +341,7 @@ function ProjectBody({
       )}
       {failedLater && (
         <RequestFailureState
-          title="more sessions could not load"
+          title="more transcripts could not load"
           headingLevel={3}
           message={failureMessage(failure)}
           retryLabel="retry loading more"
@@ -467,7 +467,7 @@ function ProjectSection({
           >
             <MetaItems
               items={[
-                plural(project.matching_count, "session"),
+                plural(project.matching_count, "transcript"),
                 live > 0 && `${live} already contributed`,
                 selected > 0 && `${selected} selected`,
               ]}
@@ -485,7 +485,7 @@ function ProjectSection({
             loading={snapshot.loading}
             disabled={snapshot.loading}
             onClick={() => void snapshot.selectAll()}
-            aria-label={`select all ${project.selectable_count} selectable sessions in ${name}`}
+            aria-label={`select all ${project.selectable_count} selectable transcripts in ${name}`}
           >
             {snapshot.loading ? "selecting…" : `select all ${project.selectable_count}`}
           </Button>
@@ -494,8 +494,8 @@ function ProjectSection({
       {(snapshot.failure || snapshot.omitted > 0) && (
         <div className="px-4 pb-3 text-sm text-ink-2" role="status" data-testid={`contribute-project-notice-${projectHash}`}>
           {snapshot.failure
-            ? `could not select every session in this project: ${failureMessage(snapshot.failure)}`
-            : `${plural(snapshot.omitted, "session")} selected earlier ${snapshot.omitted === 1 ? "is" : "are"} not in this search. ${
+            ? `could not select every transcript in this project: ${failureMessage(snapshot.failure)}`
+            : `${plural(snapshot.omitted, "transcript")} selected earlier ${snapshot.omitted === 1 ? "is" : "are"} not in this search. ${
                 snapshot.omitted === 1 ? "it stays" : "they stay"
               } selected.`}
         </div>

@@ -23,6 +23,7 @@ import puppeteer from 'puppeteer-core'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
 import { ContributePageTestId } from '../../src/components/contribute/contributeTestId.ts'
+import { ConfirmContributeLabel } from '../../src/components/transcript/confirmContributeLabel.ts'
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
@@ -167,13 +168,13 @@ if (contributeBtn) {
   let consentCheckbox = null
   for (const b of await page.$$('input[type="checkbox"]')) {
     const label = await page.evaluate((el) => el.closest('label')?.textContent || '', b)
-    if (/i understand and consent/i.test(label)) { consentCheckbox = b; break }
+    if (label.includes(ConfirmContributeLabel.Consent.wire)) { consentCheckbox = b; break }
   }
   if (consentCheckbox) await consentCheckbox.click()
   let confirmBtn = null
   for (const b of dialogButtons) {
     const text = await page.evaluate((el) => el.textContent, b)
-    if (text && /contribute & make visible/i.test(text)) { confirmBtn = b; break }
+    if (text?.trim() === ConfirmContributeLabel.Confirm.wire) { confirmBtn = b; break }
   }
   if (confirmBtn) {
     await confirmBtn.click()

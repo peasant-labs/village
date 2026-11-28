@@ -290,10 +290,10 @@ describe("mounted transcript route: the owner's manage access popup", () => {
         );
         fireEvent.click(within(dialog).getByRole("button", { name: `add ${c.collective}` }));
         if (c.visibility === "private") {
-          const confirm = await screen.findByRole("dialog", { name: "make 1 transcript visible?" });
+          const confirm = await screen.findByRole("dialog", { name: "contribute 1 private transcript?" });
           expect(log).toHaveLength(0);
           fireEvent.click(within(confirm).getByRole("checkbox"));
-          fireEvent.click(within(confirm).getByRole("button", { name: "contribute & make visible" }));
+          fireEvent.click(within(confirm).getByRole("button", { name: "contribute" }));
           await screen.findByRole("dialog", { name: "manage access" });
         }
       }
@@ -425,9 +425,9 @@ it(fx.consentCancel.name, async () => {
   fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "manage access" }));
   const dialog = await screen.findByRole("dialog", { name: "manage access" });
   fireEvent.click(await within(dialog).findByRole("button", { name: `add ${fx.consentCancel.collective}` }));
-  const confirm = await screen.findByRole("dialog", { name: "make 1 transcript visible?" });
+  const confirm = await screen.findByRole("dialog", { name: "contribute 1 private transcript?" });
   await waitFor(() => expect(confirm.contains(document.activeElement)).toBe(true));
-  expect(within(confirm).getByRole("button", { name: "contribute & make visible" })).toBeDisabled();
+  expect(within(confirm).getByRole("button", { name: "contribute" })).toBeDisabled();
   fireEvent.click(within(confirm).getByRole("button", { name: "cancel" }));
   const restored = await screen.findByRole("dialog", { name: "manage access" });
   await waitFor(() => expect(restored.contains(document.activeElement)).toBe(true));

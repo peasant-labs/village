@@ -49,7 +49,7 @@ cases:
     role: heading
     navCurrent: Acme Platform
     assertions:
-      - { testId: contribute-member-panel, text: "all your transcripts are already shared with this collective, or you have no published transcripts." }
+      - { testId: contribute-member-panel, text: "every transcript you have published is already contributed to this collective, or you have not published one yet." }
       - { role: button, name: contribute 0 transcripts, disabled: true }
       - { testId: contribute-selection-count, text: 0 selected }
     back: { name: Acme Platform, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }

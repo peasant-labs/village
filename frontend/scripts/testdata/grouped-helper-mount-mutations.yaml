@@ -72,8 +72,8 @@ mutations:
   # server, so its single-helper case lives in the paged page's corpus.
   - name: paged-single-helper-request-drift
     file: ../../src/testdata/paged-contribute-page.yaml
-    original: "      tally_after_tick: 1 selected · 3 selectable sessions\n      requests_by_project:\n        pA: [t2]\n"
-    replacement: "      tally_after_tick: 1 selected · 3 selectable sessions\n      requests_by_project:\n        pA: [t2, t1]\n"
+    original: "      tally_after_tick: 1 selected, 3 selectable transcripts\n      requests_by_project:\n        pA: [t2]\n"
+    replacement: "      tally_after_tick: 1 selected, 3 selectable transcripts\n      requests_by_project:\n        pA: [t2, t1]\n"
     testFile: src/app/collectives/[id]/contribute/page.test.tsx
     testName: a-single-helper-can-be-contributed-alone
     failure: assertion

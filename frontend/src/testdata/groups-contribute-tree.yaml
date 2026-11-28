@@ -404,7 +404,7 @@ cases:
         project_display_name: preview project
     expect:
       clickedId: s-preview-click
-      emptyStateText: select a session to preview it
+      emptyStateText: select a transcript to preview it
 
   - name: preview_hides_graph_and_owner_actions
     kind: preview

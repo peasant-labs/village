@@ -6,7 +6,7 @@ import { closed } from "@peasant-labs/fairtrade/closed-value";
  * it, so a reworded control moves both together.
  */
 export const ContributeLabel = {
-  Search: closed("search sessions", "the search over the sessions a member can contribute"),
+  Search: closed("search transcripts", "the search over the sessions a member can contribute"),
   DeselectAll: closed("deselect all", "the control that clears a project's selection"),
   AlreadyContributed: closed("already contributed", "the mark on a session the collective already holds"),
   Stop: closed("stop", "the control that stops a running contribution"),

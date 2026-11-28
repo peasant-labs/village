@@ -53,8 +53,8 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       >
         <FileText aria-hidden="true" />
         <h2>preview a transcript</h2>
-        <p>select a session to preview it</p>
-        <p className="on-muted">previewing a session does not select it. use its checkbox to add it to the selection.</p>
+        <p>select a transcript to preview it</p>
+        <p className="on-muted">previewing a transcript does not select it. use its checkbox to add it to the selection.</p>
       </div>
     );
   }

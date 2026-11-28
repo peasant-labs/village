@@ -21,7 +21,7 @@ const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ?
 /** Why the run stopped, in the person's terms. Restates the server's answer;
  *  decides nothing. */
 const STOP_COPY: Record<ContributionStopReason["wire"], string> = {
-  stale_selection: "a selected session was contributed elsewhere meanwhile. refresh, then contribute the rest.",
+  stale_selection: "a selected transcript was contributed elsewhere meanwhile. refresh, then contribute the rest.",
   policy: "this collective does not accept this contribution from you.",
   membership: "you are not a contributing member of this collective.",
   signed_out: "your session expired. sign in again, then contribute the rest.",
@@ -47,7 +47,7 @@ function failureCopy(failure: FailedRecord, projectLabel: (hash: string) => stri
   return reasons[failure.reason.wire];
 }
 
-const titleOf = (record: SelectedRecord) => record.title ?? "untitled session";
+const titleOf = (record: SelectedRecord) => record.title ?? "untitled transcript";
 
 /**
  * How a run ended, in a word and a mark. The mark tells a clean run from one
@@ -86,7 +86,7 @@ function Bucket({ testId, label, count, children }: BucketProps) {
         {count} {label}
       </button>
       {open && (
-        <ul id={listId} className="ml-5 mt-1 flex flex-col gap-1" aria-label={`${label} sessions`}>
+        <ul id={listId} className="ml-5 mt-1 flex flex-col gap-1" aria-label={`${label} transcripts`}>
           {children}
         </ul>
       )}
@@ -164,7 +164,7 @@ export default function ContributionReceipt({ receipt, projectLabel, onRetry, re
         <p role="status" data-testid={ContributionReceiptTestId.Stopped.wire}>
           {STOP_COPY[receipt.stopped.reason.wire]}
           {receipt.unattempted.length > 0 &&
-            ` ${plural(receipt.unattempted.length, "session")} ${receipt.unattempted.length === 1 ? "stays" : "stay"} selected.`}
+            ` ${plural(receipt.unattempted.length, "transcript")} ${receipt.unattempted.length === 1 ? "stays" : "stay"} selected.`}
         </p>
       )}
       {retryable.length > 0 && (

@@ -318,7 +318,7 @@ async function openSection(project: string) {
 async function selectAll(project: string) {
   await waitFor(() => expect(section(project)).toBeInTheDocument());
   await act(async () => {
-    fireEvent.click(within(section(project)).getByRole("button", { name: /^select all \d+ selectable sessions/ }));
+    fireEvent.click(within(section(project)).getByRole("button", { name: /^select all \d+ selectable transcripts/ }));
   });
 }
 

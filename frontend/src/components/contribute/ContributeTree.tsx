@@ -105,7 +105,7 @@ function SessionRow({
         state={state}
         disabled={session.locked}
         onChange={() => onToggleNode(session)}
-        label={`select session ${session.label}`}
+        label={`select transcript ${session.label}`}
       />
       {/* A narrow pane puts marks below the title so they cannot consume its
           reading space. Metadata keeps its own line in either presentation. */}

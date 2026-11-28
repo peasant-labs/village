@@ -250,7 +250,7 @@ export default function GroupContributePage({
         <OnEmpty
           icon={<FileText aria-hidden="true" />}
           title={ContributeLabel.NothingToContribute.wire}
-          body="all your transcripts are already shared with this collective, or you have no published transcripts."
+          body="every transcript you have published is already contributed to this collective, or you have not published one yet."
           testId={ContributePageTestId.MemberPanel.wire}
         />
       ) : (
@@ -279,7 +279,7 @@ export default function GroupContributePage({
                     <MetaItems
                       items={[
                         `${selectedCount} selected`,
-                        countOf(picker.selectableTotal, "selectable session"),
+                        countOf(picker.selectableTotal, "selectable transcript"),
                         picker.matchingTotal > picker.selectableTotal &&
                           `${picker.matchingTotal - picker.selectableTotal} already contributed`,
                       ]}
@@ -308,7 +308,7 @@ export default function GroupContributePage({
                     {unlistedIds.length > 0 && (
                       <div className="flex flex-wrap items-center justify-between gap-2" data-testid={ContributePageTestId.UnlistedNotice.wire}>
                         <p>
-                          {countOf(unlistedIds.length, "selected session")} {unlistedIds.length === 1 ? "is" : "are"} in
+                          {countOf(unlistedIds.length, "selected transcript")} {unlistedIds.length === 1 ? "is" : "are"} in
                           projects this search does not list. {unlistedIds.length === 1 ? "it stays" : "they stay"} selected.
                         </p>
                         <Button size="sm" variant="ghost" onClick={() => setSelection((previous) => deselectIds(previous, unlistedIds))}>
@@ -319,7 +319,7 @@ export default function GroupContributePage({
                     {contributedMeanwhile > 0 && (
                       <div className="flex flex-wrap items-center justify-between gap-2" data-testid={ContributePageTestId.MeanwhileNotice.wire}>
                         <p>
-                          {countOf(contributedMeanwhile, "selected session")} {contributedMeanwhile === 1 ? "was" : "were"}{" "}
+                          {countOf(contributedMeanwhile, "selected transcript")} {contributedMeanwhile === 1 ? "was" : "were"}{" "}
                           contributed meanwhile and left the selection.
                         </p>
                         <Button size="sm" variant="ghost" onClick={() => setSelection((previous) => deselectIds(previous, becameLive))}>
@@ -350,7 +350,7 @@ export default function GroupContributePage({
                       <div className="h-12 w-full bg-surface-hover animate-shimmer" />
                     </div>
                   ) : picker.projects.length === 0 ? (
-                    <p className="px-4 py-8 text-center text-sm text-ink-3">no contributable sessions match this search.</p>
+                    <p className="px-4 py-8 text-center text-sm text-ink-3">no transcripts you can contribute match this search.</p>
                   ) : (
                     <>
                       <PagedContributeTree
@@ -462,7 +462,7 @@ export default function GroupContributePage({
           if (consent?.kind === "during_run") answerApproval(PrivateApproval.Approve);
           else if (consent) void startRun(consent.selection, new Set(consent.records.map((record) => record.id)));
         }}
-        transcripts={(consent?.records ?? []).map((record) => ({ id: record.id, title: record.title ?? "untitled session" }))}
+        transcripts={(consent?.records ?? []).map((record) => ({ id: record.id, title: record.title ?? "untitled transcript" }))}
         collectives={[
           {
             id: group.group.id,
