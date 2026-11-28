@@ -226,6 +226,21 @@ stops counting against the 256 MiB cache budget immediately, but stays in memory
 until every active request holding it finishes; transient memory can therefore
 exceed 256 MiB by those in-flight held copies until their handlers return.
 
+Local calibration measurement (2026-11-28, Linux x86_64, `go1.26.0`): two
+concurrent first loads of a synthetic 8,000-turn `pi` transcript (`17,129,878`
+bytes / `16.3 MiB` plaintext each) were run in separate fresh `go test` processes
+reading `/proc/self/status` `VmHWM` and `runtime.ReadMemStats`:
+
+- **Two concurrent plaintext holds (`GET /content` baseline):** `VmHWM`
+  `119,250,944` bytes (`113.7 MiB`), `HeapAlloc` `69,225,448` bytes (`66.0 MiB`).
+- **Two concurrent positioned first loads (`newTranscriptIndex` +
+  `Partition(main)`):** estimated retained cache weight `36,951,314` bytes
+  (`35.2 MiB`, including `2,691,440` bytes / `2.57 MiB` estimated partition index
+  weight across both transcripts), `HeapAlloc` `111,314,472` bytes (`106.2 MiB`,
+  `1.61x` baseline `HeapAlloc`), and transient peak `VmHWM` `290,877,440` bytes
+  (`277.4 MiB`, `2.44x` baseline `VmHWM`) while both `NewTranscriptCookTurns`
+  builds held temporary capture slices before GC.
+
 A process drops a transcript's entries when it publishes, rewrites, changes the
 visibility of, unshares or deletes that transcript, and drops an owner's entries
 on account deletion. It also drops a transcript's older entries when a read sees
