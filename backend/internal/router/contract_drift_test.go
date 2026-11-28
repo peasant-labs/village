@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/config"
@@ -134,7 +135,7 @@ func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
 	t.Helper()
 	var out []route
 	err := chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if underAPIPrefix(path) {
+		if underAPIPrefix(path) || path == schemaRoute.VillageGetHealth.Pattern() {
 			out = append(out, route{Method: method, Path: path})
 		}
 		return nil

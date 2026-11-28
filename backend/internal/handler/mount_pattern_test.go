@@ -14,6 +14,12 @@ import (
 // pattern exactly.
 func TestMountPatternRoundTripsEveryVillageRoute(t *testing.T) {
 	for _, route := range schemaRoute.AllVillage {
+		if route.OperationID() == schemaRoute.VillageGetHealth.OperationID() {
+			if got := route.Pattern(); got != "/health" {
+				t.Errorf("%s.Pattern() = %q; want \"/health\"", route.OperationID(), got)
+			}
+			continue
+		}
 		relative := handler.MountPattern(route)
 		if !strings.HasPrefix(relative, "/") {
 			t.Errorf("MountPattern(%s) = %q; want a path starting with /", route.OperationID(), relative)

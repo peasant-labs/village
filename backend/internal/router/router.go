@@ -82,7 +82,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 	// many people from shared addresses.
 	unsubscribeLimiter := httprate.LimitByIP(unsubscribeRateLimitRequests, authRateLimitWindow)
 
-	r.Get("/health", h.Health)
+	r.Get(schemaRoute.VillageGetHealth.Pattern(), h.Health)
 
 	// Routes mounted through handler.MountPattern are declared by the schema
 	// contract and take their pattern from its route member. A route mounted
