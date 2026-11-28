@@ -91,7 +91,6 @@ rules:
     frontend/src/app/sessionPageOrchestration.test.tsx: 2
     frontend/src/app/transcripts/[id]/TranscriptDetailPage.tsx: 1
     frontend/src/app/transcripts/[id]/shareCardMetadata.test.ts: 1
-    frontend/src/app/users/[username]/projects/[projectHash]/page.tsx: 1
     frontend/src/collectiveInviteSearch.test.tsx: 2
     frontend/src/collectivePage.test.tsx: 26
     frontend/src/collectivePagination.test.tsx: 5
@@ -136,7 +135,7 @@ rules:
     frontend/src/lib/contribute/collectiveGroupedSelection.test.ts: 2
     frontend/src/lib/contribute/selection.ts: 2
     frontend/src/lib/contribute/tree.test.ts: 7
-    frontend/src/lib/format.ts: 8
+    frontend/src/lib/format.ts: 3
     frontend/src/lib/homeView.test.ts: 3
     frontend/src/lib/homeView.ts: 2
     frontend/src/lib/insights/phase-detection.ts: 10
@@ -438,7 +437,6 @@ rules:
     frontend/src/lib/contribute/tree.ts: 1
     frontend/src/lib/insights/types.ts: 1
     frontend/src/lib/transcriptExport.ts: 1
-    frontend/src/lib/types.ts: 1
     frontend/src/test/accountOrgsFixtures.ts: 1
     frontend/src/test/accountSettingsFixtures.ts: 2
     frontend/src/test/agentSessionGroupingFixtures.ts: 2
