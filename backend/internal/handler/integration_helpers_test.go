@@ -59,7 +59,11 @@ func rewriteFixtureSourceIdentity(t *testing.T, ctx context.Context, blobs stora
 func govTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, pullTestDatabaseURL(t))
+	cfg, err := database.PoolConfig(pullTestDatabaseURL(t))
+	if err != nil {
+		t.Skipf("cannot parse the test database URL (%v); set TEST_DATABASE_URL", err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Skipf("cannot create pool (%v); set TEST_DATABASE_URL", err)
 	}

@@ -1,12 +1,16 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -49,6 +53,7 @@ func DefaultPoolMaxConns() int32 {
 //     (the env default must not silently override an operator's deliberate value);
 //  3. otherwise the built-in DefaultPoolMaxConns() = max(10, 2*NumCPU).
 //
+// Every connection reads timestamptz values in UTC (see readTimesInUTC).
 // Everything else (timeouts, health checks, the rest of the connection string)
 // is left to pgxpool.ParseConfig's defaults.
 func PoolConfig(connStr string) (*pgxpool.Config, error) {
@@ -56,6 +61,7 @@ func PoolConfig(connStr string) (*pgxpool.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse database connection string: %w", err)
 	}
+	cfg.AfterConnect = readTimesInUTC
 
 	switch envN := envPoolMaxConns(); {
 	case envN > 0:
@@ -84,4 +90,17 @@ func envPoolMaxConns() int32 {
 		return 0
 	}
 	return int32(n)
+}
+
+// readTimesInUTC makes the connection scan timestamptz values, alone or in an
+// array, into UTC times. pgx otherwise scans them into the server process's
+// local zone, so a response that serves a stored time would print a different
+// offset on a host whose zone is not UTC. The instant is the same either way;
+// only its printed form would depend on where the server runs.
+func readTimesInUTC(_ context.Context, conn *pgx.Conn) error {
+	types := conn.TypeMap()
+	timestamptz := &pgtype.Type{Name: "timestamptz", OID: pgtype.TimestamptzOID, Codec: &pgtype.TimestamptzCodec{ScanLocation: time.UTC}}
+	types.RegisterType(timestamptz)
+	types.RegisterType(&pgtype.Type{Name: "_timestamptz", OID: pgtype.TimestamptzArrayOID, Codec: &pgtype.ArrayCodec{ElementType: timestamptz}})
+	return nil
 }
