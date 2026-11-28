@@ -22,9 +22,12 @@ export function countOf(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** The submit's name when it would contribute `count` transcripts. */
+/**
+ * The submit's name when it would contribute `count` transcripts. With nothing
+ * selected it names the step still missing rather than a count of zero.
+ */
 export function contributeLabel(count: number): string {
-  return `contribute ${countOf(count, "transcript")}`;
+  return count === 0 ? "select transcripts to contribute" : `contribute ${countOf(count, "transcript")}`;
 }
 
 /** The name of the control that drops the selected sessions the search no longer lists. */

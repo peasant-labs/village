@@ -404,7 +404,6 @@ export default function GroupContributePage({
                 </>
               )}
             </p>
-            <p className="text-ink-3" data-testid={ContributePageTestId.SelectionCount.wire}>{selectedCount} selected</p>
           </div>
           {run.state.phase === ContributionRunPhase.Running && (
             <div className="flex items-center gap-3">
@@ -442,8 +441,10 @@ export default function GroupContributePage({
             />
           )}
         </div>
+        {/* Amber only once there is something to contribute; an empty
+            selection leaves the submit as a quiet outline. */}
         <Button
-          variant="primary"
+          variant={selectedCount === 0 ? "secondary" : "primary"}
           loading={running}
           disabled={selectedCount === 0 || running}
           onClick={() => contribute(selection)}

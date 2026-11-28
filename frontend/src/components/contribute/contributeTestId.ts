@@ -12,7 +12,6 @@ export const ContributePageTestId = {
   MemberPanel: closed("contribute-member-panel", "the contribute workspace a member of the collective sees"),
   NonMemberNotice: closed("contribute-non-member-notice", "the notice a signed-in person who is not a member sees"),
   SelectionTally: closed("contribute-selection-tally", "the line that counts the selection"),
-  SelectionCount: closed("contribute-selection-count", "the selected count beside the submit"),
   UnlistedNotice: closed("contribute-unlisted-notice", "the notice that selected sessions no longer match the search"),
   MeanwhileNotice: closed("contribute-meanwhile-notice", "the notice that selected sessions were contributed meanwhile"),
   ProjectsLoading: closed("contribute-projects-loading", "the placeholder while the project list loads"),

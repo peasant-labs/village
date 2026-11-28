@@ -475,7 +475,7 @@ function ProjectSection({
           </p>
         </div>
         {snapshot.covered ? (
-          <Button size="sm" variant="ghost" pressed onClick={snapshot.deselectAll}>
+          <Button size="sm" variant="ghost" onClick={snapshot.deselectAll}>
             {ContributeLabel.DeselectAll.wire}
           </Button>
         ) : project.selectable_count > 0 ? (

@@ -450,7 +450,6 @@ export default function ContributeTree({
         <Button
           size="sm"
           variant="ghost"
-          pressed={allSelected}
           disabled={selectableIds.length === 0}
           onClick={() => onToggleAll(selectableIds, !allSelected)}
         >
