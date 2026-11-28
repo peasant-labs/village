@@ -3,8 +3,11 @@ package router
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -46,27 +49,6 @@ func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 			t.Fatalf("the declared stub routes fixture has an empty or repeated name %q", r.Name)
 		}
 		present[r.Name] = true
-		// With no database a session cannot be confirmed: an optional-auth stub
-		// serves the signed-in caller anonymously, and an auth-required stub
-		// refuses it as unconfirmed. The fixture states that answer.
-		wantSignedIn := r.Anonymous
-		if r.Anonymous == http.StatusUnauthorized {
-			wantSignedIn = http.StatusServiceUnavailable
-		}
-		if r.SignedIn != wantSignedIn {
-			t.Fatalf("row %q pins signed_in %d with anonymous %d; with no database signed_in must equal anonymous on an optional-auth stub and be 503 on an auth-required one", r.Name, r.SignedIn, r.Anonymous)
-		}
-		// A request for the row must be a request for its route: same path with
-		// the parameters filled in, so a row cannot pin one route and probe another.
-		requestPath, _, _ := strings.Cut(r.Path, "?")
-		pattern, request := strings.Split(r.Route, "/"), strings.Split(requestPath, "/")
-		matches := len(pattern) == len(request)
-		for i := 0; matches && i < len(pattern); i++ {
-			matches = pattern[i] == request[i] || strings.HasPrefix(pattern[i], "{") && request[i] != ""
-		}
-		if !matches {
-			t.Fatalf("row %q requests %s, which is not an instance of its route %s", r.Name, r.Path, r.Route)
-		}
 	}
 	if len(present) != len(requiredDeclaredStubRoutes) {
 		t.Fatalf("the declared stub routes fixture has %d rows but %d required names; name every row in requiredDeclaredStubRoutes", len(present), len(requiredDeclaredStubRoutes))
@@ -122,24 +104,114 @@ func TestDeclaredStubRoutes_AnswerNotImplemented(t *testing.T) {
 	}
 }
 
-// TestDeclaredStubRoutes_AreMountedAndDeclared proves each stub is a route the
-// served contract declares and the server mounts.
+// declaredStubFindings checks every pinned stub row against its auth-status
+// invariant, its route pattern, the mounted router, and the served contract.
+// Results are sorted so negative fixtures can assert them exactly.
+func declaredStubFindings(routes []declaredStubRoute, mounted, declared []route) []string {
+	mountedSet := map[string]bool{}
+	for _, r := range mounted {
+		mountedSet[routeKey(r.Method, r.Path)] = true
+	}
+	declaredSet := map[string]bool{}
+	for _, r := range declared {
+		declaredSet[routeKey(r.Method, r.Path)] = true
+	}
+	var findings []string
+	for _, r := range routes {
+		if r.Anonymous != http.StatusUnauthorized && r.Anonymous != http.StatusNotImplemented {
+			findings = append(findings, fmt.Sprintf("row %q pins anonymous %d; a declared stub must answer 401 (auth-required) or 501 (optional-auth)", r.Name, r.Anonymous))
+		}
+		// With no database a session cannot be confirmed: an optional-auth stub
+		// serves the signed-in caller anonymously, and an auth-required stub
+		// refuses it as unconfirmed.
+		wantSignedIn := r.Anonymous
+		if r.Anonymous == http.StatusUnauthorized {
+			wantSignedIn = http.StatusServiceUnavailable
+		}
+		if r.SignedIn != wantSignedIn {
+			findings = append(findings, fmt.Sprintf("row %q pins signed_in %d with anonymous %d; with no database signed_in must equal anonymous on an optional-auth stub and be 503 on an auth-required one", r.Name, r.SignedIn, r.Anonymous))
+		}
+		// A request for the row must be a request for its route: same path with
+		// the parameters filled in, so a row cannot pin one route and probe another.
+		requestPath, _, _ := strings.Cut(r.Path, "?")
+		pattern, request := strings.Split(r.Route, "/"), strings.Split(requestPath, "/")
+		matches := len(pattern) == len(request)
+		for i := 0; matches && i < len(pattern); i++ {
+			matches = pattern[i] == request[i] || strings.HasPrefix(pattern[i], "{") && request[i] != ""
+		}
+		if !matches {
+			findings = append(findings, fmt.Sprintf("row %q requests %s, which is not an instance of its route %s", r.Name, r.Path, r.Route))
+		}
+		key := routeKey(r.Method, r.Route)
+		if !mountedSet[key] {
+			findings = append(findings, fmt.Sprintf("%s %s is pinned as a stub but the server does not mount it; mount it or delete the row", r.Method, r.Route))
+		}
+		if !declaredSet[key] {
+			findings = append(findings, fmt.Sprintf("%s %s is pinned as a stub but the served contract does not declare it; pin a schema version that declares it, or delete the row and the route", r.Method, r.Route))
+		}
+	}
+	sort.Strings(findings)
+	return findings
+}
+
+// TestDeclaredStubRoutes_AreMountedAndDeclared proves each stub satisfies its
+// status invariants, matches its route pattern, and is a route the served
+// contract declares and the server mounts.
 func TestDeclaredStubRoutes_AreMountedAndDeclared(t *testing.T) {
-	mounted := map[string]bool{}
-	for _, r := range mountedRoutes(t) {
-		mounted[routeKey(r.Method, r.Path)] = true
+	for _, finding := range declaredStubFindings(loadDeclaredStubRoutes(t), mountedRoutes(t), declaredContractRoutes(t)) {
+		t.Error(finding)
 	}
-	declared := map[string]bool{}
-	for _, r := range declaredContractRoutes(t) {
-		declared[routeKey(r.Method, r.Path)] = true
+}
+
+//go:embed testdata/declared_stub_negative_cases.yaml
+var declaredStubNegativeCasesYAML []byte
+
+type declaredStubNegativeCase struct {
+	Name     string              `yaml:"name"`
+	Routes   []declaredStubRoute `yaml:"routes"`
+	Mounted  []route             `yaml:"mounted"`
+	Declared []route             `yaml:"declared"`
+	Findings []string            `yaml:"findings"`
+}
+
+var requiredDeclaredStubNegativeCases = []string{
+	"valid auth-required stub passes",
+	"wrong anonymous status is a finding",
+	"wrong signed-in status is a finding",
+	"route and path mismatch is a finding",
+	"stub not mounted is a finding",
+	"stub not declared by the contract is a finding",
+}
+
+func TestDeclaredStubFindings_Fixture(t *testing.T) {
+	cases, err := decodeSingleYAMLDocument[[]declaredStubNegativeCase](declaredStubNegativeCasesYAML)
+	if err != nil {
+		t.Fatalf("load declared stub negative cases: %v", err)
 	}
-	for _, c := range loadDeclaredStubRoutes(t) {
-		key := routeKey(c.Method, c.Route)
-		if !mounted[key] {
-			t.Errorf("%s %s is pinned as a stub but the server does not mount it; mount it or delete the row", c.Method, c.Route)
+	present := map[string]bool{}
+	for _, c := range cases {
+		if present[c.Name] {
+			t.Fatalf("duplicate negative case %q", c.Name)
 		}
-		if !declared[key] {
-			t.Errorf("%s %s is pinned as a stub but the served contract does not declare it; pin a schema version that declares it, or delete the row and the route", c.Method, c.Route)
+		present[c.Name] = true
+		t.Run(c.Name, func(t *testing.T) {
+			got := declaredStubFindings(c.Routes, c.Mounted, c.Declared)
+			want := append([]string{}, c.Findings...)
+			sort.Strings(want)
+			if len(got) == 0 && len(want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("findings mismatch\n got: %v\nwant: %v", got, want)
+			}
+		})
+	}
+	for _, required := range requiredDeclaredStubNegativeCases {
+		if !present[required] {
+			t.Fatalf("missing required negative case %q", required)
 		}
+	}
+	if len(present) != len(requiredDeclaredStubNegativeCases) {
+		t.Fatalf("negative fixture has %d rows, want %d", len(present), len(requiredDeclaredStubNegativeCases))
 	}
 }

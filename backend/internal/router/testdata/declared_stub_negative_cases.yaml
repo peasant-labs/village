@@ -1,0 +1,91 @@
+- name: valid auth-required stub passes
+  routes:
+    - name: batch publish
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/transcripts/publish/batch
+      anonymous: 401
+      signed_in: 503
+  mounted:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  declared:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  findings: []
+- name: wrong anonymous status is a finding
+  routes:
+    - name: bad anon
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/transcripts/publish/batch
+      anonymous: 200
+      signed_in: 200
+  mounted:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  declared:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  findings:
+    - 'row "bad anon" pins anonymous 200; a declared stub must answer 401 (auth-required) or 501 (optional-auth)'
+- name: wrong signed-in status is a finding
+  routes:
+    - name: bad signed in
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/transcripts/publish/batch
+      anonymous: 401
+      signed_in: 401
+  mounted:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  declared:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  findings:
+    - 'row "bad signed in" pins signed_in 401 with anonymous 401; with no database signed_in must equal anonymous on an optional-auth stub and be 503 on an auth-required one'
+- name: route and path mismatch is a finding
+  routes:
+    - name: mismatched path
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/other
+      anonymous: 401
+      signed_in: 503
+  mounted:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  declared:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  findings:
+    - 'row "mismatched path" requests /api/v1/other, which is not an instance of its route /api/v1/transcripts/publish/batch'
+- name: stub not mounted is a finding
+  routes:
+    - name: unmounted stub
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/transcripts/publish/batch
+      anonymous: 401
+      signed_in: 503
+  mounted: []
+  declared:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  findings:
+    - 'POST /api/v1/transcripts/publish/batch is pinned as a stub but the server does not mount it; mount it or delete the row'
+- name: stub not declared by the contract is a finding
+  routes:
+    - name: undeclared stub
+      method: POST
+      route: /api/v1/transcripts/publish/batch
+      path: /api/v1/transcripts/publish/batch
+      anonymous: 401
+      signed_in: 503
+  mounted:
+    - method: POST
+      path: /api/v1/transcripts/publish/batch
+  declared: []
+  findings:
+    - 'POST /api/v1/transcripts/publish/batch is pinned as a stub but the served contract does not declare it; pin a schema version that declares it, or delete the row and the route'
