@@ -24,7 +24,7 @@ func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Name != "published-village-api-0.42.0" || fixture.Module != "v0.57.1" {
+	if fixture.Name != "published-village-api-0.44.0" || fixture.Module != "v0.62.0" {
 		t.Fatal("published artifact identity changed; review the actual release before updating this fixture")
 	}
 	rec := httptest.NewRecorder()
