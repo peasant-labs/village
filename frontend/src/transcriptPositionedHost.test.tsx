@@ -455,6 +455,45 @@ it(fixture.scrollSave.name, async () => {
   expect(setItemSpy).toHaveBeenCalledTimes(0);
 });
 
+it("scroll-save-flushes-on-pagehide", async () => {
+  const row = fixture.scrollSave;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    if (this.classList.contains("txn-stream")) {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    const stream = this.closest(".txn-stream");
+    if (stream && this.hasAttribute("data-turn")) {
+      const index = Number(this.getAttribute("data-turn"));
+      const top = (index - 4) * 300 + row.rowTopBase - stream.scrollTop;
+      return { top, bottom: top + 40, left: 0, right: 800, width: 800, height: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    }
+    return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+  });
+  await mountPositioned(buildPositionedBodies(spec), row.search);
+  const stream = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(".txn-stream");
+    expect(el?.querySelector(".txn-turn.txn-active")).not.toBeNull();
+    return el!;
+  });
+  Object.defineProperty(stream, "clientHeight", { value: 600, configurable: true });
+  Object.defineProperty(stream, "scrollHeight", { value: 2000, configurable: true });
+
+  fireEvent.scroll(stream);
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+  setItemSpy.mockClear();
+
+  for (let i = 0; i < row.burstEvents; i += 1) {
+    stream.scrollTop = row.movedScrollTop + i * 10;
+    fireEvent.scroll(stream);
+  }
+  expect(setItemSpy).toHaveBeenCalledTimes(0);
+
+  window.dispatchEvent(new Event("pagehide"));
+  expect(setItemSpy).toHaveBeenCalledTimes(1);
+});
+
 describe("restoreGuards", () => {
   for (const row of fixture.restoreGuards) {
     it(row.name, async () => {
@@ -465,36 +504,63 @@ describe("restoreGuards", () => {
         }
         const stream = this.closest(".txn-stream");
         if (stream && this.hasAttribute("data-turn")) {
-          const top = row.rowTopBase - stream.scrollTop;
+          const index = Number(this.getAttribute("data-turn"));
+          const top = index === 4 ? row.rowTopBase - stream.scrollTop : (index < 4 ? -1000 : 1000);
           return { top, bottom: top + 40, left: 0, right: 800, width: 800, height: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
         }
         return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
       });
+      const queued = new Map<number, FrameRequestCallback>();
+      let nextFrameId = 1;
+      if (row.settleFirst) {
+        vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+          const handle = nextFrameId++;
+          queued.set(handle, cb);
+          return handle;
+        });
+        vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => {
+          queued.delete(handle);
+        });
+      }
+      const flushQueuedFrame = async (timestamp: number) => {
+        const batch = [...queued.entries()];
+        queued.clear();
+        await act(async () => {
+          for (const [, cb] of batch) cb(timestamp);
+        });
+      };
       await mountPositioned(buildPositionedBodies(spec), "");
       const stream = await waitFor(() => {
         const el = document.querySelector<HTMLElement>(".txn-stream");
-        expect(el?.querySelector(".txn-turn.txn-active")).not.toBeNull();
+        expect(el?.querySelector(".txn-turn.txn-active")).toHaveTextContent(fixture.restoreBudget.expectActiveText);
         return el!;
       });
+      Object.defineProperty(stream, "clientHeight", { value: 600, configurable: true });
+      Object.defineProperty(stream, "scrollHeight", { value: 2000, configurable: true });
       if (row.event) {
         if (row.settleFirst) {
-          // A foreign scroll cancels the restore only once the stream has
-          // settled. Wait for two frames with the same offset, then fire in
-          // the frame the settle is observed, before the restore applies.
-          let previous = Number.NaN;
-          for (let i = 0; i < 10; i += 1) {
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-            if (stream.scrollTop === previous) {
-              fireEvent(stream, new Event(row.event, { bubbles: true }));
-              break;
-            }
-            previous = stream.scrollTop;
+          // Step two animation frames so the restore effect records the
+          // initial scrollTop (frame 1), observes the settled stream and arms
+          // onStreamScroll (frame 2), then fire the foreign scroll before the
+          // third frame can apply the offset.
+          expect(queued.size).toBeGreaterThan(0);
+          await flushQueuedFrame(16);
+          await flushQueuedFrame(32);
+          fireEvent(stream, new Event(row.event, { bubbles: true }));
+          const fired = true;
+          expect(fired).toBe(true);
+          let remaining = 0;
+          while (queued.size > 0 && remaining < 10) {
+            await flushQueuedFrame((remaining + 3) * 16);
+            remaining += 1;
           }
         } else {
           fireEvent(stream, new Event(row.event, { bubbles: true }));
         }
       }
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (!row.settleFirst) {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      }
       expect(stream.scrollTop).toBe(0);
     });
   }
