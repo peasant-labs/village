@@ -17,7 +17,7 @@ rules:
     frontend/scripts/journey/ci-post-evidence.mjs: 4
     frontend/scripts/journey/collective-settings.journey.mjs: 5
     frontend/scripts/journey/collective.journey.mjs: 1
-    frontend/scripts/journey/collectives-built.journey.mjs: 4
+    frontend/scripts/journey/collectives-built.journey.mjs: 2
     frontend/scripts/journey/discover.journey.mjs: 2
     frontend/scripts/journey/lib/built-support.test.mjs: 4
     frontend/scripts/journey/lib/collective-fixtures.mjs: 35
@@ -185,7 +185,6 @@ rules:
     frontend/src/test/collectivePageFixtures.ts: 7
     frontend/src/test/collectiveRemovalAccountFixtures.ts: 1
     frontend/src/test/collectiveSettingsFixtures.ts: 2
-    frontend/src/test/collectivesLegacyFixtures.ts: 2
     frontend/src/test/finalContractCompatibilityFixtures.ts: 1
     frontend/src/test/groupedHelperMountFixtures.ts: 6
     frontend/src/test/groupedHelperSurfaceFixtures.ts: 2
@@ -946,7 +945,7 @@ rules:
     frontend/scripts/journey/collective.journey.mjs: 1
     frontend/scripts/visual/child-session-shoot.mjs: 3
     frontend/scripts/visual/integrity-shoot.mjs: 3
-    frontend/scripts/visual/manage-shoot.mjs: 2
+    frontend/scripts/visual/manage-shoot.mjs: 1
     frontend/scripts/visual/profile-collectives-shoot.mjs: 2
     frontend/scripts/visual/project-page-shoot.mjs: 1
     frontend/scripts/visual/village-shoot.mjs: 1

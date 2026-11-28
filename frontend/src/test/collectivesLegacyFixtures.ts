@@ -1,6 +1,16 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import { closed } from "@peasant-labs/fairtrade/closed-value";
+
+/** The legacy collective routes the redirect fixture names, one case each. */
+export const LegacyCollectiveRoute = {
+  List: closed("list", "the collectives list"),
+  Detail: closed("detail", "one collective's page"),
+  Settings: closed("settings", "a collective's settings"),
+  Contribute: closed("contribute", "a collective's contribute page"),
+  Review: closed("review", "a collective's review queue"),
+} as const;
 
 export interface LegacyCollectiveCase {
   name: string;
@@ -26,13 +36,13 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
   const data = parse(readFileSync(resolve("src/testdata/collectives-legacy-redirects.yaml"), "utf8")) as {
     requiredNames: string[]; cases: LegacyCollectiveCase[];
   };
-  const required = ["list", "detail", "settings", "contribute", "review"].sort();
+  const required = Object.values(LegacyCollectiveRoute).map((route) => route.wire).sort();
   if (JSON.stringify([...data.requiredNames].sort()) !== JSON.stringify(required) ||
       JSON.stringify(data.cases.map((row) => row.name).sort()) !== JSON.stringify(required)) {
     throw new Error("Legacy collective redirect fixture names must retain every supported browser route");
   }
   for (const row of data.cases) {
-	if (row.name === "settings" && (!row.nameEdits || JSON.stringify(row.nameEdits.map((step) => step.name)) !== JSON.stringify(["save-published-contract-name", "restore-original-collective-name"]) || row.nameEdits.some((step) => !step.value))) {
+	if (row.name === LegacyCollectiveRoute.Settings.wire && (!row.nameEdits || JSON.stringify(row.nameEdits.map((step) => step.name)) !== JSON.stringify(["save-published-contract-name", "restore-original-collective-name"]) || row.nameEdits.some((step) => !step.value))) {
 	  throw new Error("Settings journey must execute the named save and restore callbacks through the mounted production page");
 	}
     if (typeof row.suffix !== "string" || typeof row.query !== "string" || !row.body || !["table", "heading"].includes(row.role)) {

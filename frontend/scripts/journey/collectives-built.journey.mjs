@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
-import { loadLegacyCollectiveFixtures } from '../../src/test/collectivesLegacyFixtures.ts'
+import { LegacyCollectiveRoute, loadLegacyCollectiveFixtures } from '../../src/test/collectivesLegacyFixtures.ts'
 import { expectTheme, expectComputedTokens, scanAxe, seriousViolations } from './lib/assertions.mjs'
 import { signedInCookies } from './lib/collectives-built-auth.mjs'
 import { zVillageGroupedContributableResponse, zVillageSessionListPayload } from '@peasant-labs/schema'
@@ -50,7 +50,7 @@ test('built collective navigation and every legacy inbound link', async ({ page,
     const response = await context.request.get(`/groups${row.suffix}?${row.query}`, { maxRedirects: 0 })
     expect(response.status(), `the legacy ${row.name} address must redirect, not render`).toBe(307)
     expect(response.headers().location, `the legacy ${row.name} address must land on its canonical route`).toBe(target)
-    const queue = row.name === 'contribute' || row.name === 'review'
+    const queue = row.name === LegacyCollectiveRoute.Contribute.wire || row.name === LegacyCollectiveRoute.Review.wire
       ? page.waitForResponse((response) => response.url().includes(`/collectives${row.suffix.replace(/\/review$/, '/pending').replace(/\/contribute$/, '/contributable')}?view=grouped`))
       : undefined
     await page.goto(`/groups${row.suffix}?${row.query}`)
@@ -65,7 +65,7 @@ test('built collective navigation and every legacy inbound link', async ({ page,
     if (queue) {
       const response = await queue
       expect(response.ok()).toBe(true)
-      const schema = row.name === 'contribute' ? zVillageGroupedContributableResponse : zVillageSessionListPayload
+      const schema = row.name === LegacyCollectiveRoute.Contribute.wire ? zVillageGroupedContributableResponse : zVillageSessionListPayload
       expect(schema.safeParse(await response.json()).success).toBe(true)
     }
     for (const assertion of row.assertions) {
@@ -79,7 +79,7 @@ test('built collective navigation and every legacy inbound link', async ({ page,
       if (assertion.disabled === true) await expect(locator).toBeDisabled()
       if (assertion.disabled === false) await expect(locator).toBeEnabled()
     }
-    if (row.name === 'settings') {
+    if (row.name === LegacyCollectiveRoute.Settings.wire) {
       // Execute the real mounted edit/save callback, not merely its button.
       // Restore the fixture's name through that SAME callback for later routes.
       for (const { value } of row.nameEdits) {

@@ -24,6 +24,7 @@ import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
 import { ContributePageTestId } from '../../src/components/contribute/contributeTestId.ts'
 import { ConfirmContributeLabel } from '../../src/components/transcript/confirmContributeLabel.ts'
+import { ManageSurfaceLabel } from '../../src/lib/adapters/manageSurfaceLabel.ts'
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_URL || 'http://localhost:3000').replace(/\/$/, '')
@@ -95,17 +96,17 @@ await pause(900)
 // to be capturing (otherwise the REST mock is serving the other role), and it must offer exactly
 // one contribute action -- an owner reaches the route through the action village renders itself,
 // a member through the shared manage surface's own action, and nobody should ever see two.
-const served = await page.evaluate(() => {
+const served = await page.evaluate((contribute) => {
   const label = [...document.querySelectorAll('*')].find(
     (element) => element.children.length === 0 && element.textContent.trim() === 'your role',
   )
   const tile = label?.parentElement
   const role = tile ? tile.textContent.replace('your role', '').trim() : null
   const actions = [...document.querySelectorAll('button')].filter(
-    (button) => button.textContent.trim().toLowerCase() === 'contribute',
+    (button) => button.textContent.trim().toLowerCase() === contribute,
   ).length
   return { role, actions }
-})
+}, ManageSurfaceLabel.Contribute.wire)
 if (served.role !== VIEWER_ROLE) {
   console.error(
     `ERROR [manage-shoot.mjs] /collectives/${GROUP_ID} reports the viewer's role as ` +
