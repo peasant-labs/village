@@ -20,6 +20,7 @@ import { groupedReviewSelection } from "@/lib/contribute/groupedSelection";
 import { helperItemID, useCollectiveIdentitySelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
+import MetaItems from "@/components/MetaItems";
 import { ReviewPageTestId } from "@/app/collectives/[id]/review/reviewTestId";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import {
@@ -298,9 +299,10 @@ export default function GroupReviewPage({
                     onPreview={setPreviewId}
                     previewId={activePreviewId}
                     layout="sessions"
-                    selectionSummary={<>
-                      {filteredRows.filter((row) => !row.stale).length} waiting · <span data-testid={ReviewPageTestId.SelectionCount.wire}>{selectedCount} selected</span>
-                    </>}
+                    selectionSummary={<MetaItems items={[
+                      `${filteredRows.filter((row) => !row.stale).length} waiting`,
+                      <span key="selected" data-testid={ReviewPageTestId.SelectionCount.wire}>{selectedCount} selected</span>,
+                    ]} />}
                     filters={filters}
                     onFiltersChange={setFilters}
                     harnessCounts={counts}

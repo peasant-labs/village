@@ -93,7 +93,7 @@ export function buildReviewTree(rows: ReviewRow[]): ProjectNode<ReviewRow>[] {
   return buildSessionTree(
     rows,
     (row) => ({
-      meta: ["by @" + row.owner_label, formatDate(row.share.shared_at), row.model_provider || "unknown harness"].join(" · "),
+      meta: ["by @" + row.owner_label, formatDate(row.share.shared_at), row.model_provider || "unknown harness"],
       mark: row.stale ? "already decided" : null,
       locked: row.stale,
     }),

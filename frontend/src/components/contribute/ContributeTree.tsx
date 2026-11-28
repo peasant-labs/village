@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, GitBranch } from "lucide-react";
 import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "@/lib/contribute/tree";
 import { leafIds, nodeState, type Selection } from "@/lib/contribute/selection";
 import type { ContributeFilters } from "@/lib/contribute/filter";
@@ -9,7 +9,8 @@ import { Button, Input, Select, Tag } from "@/lib/ft-ui";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import TriStateCheckbox from "./TriStateCheckbox";
-import { ContributeLabel } from "./contributeLabel";
+import MetaItems from "@/components/MetaItems";
+import { ContributeLabel, countOf } from "./contributeLabel";
 import { ChildSessionDisclosureTestId } from "@/components/transcript/childSessionDisclosureTestId";
 import { TreeRail, useTreeRail, type RailRow } from "./treeRail";
 
@@ -121,7 +122,7 @@ function SessionRow({
           </button>
           {session.mark != null && <Tag className="contribute-session-mark shrink-0">{session.mark}</Tag>}
         </div>
-        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionFacts?.(session) ?? session.meta}</div>
+        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionFacts?.(session) ?? <MetaItems items={session.meta} />}</div>
         {sessionActions?.(session)}
       </div>
     </div>
@@ -234,8 +235,8 @@ function GroupRow({
 }) {
   const state = nodeState(selection, node);
   // A branch names itself; the synthetic orphans grouping is not a branch and
-  // must not claim to be one, so only a real branch carries the prefix.
-  const label = node.kind === "branch" ? `branch · ${node.label}` : node.label;
+  // must not claim to be one, so only a real branch carries the mark.
+  const isBranch = node.kind === "branch";
   const groupRef = useCallback(
     (element: HTMLHeadingElement | null) => setRowElement(`g:${node.id}`, element),
     [node.id, setRowElement],
@@ -250,9 +251,13 @@ function GroupRow({
         <TriStateCheckbox
           state={state}
           onChange={() => onToggleNode(node)}
-          label={`select ${label}`}
+          label={isBranch ? `select branch ${node.label}` : `select ${node.label}`}
         />
-        <span className="truncate">{label}</span>
+        {isBranch && <GitBranch aria-hidden="true" className="size-3.5 shrink-0" />}
+        <span className="truncate normal-case">
+          {isBranch && <span className="sr-only">branch </span>}
+          {node.label}
+        </span>
       </h3>
       <div className="contribute-subtree">
         {node.children.map((session) => (
@@ -444,8 +449,7 @@ export default function ContributeTree({
       </div>
       <div className="on-contribute-selection">
         <div className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid="contribute-selection-tally">
-          {selectionSummary ?? <>{selectedVisibleCount} selected · {selectableIds.length} {countNoun}
-          {selectableIds.length !== 1 ? "s" : ""}</>}
+          {selectionSummary ?? <MetaItems items={[`${selectedVisibleCount} selected`, countOf(selectableIds.length, countNoun)]} />}
         </div>
         <Button
           size="sm"

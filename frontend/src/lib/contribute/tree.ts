@@ -28,8 +28,8 @@ export interface TreeRowFacts {
  * @someone, a date" - and neither meaning belongs inside a shared fold.
  */
 export interface SessionPresentation {
-  /** The mono metadata line under the title. */
-  meta: string;
+  /** The facts on the mono metadata line under the title, in order. */
+  meta: readonly string[];
   /** A short mark beside the title, or null for no mark. */
   mark: string | null;
   /** The row is drawn but can never enter a selection: already offered to
@@ -291,8 +291,8 @@ function formatDate(iso: string): string {
  * visibility. A single mono line keeps every row the same height, so the
  * column reads as one list instead of a ragged stack of pills.
  */
-export function contributableMeta(row: ContributableTranscript): string {
-  return [row.model_provider || "unknown harness", formatDate(row.published_at), row.visibility].join(" · ");
+export function contributableMeta(row: ContributableTranscript): readonly string[] {
+  return [row.model_provider || "unknown harness", formatDate(row.published_at), row.visibility];
 }
 
 export { formatDate as formatSessionDate };
