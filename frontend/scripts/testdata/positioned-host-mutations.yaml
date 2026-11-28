@@ -42,7 +42,8 @@ mutations:
     original: "  return [served.current, served.min].includes(SegmentedReadAPIVersion);\n"
     replacement: "  return [served.current, served.min].some((token) => token.includes(SegmentedReadAPIVersion));\n"
     killers:
-      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused}
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused-leading}
+      - {kind: vitest, file: src/lib/queries/segmentedReadCapability.test.ts, name: capability-lookalike-token-refused-trailing}
 
   - name: version-current-member-only
     why: a window served only when its current member is the token, so a later server that still serves the reads gets the whole document
@@ -253,3 +254,11 @@ mutations:
     replacement: "        (void isRowInView, true)\n"
     killers:
       - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: restore-offset-skips-out-of-view}
+
+  - name: scroll-save-pagehide-dropped
+    why: a pagehide listener that skips flushing a pending scroll-save frame when the page hides mid-scroll
+    file: ../../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: "  const onPageHide = () => {\n    if (!frame) return;\n    cancelAnimationFrame(frame);\n    frame = 0;\n    persist();\n  };\n"
+    replacement: "  const onPageHide = () => {\n    void frame;\n  };\n"
+    killers:
+      - {kind: vitest, file: src/transcriptPositionedHost.test.tsx, name: scroll-save-flushes-on-pagehide}

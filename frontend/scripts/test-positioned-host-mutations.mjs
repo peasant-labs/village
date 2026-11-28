@@ -56,6 +56,7 @@ const requiredNames = [
   "restore-offset-ignores-user-scroll",
   "restore-offset-ignores-out-of-view",
   "absent-recorded-index-clears-saved",
+  "scroll-save-pagehide-dropped",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (new Set(names).size !== names.length || JSON.stringify([...names].sort()) !== JSON.stringify([...requiredNames].sort())) {
@@ -76,7 +77,7 @@ process.on("exit", () => {
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGPIPE"]) process.on(signal, () => process.exit(1));
 process.stdout.on("error", () => process.exit(1));
 
-/** The names of the failing cases a killer run reported, or the reason the run proves nothing. */
+/** The assertion entries a killer run reported (exact leaf title, ancestor suite titles, and status). */
 function runKiller(killer) {
   const report = join(scratch, "report.json");
   rmSync(report, { force: true });
@@ -85,24 +86,30 @@ function runKiller(killer) {
       cwd: frontend, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: "--no-experimental-webstorage" },
     });
     const result = JSON.parse(readFileSync(report, "utf8"));
-    return result.testResults.flatMap((file) => file.assertionResults)
-      .filter((test) => test.status === ReportStatus.Failed)
-      .map((test) => [...test.ancestorTitles, test.title].join(" "));
+    return result.testResults.flatMap((file) => file.assertionResults).map((test) => ({
+      title: test.title,
+      ancestorTitles: test.ancestorTitles ?? [],
+      failed: test.status === ReportStatus.Failed,
+    }));
   }
   if (killer.kind === "journey") {
     const run = spawnSync("pnpm", ["exec", "playwright", "test", "--config", "playwright.journey.config.mjs", killer.file, "-g", killer.name, "--project", "dark", "--reporter=json"], {
       cwd: frontend, encoding: "utf8", env: { ...process.env, JOURNEY_HTML: "0" }, maxBuffer: 64 * 1024 * 1024,
     });
     const result = JSON.parse(run.stdout);
-    const failed = [];
+    const entries = [];
     const walk = (suite, path) => {
       for (const spec of suite.specs ?? []) {
-        if (spec.tests.some((test) => test.results.some((r) => r.status === ReportStatus.Failed || r.status === ReportStatus.TimedOut))) failed.push([...path, spec.title].join(" "));
+        entries.push({
+          title: spec.title,
+          ancestorTitles: path,
+          failed: spec.tests.some((test) => test.results.some((r) => r.status === ReportStatus.Failed || r.status === ReportStatus.TimedOut)),
+        });
       }
       for (const child of suite.suites ?? []) walk(child, [...path, child.title]);
     };
     for (const suite of result.suites ?? []) walk(suite, []);
-    return failed;
+    return entries;
   }
   throw new Error(`${WHERE}: killer kind ${JSON.stringify(killer.kind)} is not vitest or journey.`);
 }
@@ -127,11 +134,16 @@ for (const mutation of root.mutations) {
         continue;
       }
       ran += 1;
-      const failing = runKiller(killer);
-      if (!failing.some((title) => title.includes(killer.name))) {
+      const entries = runKiller(killer);
+      const exactLeafMatches = entries.filter((entry) => entry.title === killer.name);
+      if (exactLeafMatches.length > 1) {
+        throw new Error(`${WHERE}: ${mutation.name} ${killer.kind} killer ${killer.name} matched ${exactLeafMatches.length} test titles; killer names must identify one test uniquely.`);
+      }
+      const failing = entries.filter((entry) => entry.failed);
+      if (!failing.some((entry) => entry.title === killer.name || entry.ancestorTitles.includes(killer.name))) {
         throw new Error(
           `${WHERE}: ${mutation.name} survived ${killer.kind} killer ${killer.name}: ` +
-            (failing.length ? `only ${failing.join("; ")} failed` : "no named case failed (did the file stop compiling, or does the killer name match nothing?)") +
+            (failing.length ? `only ${failing.map((entry) => [...entry.ancestorTitles, entry.title].join(" ")).join("; ")} failed` : "no named case failed (did the file stop compiling, or does the killer name match nothing?)") +
             `. Restore the case or the production path it guards.`,
         );
       }

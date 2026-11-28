@@ -35,7 +35,13 @@ type declaredStubRoutesFile struct {
 // requiredDeclaredStubRoutes names the rows that must exist. It lives here so
 // deleting a fixture row cannot delete the check with it; landing a real
 // handler removes the row and its name together.
-var requiredDeclaredStubRoutes = []string{"batch publish"}
+var requiredDeclaredStubRoutes = []string{
+	"batch publish",
+	"list-contribution-projects",
+	"list-contribution-projects-deprecated",
+	"batch-share-selection",
+	"batch-share-selection-deprecated",
+}
 
 func loadDeclaredStubRoutes(t *testing.T) []declaredStubRoute {
 	t.Helper()

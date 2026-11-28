@@ -246,6 +246,12 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListAvailableGroupRepositoriesDeprecated), h.ListAvailableRepositories)
 		h.RegisterCollectiveBrowseRoutes(r)
 
+		// Contribution project listing and selection sharing stubs (501 until handlers land).
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListContributionProjects), h.ListContributionProjects)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListContributionProjectsDeprecated), h.ListContributionProjects)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageBatchShareSelection), h.BatchShareSelection)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageBatchShareSelectionDeprecated), h.BatchShareSelection)
+
 		// Tags
 		r.Get(handler.MountPattern(schemaRoute.VillageListTags), h.ListTags)
 		r.Get(handler.MountPattern(schemaRoute.VillageListPopularTags), h.PopularTags)

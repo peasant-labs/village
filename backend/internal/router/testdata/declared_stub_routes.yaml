@@ -22,3 +22,27 @@ routes:
     path: /api/v1/transcripts/publish/batch
     anonymous: 401
     signed_in: 503
+  - name: list-contribution-projects
+    method: GET
+    route: /api/v1/collectives/{id}/contributable/projects
+    path: /api/v1/collectives/00000000-0000-0000-0000-000000000001/contributable/projects
+    anonymous: 401
+    signed_in: 503
+  - name: list-contribution-projects-deprecated
+    method: GET
+    route: /api/v1/groups/{id}/contributable/projects
+    path: /api/v1/groups/00000000-0000-0000-0000-000000000001/contributable/projects
+    anonymous: 401
+    signed_in: 503
+  - name: batch-share-selection
+    method: POST
+    route: /api/v1/collectives/{id}/shares/selection
+    path: /api/v1/collectives/00000000-0000-0000-0000-000000000001/shares/selection
+    anonymous: 401
+    signed_in: 503
+  - name: batch-share-selection-deprecated
+    method: POST
+    route: /api/v1/groups/{id}/shares/selection
+    path: /api/v1/groups/00000000-0000-0000-0000-000000000001/shares/selection
+    anonymous: 401
+    signed_in: 503

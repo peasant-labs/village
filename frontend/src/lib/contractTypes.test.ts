@@ -47,6 +47,9 @@ const requiredAliases: Record<string, string[]> = {
     "ShareEventActor",
     "ShareEvent",
     "CollectiveSubmissionPair",
+    "ResolvedProject",
+    "TranscriptCommit",
+    "TranscriptCommitsResponse",
   ],
   "./review/types.ts": ["PendingShare", "ReviewDecision", "BatchReviewRequest", "BatchReviewResponse"],
   "./contribute/types.ts": [

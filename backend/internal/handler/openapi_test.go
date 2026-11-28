@@ -351,8 +351,8 @@ func TestServeOpenAPI_ServesModuleSpec(t *testing.T) {
 
 // wantVillageAPIVersion is the contract version the village serves + enforces. It is
 // the consumer-side pin on the module's schema.VillageAPIVersion. It moved to
-// 0.43.0 in the pinned schema release.
-const wantVillageAPIVersion = "0.43.0"
+// 0.44.0 in the pinned schema release.
+const wantVillageAPIVersion = "0.44.0"
 
 // TestPinnedContractVersion_MatchesExpected asserts the pinned schema module reports
 // the contract version the village expects. The schema repo's go-apidiff gate
