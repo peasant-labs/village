@@ -277,3 +277,15 @@ func (h *Handler) resolveCollectiveGroupedScope(ctx context.Context, request Gro
 	}
 	return result, nil
 }
+
+// ListContributionProjects is a 501 stub until the contribution project
+// listing handler lands.
+func (h *Handler) ListContributionProjects(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusNotImplemented, "Contribution project listing is not implemented yet")
+}
+
+// BatchShareSelection is a 501 stub until the selection-based batch share
+// handler lands.
+func (h *Handler) BatchShareSelection(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusNotImplemented, "Contribution selection sharing is not implemented yet")
+}
