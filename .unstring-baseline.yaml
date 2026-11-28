@@ -91,7 +91,6 @@ rules:
     frontend/src/app/sessionPageOrchestration.test.tsx: 2
     frontend/src/app/transcripts/[id]/TranscriptDetailPage.tsx: 1
     frontend/src/app/transcripts/[id]/shareCardMetadata.test.ts: 1
-    frontend/src/app/users/[username]/projects/[projectHash]/page.tsx: 1
     frontend/src/collectiveInviteSearch.test.tsx: 2
     frontend/src/collectivePage.test.tsx: 26
     frontend/src/collectivePagination.test.tsx: 5
