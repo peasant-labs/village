@@ -151,6 +151,21 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 	expect("collectives=[A]", listSet("[A]", collectiveA), tsOwnedInA, tsApprovedA, tsMultiAB)
 	expect("collectives=[B]", listSet("[B]", collectiveB), tsApprovedB, tsMultiAB)
 
+	// Direct assertion for CountPullableTranscriptsInCollective: collectiveA
+	// holds 4 approved shares (tsOwnedInA, tsApprovedA, tsMultiAB, tsUnavailableA),
+	// and the content_state = 'unavailable' row must be excluded from the count
+	// directly, not only via list-length parity.
+	countA, err := h.queries.CountPullableTranscriptsInCollective(ctx, sqlc.CountPullableTranscriptsInCollectiveParams{
+		UserID:      member,
+		Collectives: []pgtype.UUID{collectiveA},
+	})
+	if err != nil {
+		t.Fatalf("direct CountPullableTranscriptsInCollective([A]): %v", err)
+	}
+	if countA != 3 {
+		t.Fatalf("CountPullableTranscriptsInCollective([A]) = %d, want 3 (content_state='unavailable' row %s must be excluded)", countA, uuid.UUID(tsUnavailableA.Bytes))
+	}
+
 	// Several collectives: the union, each transcript once.
 	expect("collectives=[A,B]", listSet("[A,B]", collectiveA, collectiveB), tsOwnedInA, tsApprovedA, tsApprovedB, tsMultiAB)
 
