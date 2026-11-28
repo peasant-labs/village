@@ -1,17 +1,187 @@
 selected:
   - health-no-pool
+  - openapi-document
   - logout
   - empty-organization-search
+  - list-attestations-invalid-id
+  - list-annotations-invalid-id
+  - list-commits-invalid-id
+  - github-login-sixth-request
+  - delete-account-anonymous
+  - update-discoverability-anonymous
+  - set-username-anonymous
+  - create-api-key-anonymous
+  - list-api-keys-anonymous
+  - revoke-api-key-anonymous
+  - organization-visibility-anonymous
+  - delete-transcript-anonymous
+  - create-attestation-anonymous
+  - delete-attestation-anonymous
+  - create-annotation-anonymous
+  - batch-publish-anonymous
+  - set-project-name-anonymous
+  - clear-project-name-anonymous
+  - github-install-anonymous
+  - github-install-callback-anonymous
+  - github-install-unconfigured
+  - github-install-callback-unconfigured
   - organization-visibility-updated
+  - organization-visibility-invalid-json
+  - delete-missing-attestation
+  - delete-attestation-invalid-id
+  - public-profile-missing
+  - public-organizations-missing
   - create-api-key
   - list-api-keys
+  - peasant-revoke-api-key
+  - batch-publish-signed-in
+  - organization-search-null-avatar
+  - organization-search-avatar
+  - github-entry
+  - github-callback-state-json
+  - github-callback-state-html
+  - gitlab-entry
+  - gitlab-callback-state-json
+  - gitlab-callback-state-html
+  - huggingface-entry
+  - huggingface-callback-state-json
+  - huggingface-callback-state-html
+  - codeberg-entry
+  - codeberg-callback-state-json
+  - codeberg-callback-state-html
+  - sourcehut-entry
+  - sourcehut-callback-state-json
+  - sourcehut-callback-state-html
+  - gitlab-entry-unconfigured-json
+  - gitlab-entry-unconfigured-html
+  - gitlab-callback-unconfigured-json
+  - gitlab-callback-unconfigured-html
+  - huggingface-entry-unconfigured-json
+  - huggingface-entry-unconfigured-html
+  - huggingface-callback-unconfigured-json
+  - huggingface-callback-unconfigured-html
+  - codeberg-entry-unconfigured-json
+  - codeberg-entry-unconfigured-html
+  - codeberg-callback-unconfigured-json
+  - codeberg-callback-unconfigured-html
+  - sourcehut-entry-unconfigured-json
+  - sourcehut-entry-unconfigured-html
+  - sourcehut-callback-unconfigured-json
+  - sourcehut-callback-unconfigured-html
+  - gitlab-callback-missing-code-json
+  - gitlab-callback-missing-code-html
+  - github-callback-web
+  - github-callback-cli
+  - gitlab-callback-web
+  - github-callback-missing-code-json
+  - github-callback-missing-code-html
+  - github-install
+  - github-install-missing-group-json
+  - github-install-missing-group-html
+  - github-install-not-owner
+  - github-install-callback-bound
+  - github-install-callback-unbound
+  - github-install-callback-invalid-id-json
+  - github-install-callback-invalid-id-html
+  - github-install-callback-unreadable
   - update-discoverability
+  - update-discoverability-missing
+  - set-username
+  - set-username-taken
+  - set-username-invalid
   - list-tags
+  - popular-tags
+  - public-profile
   - public-organizations
   - project-page
+  - project-page-no-visible-transcripts
+  - project-page-missing
+  - project-page-invalid-hash
   - set-project-name
+  - set-project-name-unowned
+  - set-project-name-empty
+  - clear-project-name
+  - clear-project-name-absent
+  - list-attestations-empty
+  - create-attestation
+  - create-attestation-duplicate
+  - create-attestation-not-member
+  - create-attestation-invalid-type
+  - list-attestations
+  - list-annotations-empty
+  - create-annotation
+  - create-annotation-missing-entry
   - list-annotations
   - list-commits
+  - list-commits-hidden
+  - cli-login
+  - cli-exchange
+  - cli-exchange-used-code
+  - cli-exchange-unknown-code
+  - huggingface-callback-web
+  - codeberg-callback-web
+  - sourcehut-callback-web
+  - github-install-unconfigured-html
+  - github-install-callback-unconfigured-html
+  - revoke-api-key-invalid-id
+  - clear-project-name-invalid-hash
+  - list-attestations-hidden
+  - list-annotations-hidden
+  - create-attestation-hidden
+  - create-annotation-hidden
+  - create-attestation-invalid-id
+  - create-annotation-invalid-id
+  - delete-transcript-invalid-id
+  - delete-transcript-not-owner
+  - delete-transcript-without-blob-store
+  - delete-transcript
+  - delete-transcript-missing
+  - delete-account
+  - cli-login-missing-port-json
+  - cli-login-missing-port-html
+  - cli-login-missing-state-json
+  - cli-login-missing-state-html
+  - cli-login-invalid-port-json
+  - cli-login-invalid-port-html
+  - cli-login-port-below-range-json
+  - cli-login-port-below-range-html
+  - cli-login-port-above-range-json
+  - cli-login-port-above-range-html
+  - cli-login-sixth-request
+  - cli-exchange-invalid-json
+  - cli-exchange-missing-code
+  - cli-exchange-missing-state
+  - cli-exchange-sixth-request
+  - gitlab-login-sixth-request
+  - huggingface-login-sixth-request
+  - codeberg-login-sixth-request
+  - sourcehut-login-sixth-request
+  - huggingface-callback-missing-code-json
+  - huggingface-callback-missing-code-html
+  - codeberg-callback-missing-code-json
+  - codeberg-callback-missing-code-html
+  - sourcehut-callback-missing-code-json
+  - sourcehut-callback-missing-code-html
+  - list-api-keys-session-unconfirmed
+  - create-api-key-session-unconfirmed
+  - revoke-api-key-session-unconfirmed
+  - delete-account-session-unconfirmed
+  - update-discoverability-session-unconfirmed
+  - set-username-session-unconfirmed
+  - organization-visibility-session-unconfirmed
+  - github-install-session-unconfirmed
+  - github-install-callback-session-unconfirmed
+  - batch-publish-session-unconfirmed
+  - delete-transcript-session-unconfirmed
+  - create-annotation-session-unconfirmed
+  - create-attestation-session-unconfirmed
+  - delete-attestation-session-unconfirmed
+  - set-project-name-session-unconfirmed
+  - clear-project-name-session-unconfirmed
+  - delete-transcript-storage-failure
+  - unsubscribe-invalid
+  - unsubscribe-rate-limited
+known_contract_gaps: []
 self_tests:
   - name: undeclared-status
     mutation: status
@@ -31,3 +201,6 @@ self_tests:
   - name: invalid-json
     mutation: malformed-json
     want: decode body
+  - name: unexpected-body
+    mutation: unexpected-body
+    want: unexpected body
