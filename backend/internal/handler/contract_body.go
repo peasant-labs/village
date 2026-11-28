@@ -217,37 +217,16 @@ var (
 	contractBodies     contractBodySchemas
 )
 
-// openAPIHTTPMethods lists the OpenAPI Path Item keys that hold operations.
-// Non-method members such as servers, parameters, summary, or extensions are
-// ignored when scanning paths for request-body schemas.
-var openAPIHTTPMethods = map[string]bool{
-	"get":     true,
-	"put":     true,
-	"post":    true,
-	"delete":  true,
-	"patch":   true,
-	"head":    true,
-	"options": true,
-	"trace":   true,
-}
-
-type contractPathOperation struct {
-	RequestBody *struct {
-		Content map[string]struct {
-			Schema json.RawMessage `json:"schema"`
-		} `json:"content"`
-	} `json:"requestBody"`
-}
-
 // loadContractBodySchemas parses the served document once and compiles the
 // JSON request-body schema of every operation that declares one, through the
 // contract module's canonical compiler. Served and enforced are one byte
 // source. Multipart bodies (publish) have no JSON schema here.
 func loadContractBodySchemas() contractBodySchemas {
-	return loadContractBodySchemasFromSpec(schema.VillageAPISpecJSON())
+	return parseContractBodySchemas(schema.VillageAPISpecJSON())
 }
 
-func loadContractBodySchemasFromSpec(raw []byte) contractBodySchemas {
+// parseContractBodySchemas ignores Path Item metadata before decoding operations.
+func parseContractBodySchemas(raw []byte) contractBodySchemas {
 	var doc struct {
 		Paths map[string]map[string]json.RawMessage `json:"paths"`
 	}
@@ -259,14 +238,22 @@ func loadContractBodySchemasFromSpec(raw []byte) contractBodySchemas {
 		return contractBodySchemas{err: fmt.Errorf("register the served contract with the compiler: %w", err)}
 	}
 	table := map[string]*jsonschema.Schema{}
-	for path, pathItem := range doc.Paths {
-		for method, rawOp := range pathItem {
-			if !openAPIHTTPMethods[method] {
+	for path, operations := range doc.Paths {
+		for method, rawOperation := range operations {
+			switch strings.ToUpper(method) {
+			case http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete, http.MethodOptions, http.MethodHead, http.MethodPatch, http.MethodTrace:
+			default:
 				continue
 			}
-			var operation contractPathOperation
-			if err := json.Unmarshal(rawOp, &operation); err != nil {
-				return contractBodySchemas{err: fmt.Errorf("parse %s %s in the served contract: %w", strings.ToUpper(method), path, err)}
+			var operation struct {
+				RequestBody *struct {
+					Content map[string]struct {
+						Schema json.RawMessage `json:"schema"`
+					} `json:"content"`
+				} `json:"requestBody"`
+			}
+			if err := json.Unmarshal(rawOperation, &operation); err != nil {
+				return contractBodySchemas{err: fmt.Errorf("parse the %s %s operation: %w", strings.ToUpper(method), path, err)}
 			}
 			if operation.RequestBody == nil {
 				continue

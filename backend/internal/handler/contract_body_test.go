@@ -615,56 +615,57 @@ func TestCreateGroupAcceptsANullOrganization(t *testing.T) {
 	}
 }
 
-//go:embed testdata/contract_body_path_items.yaml
-var contractBodyPathItemsYAML []byte
+//go:embed testdata/contract_path_items.yaml
+var contractPathItemsYAML []byte
 
-type contractBodyPathItemCase struct {
-	Name       string `yaml:"name"`
-	Spec       string `yaml:"spec"`
-	Method     string `yaml:"method"`
-	Path       string `yaml:"path"`
-	Conforming string `yaml:"conforming"`
-	Malformed  string `yaml:"malformed"`
+type contractPathItemCase struct {
+	Name     string `yaml:"name"`
+	Document string `yaml:"document"`
+	Method   string `yaml:"method"`
+	Path     string `yaml:"path"`
+	Valid    string `yaml:"valid"`
+	Invalid  string `yaml:"invalid"`
 }
 
-func TestContractBody_IgnoresNonMethodPathItemMembers(t *testing.T) {
-	cases, err := decodeFixtureRows[contractBodyPathItemCase](contractBodyPathItemsYAML)
+func TestContractBody_PathItemMetadata(t *testing.T) {
+	cases, err := decodeFixtureRows[contractPathItemCase](contractPathItemsYAML)
 	if err != nil {
-		t.Fatalf("load path item fixture: %v", err)
+		t.Fatal(err)
 	}
-	required := map[string]bool{"path-item-with-servers-and-parameters": false}
+	required := map[string]bool{"path metadata does not hide operation schemas": false}
 	for _, c := range cases {
-		if _, ok := required[c.Name]; ok {
-			required[c.Name] = true
+		if _, ok := required[c.Name]; !ok || required[c.Name] {
+			t.Fatalf("unexpected or repeated case %q", c.Name)
 		}
+		required[c.Name] = true
 		t.Run(c.Name, func(t *testing.T) {
-			schemas := loadContractBodySchemasFromSpec([]byte(c.Spec))
-			if schemas.err != nil {
-				t.Fatalf("loadContractBodySchemasFromSpec failed: %v", schemas.err)
+			result := parseContractBodySchemas([]byte(c.Document))
+			if result.err != nil {
+				t.Fatalf("parse contract path item: %v", result.err)
 			}
-			compiled, ok := schemas.byOperation[contractOperationKey(c.Method, c.Path)]
-			if !ok {
-				t.Fatalf("operation %s %s not compiled", c.Method, c.Path)
+			compiled := result.byOperation[contractOperationKey(c.Method, c.Path)]
+			if compiled == nil {
+				t.Fatal("operation schema was not compiled")
 			}
-			conforming, err := parseContractJSON([]byte(c.Conforming))
+			valid, err := parseContractJSON([]byte(c.Valid))
 			if err != nil {
-				t.Fatalf("parse conforming: %v", err)
+				t.Fatal(err)
 			}
-			if err := compiled.Validate(conforming); err != nil {
-				t.Fatalf("conforming body rejected: %v", err)
+			if err := compiled.Validate(valid); err != nil {
+				t.Fatalf("valid body rejected: %v", err)
 			}
-			malformed, err := parseContractJSON([]byte(c.Malformed))
+			invalid, err := parseContractJSON([]byte(c.Invalid))
 			if err != nil {
-				t.Fatalf("parse malformed: %v", err)
+				t.Fatal(err)
 			}
-			if err := compiled.Validate(malformed); err == nil {
-				t.Fatal("malformed body accepted")
+			if err := compiled.Validate(invalid); err == nil {
+				t.Fatal("invalid body accepted")
 			}
 		})
 	}
-	for name, found := range required {
-		if !found {
-			t.Fatalf("missing required path-item fixture case %q", name)
+	for name, present := range required {
+		if !present {
+			t.Fatalf("missing case %q", name)
 		}
 	}
 }

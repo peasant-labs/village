@@ -135,7 +135,7 @@ rules:
     frontend/src/lib/contribute/collectiveGroupedSelection.test.ts: 2
     frontend/src/lib/contribute/selection.ts: 2
     frontend/src/lib/contribute/tree.test.ts: 7
-    frontend/src/lib/format.ts: 8
+    frontend/src/lib/format.ts: 3
     frontend/src/lib/homeView.test.ts: 3
     frontend/src/lib/homeView.ts: 2
     frontend/src/lib/insights/phase-detection.ts: 10
@@ -437,7 +437,6 @@ rules:
     frontend/src/lib/contribute/tree.ts: 1
     frontend/src/lib/insights/types.ts: 1
     frontend/src/lib/transcriptExport.ts: 1
-    frontend/src/lib/types.ts: 1
     frontend/src/test/accountOrgsFixtures.ts: 1
     frontend/src/test/accountSettingsFixtures.ts: 2
     frontend/src/test/agentSessionGroupingFixtures.ts: 2
@@ -734,15 +733,12 @@ rules:
     backend/internal/handler/user_settings_test.go: 1
     backend/internal/router/collective_alias_routes_integration_test.go: 1
     backend/internal/router/collective_alias_routes_test.go: 1
-    backend/internal/router/contract_drift_test.go: 3
+    backend/internal/router/contract_drift_test.go: 2
     backend/internal/router/publish_batch_test.go: 1
     backend/internal/router/published_schema_test.go: 1
-    backend/internal/router/router.go: 36
     backend/internal/router/transcript_pulls_route_integration_test.go: 1
   go-json-body-map:
     backend/internal/github/checks.go: 2
-    backend/internal/handler/annotations.go: 1
-    backend/internal/handler/auth.go: 1
     backend/internal/handler/authority_boundaries_integration_test.go: 1
     backend/internal/handler/collective_authority_integration_test.go: 1
     backend/internal/handler/collective_repos.go: 2
@@ -751,8 +747,7 @@ rules:
     backend/internal/handler/groups.go: 6
     backend/internal/handler/integrity_worker_integration_test.go: 1
     backend/internal/handler/openapi_test.go: 3
-    backend/internal/handler/orgs.go: 4
-    backend/internal/handler/project_identity.go: 1
+    backend/internal/handler/orgs.go: 1
     backend/internal/handler/public_owner_integration_test.go: 7
     backend/internal/handler/published_grouped_shape_oracles_integration_test.go: 1
     backend/internal/handler/pull_contract_test.go: 2
@@ -760,7 +755,6 @@ rules:
     backend/internal/handler/relationship_navigation_integration_test.go: 2
     backend/internal/handler/session_graph_publication_test.go: 1
     backend/internal/handler/sign_in_handle_test.go: 1
-    backend/internal/handler/transcript_commits.go: 1
     backend/internal/handler/transcripts.go: 3
     backend/internal/handler/transcripts_test.go: 3
   go-json-key-assert:

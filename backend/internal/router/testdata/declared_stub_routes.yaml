@@ -16,6 +16,12 @@
 # stub runs). A signed-in caller with a live account is proved against
 # PostgreSQL by the session identity probe test.
 routes:
+  - name: batch publish
+    method: POST
+    route: /api/v1/transcripts/publish/batch
+    path: /api/v1/transcripts/publish/batch
+    anonymous: 401
+    signed_in: 503
   - name: list-contribution-projects
     method: GET
     route: /api/v1/collectives/{id}/contributable/projects

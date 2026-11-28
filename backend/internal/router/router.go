@@ -84,61 +84,56 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 
 	r.Get(schemaRoute.VillageGetHealth.Pattern(), h.Health)
 
-	// Routes mounted through handler.MountPattern are declared by the schema
-	// contract and take their pattern from its route member. A route mounted
-	// from a literal has no contract declaration yet; each one is listed, with
-	// its reason, in testdata/undocumented_routes.yaml. Move a literal to a
-	// schema member once the contract declares it; do not add a local route
-	// registry, which would be a second definition of the contract's routes.
+	// API routes take their patterns from the schema contract.
 	r.Route(handler.APIPrefix, func(r chi.Router) {
 		// Village API OpenAPI spec, served from the contract module
 		// (schema.VillageAPISpecJSON) for client/tooling discovery; the publish path
 		// enforces the same module's PublishRequest schema.
-		r.Get("/openapi.json", h.ServeOpenAPI)
+		r.Get(handler.MountPattern(schemaRoute.VillageGetVillageAPIDocument), h.ServeOpenAPI)
 		// Auth (rate-limited entry points)
-		r.With(authLimiter).Get("/auth/github", h.GitHubLogin)
-		r.Get("/auth/github/callback", h.GitHubCallback)
-		r.With(authLimiter).Get("/auth/gitlab", h.GitLabLogin)
-		r.Get("/auth/gitlab/callback", h.GitLabCallback)
-		r.With(authLimiter).Get("/auth/huggingface", h.HuggingFaceLogin)
-		r.Get("/auth/huggingface/callback", h.HuggingFaceCallback)
-		r.With(authLimiter).Get("/auth/codeberg", h.CodebergLogin)
-		r.Get("/auth/codeberg/callback", h.CodebergCallback)
-		r.With(authLimiter).Get("/auth/sourcehut", h.SourceHutLogin)
-		r.Get("/auth/sourcehut/callback", h.SourceHutCallback)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageStartGitHubSignIn), h.GitHubLogin)
+		r.Get(handler.MountPattern(schemaRoute.VillageCompleteGitHubSignIn), h.GitHubCallback)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageStartGitLabSignIn), h.GitLabLogin)
+		r.Get(handler.MountPattern(schemaRoute.VillageCompleteGitLabSignIn), h.GitLabCallback)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageStartHuggingFaceSignIn), h.HuggingFaceLogin)
+		r.Get(handler.MountPattern(schemaRoute.VillageCompleteHuggingFaceSignIn), h.HuggingFaceCallback)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageStartCodebergSignIn), h.CodebergLogin)
+		r.Get(handler.MountPattern(schemaRoute.VillageCompleteCodebergSignIn), h.CodebergCallback)
+		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageStartSourceHutSignIn), h.SourceHutLogin)
+		r.Get(handler.MountPattern(schemaRoute.VillageCompleteSourceHutSignIn), h.SourceHutCallback)
 		r.With(authLimiter).Get(handler.MountPattern(schemaRoute.VillageCliLogin), h.CLILogin)
 		r.With(authLimiter).Post(handler.MountPattern(schemaRoute.VillageCliExchangeCode), h.CLIExchange)
-		r.Post("/auth/logout", h.Logout)
+		r.Post(handler.MountPattern(schemaRoute.VillageLogOut), h.Logout)
 		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetAuthenticatedVillageUser), h.Me)
-		r.With(h.AuthRequired).Delete("/auth/me", h.DeleteAccount)
-		r.With(h.AuthRequired).Patch("/auth/me/settings", h.UpdateMySettings)
-		r.With(h.AuthRequired).Patch("/auth/me/username", h.SetMyUsername)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDeleteMyAccount), h.DeleteAccount)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageSetMyDiscoverability), h.UpdateMySettings)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageSetMyUsername), h.SetMyUsername)
 
 		// API keys
-		r.With(h.AuthRequired).Post("/auth/api-keys", h.CreateAPIKey)
-		r.With(h.AuthRequired).Get("/auth/api-keys", h.ListAPIKeys)
-		r.With(h.AuthRequired).Delete("/auth/api-keys/{id}", h.RevokeAPIKey)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateMyAPIKey), h.CreateAPIKey)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyAPIKeys), h.ListAPIKeys)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRevokeMyAPIKey), h.RevokeAPIKey)
 
 		// User public profiles
-		r.With(h.AuthOptional).Get("/users/{username}", h.GetUserPublicProfile)
-		r.With(h.AuthOptional).Get("/users/{username}/orgs", h.ListUserPublicOrgs)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetUserProfile), h.GetUserPublicProfile)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListUserOrganizations), h.ListUserPublicOrgs)
 		// One user's project. Keyed on the project HASH, which is the identity a
 		// user's transcripts group by; AuthOptional, and it answers 404 for a
 		// non-discoverable owner exactly as the profile route above does.
-		r.With(h.AuthOptional).Get("/users/{username}/projects/{projectHash}", h.GetUserProject)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetUserProject), h.GetUserProject)
 
 		// Owner corrections to a project's rendered name. Both routes are keyed on
 		// the project hash, never on a name: a name is what changes, so it cannot
 		// also be the key. Neither route writes transcripts.project_name.
-		r.With(h.AuthRequired).Patch("/users/me/projects/{projectHash}", h.SetProjectDisplayName)
-		r.With(h.AuthRequired).Delete("/users/me/projects/{projectHash}/display-name", h.ClearProjectDisplayName)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageSetMyProjectDisplayName), h.SetProjectDisplayName)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageClearMyProjectDisplayName), h.ClearProjectDisplayName)
 
 		// Authenticated user org management
 		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListAuthenticatedVillageOrganizations), h.ListMyOrgs)
-		r.With(h.AuthRequired).Patch("/auth/orgs/{orgLogin}/visibility", h.SetOrgVisibility)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageSetMyOrganizationVisibility), h.SetOrgVisibility)
 
 		// Organizations (aggregated GitHub org affiliations)
-		r.With(h.AuthOptional).Get("/orgs/search", h.SearchOrgs)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageSearchOrganizations), h.SearchOrgs)
 		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetVillageOrganizationCollectives), h.GetOrg)
 
 		// Transcripts
@@ -152,7 +147,7 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptWindow), h.GetTranscriptWindow)
 		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageGetTranscriptHeader), h.GetTranscriptHeader)
 		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateTranscript), h.UpdateTranscript)
-		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDeleteTranscript), h.DeleteTranscript)
 		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageShareTranscriptWithGroups), h.ShareTranscript)
 		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageUnshareTranscriptFromGroup), h.UnshareTranscript)
 		// Owner-only share-event history for one (transcript, collective) pair.
@@ -170,16 +165,16 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListMyCollectiveSubmissions), h.ListMyCollectiveSubmissions)
 
 		// Attestations
-		r.With(h.AuthOptional).Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)
-		r.With(h.AuthRequired).Post("/transcripts/{id}/attestations", h.CreateAttestation)
-		r.With(h.AuthRequired).Delete("/transcripts/{id}/attestations/{attestationID}", h.DeleteAttestation)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptAttestations), h.ListTranscriptAttestations)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateTranscriptAttestation), h.CreateAttestation)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDeleteTranscriptAttestation), h.DeleteAttestation)
 
 		// Transcript annotations (read pushed labels; create manual per-turn labels)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/annotations", h.ListTranscriptAnnotations)
-		r.With(h.AuthRequired).Post("/transcripts/{id}/annotations", h.CreateTranscriptAnnotation)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptAnnotations), h.ListTranscriptAnnotations)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateTranscriptAnnotation), h.CreateTranscriptAnnotation)
 
 		// Transcript commits (read persisted git commits for the timeline overlay)
-		r.With(h.AuthOptional).Get("/transcripts/{id}/commits", h.ListTranscriptCommits)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptCommits), h.ListTranscriptCommits)
 
 		// Collectives a transcript belongs to, and the caller's own contributions.
 		// The contributions route takes the caller's id and has deliberately no
@@ -189,46 +184,66 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 
 		// Both resource families share handlers and auth through the complete
 		// released compatibility window. Helper-group routes are unrelated.
-		for _, prefix := range []string{"/collectives", "/groups"} {
-			r.Get(prefix+"/public", h.ListPublicGroups)
-			r.With(h.AuthOptional).Get(prefix+"/search", h.SearchCollectives)
-			r.With(h.AuthRequired).Post(prefix, h.CreateGroup)
-			r.With(h.AuthRequired).Get(prefix, h.ListGroups)
-			// The collectives a person may SEE, as distinct from the ones they belong
-			// to. Both routes exist because the browse surface and the contribute
-			// picker ask different questions.
-			r.With(h.AuthRequired).Get(prefix+"/visible", h.ListVisibleGroups)
-			r.With(h.AuthRequired).Patch(prefix+"/{id}", h.UpdateGroup)
-			r.With(h.AuthRequired).Delete(prefix+"/{id}", h.DeleteGroup)
-			r.With(h.AuthRequired).Post(prefix+"/{id}/join", h.JoinGroup)
-			// An owner invites; the person becomes a member only by accepting.
-			// No route makes someone a member without their consent.
-			r.With(h.AuthRequired).Post(prefix+"/{id}/invitations", h.CreateGroupInvitation)
-			r.With(h.AuthRequired).Get(prefix+"/{id}/invitations", h.ListGroupInvitations)
-			r.With(h.AuthRequired).Delete(prefix+"/{id}/invitations/{invitationID}", h.RevokeGroupInvitation)
-			r.With(h.AuthRequired).Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
-			r.With(h.AuthRequired).Delete(prefix+"/{id}/members/{userID}", h.RemoveGroupMember)
-			// Contributing a whole project: one read that says what the caller may
-			// offer this collective, and one write that offers a project's
-			// transcripts in a single transaction. Both are member-only.
-			r.With(h.AuthRequired).Post(prefix+"/{id}/shares", h.BatchShareProject)
-			// Reviewing submissions: one route decides ONE submission, the other
-			// decides a whole selection in one action. Both are owner-only and
-			// neither touches transcript visibility.
-			r.With(h.AuthRequired).Patch(prefix+"/{id}/shares", h.BatchReviewShares)
-			r.With(h.AuthRequired).Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
-			r.With(h.AuthRequired).Delete(prefix+"/{id}/transcripts/{transcriptID}", h.RemoveGroupTranscript)
+		r.Get(handler.MountPattern(schemaRoute.VillageListPublicGroups), h.ListPublicGroups)
+		r.Get(handler.MountPattern(schemaRoute.VillageListPublicGroupsDeprecated), h.ListPublicGroups)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageSearchCollectives), h.SearchCollectives)
+		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageSearchCollectivesDeprecated), h.SearchCollectives)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateGroup), h.CreateGroup)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateGroupDeprecated), h.CreateGroup)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroups), h.ListGroups)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupsDeprecated), h.ListGroups)
+		// The collectives a person may SEE, as distinct from the ones they belong
+		// to. Both routes exist because the browse surface and the contribute
+		// picker ask different questions.
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListVisibleGroups), h.ListVisibleGroups)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListVisibleGroupsDeprecated), h.ListVisibleGroups)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateGroup), h.UpdateGroup)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateGroupDeprecated), h.UpdateGroup)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDeleteGroup), h.DeleteGroup)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageDeleteGroupDeprecated), h.DeleteGroup)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageJoinGroup), h.JoinGroup)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageJoinGroupDeprecated), h.JoinGroup)
+		// An owner invites; the person becomes a member only by accepting.
+		// No route makes someone a member without their consent.
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateGroupInvitation), h.CreateGroupInvitation)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageCreateGroupInvitationDeprecated), h.CreateGroupInvitation)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupInvitations), h.ListGroupInvitations)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupInvitationsDeprecated), h.ListGroupInvitations)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRevokeGroupInvitation), h.RevokeGroupInvitation)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRevokeGroupInvitationDeprecated), h.RevokeGroupInvitation)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateGroupMemberRole), h.PromoteMember)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageUpdateGroupMemberRoleDeprecated), h.PromoteMember)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRemoveGroupMember), h.RemoveGroupMember)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRemoveGroupMemberDeprecated), h.RemoveGroupMember)
+		// Contributing a whole project: one read that says what the caller may
+		// offer this collective, and one write that offers a project's
+		// transcripts in a single transaction. Both are member-only.
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageBatchShareProject), h.BatchShareProject)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageBatchShareProjectDeprecated), h.BatchShareProject)
+		// Reviewing submissions: one route decides ONE submission, the other
+		// decides a whole selection in one action. Both are owner-only and
+		// neither touches transcript visibility.
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageBatchReviewShares), h.BatchReviewShares)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageBatchReviewSharesDeprecated), h.BatchReviewShares)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageReviewShare), h.ReviewShare)
+		r.With(h.AuthRequired).Patch(handler.MountPattern(schemaRoute.VillageReviewShareDeprecated), h.ReviewShare)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRemoveGroupTranscript), h.RemoveGroupTranscript)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageRemoveGroupTranscriptDeprecated), h.RemoveGroupTranscript)
 
-			// Collective linked repositories (GitHub App; config-gated -> 501 when off).
-			// Writes (link/unlink/refresh) are owner-only; reads require membership.
-			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories", h.ListRepositories)
-			r.With(h.AuthRequired).Post(prefix+"/{id}/repositories", h.LinkRepository)
-			r.With(h.AuthRequired).Delete(prefix+"/{id}/repositories/{owner}/{name}", h.UnlinkRepository)
-			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories/{owner}/{name}/commits", h.ListRepositoryCommits)
-			// The repositories the App can offer this collective, for the picker. A
-			// literal segment, so chi resolves it ahead of any {owner} pattern.
-			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories/available", h.ListAvailableRepositories)
-		}
+		// Collective linked repositories (GitHub App; config-gated -> 501 when off).
+		// Writes (link/unlink/refresh) are owner-only; reads require membership.
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupRepositories), h.ListRepositories)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupRepositoriesDeprecated), h.ListRepositories)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageLinkGroupRepository), h.LinkRepository)
+		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageLinkGroupRepositoryDeprecated), h.LinkRepository)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageUnlinkGroupRepository), h.UnlinkRepository)
+		r.With(h.AuthRequired).Delete(handler.MountPattern(schemaRoute.VillageUnlinkGroupRepositoryDeprecated), h.UnlinkRepository)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupRepositoryCommits), h.ListRepositoryCommits)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListGroupRepositoryCommitsDeprecated), h.ListRepositoryCommits)
+		// The repositories the App can offer this collective, for the picker. A
+		// literal segment, so chi resolves it ahead of any {owner} pattern.
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListAvailableGroupRepositories), h.ListAvailableRepositories)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageListAvailableGroupRepositoriesDeprecated), h.ListAvailableRepositories)
 		h.RegisterCollectiveBrowseRoutes(r)
 
 		// Contribution project listing and selection sharing stubs (501 until handlers land).
@@ -238,8 +253,8 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillageBatchShareSelectionDeprecated), h.BatchShareSelection)
 
 		// Tags
-		r.Get("/tags", h.ListTags)
-		r.Get("/tags/popular", h.PopularTags)
+		r.Get(handler.MountPattern(schemaRoute.VillageListTags), h.ListTags)
+		r.Get(handler.MountPattern(schemaRoute.VillageListPopularTags), h.PopularTags)
 
 		// Annotations
 		r.With(h.AuthRequired).Post(handler.MountPattern(schemaRoute.VillagePushAnnotations), h.UploadAnnotations)
@@ -302,12 +317,9 @@ func build(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobS
 		r.With(h.AuthOptional).Get(handler.MountPattern(schemaRoute.VillageListTranscriptPullRequests), h.ListTranscriptPullRequests)
 		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageGetMyStats), h.GetMyStats)
 
-		// GitHub App install handshake. Both routes are redirects, like the OAuth
-		// entry points, so neither is declared by the JSON contract; the install
-		// route requires a session (it acts only for a collective owner) and the
-		// callback verifies the signed state it carries.
-		r.With(h.AuthRequired).Get("/integrations/github/install", h.GitHubInstall)
-		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
+		// GitHub App install and callback both require a session.
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageStartGitHubAppInstall), h.GitHubInstall)
+		r.With(h.AuthRequired).Get(handler.MountPattern(schemaRoute.VillageCompleteGitHubAppInstall), h.GitHubInstallCallback)
 	})
 
 	ConfigureHealthRoutes(r, h)

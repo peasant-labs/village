@@ -14,13 +14,6 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
-var validAttestationTypes = map[string]bool{
-	"used_in_training": true,
-	"referenced":       true,
-	"evaluated":        true,
-	"deployed":         true,
-}
-
 // CreateAttestation creates a usage attestation for a transcript.
 // POST /transcripts/{id}/attestations (AuthRequired)
 // The DB FK constraint on (attester_id, org_login) -> user_github_orgs
@@ -55,7 +48,7 @@ func (h *Handler) CreateAttestation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.AttestationType = strings.TrimSpace(req.AttestationType)
-	if !validAttestationTypes[req.AttestationType] {
+	if !schema.VillageAttestationType(req.AttestationType).IsValid() {
 		writeError(w, http.StatusBadRequest, "Invalid attestation type")
 		return
 	}
@@ -157,7 +150,7 @@ func (h *Handler) DeleteAttestation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	writeJSON(w, http.StatusOK, schema.VillageStatusResponse{Status: "deleted"})
 }
 
 // ListTranscriptAttestations returns all attestations for a transcript.

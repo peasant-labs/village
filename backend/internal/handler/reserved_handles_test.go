@@ -50,7 +50,7 @@ func TestReservedHandlesAreNeverAssigned(t *testing.T) {
 				set := false
 				q := &mockQuerier{setUsername: func(_ context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error) {
 					set = true
-					return sqlc.User{ID: arg.ID, GithubUsername: arg.GithubUsername}, nil
+					return sqlc.User{ID: arg.ID, GithubUsername: arg.GithubUsername, CreatedAt: validAccountTimestamp, UpdatedAt: validAccountTimestamp}, nil
 				}}
 				h := newTestHandler(q, nil)
 				r := httptest.NewRequest(http.MethodPatch, "/api/v1/auth/me/username", strings.NewReader(`{"username":"`+c.Input+`"}`))

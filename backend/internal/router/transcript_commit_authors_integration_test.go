@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/redact"
+	schemaroute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
@@ -30,12 +31,15 @@ var transcriptCommitAuthorsYAML []byte
 // transcriptCommitAuthorsFixture names the embedded fixture in failure messages.
 const transcriptCommitAuthorsFixture = "testdata/transcript_commit_authors.yaml"
 
-// transcriptCommitsPath is the commits list of one transcript. The served
-// contract does not declare the route yet; it is listed in
-// testdata/undocumented_routes.yaml.
-func transcriptCommitsPath(id uuid.UUID) string {
-	// unstring-allow: go-endpoint-literal — the commits list is not in the served contract yet
-	return "/api/v1/transcripts/" + id.String() + "/commits"
+// transcriptCommitsPath builds the commits list path for one transcript from the
+// generated route contract.
+func transcriptCommitsPath(t *testing.T, id uuid.UUID) string {
+	t.Helper()
+	path, err := schemaroute.VillageListTranscriptCommitsPath(id.String())
+	if err != nil {
+		t.Fatalf("build commits path for %s: %v", id, err)
+	}
+	return path
 }
 
 // requiredTranscriptCommitAuthorCases is the fixture's name manifest: both
@@ -315,7 +319,7 @@ func TestTranscriptCommitAuthorsFollowTheOwnerRule(t *testing.T) {
 				bearer = tokenFor(stranger)
 			case commitAuthorViewerAnonymous:
 			}
-			req := httptest.NewRequest(http.MethodGet, transcriptCommitsPath(transcriptOf[c.OwnerDiscoverable]), nil)
+			req := httptest.NewRequest(http.MethodGet, transcriptCommitsPath(t, transcriptOf[c.OwnerDiscoverable]), nil)
 			if bearer != "" {
 				req.Header.Set("Authorization", "Bearer "+bearer)
 			}

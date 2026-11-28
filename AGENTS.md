@@ -137,11 +137,10 @@ Say in the pull request which paths were tried and why the earlier ones did not
 fit, so a reviewer can see the expensive path was chosen deliberately.
 
 Two tests keep the served document honest. The route drift gate
-(`backend/internal/router/contract_drift_test.go`) fails when a mounted
-`/api/v1` route is neither declared by the served document nor listed, with a
-reason, in `backend/internal/router/testdata/undocumented_routes.yaml`; a row
-there may only be removed once the contract declares the route or the route
-is unmounted, so the list only shrinks. The collectives, share, repository,
+(`backend/internal/router/contract_drift_test.go`) fails in both directions
+against the served contract with no manifest: every mounted route must be
+declared by the served document, and every declared route must be mounted (with
+`unstring` `typed.goMountLiteral` enabled with zero exceptions). The collectives, share, repository,
 review, and user-settings mutations read their bodies through
 `readContractBody` / `decodeContractBody`
 (`backend/internal/handler/contract_body.go`), which validate against the

@@ -269,6 +269,8 @@ func (s *signInUsers) querier(t *testing.T, githubID int64) *mockQuerier {
 					GithubUsername:   arg.GithubUsername,
 					ProviderUsername: arg.ProviderUsername,
 					Provider:         "github",
+					CreatedAt:        validAccountTimestamp,
+					UpdatedAt:        validAccountTimestamp,
 				}
 				read = *s.self
 			}
@@ -354,6 +356,8 @@ func TestGitHubSignInHandle(t *testing.T) {
 					GithubUsername: c.Returning.Handle,
 					Provider:       "github",
 					UsernameChosen: c.Returning.Chosen,
+					CreatedAt:      validAccountTimestamp,
+					UpdatedAt:      validAccountTimestamp,
 				}
 			}
 			q := users.querier(t, githubID)

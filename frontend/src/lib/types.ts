@@ -1,5 +1,5 @@
 import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
-import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageTranscriptListResponse } from "@peasant-labs/schema";
+import type { License, SessionOutcome, SourceFormat, VillageResolvedProject, VillageTranscript, VillageTranscriptListResponse } from "@peasant-labs/schema";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -13,6 +13,7 @@ import type { License, SessionOutcome, SourceFormat, VillageTranscript, VillageT
  * arrives as `""`, never `null` — a project with no git remote is a normal
  * state, and the subtitle is simply omitted for it.
  */
+/** @deprecated Import VillageResolvedProject from "@peasant-labs/schema". Alias kept for one release. */
 export type ResolvedProject = AsPlainString<VillageResolvedProject, "project_hash">;
 
 /**
@@ -64,10 +65,10 @@ import type {
   VillageCollectiveTranscriptStats,
   VillageLinkedRepositoriesResponse,
   VillageLinkedRepository,
+  VillageProjectNameSource,
   VillagePullRequestsSummary,
   VillageRepositoryCommit,
   VillageRepositoryCommitsResponse,
-  VillageResolvedProject,
   VillageShareEvent,
   VillageShareEventActor,
   VillageShareStatus,
@@ -101,15 +102,16 @@ export interface User {
 
 /**
  * The tier a project's resolved display name came from (village backend
- * `internal/projectname.NameSource`). These routes are deliberately outside
- * the OpenAPI spec, so there is no generated TypeScript type — this is the
- * frontend's own closed, hand-declared union. Widening the server-side enum
- * without adding a member here must fail the BUILD, not silently render an
- * unstyled fallback: see {@link assertNameSourceExhaustive} for the
- * compile-time proof, and `describeNameSource` in `@/lib/format` for the one
- * live exhaustive consumer.
+ * `internal/projectname.NameSource`), re-exported from `@peasant-labs/schema`.
+ * Widening the contract enum without adding a member in `describeNameSource`
+ * must fail the BUILD, not silently render an unstyled fallback: see
+ * {@link assertNameSourceExhaustive} for the compile-time proof, and
+ * `describeNameSource` in `@/lib/format` for the one live exhaustive
+ * consumer.
+ *
+ * @deprecated Import `VillageProjectNameSource` from `"@peasant-labs/schema"`. Alias kept for one release.
  */
-export type NameSource = "override" | "consented" | "remote" | "path" | "privacy";
+export type NameSource = VillageProjectNameSource;
 
 /**
  * Compile-time exhaustiveness proof for {@link NameSource}. A `switch` over
@@ -387,8 +389,10 @@ export type RepositoryCommitsResponse = VillageRepositoryCommitsResponse;
  * Note the camelCase wire shape — distinct from the snake_case
  * {@link RepositoryCommit} returned by the repository commits endpoint.
  */
+/** @deprecated Import VillageTranscriptCommit from "@peasant-labs/schema". Alias kept for one release. */
 export type TranscriptCommit = VillageTranscriptCommit;
 
+/** @deprecated Import VillageTranscriptCommitsResponse from "@peasant-labs/schema". Alias kept for one release. */
 export type TranscriptCommitsResponse = VillageTranscriptCommitsResponse;
 
 export interface Attestation {
@@ -506,10 +510,9 @@ export type TranscriptCollective = VillageTranscriptCollective;
 
 /**
  * The outcome recorded on one share event (village backend
- * `transcript_share_attempts.status`). These profile routes are deliberately
- * outside the OpenAPI spec, so there is no generated TypeScript type — this is
- * the frontend's own closed, hand-declared union, and
- * {@link assertShareEventStatusExhaustive} is its compile-time proof.
+ * `transcript_share_attempts.status`), now typed by the schema package as
+ * {@link VillageShareStatus}; {@link assertShareEventStatusExhaustive}
+ * provides a compile-time exhaustiveness check for callers.
  *
  * `retracted` (the owner withdrew) and `revoked` (the collective removed) are
  * distinct terminal states, distinct from each other AND from `rejected`.
