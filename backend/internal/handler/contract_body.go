@@ -315,8 +315,8 @@ func parseContractJSON(raw []byte) (any, error) {
 // from a declared field only in case is refused too: Go's JSON decoder would
 // bind it to the declared field, so the decoded object could differ from the
 // validated one.
-func (moduleValidator) ValidateBody(method, path string, raw []byte) error {
-	compiled, err := compiledContractBody(method, path)
+func (v moduleValidator) ValidateBody(method, path string, raw []byte) error {
+	compiled, err := v.compiledBody(method, path)
 	if err != nil {
 		return err
 	}
@@ -331,6 +331,20 @@ func (moduleValidator) ValidateBody(method, path string, raw []byte) error {
 		return fmt.Errorf("%w: %s", ErrSchemaInvalid, alias)
 	}
 	return nil
+}
+
+func (v moduleValidator) compiledBody(method, path string) (*jsonschema.Schema, error) {
+	if v.schemas == nil {
+		return compiledContractBody(method, path)
+	}
+	if v.schemas.err != nil {
+		return nil, v.schemas.err
+	}
+	compiled, ok := v.schemas.byOperation[contractOperationKey(method, path)]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s %s", ErrContractBodyUndeclared, strings.ToUpper(method), path)
+	}
+	return compiled, nil
 }
 
 // declaredContractBody re-encodes an already validated body with only the

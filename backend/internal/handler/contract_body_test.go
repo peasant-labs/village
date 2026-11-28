@@ -639,27 +639,17 @@ func TestContractBody_PathItemMetadata(t *testing.T) {
 		}
 		required[c.Name] = true
 		t.Run(c.Name, func(t *testing.T) {
-			result := parseContractBodySchemas([]byte(c.Document))
-			if result.err != nil {
-				t.Fatalf("parse contract path item: %v", result.err)
+			schemas := parseContractBodySchemas([]byte(c.Document))
+			if schemas.err != nil {
+				t.Fatalf("parse contract path item: %v", schemas.err)
 			}
-			compiled := result.byOperation[contractOperationKey(c.Method, c.Path)]
-			if compiled == nil {
-				t.Fatal("operation schema was not compiled")
-			}
-			valid, err := parseContractJSON([]byte(c.Valid))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := compiled.Validate(valid); err != nil {
+			v := moduleValidator{schemas: &schemas}
+			if err := v.ValidateBody(c.Method, c.Path, []byte(c.Valid)); err != nil {
 				t.Fatalf("valid body rejected: %v", err)
 			}
-			invalid, err := parseContractJSON([]byte(c.Invalid))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := compiled.Validate(invalid); err == nil {
-				t.Fatal("invalid body accepted")
+			err := v.ValidateBody(c.Method, c.Path, []byte(c.Invalid))
+			if !errors.Is(err, ErrSchemaInvalid) {
+				t.Fatalf("invalid body error = %v, want ErrSchemaInvalid", err)
 			}
 		})
 	}

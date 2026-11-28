@@ -45,7 +45,9 @@ var ErrSchemaInvalid = errors.New("request body failed OpenAPI schema validation
 
 // moduleValidator delegates publish validation to the contract module's single
 // byte-source JSON-Schema and preserves the 422 body via the ErrSchemaInvalid wrap.
-type moduleValidator struct{}
+type moduleValidator struct {
+	schemas *contractBodySchemas
+}
 
 var _ PayloadValidator = moduleValidator{}
 
