@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 // The demo's drop-in composite + its one wire to view adapter. This viewer
@@ -500,7 +500,10 @@ function SessionDetailV2Content({
 
   // Persist the latest reading position when the child route unmounts (e.g.
   // navigating to the current parent) so Back lands where it left.
-  useEffect(() => () => persistReadState(), [persistReadState]);
+  // useLayoutEffect runs before React detaches the stream from the DOM and
+  // before observeStreamScroll cancels any pending animation frame, so the
+  // active row's exact offset is measured on unmount too.
+  useLayoutEffect(() => () => persistReadState(), [persistReadState]);
 
   // A positioned page also saves as its position changes: a full page load
   // away from it runs no unmount.
