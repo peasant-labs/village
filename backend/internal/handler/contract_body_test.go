@@ -614,3 +614,57 @@ func TestCreateGroupAcceptsANullOrganization(t *testing.T) {
 		t.Fatalf("created %+v, want the named collective linked to no organization", created)
 	}
 }
+
+//go:embed testdata/contract_body_path_items.yaml
+var contractBodyPathItemsYAML []byte
+
+type contractBodyPathItemCase struct {
+	Name       string `yaml:"name"`
+	Spec       string `yaml:"spec"`
+	Method     string `yaml:"method"`
+	Path       string `yaml:"path"`
+	Conforming string `yaml:"conforming"`
+	Malformed  string `yaml:"malformed"`
+}
+
+func TestContractBody_IgnoresNonMethodPathItemMembers(t *testing.T) {
+	cases, err := decodeFixtureRows[contractBodyPathItemCase](contractBodyPathItemsYAML)
+	if err != nil {
+		t.Fatalf("load path item fixture: %v", err)
+	}
+	required := map[string]bool{"path-item-with-servers-and-parameters": false}
+	for _, c := range cases {
+		if _, ok := required[c.Name]; ok {
+			required[c.Name] = true
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			schemas := loadContractBodySchemasFromSpec([]byte(c.Spec))
+			if schemas.err != nil {
+				t.Fatalf("loadContractBodySchemasFromSpec failed: %v", schemas.err)
+			}
+			compiled, ok := schemas.byOperation[contractOperationKey(c.Method, c.Path)]
+			if !ok {
+				t.Fatalf("operation %s %s not compiled", c.Method, c.Path)
+			}
+			conforming, err := parseContractJSON([]byte(c.Conforming))
+			if err != nil {
+				t.Fatalf("parse conforming: %v", err)
+			}
+			if err := compiled.Validate(conforming); err != nil {
+				t.Fatalf("conforming body rejected: %v", err)
+			}
+			malformed, err := parseContractJSON([]byte(c.Malformed))
+			if err != nil {
+				t.Fatalf("parse malformed: %v", err)
+			}
+			if err := compiled.Validate(malformed); err == nil {
+				t.Fatal("malformed body accepted")
+			}
+		})
+	}
+	for name, found := range required {
+		if !found {
+			t.Fatalf("missing required path-item fixture case %q", name)
+		}
+	}
+}

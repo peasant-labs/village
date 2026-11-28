@@ -1,0 +1,38 @@
+- name: path-item-with-servers-and-parameters
+  spec: |
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/health": {
+          "servers": [{"url": "https://village.example.com"}],
+          "parameters": [{"name": "x-trace", "in": "header", "schema": {"type": "string"}}],
+          "get": {
+            "responses": {"200": {"description": "ok"}}
+          }
+        },
+        "/api/v1/items": {
+          "servers": [{"url": "https://village.example.com"}],
+          "parameters": [{"name": "x-trace", "in": "header", "schema": {"type": "string"}}],
+          "post": {
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                      "name": {"type": "string", "minLength": 1}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  method: POST
+  path: /api/v1/items
+  conforming: '{"name":"ok"}'
+  malformed: '{"name":""}'
