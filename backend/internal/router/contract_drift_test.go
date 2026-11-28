@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/config"
@@ -28,7 +29,7 @@ import (
 // an operation constant cannot drift from the router.
 func TestContractEnforcedOperations_AreMounted(t *testing.T) {
 	mounted := map[string]bool{}
-	for _, r := range mountedAPIRoutes(t) {
+	for _, r := range mountedRoutes(t) {
 		mounted[routeKey(r.Method, r.Path)] = true
 	}
 	for _, op := range handler.ContractEnforcedOperations() {
@@ -40,75 +41,6 @@ func TestContractEnforcedOperations_AreMounted(t *testing.T) {
 
 //go:embed testdata/contract_drift_cases.yaml
 var contractDriftCasesYAML []byte
-
-//go:embed testdata/undocumented_routes.yaml
-var undocumentedRoutesYAML []byte
-
-//go:embed testdata/api_prefix_cases.yaml
-var apiPrefixCasesYAML []byte
-
-type apiPrefixCase struct {
-	Name string `yaml:"name"`
-	Path string `yaml:"path"`
-	API  bool   `yaml:"api"`
-}
-
-var requiredAPIPrefixCases = []string{
-	"the bare prefix is an API route",
-	"a route below the prefix is an API route",
-	"the prefix with a trailing slash is an API route",
-	"a path that merely starts with the prefix text is not an API route",
-	"a path outside the prefix is not an API route",
-}
-
-func TestUnderAPIPrefix_Fixture(t *testing.T) {
-	cases, err := decodeSingleYAMLDocument[[]apiPrefixCase](apiPrefixCasesYAML)
-	if err != nil {
-		t.Fatalf("load the API prefix fixture: %v", err)
-	}
-	present := map[string]bool{}
-	for _, c := range cases {
-		present[c.Name] = true
-	}
-	for _, required := range requiredAPIPrefixCases {
-		if !present[required] {
-			t.Fatalf("the API prefix fixture omits required case %q", required)
-		}
-	}
-	for _, c := range cases {
-		t.Run(c.Name, func(t *testing.T) {
-			if got := underAPIPrefix(c.Path); got != c.API {
-				t.Fatalf("underAPIPrefix(%q) = %v, want %v", c.Path, got, c.API)
-			}
-		})
-	}
-}
-
-type manifestRoute struct {
-	Method string `yaml:"method"`
-	Path   string `yaml:"path"`
-	Reason string `yaml:"reason"`
-}
-
-type undocumentedRoutesFile struct {
-	Routes []manifestRoute `yaml:"routes"`
-}
-
-func loadUndocumentedRoutes(t *testing.T) []route {
-	t.Helper()
-	file, err := decodeSingleYAMLDocument[undocumentedRoutesFile](undocumentedRoutesYAML)
-	if err != nil {
-		t.Fatalf("load the undocumented-routes manifest: %v", err)
-	}
-	routes := make([]route, 0, len(file.Routes))
-	for _, r := range file.Routes {
-		if strings.TrimSpace(r.Reason) == "" {
-			t.Fatalf("%s %s in the undocumented-routes manifest has no reason; say why the contract does not declare it yet", r.Method, r.Path)
-		}
-		routes = append(routes, route{Method: r.Method, Path: r.Path})
-	}
-	return routes
-}
 
 // productionRouter builds the production router with no database, blob store,
 // or GitHub App (construction touches none of them).
@@ -126,17 +58,15 @@ func productionRouter(t *testing.T) chi.Router {
 	return routes
 }
 
-// enumerateAPIRoutes returns every route mounted under /api/v1. chi.Walk
+// enumerateRoutes returns every mounted route. chi.Walk
 // reports a method handler that shares a mount node with a subrouter, such as
 // a handler registered on the parent at the mount prefix (chi v5.3.0 and
 // later); a mount stub with no handler of its own stays hidden.
-func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
+func enumerateRoutes(t *testing.T, routes chi.Routes) []route {
 	t.Helper()
 	var out []route
 	err := chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if underAPIPrefix(path) {
-			out = append(out, route{Method: method, Path: path})
-		}
+		out = append(out, route{Method: method, Path: path})
 		return nil
 	})
 	if err != nil {
@@ -145,16 +75,10 @@ func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
 	return out
 }
 
-// mountedAPIRoutes builds the production router and returns its API routes.
-func mountedAPIRoutes(t *testing.T) []route {
+// mountedRoutes builds the production router and returns all its routes.
+func mountedRoutes(t *testing.T) []route {
 	t.Helper()
-	return enumerateAPIRoutes(t, productionRouter(t))
-}
-
-// underAPIPrefix reports whether a mounted path belongs to the /api/v1
-// surface, the bare prefix included.
-func underAPIPrefix(path string) bool {
-	return path == "/api/v1" || strings.HasPrefix(path, "/api/v1/")
+	return enumerateRoutes(t, productionRouter(t))
 }
 
 // declaredContractRoutes reads the operations from the same bytes the server
@@ -171,7 +95,7 @@ func declaredContractRoutes(t *testing.T) []route {
 	for path, operations := range doc.Paths {
 		for method := range operations {
 			switch strings.ToUpper(method) {
-			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions, http.MethodTrace:
 				out = append(out, route{Method: strings.ToUpper(method), Path: path})
 			}
 		}
@@ -179,19 +103,11 @@ func declaredContractRoutes(t *testing.T) []route {
 	return out
 }
 
-// TestContractDriftGate_MountedRoutesAreDeclaredOrListed is the CI gate: every
-// route the server mounts under /api/v1 is either declared by the served
-// contract or listed, with a reason, in the undocumented-routes manifest, and
-// every route the contract declares is mounted. Mounts take their pattern from
-// schema route members, so a mount naming the wrong member is still declared;
-// only the declared-but-not-mounted check catches the route it dropped. The
-// manifest can only shrink: a row for a route the contract now declares, or
-// for a route no longer mounted, is itself a failure.
-func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
-	mounted := mountedAPIRoutes(t)
+// TestContractDriftGate compares every mounted route with the served contract.
+func TestContractDriftGate_MountedRoutesAreDeclared(t *testing.T) {
+	mounted := mountedRoutes(t)
 	declared := declaredContractRoutes(t)
-	manifest := loadUndocumentedRoutes(t)
-	for _, finding := range contractDriftFindings(mounted, declared, manifest) {
+	for _, finding := range contractDriftFindings(mounted, declared) {
 		t.Error(finding)
 	}
 }
@@ -212,8 +128,8 @@ func TestContractDriftGate_SeesAHandlerAtTheMountPrefix(t *testing.T) {
 		t.Fatalf("the handler at /api/v1 answered %d; the regression would be vacuous", live.Code)
 	}
 
-	findings := contractDriftFindings(enumerateAPIRoutes(t, router), declaredContractRoutes(t), loadUndocumentedRoutes(t))
-	want := "GET /api/v1 is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason"
+	findings := contractDriftFindings(enumerateRoutes(t, router), declaredContractRoutes(t))
+	want := "GET /api/v1 is mounted but the served contract does not declare it; declare it in the schema module and re-pin"
 	for _, finding := range findings {
 		if finding == want {
 			return
@@ -235,7 +151,6 @@ type contractDriftCase struct {
 	Why      string   `yaml:"why"`
 	Mounted  []route  `yaml:"mounted"`
 	Declared []route  `yaml:"declared"`
-	Manifest []route  `yaml:"manifest"`
 	Findings []string `yaml:"findings"`
 }
 
@@ -243,15 +158,14 @@ type contractDriftCase struct {
 // rather than in the fixture so deleting fixture rows cannot delete the
 // manifest that protects them.
 var requiredContractDriftCases = []string{
-	"mounted route absent from the contract and the manifest is a finding",
-	"manifest row no longer mounted is a finding",
-	"manifest row the contract now declares is a finding",
-	"duplicate manifest row is a finding",
+	"mounted route absent from the contract is a finding",
 	"mounted route the contract declares passes",
-	"manifest row still mounted and still undeclared passes",
 	"path parameter names do not matter",
 	"declared route that is not mounted is a finding",
 	"attachment route mounted without a declaration is a finding",
+	"a root route the contract declares passes",
+	"a root route the contract does not declare is a finding",
+	"a route declared at the root but mounted under the API prefix is a finding",
 }
 
 func decodeSingleYAMLDocument[T any](data []byte) (T, error) {
@@ -292,7 +206,7 @@ func loadContractDriftCases(t *testing.T) []contractDriftCase {
 func TestContractDriftFindings_Fixture(t *testing.T) {
 	for _, c := range loadContractDriftCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
-			got := contractDriftFindings(c.Mounted, c.Declared, c.Manifest)
+			got := contractDriftFindings(c.Mounted, c.Declared)
 			want := append([]string{}, c.Findings...)
 			sort.Strings(want)
 			if len(got) == 0 && len(want) == 0 {
@@ -313,10 +227,9 @@ func routeKey(method, path string) string {
 }
 
 // contractDriftFindings compares the routes the server mounts with the routes
-// the served contract declares and with the manifest of routes known to be
-// undeclared. Each finding is one sentence naming the route and the fix. The
+// the served contract declares . Each finding is one sentence naming the route and the fix. The
 // result is sorted so fixtures can state it exactly.
-func contractDriftFindings(mounted, declared, manifest []route) []string {
+func contractDriftFindings(mounted, declared []route) []string {
 	declaredSet := map[string]bool{}
 	for _, r := range declared {
 		declaredSet[routeKey(r.Method, r.Path)] = true
@@ -325,26 +238,11 @@ func contractDriftFindings(mounted, declared, manifest []route) []string {
 	for _, r := range mounted {
 		mountedSet[routeKey(r.Method, r.Path)] = true
 	}
-	manifestSet := map[string]bool{}
 	var findings []string
-	for _, r := range manifest {
-		key := routeKey(r.Method, r.Path)
-		if manifestSet[key] {
-			findings = append(findings, fmt.Sprintf("%s %s appears twice in the undocumented-routes manifest; keep one row", r.Method, r.Path))
-			continue
-		}
-		manifestSet[key] = true
-		if !mountedSet[key] {
-			findings = append(findings, fmt.Sprintf("%s %s is in the undocumented-routes manifest but the server no longer mounts it; delete the row", r.Method, r.Path))
-		}
-		if declaredSet[key] {
-			findings = append(findings, fmt.Sprintf("%s %s is in the undocumented-routes manifest but the served contract now declares it; delete the row", r.Method, r.Path))
-		}
-	}
 	for _, r := range mounted {
 		key := routeKey(r.Method, r.Path)
-		if !declaredSet[key] && !manifestSet[key] {
-			findings = append(findings, fmt.Sprintf("%s %s is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason", r.Method, r.Path))
+		if !declaredSet[key] {
+			findings = append(findings, fmt.Sprintf("%s %s is mounted but the served contract does not declare it; declare it in the schema module and re-pin", r.Method, r.Path))
 		}
 	}
 	for _, r := range declared {
@@ -354,4 +252,24 @@ func contractDriftFindings(mounted, declared, manifest []route) []string {
 	}
 	sort.Strings(findings)
 	return findings
+}
+
+// TestRootRoutesAreMountedAtTheirPattern checks every contract route outside the API group.
+func TestRootRoutesAreMountedAtTheirPattern(t *testing.T) {
+	mounted := mountedRoutes(t)
+	for _, r := range schemaRoute.AllVillage {
+		if strings.HasPrefix(r.Pattern(), handler.APIPrefix+"/") {
+			continue
+		}
+		found := false
+		for _, m := range mounted {
+			if m.Method == string(r.Method()) && m.Path == r.Pattern() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("root route %s %s is not mounted", r.Method(), r.Pattern())
+		}
+	}
 }

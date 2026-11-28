@@ -1,9 +1,6 @@
-# Cases for the route drift comparison. Each case hands the comparison three lists:
-# what the server mounts, what the served contract declares, and what the manifest of
-# known-undeclared routes names. `findings` is the exact sorted list the comparison
-# must return; an empty list means the gate passes.
+# Each case compares mounted and declared routes and lists the exact findings.
 
-- name: mounted route absent from the contract and the manifest is a finding
+- name: mounted route absent from the contract is a finding
   why: >
     The drift this gate exists to catch. A route the server answers but the
     contract never describes is invisible to every client and validated by
@@ -16,52 +13,8 @@
   declared:
     - method: GET
       path: /api/v1/groups/{id}
-  manifest: []
   findings:
-    - "POST /api/v1/groups/{id}/shares is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason"
-
-- name: manifest row no longer mounted is a finding
-  why: >
-    A row for a route that was removed is dead weight that would let a future
-    route reuse the exemption by accident.
-  mounted: []
-  declared: []
-  manifest:
-    - method: GET
-      path: /api/v1/tags
-  findings:
-    - "GET /api/v1/tags is in the undocumented-routes manifest but the server no longer mounts it; delete the row"
-
-- name: manifest row the contract now declares is a finding
-  why: >
-    The manifest may only shrink. Once the contract declares a route, its row
-    must go, so the manifest never masks a real drift later.
-  mounted:
-    - method: GET
-      path: /api/v1/tags
-  declared:
-    - method: GET
-      path: /api/v1/tags
-  manifest:
-    - method: GET
-      path: /api/v1/tags
-  findings:
-    - "GET /api/v1/tags is in the undocumented-routes manifest but the served contract now declares it; delete the row"
-
-- name: duplicate manifest row is a finding
-  why: >
-    Two rows for one route hide an edit that removed the wrong one.
-  mounted:
-    - method: GET
-      path: /api/v1/tags
-  declared: []
-  manifest:
-    - method: GET
-      path: /api/v1/tags
-    - method: GET
-      path: /api/v1/tags
-  findings:
-    - "GET /api/v1/tags appears twice in the undocumented-routes manifest; keep one row"
+    - "POST /api/v1/groups/{id}/shares is mounted but the served contract does not declare it; declare it in the schema module and re-pin"
 
 - name: mounted route the contract declares passes
   why: >
@@ -72,19 +25,6 @@
   declared:
     - method: PATCH
       path: /api/v1/groups/{id}/shares/{transcriptID}
-  manifest: []
-  findings: []
-
-- name: manifest row still mounted and still undeclared passes
-  why: >
-    The exemption works while the route is genuinely undeclared.
-  mounted:
-    - method: GET
-      path: /api/v1/tags
-  declared: []
-  manifest:
-    - method: GET
-      path: /api/v1/tags
   findings: []
 
 - name: path parameter names do not matter
@@ -97,7 +37,6 @@
   declared:
     - method: GET
       path: /api/v1/users/me/collectives/{id}/submissions
-  manifest: []
   findings: []
 
 - name: declared route that is not mounted is a finding
@@ -111,7 +50,6 @@
   declared:
     - method: GET
       path: /api/v1/pulls/{owner}/{name}/{number}
-  manifest: []
   findings:
     - "GET /api/v1/pulls/{owner}/{name}/{number} is declared by the served contract but the server does not mount it; mount it from its schema route member, or as a 501 stub listed in the declared-stub-routes manifest until its handler lands"
 
@@ -129,6 +67,21 @@
   declared:
     - method: GET
       path: /api/v1/pulls/{owner}/{name}/{number}
-  manifest: []
   findings:
-    - "POST /api/v1/pulls/{owner}/{name}/{number}/confirm is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason"
+    - "POST /api/v1/pulls/{owner}/{name}/{number}/confirm is mounted but the served contract does not declare it; declare it in the schema module and re-pin"
+
+- name: a root route the contract declares passes
+  mounted: [{method: GET, path: /health}]
+  declared: [{method: GET, path: /health}]
+  findings: []
+- name: a root route the contract does not declare is a finding
+  mounted: [{method: GET, path: /other}]
+  declared: []
+  findings:
+    - "GET /other is mounted but the served contract does not declare it; declare it in the schema module and re-pin"
+- name: a route declared at the root but mounted under the API prefix is a finding
+  mounted: [{method: GET, path: /api/v1/health}]
+  declared: [{method: GET, path: /health}]
+  findings:
+    - "GET /api/v1/health is mounted but the served contract does not declare it; declare it in the schema module and re-pin"
+    - "GET /health is declared by the served contract but the server does not mount it; mount it from its schema route member, or as a 501 stub listed in the declared-stub-routes manifest until its handler lands"

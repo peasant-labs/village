@@ -15,4 +15,10 @@
 # stub `signed_in` is 503 (the session is refused as unconfirmed before the
 # stub runs). A signed-in caller with a live account is proved against
 # PostgreSQL by the session identity probe test.
-routes: []
+routes:
+  - name: batch publish
+    method: POST
+    route: /api/v1/transcripts/publish/batch
+    path: /api/v1/transcripts/publish/batch
+    anonymous: 401
+    signed_in: 503

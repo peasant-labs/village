@@ -222,15 +222,13 @@ var (
 // contract module's canonical compiler. Served and enforced are one byte
 // source. Multipart bodies (publish) have no JSON schema here.
 func loadContractBodySchemas() contractBodySchemas {
-	raw := schema.VillageAPISpecJSON()
+	return parseContractBodySchemas(schema.VillageAPISpecJSON())
+}
+
+// parseContractBodySchemas ignores Path Item metadata before decoding operations.
+func parseContractBodySchemas(raw []byte) contractBodySchemas {
 	var doc struct {
-		Paths map[string]map[string]struct {
-			RequestBody *struct {
-				Content map[string]struct {
-					Schema json.RawMessage `json:"schema"`
-				} `json:"content"`
-			} `json:"requestBody"`
-		} `json:"paths"`
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return contractBodySchemas{err: fmt.Errorf("parse the served contract: %w", err)}
@@ -241,7 +239,22 @@ func loadContractBodySchemas() contractBodySchemas {
 	}
 	table := map[string]*jsonschema.Schema{}
 	for path, operations := range doc.Paths {
-		for method, operation := range operations {
+		for method, rawOperation := range operations {
+			switch strings.ToUpper(method) {
+			case http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete, http.MethodOptions, http.MethodHead, http.MethodPatch, http.MethodTrace:
+			default:
+				continue
+			}
+			var operation struct {
+				RequestBody *struct {
+					Content map[string]struct {
+						Schema json.RawMessage `json:"schema"`
+					} `json:"content"`
+				} `json:"requestBody"`
+			}
+			if err := json.Unmarshal(rawOperation, &operation); err != nil {
+				return contractBodySchemas{err: fmt.Errorf("parse the %s %s operation: %w", strings.ToUpper(method), path, err)}
+			}
 			if operation.RequestBody == nil {
 				continue
 			}

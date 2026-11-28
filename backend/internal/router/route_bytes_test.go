@@ -191,7 +191,7 @@ func assertRouteBody(t *testing.T, c routeByteCase, got, want string) {
 }
 
 var requiredRouteByteCases = []string{
-	"health-no-pool", "logout", "empty-organization-search",
+	"health-no-pool", "logout", "empty-organization-search", "unsubscribe-invalid", "unsubscribe-rate-limited",
 	"delete-account-anonymous", "update-discoverability-anonymous",
 	"set-username-anonymous", "create-api-key-anonymous", "list-api-keys-anonymous",
 	"revoke-api-key-anonymous", "organization-visibility-anonymous",
@@ -366,6 +366,7 @@ func TestRouteBytes(t *testing.T) {
 			replace := func(value string) string { return strings.ReplaceAll(value, "{{state}}", state) }
 			assertRouteHeaders(t, c, w.Header(), replace)
 			assertRouteBodyOmits(t, c, w.Body.String(), replace)
+			validateSelectedContractResponse(t, c, w, c.Path)
 		})
 	}
 }
@@ -428,7 +429,7 @@ func TestRouteBytesDeferredStatuses(t *testing.T) {
 	}
 
 	mounted := map[route]bool{}
-	for _, r := range mountedAPIRoutes(t) {
+	for _, r := range mountedRoutes(t) {
 		mounted[r] = true
 	}
 	cases := routeByteCases(t)

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	schemaRoute "github.com/peasant-labs/schema/route"
 	"golang.org/x/oauth2"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
@@ -64,10 +65,25 @@ func (h *Handler) providerOAuthConfig(provider, callbackURL string) (*oauth2.Con
 	return nil, false
 }
 
+func providerCallbackRoute(provider string) schemaRoute.Route {
+	switch provider {
+	case "gitlab":
+		return schemaRoute.VillageCompleteGitLabSignIn
+	case "huggingface":
+		return schemaRoute.VillageCompleteHuggingFaceSignIn
+	case "codeberg":
+		return schemaRoute.VillageCompleteCodebergSignIn
+	case "sourcehut":
+		return schemaRoute.VillageCompleteSourceHutSignIn
+	default:
+		return schemaRoute.Route{}
+	}
+}
+
 // providerLogin is the entry point for non-GitHub OAuth flows. The provider
 // is hard-coded per-route so an arbitrary value can't be smuggled through.
 func (h *Handler) providerLogin(w http.ResponseWriter, r *http.Request, provider string) {
-	callbackURL := fmt.Sprintf("%s/api/v1/auth/%s/callback", h.cfg.BaseURL, provider)
+	callbackURL := h.cfg.BaseURL + providerCallbackRoute(provider).Pattern()
 	cfg, ok := h.providerOAuthConfig(provider, callbackURL)
 	if !ok {
 		h.failBrowser(w, r, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider), h.signInFailed(providerUnavailable(provider)))
@@ -87,7 +103,7 @@ func (h *Handler) providerLogin(w http.ResponseWriter, r *http.Request, provider
 }
 
 func (h *Handler) providerCallback(w http.ResponseWriter, r *http.Request, provider string) {
-	callbackURL := fmt.Sprintf("%s/api/v1/auth/%s/callback", h.cfg.BaseURL, provider)
+	callbackURL := h.cfg.BaseURL + providerCallbackRoute(provider).Pattern()
 	cfg, ok := h.providerOAuthConfig(provider, callbackURL)
 	if !ok {
 		h.failBrowser(w, r, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider), h.signInFailed(providerUnavailable(provider)))

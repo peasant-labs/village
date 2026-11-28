@@ -1,3 +1,4 @@
+import { VillageProjectNameSource } from "@peasant-labs/schema";
 import {
   assertNameSourceExhaustive,
   type GroupTranscript,
@@ -64,15 +65,15 @@ export function formatModelName(
  */
 export function describeNameSource(source: NameSource): string {
   switch (source) {
-    case "override":
+    case VillageProjectNameSource.Override:
       return "Renamed by the project owner";
-    case "consented":
+    case VillageProjectNameSource.Consented:
       return "From the transcript's stored project name";
-    case "remote":
+    case VillageProjectNameSource.Remote:
       return "From the transcript's git remote";
-    case "path":
+    case VillageProjectNameSource.Path:
       return "From the project's redacted local path";
-    case "privacy":
+    case VillageProjectNameSource.Privacy:
       return "Auto-generated from the project's privacy-safe identity";
     default:
       return assertNameSourceExhaustive(source);

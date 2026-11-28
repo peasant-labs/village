@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -46,7 +47,13 @@ func (h *Handler) ListUserPublicOrgs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch orgs")
 		return
 	}
-	writeJSON(w, http.StatusOK, orgs)
+	out := make([]schema.VillageListUserOrganization, 0, len(orgs))
+	for _, org := range orgs {
+		out = append(out, schema.VillageListUserOrganization{
+			OrgLogin: org.OrgLogin, AvatarURL: pgTextToStringPtr(org.AvatarUrl),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // GetUserPublicProfile returns a user's public profile by username, in the
@@ -121,10 +128,7 @@ func (h *Handler) SetOrgVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "updated",
-		"visible": req.Visible,
-	})
+	writeJSON(w, http.StatusOK, schema.VillageOrganizationVisibilityResponse{Status: "updated", Visible: req.Visible})
 }
 
 // SearchOrgs returns organizations whose login matches the query, with aggregate
@@ -133,7 +137,7 @@ func (h *Handler) SetOrgVisibility(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SearchOrgs(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if query == "" {
-		writeJSON(w, http.StatusOK, map[string]any{"organizations": []any{}})
+		writeJSON(w, http.StatusOK, schema.VillageOrganizationSearchResponse{Organizations: []schema.VillageOrganizationSearchResult{}})
 		return
 	}
 
@@ -156,7 +160,23 @@ func (h *Handler) SearchOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"organizations": orgs})
+	out := make([]schema.VillageOrganizationSearchResult, 0, len(orgs))
+	for _, org := range orgs {
+		var avatar *string
+		if org.AvatarUrl != nil {
+			value, ok := org.AvatarUrl.(string)
+			if !ok {
+				writeError(w, http.StatusInternalServerError, "Failed to read organization avatar")
+				return
+			}
+			avatar = &value
+		}
+		out = append(out, schema.VillageOrganizationSearchResult{
+			OrgLogin: org.OrgLogin, AvatarURL: avatar,
+			MemberCount: org.MemberCount, TranscriptCount: org.TranscriptCount,
+		})
+	}
+	writeJSON(w, http.StatusOK, schema.VillageOrganizationSearchResponse{Organizations: out})
 }
 
 // orgCollectiveSummary is the per-collective shape returned in GetOrg's

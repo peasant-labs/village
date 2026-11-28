@@ -35,7 +35,7 @@ pull requests still run the queue and must report every required context.
 | Migration + sqlc conventions | mixed | the `_integration_test.go` variants do | both of the above | [Migration & sqlc](#migration--sqlc-test-conventions) below |
 | Authoritative publication ordering | `//go:build integration` for persistence/order | PostgreSQL + S3-compatible storage | integration `-race` | Publish/PATCH/share locking, audited private-before-replacement, complete association receipts, and fingerprint currency |
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
-| Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
+| Route drift gate (mounted routes = served contract, bidirectional, no manifest; `unstring` `typed.goMountLiteral` enabled with zero exceptions) | none | no | unit | `backend/internal/router/contract_drift_test.go` |
 | Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
 | Declared-but-unimplemented routes answer 501 (the segmented transcript reads) | none | no | unit | `backend/internal/router/declared_stubs_test.go`; fixture `testdata/declared_stub_routes.yaml` |
 | Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |

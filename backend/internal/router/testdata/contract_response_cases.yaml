@@ -1,0 +1,33 @@
+selected:
+  - health-no-pool
+  - logout
+  - empty-organization-search
+  - organization-visibility-updated
+  - create-api-key
+  - list-api-keys
+  - update-discoverability
+  - list-tags
+  - public-organizations
+  - project-page
+  - set-project-name
+  - list-annotations
+  - list-commits
+self_tests:
+  - name: undeclared-status
+    mutation: status
+    want: undeclared status
+  - name: missing-required-header
+    mutation: header
+    want: required header
+  - name: invalid-body
+    mutation: body
+    want: validate body
+  - name: undeclared-operation
+    mutation: unknown-path
+    want: undeclared operation
+  - name: undeclared-media
+    mutation: wrong-media
+    want: undeclared media
+  - name: invalid-json
+    mutation: malformed-json
+    want: decode body

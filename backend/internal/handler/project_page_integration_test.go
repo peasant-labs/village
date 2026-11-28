@@ -27,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/projectname"
@@ -298,12 +299,12 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 			}
 
 			var page struct {
-				Project     resolvedProject `json:"project"`
+				Project     schema.VillageResolvedProject `json:"project"`
 				Transcripts []struct {
 					ProjectHash        string `json:"project_hash"`
 					ProjectDisplayName string `json:"project_display_name"`
 				} `json:"transcripts"`
-				Collectives []ProjectCollectiveRollupEntry `json:"collectives"`
+				Collectives []schema.VillageProjectCollective `json:"collectives"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
 				t.Fatalf("decode the project page %q: %v", w.Body.String(), err)
@@ -311,25 +312,25 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 			if len(page.Transcripts) != testCase.WantTranscriptCount {
 				t.Fatalf("the page listed %d transcripts, want %d", len(page.Transcripts), testCase.WantTranscriptCount)
 			}
-			if page.Project.ProjectHash != world.projectHash {
+			if string(page.Project.ProjectHash) != world.projectHash {
 				t.Fatalf("the page is keyed on %q, want the requested project hash %q", page.Project.ProjectHash, world.projectHash)
 			}
-			if page.Project.DisplayName == "" || page.Project.DisplayName == "Other" {
-				t.Fatalf("resolved display name = %q; it may never be empty or the literal \"Other\"", page.Project.DisplayName)
+			if page.Project.ProjectDisplayName == "" || page.Project.ProjectDisplayName == "Other" {
+				t.Fatalf("resolved display name = %q; it may never be empty or the literal \"Other\"", page.Project.ProjectDisplayName)
 			}
-			if testCase.WantDisplayName != "" && page.Project.DisplayName != testCase.WantDisplayName {
-				t.Errorf("resolved display name = %q, want %q", page.Project.DisplayName, testCase.WantDisplayName)
+			if testCase.WantDisplayName != "" && page.Project.ProjectDisplayName != testCase.WantDisplayName {
+				t.Errorf("resolved display name = %q, want %q", page.Project.ProjectDisplayName, testCase.WantDisplayName)
 			}
-			if testCase.WantNameSource != "" && page.Project.NameSource != projectname.NameSource(testCase.WantNameSource) {
-				t.Errorf("resolved name source = %q, want %q", page.Project.NameSource, testCase.WantNameSource)
+			if testCase.WantNameSource != "" && projectname.NameSource(page.Project.ProjectNameSource) != projectname.NameSource(testCase.WantNameSource) {
+				t.Errorf("resolved name source = %q, want %q", page.Project.ProjectNameSource, testCase.WantNameSource)
 			}
 			// The repository label is rendered as a subtitle independently of which
 			// tier supplied the display name, so it is asserted on its own. An empty
 			// label here means the contract module's remote-label rule is not reaching
 			// the resolver, which looks on screen exactly like the missing-name defect
 			// this work exists to fix.
-			if testCase.WantRemoteLabel != "" && page.Project.RemoteLabel != testCase.WantRemoteLabel {
-				t.Errorf("resolved remote label = %q, want %q", page.Project.RemoteLabel, testCase.WantRemoteLabel)
+			if testCase.WantRemoteLabel != "" && page.Project.ProjectRemoteLabel != testCase.WantRemoteLabel {
+				t.Errorf("resolved remote label = %q, want %q", page.Project.ProjectRemoteLabel, testCase.WantRemoteLabel)
 			}
 			if len(page.Collectives) != testCase.WantCollectiveCount {
 				t.Fatalf("the roll-up listed %d collectives, want %d. An empty roll-up on a project that HAS an approved "+
@@ -341,7 +342,7 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 					t.Errorf("collective %q counted %d transcripts, want %d",
 						collective.Name, collective.TranscriptCount, testCase.WantCollectiveTranscriptCount)
 				}
-				if collective.ID != world.collective {
+				if string(collective.ID) != world.collective.String() {
 					t.Errorf("the roll-up named a collective this project did not contribute to")
 				}
 			}
@@ -349,9 +350,9 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 				if listed.ProjectHash != world.projectHash {
 					t.Errorf("the page listed a transcript of project %q, want only %q", listed.ProjectHash, world.projectHash)
 				}
-				if listed.ProjectDisplayName != page.Project.DisplayName {
+				if listed.ProjectDisplayName != page.Project.ProjectDisplayName {
 					t.Errorf("a listed transcript renders %q while the page renders %q; every surface must show one name",
-						listed.ProjectDisplayName, page.Project.DisplayName)
+						listed.ProjectDisplayName, page.Project.ProjectDisplayName)
 				}
 			}
 		})

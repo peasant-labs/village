@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	schemaroute "github.com/peasant-labs/schema/route"
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/handler"
@@ -122,7 +123,7 @@ func TestSessionIdentityThroughProductionMiddleware(t *testing.T) {
 			})
 			deletedSession := mintSession(t, w.secret, deleted, deletedLogin)
 			liveSession := mintSession(t, w.secret, live, liveLogin)
-			created := w.serve(t, http.MethodPost, createAPIKeyPath, `{"label":"identity probe"}`, bearerOf(liveSession))
+			created := w.serve(t, http.MethodPost, schemaroute.VillageCreateMyAPIKey.Pattern(), `{"label":"identity probe"}`, bearerOf(liveSession))
 			var key struct {
 				Key string `json:"key"`
 			}
@@ -136,7 +137,7 @@ func TestSessionIdentityThroughProductionMiddleware(t *testing.T) {
 				assertProbe(t, probes, sign, viewers[probeViewerDeleted], http.StatusOK)
 			}
 
-			gone := w.serve(t, http.MethodDelete, deleteAccountPath, "", bearerOf(deletedSession))
+			gone := w.serve(t, http.MethodDelete, schemaroute.VillageDeleteMyAccount.Pattern(), "", bearerOf(deletedSession))
 			if gone.Code != http.StatusOK {
 				t.Fatalf("delete the account = %d %s, want 200", gone.Code, gone.Body.String())
 			}
