@@ -274,6 +274,12 @@ async function renderRoute() {
 /** The visible sentence of an element whose text React splits across nodes. */
 const textOf = (element: HTMLElement) => element.textContent!.replace(/\s+/g, " ").trim();
 const tallyText = () => textOf(screen.getByTestId(ContributePageTestId.SelectionTally.wire));
+/** The live line that says how the last run ended: present and empty before one does. */
+const runOutcome = () => {
+  const outcome = screen.getByTestId(ContributePageTestId.RunOutcome.wire);
+  expect(outcome).toHaveAttribute("role", "status");
+  return outcome;
+};
 const section = (project: string) => screen.getByTestId(`contribute-project-${projectHashOf(project)}`);
 const sessionRow = (id: string) => screen.getByTestId(`contribute-session-row-${transcriptIdOf(id)}`);
 const checkboxOf = (row: HTMLElement) => row.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
@@ -287,7 +293,7 @@ const receiptText = () =>
   within(within(screen.getByTestId(ContributionReceiptTestId.Root.wire)).getByRole("list", { name: ContributeLabel.Receipt.wire }))
     .getAllByRole("button")
     .map(textOf)
-    .join(" · ");
+    .join(", ");
 async function openBucket(testId: string): Promise<HTMLElement> {
   const bucket = screen.getByTestId(testId);
   act(() => {
@@ -369,7 +375,7 @@ describe("the paged contribute route", () => {
     expect(pagedReads(requests).map((r) => r.params.get("project_hash"))).toEqual([hash]);
     expect(textOf(screen.getByTestId(`contribute-project-loaded-${hash}`))).toBe(c.expect.loaded);
     const branches = [...section(project).querySelectorAll<HTMLElement>(`[data-testid^="contribute-branch-row-${hash}-"]`)];
-    expect(branches.map((row) => textOf(row))).toEqual((c.expect.branches as string[]).map((b) => `branch · ${b}`));
+    expect(branches.map((row) => textOf(row))).toEqual((c.expect.branches as string[]).map((b) => `branch ${b}`));
 
     const locked = sessionRow(c.expect.locked as string);
     expect(within(locked).getByText(ContributeLabel.AlreadyContributed.wire)).toBeInTheDocument();
@@ -593,10 +599,13 @@ describe("the paged contribute route", () => {
 
     await selectAll("pA");
     await waitFor(() => expect(screen.getByRole("button", { name: contributeLabel(3) })).toBeEnabled());
+    // Mounted before the run, so its words are announced when they arrive.
+    expect(runOutcome()).toBeEmptyDOMElement();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: contributeLabel(3) }));
     });
     await waitFor(() => expect(screen.getByTestId(ContributionReceiptTestId.Root.wire)).toBeInTheDocument());
+    expect(runOutcome()).toHaveTextContent(c.expect.outcome as string);
     expect(receiptText()).toBe(c.expect.receipt);
     expect(textOf(await openBucket(ContributionReceiptTestId.Contributed.wire))).toBe(c.expect.contributed_named);
     expect(textOf(await openBucket(ContributionReceiptTestId.Failed.wire))).toBe(c.expect.failed_named);
@@ -628,6 +637,7 @@ describe("the paged contribute route", () => {
       fireEvent.click(screen.getByRole("button", { name: ContributeLabel.Stop.wire }));
     });
     await waitFor(() => expect(screen.getByTestId(ContributionReceiptTestId.Root.wire)).toBeInTheDocument());
+    expect(runOutcome()).toHaveTextContent(c.expect.outcome as string);
     expect(receiptText()).toBe(c.expect.receipt);
     expect(textOf(screen.getByTestId(ContributionReceiptTestId.Stopped.wire))).toBe(c.expect.stopped);
     expect(tallyText()).toBe(c.expect.tally_after_stop);

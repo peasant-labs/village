@@ -30,7 +30,7 @@ interface BranchExpectation {
 
 interface Fixtures {
   branches: { name: string; families: FamilyToken[]; expect: BranchExpectation[] }[];
-  meta: { name: string; session: SessionToken; family: string; expect: string }[];
+  meta: { name: string; session: SessionToken; family: string; expect: string[] }[];
 }
 
 const fixtures = parse(readFileSync(testdataPath("paged-contribute-tree.yaml"), "utf8")) as Fixtures;
@@ -101,6 +101,6 @@ describe("session meta line", () => {
       root_id: transcript.id,
       is_root: true,
     };
-    expect(pagedRowMeta(row)).toBe(testCase.expect);
+    expect(pagedRowMeta(row)).toEqual(testCase.expect);
   });
 });

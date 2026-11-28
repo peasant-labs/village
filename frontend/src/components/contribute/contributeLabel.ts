@@ -13,6 +13,8 @@ export const ContributeLabel = {
   RetryTranscripts: closed("retry your transcripts", "the retry after the project list failed to load"),
   NothingToContribute: closed("no transcripts to contribute", "the notice when a member has no session to offer"),
   Receipt: closed("contribution receipt", "the list of what a finished run settled"),
+  RunFinished: closed("contribution finished", "the outcome of a run that reached every session"),
+  RunStopped: closed("contribution stopped", "the outcome of a run that ended before every session"),
 } as const;
 
 /** `count` and `noun`, with the noun made plural unless the count is one. */

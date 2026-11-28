@@ -1,9 +1,10 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, CircleAlert, CircleCheck, CircleStop, type LucideIcon } from "lucide-react";
 import { VillageContributionStatus } from "@peasant-labs/schema";
 import { Button } from "@/lib/ft-ui";
+import MetaItems from "@/components/MetaItems";
 import {
   ContributionFailureReason,
   isRetryableFailure,
@@ -48,6 +49,16 @@ function failureCopy(failure: FailedRecord, projectLabel: (hash: string) => stri
 
 const titleOf = (record: SelectedRecord) => record.title ?? "untitled session";
 
+/**
+ * How a run ended, in a word and a mark. The mark tells a clean run from one
+ * that left failures, and the receipt's counts beside it name them, so the
+ * outcome never rests on the icon alone.
+ */
+export function outcomeOf(receipt: Receipt): { label: string; Icon: LucideIcon } {
+  if (receipt.stopped) return { label: ContributeLabel.RunStopped.wire, Icon: CircleStop };
+  return { label: ContributeLabel.RunFinished.wire, Icon: receipt.failed.length > 0 ? CircleAlert : CircleCheck };
+}
+
 interface BucketProps {
   testId: string;
   label: string;
@@ -66,7 +77,7 @@ function Bucket({ testId, label, count, children }: BucketProps) {
     <li data-testid={testId} className={open ? "basis-full" : undefined}>
       <button
         type="button"
-        className="inline-flex items-center gap-1 tabular-nums text-ink-2 hover:text-ink"
+        className="inline-flex items-center gap-1 font-mono text-[length:var(--fs-label)] tabular-nums text-ink-2 hover:text-ink focus-mono"
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpen((was) => !was)}
@@ -111,8 +122,14 @@ export default function ContributionReceipt({ receipt, projectLabel, onRetry, re
         <Bucket testId={ContributionReceiptTestId.Contributed.wire} label="contributed" count={receipt.contributed.length}>
           {receipt.contributed.map(({ record, status }) => (
             <li key={record.id}>
-              <span className="normal-case">{titleOf(record)}</span>
-              {status === VillageContributionStatus.Pending && <span className="text-ink-3"> · awaiting approval</span>}
+              <MetaItems
+                items={[
+                  <span key="title" className="normal-case">{titleOf(record)}</span>,
+                  status === VillageContributionStatus.Pending && (
+                    <span key="pending" className="font-mono text-[length:var(--fs-label)]">awaiting approval</span>
+                  ),
+                ]}
+              />
             </li>
           ))}
         </Bucket>

@@ -57,12 +57,12 @@ export function lastActivity(transcript: VillageContributableTranscript): string
 }
 
 /**
- * The mono line under a session's title: its harness, when it was last
- * active, its stored visibility, and, for a helper filed under another
- * project, that project. The page lists by last activity, so the date it
- * shows is that one.
+ * The facts on the mono line under a session's title: its harness, when it
+ * was last active, its stored visibility, and, for a helper filed under
+ * another project, that project. The page lists by last activity, so the
+ * date it shows is that one.
  */
-export function pagedRowMeta(row: LoadedRow): string {
+export function pagedRowMeta(row: LoadedRow): string[] {
   const transcript = row.transcript;
   const parts = [
     transcript.model_provider || "unknown harness",
@@ -70,5 +70,5 @@ export function pagedRowMeta(row: LoadedRow): string {
     transcript.visibility,
   ];
   if (transcript.project_hash !== row.family_project_hash) parts.push(`in ${transcript.project_display_name}`);
-  return parts.join(" · ");
+  return parts;
 }

@@ -37,20 +37,20 @@ meta:
   - name: a-root-shows-its-harness-last-activity-and-visibility
     session: { id: t1, project: pA, provider: anthropic, visibility: private, end: "2026-11-03T12:00:00Z" }
     family: pA
-    expect: anthropic · Nov 3 · private
+    expect: [anthropic, Nov 3, private]
   - name: a-session-without-an-end-shows-its-start
     session: { id: t1, project: pA, provider: openai, visibility: public, start: "2026-11-04T12:00:00Z" }
     family: pA
-    expect: openai · Nov 4 · public
+    expect: [openai, Nov 4, public]
   - name: a-session-without-times-shows-its-publish-date
     session: { id: t1, project: pA, provider: openai, visibility: public }
     family: pA
-    expect: openai · Nov 1 · public
+    expect: [openai, Nov 1, public]
   - name: a-helper-in-another-project-names-that-project
     session: { id: t2, project: pB, provider: anthropic, visibility: private, end: "2026-11-02T12:00:00Z" }
     family: pA
-    expect: anthropic · Nov 2 · private · in project b
+    expect: [anthropic, Nov 2, private, in project b]
   - name: a-session-without-a-harness-says-so
     session: { id: t1, project: pA, provider: "", visibility: shared }
     family: pA
-    expect: unknown harness · Nov 1 · shared
+    expect: [unknown harness, Nov 1, shared]

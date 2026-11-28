@@ -17,6 +17,7 @@ export const ContributePageTestId = {
   MeanwhileNotice: closed("contribute-meanwhile-notice", "the notice that selected sessions were contributed meanwhile"),
   ProjectsLoading: closed("contribute-projects-loading", "the placeholder while the project list loads"),
   RunProgress: closed("contribute-run-progress", "the progress of a running contribution"),
+  RunOutcome: closed("contribute-run-outcome", "the line that says how the last run ended"),
 } as const;
 
 /** The test ids of the receipt a contribution run leaves. */

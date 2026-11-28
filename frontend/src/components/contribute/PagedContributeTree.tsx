@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, GitBranch } from "lucide-react";
 import type { VillageContributionProjectSummary } from "@peasant-labs/schema";
 import { Button, SessionGroupDisclosure, Tag } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
@@ -28,6 +28,7 @@ import {
   type LoadedRow,
 } from "@/lib/contribute/frozenSelection";
 import { pagedRowMeta, sectionBranches, type PagedBranch, type PagedFamily } from "@/lib/contribute/pagedTree";
+import MetaItems from "@/components/MetaItems";
 import RequestFailureState from "@/components/RequestFailureState";
 import { ChildSessionDisclosureTestId } from "@/components/transcript/childSessionDisclosureTestId";
 import TriStateCheckbox from "./TriStateCheckbox";
@@ -101,7 +102,7 @@ function SessionRowView({
             type="button"
             aria-pressed={isActive}
             onClick={() => onPreview(id)}
-            className={`min-w-0 flex-1 text-sm text-ink truncate text-left cursor-pointer focus-mono ${
+            className={`min-w-0 flex-1 text-[length:var(--fs-body)] text-ink truncate text-left cursor-pointer focus-mono ${
               row.transcript.title == null ? "italic text-ink-3" : ""
             }`}
           >
@@ -109,9 +110,7 @@ function SessionRowView({
           </button>
           {locked && <Tag className="contribute-session-mark shrink-0">{ContributeLabel.AlreadyContributed.wire}</Tag>}
         </div>
-        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">
-          {pagedRowMeta(row)}
-        </div>
+        <MetaItems className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums" items={pagedRowMeta(row)} />
       </div>
     </div>
   );
@@ -182,7 +181,6 @@ function BranchView({
   onPreview: (transcriptId: string) => void;
   setRowElement: (key: string, element: HTMLElement | null) => void;
 }) {
-  const label = `branch · ${branch.label}`;
   const key = `b:${projectHash}:${branch.key}`;
   const headingRef = useCallback((element: HTMLHeadingElement | null) => setRowElement(key, element), [key, setRowElement]);
   return (
@@ -198,9 +196,13 @@ function BranchView({
           state={familyState(rowProps.selection, branch.rows)}
           disabled={branch.rows.every(isLockedRow)}
           onChange={() => rowProps.onSelectionChange((previous) => toggleFamily(previous, branch.rows))}
-          label={`select the loaded sessions on ${label}`}
+          label={`select the loaded sessions on branch ${branch.label}`}
         />
-        <span className="truncate normal-case">{label}</span>
+        <GitBranch aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="truncate normal-case">
+          <span className="sr-only">branch </span>
+          {branch.label}
+        </span>
       </h3>
       <div className="contribute-subtree">
         {branch.families.map((family) => (
@@ -463,27 +465,31 @@ function ProjectSection({
             className="mt-1 pl-[calc(0.875rem+var(--sp-2))] font-mono text-[length:var(--fs-label)] tabular-nums text-ink-3"
             data-testid={`contribute-project-counts-${projectHash}`}
           >
-            {plural(project.matching_count, "session")}
-            {live > 0 && ` · ${live} already contributed`}
-            {selected > 0 && ` · ${selected} selected`}
+            <MetaItems
+              items={[
+                plural(project.matching_count, "session"),
+                live > 0 && `${live} already contributed`,
+                selected > 0 && `${selected} selected`,
+              ]}
+            />
           </p>
         </div>
         {snapshot.covered ? (
           <Button size="sm" variant="ghost" pressed onClick={snapshot.deselectAll}>
             {ContributeLabel.DeselectAll.wire}
           </Button>
-        ) : (
+        ) : project.selectable_count > 0 ? (
           <Button
             size="sm"
             variant="ghost"
             loading={snapshot.loading}
-            disabled={snapshot.loading || project.selectable_count === 0}
+            disabled={snapshot.loading}
             onClick={() => void snapshot.selectAll()}
             aria-label={`select all ${project.selectable_count} selectable sessions in ${name}`}
           >
             {snapshot.loading ? "selecting…" : `select all ${project.selectable_count}`}
           </Button>
-        )}
+        ) : null}
       </div>
       {(snapshot.failure || snapshot.omitted > 0) && (
         <div className="px-4 pb-3 text-sm text-ink-2" role="status" data-testid={`contribute-project-notice-${projectHash}`}>
