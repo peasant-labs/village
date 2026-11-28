@@ -547,8 +547,6 @@ describe("restoreGuards", () => {
           await flushQueuedFrame(16);
           await flushQueuedFrame(32);
           fireEvent(stream, new Event(row.event, { bubbles: true }));
-          const fired = true;
-          expect(fired).toBe(true);
           let remaining = 0;
           while (queued.size > 0 && remaining < 10) {
             await flushQueuedFrame((remaining + 3) * 16);
